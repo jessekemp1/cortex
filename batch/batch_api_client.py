@@ -98,8 +98,8 @@ class BatchAPIClient:
         logger.info(f"Submitting batch with {len(requests)} requests")
 
         try:
-            # Convert requests to JSONL format (required by Batch API)
-            jsonl_lines = []
+            # Convert requests to format expected by Batch API
+            batch_requests = []
             for req in requests:
                 batch_request = {
                     "custom_id": req.custom_id,
@@ -109,14 +109,11 @@ class BatchAPIClient:
                         **req.params  # Merge user params (messages, system, etc.)
                     }
                 }
-                jsonl_lines.append(json.dumps(batch_request))
-
-            jsonl_content = "\n".join(jsonl_lines)
+                batch_requests.append(batch_request)
 
             # Submit to API
             batch = self.client.beta.messages.batches.create(
-                requests=jsonl_content,
-                betas=["interleaving-2025-07-15"]
+                requests=batch_requests
             )
 
             batch_id = batch.id
