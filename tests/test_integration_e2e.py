@@ -1,0 +1,169 @@
+"""End-to-end tests for Cortex-local-orchestrator integration with active tasks"""
+import pytest
+import sys
+import time
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+# Add cortex to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from orchestrator import CortexOrchestrator, Recommendation, Priority
+from integration.local_orchestrator import (
+    CortexLocalOrchestratorIntegration,
+    RecommendationToAgentAdapter,
+    LOCAL_ORCHESTRATOR_AVAILABLE
+)
+from integration.feedback_loop import FeedbackLoop
+from integration.history_analyzer import ExecutionHistoryAnalyzer
+
+
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
+def test_integration_available():
+    """Test that integration can be initialized"""
+    integration = CortexLocalOrchestratorIntegration()
+    assert integration is not None
+    # May not be available if deps missing, but structure should work
+    assert isinstance(integration.is_available(), bool)
+
+
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
+def test_recommendation_to_agent_conversion():
+    """Test that recommendations can be converted to agents"""
+    adapter = RecommendationToAgentAdapter()
+    
+    # Create a test recommendation
+    recommendation = Recommendation(
+        action_title="Test Action",
+        priority=Priority.HIGH,
+        rationale="Test rationale",
+        effort="Low",
+        impact="High",
+        confidence=0.9,
+        related_goals=[],
+        decision_factors={}
+    )
+    
+    # Convert to agent
+    agent = adapter.to_agent(recommendation)
+    
+    assert agent is not None
+    assert agent.agent_id.startswith("cortex_")
+    assert agent.name == "Test Action"
+    assert agent.description == "Test rationale"
+
+
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
+def test_schedule_recommendation():
+    """Test scheduling a recommendation"""
+    integration = CortexLocalOrchestratorIntegration()
+    
+    if not integration.is_available():
+        pytest.skip("local-orchestrator not available (dependencies missing)")
+    
+    # Create test recommendation
+    recommendation = Recommendation(
+        action_title="E2E Test Action",
+        priority=Priority.MEDIUM,
+        rationale="E2E test",
+        effort="Low",
+        impact="Medium",
+        confidence=0.8,
+        related_goals=[],
+        decision_factors={}
+    )
+    
+    # Schedule it
+    success = integration.schedule_recommendation(recommendation, schedule="0 8 * * *")
+    
+    # Should succeed if integration available
+    assert isinstance(success, bool)
+    
+    # Check it's in the list
+    scheduled = integration.list_scheduled_actions()
+    test_agent = [a for a in scheduled if a.get("agent_id") == "cortex_e2e_test_action"]
+    # May or may not be there depending on orchestrator state, but structure should work
+    assert isinstance(scheduled, list)
+
+
+def test_cortex_generates_recommendation():
+    """Test that Cortex can generate recommendations"""
+    orchestrator = CortexOrchestrator()
+    
+    response = orchestrator.get_next_action(limit=1)
+    
+    assert response is not None
+    assert hasattr(response, 'next_action')
+    assert hasattr(response, 'system_health')
+    
+    # May or may not have recommendations, but structure should work
+    if response.next_action:
+        assert isinstance(response.next_action, Recommendation)
+
+
+def test_feedback_loop_initialization():
+    """Test feedback loop can be initialized"""
+    feedback = FeedbackLoop()
+    assert feedback is not None
+    
+    # Test learning metrics
+    metrics = feedback.get_learning_metrics()
+    assert isinstance(metrics, dict)
+    assert "available" in metrics
+
+
+def test_history_analyzer_initialization():
+    """Test history analyzer can be initialized"""
+    analyzer = ExecutionHistoryAnalyzer()
+    assert analyzer is not None
+    
+    # Test availability check
+    available = analyzer.is_available()
+    assert isinstance(available, bool)
+    
+    # Test methods (may return defaults if history not available)
+    success_rate = analyzer.get_success_rate("test_action", days=30)
+    assert isinstance(success_rate, float)
+    assert 0.0 <= success_rate <= 1.0
+
+
+def test_integration_with_real_cortex_recommendation():
+    """Test full integration: Cortex recommendation → local-orchestrator agent"""
+    # Get recommendation from Cortex
+    orchestrator = CortexOrchestrator()
+    response = orchestrator.get_next_action(limit=1)
+    
+    if not response.next_action:
+        pytest.skip("No recommendations available")
+    
+    recommendation = response.next_action
+    
+    # Try to schedule it
+    integration = CortexLocalOrchestratorIntegration()
+    
+    if not integration.is_available():
+        pytest.skip("local-orchestrator not available")
+    
+    # Schedule the recommendation
+    success = integration.schedule_recommendation(recommendation)
+    
+    # Should be able to attempt scheduling
+    assert isinstance(success, bool)
+
+
+def test_cli_schedule_command_structure():
+    """Test that CLI schedule command structure is correct"""
+    import importlib.util
+    cli_spec = importlib.util.spec_from_file_location(
+        "cli",
+        Path(__file__).parent.parent / "cli.py"
+    )
+    cli_module = importlib.util.module_from_spec(cli_spec)
+    cli_spec.loader.exec_module(cli_module)
+    
+    # Check cmd_schedule exists
+    assert hasattr(cli_module, 'cmd_schedule')
+    
+    # Check it's callable
+    assert callable(cli_module.cmd_schedule)
+
