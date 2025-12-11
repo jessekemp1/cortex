@@ -4,6 +4,13 @@ Context Intelligence - Predicts relevant context for Cortex
 
 Integrates with personal-ai-dataset to provide relevant context predictions.
 """
+import sys
+from pathlib import Path
+
+# Add project root to path
+ROOT_DIR = Path(__file__).parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import subprocess
 from dataclasses import dataclass, field
@@ -86,6 +93,10 @@ class ContextIntelligence:
         # 3. Find recent activity context
         recent_results = self._find_recent_context(current_project)
         predictions.extend(recent_results)
+
+        # 4. Find CursorRules Context (Explicit or Implicit)
+        if (keywords and "cursorrules" in keywords) or (current_task and "rules" in current_task.lower()):
+            predictions.extend(self._find_cursorrules_context(current_project))
 
         # Sort by relevance and deduplicate
         predictions.sort(key=lambda p: p.confidence, reverse=True)
@@ -270,6 +281,55 @@ class ContextIntelligence:
         except Exception:
             pass
 
+        return predictions
+
+    def _find_cursorrules_context(self, project_name: Optional[str]) -> List[ContextPrediction]:
+        """Find CursorRules specific context."""
+        predictions = []
+        if not project_name:
+            return predictions
+
+        project_path = self._find_project_path(project_name)
+        if not project_path:
+            return predictions
+
+        try:
+            # Lazy import to avoid circular dependencies
+            from cortex.ai_intelligence import ProjectScanner
+            scanner = ProjectScanner(self.root_dir)
+            
+            # Use the new scoring method
+            score, missing = scanner._score_cursorrules(project_path)
+            
+            predictions.append(ContextPrediction(
+                title=f"CursorRules Status: {project_name} (Score: {score:.0f})",
+                context_type="cursorrules",
+                confidence=1.0,
+                description=f"Score: {score}/100. Missing patterns: {', '.join(missing) if missing else 'None'}.",
+                rationale="Current CursorRules configuration state",
+                command="cortex scan (internal)",
+                file_path=str(project_path / ".cursorrules"),
+                keywords=["cursorrules", "rules", "ai context"]
+            ))
+            
+            # If missing patterns, suggest them
+            if missing:
+                for pattern in missing:
+                    predictions.append(ContextPrediction(
+                        title=f"Missing Rule: {pattern}",
+                        context_type="cursorrules_gap",
+                        confidence=0.9,
+                        description=f"Project needs {pattern} rules but they are missing.",
+                        rationale=f"Detected {pattern} usage but no corresponding .mdc rule found.",
+                        command=f"trigger cursorrules_enhancer",
+                        keywords=["missing", pattern]
+                    ))
+                    
+        except ImportError:
+            pass
+        except Exception:
+            pass
+            
         return predictions
 
     def _find_project_path(self, project: str) -> Optional[Path]:

@@ -281,14 +281,31 @@ class CortexLocalOrchestratorIntegration:
             }
 
         try:
-            # Create a temporary agent for this execution
-            agent = self.adapter.to_agent(recommendation)
+        try:
+            # Special handling for CursorRules
+            if getattr(recommendation, 'type', '') == 'cursorrules_improvement':
+                # Trigger the dedicated agent
+                project_name = getattr(recommendation, 'related_projects', [])[0] if getattr(recommendation, 'related_projects', []) else None
+                # Scan for project path using ai_intelligence (lazy import)
+                from cortex.ai_intelligence import ProjectScanner
+                scanner = ProjectScanner(self.root_dir)
+                project_path = str(self.root_dir / project_name) if project_name else ""
+                
+                # Verify path existence using scanner logic if needed, but simple path join is likely enough for now
+                
+                result = self.orchestrator.trigger_agent(
+                    agent_id="cursorrules_enhancer",
+                    context={"project_path": project_path, "project_name": project_name}
+                )
+            else:
+                # Create a temporary agent for this execution
+                agent = self.adapter.to_agent(recommendation)
+                
+                # Register agent temporarily (without scheduling)
+                self.orchestrator.register_agent(agent)
 
-            # Register agent temporarily (without scheduling)
-            self.orchestrator.register_agent(agent)
-
-            # Execute immediately
-            result = self.orchestrator.trigger_agent(agent.agent_id, context={})
+                # Execute immediately
+                result = self.orchestrator.trigger_agent(agent.agent_id, context={})
 
             # Convert result to dict
             execution_result = {

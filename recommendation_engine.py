@@ -84,6 +84,13 @@ class RecommendationEngine:
         if project_activity:
             recommendations.extend(self._generate_momentum_recommendations(project_activity))
 
+        # 5. External recommendations (injected by Antigravity/Agents)
+        recommendations.extend(self._generate_external_recommendations())
+
+        # 6. CursorRules recommendations
+        if project_activity:
+            recommendations.extend(self._generate_cursorrules_recommendations(project_activity))
+
         # Apply learning-based confidence adjustments
         if self.learning_system:
             recommendations = self._apply_learning_adjustments(recommendations)
@@ -326,6 +333,89 @@ class RecommendationEngine:
 
         return recommendations
 
+    def _generate_external_recommendations(self) -> List[Recommendation]:
+        """Generate recommendations from external source (e.g. Antigravity)."""
+        recommendations = []
+        external_file = self.root_dir / "external_recommendations.json"
+        
+        if not external_file.exists():
+            return recommendations
+
+        try:
+            import json
+            content = external_file.read_text()
+            if not content.strip():
+                return recommendations
+                
+            data = json.loads(content)
+            for item in data:
+                # Validate required fields
+                if not all(k in item for k in ['title', 'type', 'priority']):
+                    continue
+                    
+                recommendations.append(Recommendation(
+                    id=item.get('id', f"ext_{hash(item['title'])}"),
+                    title=item['title'],
+                    type=item['type'],
+                    priority=item['priority'],
+                    estimated_impact=item.get('estimated_impact', 'medium'),
+                    confidence=item.get('confidence', 0.9),
+                    rationale=item.get('rationale', 'External recommendation'),
+                    related_projects=item.get('related_projects', []),
+                    related_goals=item.get('related_goals', []),
+                    description=item.get('description', ''),
+                    estimated_effort=item.get('estimated_effort', '')
+                ))
+        except Exception:
+            # Silently fail on read errors to avoid disrupting main flow
+            pass
+            
+        return recommendations
+
+    def _generate_cursorrules_recommendations(
+        self,
+        project_activity: List[Any]
+    ) -> List[Recommendation]:
+        """Generate recommendations for improving CursorRules."""
+        recommendations = []
+
+        for project in project_activity:
+            # Only recommend for active or recent projects
+            if getattr(project, 'status', 'dormant') == 'dormant':
+                continue
+                
+            score = getattr(project, 'cursorrules_score', 0.0)
+            
+            # If score is perfect, no recommendation needed
+            if score >= 100.0:
+                continue
+
+            # Prioritize based on activity and how low the score is
+            priority = "low"
+            if getattr(project, 'status', '') == 'active':
+                priority = "high" if score < 50 else "medium"
+            else:
+                priority = "medium" if score < 50 else "low"
+
+            rec_id = f"cursorrules_{project.name}"
+            title = f"Enhance CursorRules for {project.name}"
+            rationale = f"CursorRules score is {score:.0f}/100. Improving this helps AI agents write better code."
+            
+                recommendations.append(Recommendation(
+                    id=rec_id,
+                    title=title,
+                    type="cursorrules_improvement",
+                    priority=priority,
+                    estimated_impact="high", # AI improvements have high leverage
+                    confidence=0.9,
+                    rationale=rationale,
+                    related_projects=[project.name],
+                    description=description,
+                    estimated_effort="5-10min"
+                ))
+
+        return recommendations
+
     def _get_blocker_actions(self, blocker: str) -> List[str]:
         """Get specific actions based on blocker type."""
         blocker_lower = blocker.lower()
@@ -420,6 +510,10 @@ class RecommendationEngine:
             'blocker_resolution': 2.0,
             'goal_progress': 1.5,
             'project_health': 1.0,
+            'blocker_resolution': 2.0,
+            'goal_progress': 1.5,
+            'project_health': 1.0,
+            'cursorrules_improvement': 1.2,
             'momentum': 0.8
         }
         type_score = type_weights.get(rec.type, 1.0)

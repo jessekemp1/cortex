@@ -27,6 +27,8 @@ class ProjectActivity:
     current_branch: str = ""
     last_commit_date: Optional[datetime] = None
     last_commit_msg: str = ""
+    cursorrules_score: float = 0.0
+    cursorrules_missing_patterns: List[str] = field(default_factory=list)
 
 
 class ProjectScanner:
@@ -107,6 +109,9 @@ class ProjectScanner:
         # Detect blockers
         blockers = self._detect_blockers(repo_path, uncommitted_changes)
 
+        # Score CursorRules (0-100) and find gaps
+        cursorrules_score, missing_patterns = self._score_cursorrules(repo_path)
+        
         return ProjectActivity(
             name=name,
             path=repo_path,
@@ -118,7 +123,9 @@ class ProjectScanner:
             blockers=blockers,
             current_branch=current_branch,
             last_commit_date=last_commit_date,
-            last_commit_msg=last_commit_msg
+            last_commit_msg=last_commit_msg,
+            cursorrules_score=cursorrules_score,
+            cursorrules_missing_patterns=missing_patterns
         )
 
     def _run_git_command(self, repo_path: Path, args: List[str]) -> str:
@@ -222,6 +229,118 @@ class ProjectScanner:
             blockers.append("Detached HEAD state")
 
         return blockers
+
+    def _score_cursorrules(self, project_path: Path) -> Tuple[float, List[str]]:
+        """
+        Score CursorRules coverage 0-100 and detect missing patterns.
+        
+        Returns:
+            (score, missing_patterns)
+        """
+        score = 0.0
+        missing_patterns = []
+        
+        # 1. Existence Check (Base 50 points)
+        # Check .cursorrules file (20 points)
+        if (project_path / ".cursorrules").exists():
+            score += 20
+        
+        # Check .cursor/rules/ directory (30 points)
+        rules_dir = project_path / ".cursor" / "rules"
+        if rules_dir.exists():
+            score += 30
+        
+        # 2. Technology Coverage (50 points)
+        # Detect tech stack
+        tech_stack = self._detect_tech_stack(project_path)
+        required_patterns = self._get_required_patterns(tech_stack)
+        
+        if not required_patterns:
+            # If no specific tech detected, give full points for existence validation
+            score += 50
+        else:
+            # Score based on coverage of REQUIRED patterns
+            points_per_pattern = 50.0 / len(required_patterns)
+            
+            for pattern_name, pattern_file in required_patterns.items():
+                # Check if any file in rules dir matches the pattern file name
+                found = False
+                
+                # Check specific rule file
+                if rules_dir.exists() and any(rules_dir.rglob(pattern_file)):
+                    found = True
+                
+                # Fallback: Check for content in .cursorrules (simple keyword check)
+                if not found and (project_path / ".cursorrules").exists():
+                    content = (project_path / ".cursorrules").read_text().lower()
+                    if pattern_name in content: # heuristic
+                        found = True
+                        
+                if found:
+                    score += points_per_pattern
+                else:
+                    missing_patterns.append(pattern_name)
+                    
+        return min(score, 100.0), missing_patterns
+
+    def _detect_tech_stack(self, project_path: Path) -> Dict[str, bool]:
+        """Detect technology stack from requirements.txt, package.json, etc."""
+        tech_stack = {
+            "fastapi": False,
+            "pytest": False,
+            "sqlalchemy": False,
+            "streamlit": False,
+            "react_native": False,
+            "django": False,
+            "nextjs": False
+        }
+        
+        # Check requirements.txt / pyproject.toml
+        req_file = project_path / "requirements.txt"
+        pyproject = project_path / "pyproject.toml"
+        
+        content = ""
+        if req_file.exists():
+            content += req_file.read_text().lower()
+        if pyproject.exists():
+            content += pyproject.read_text().lower()
+            
+        if content:
+            tech_stack["fastapi"] = "fastapi" in content
+            tech_stack["pytest"] = "pytest" in content
+            tech_stack["sqlalchemy"] = "sqlalchemy" in content
+            tech_stack["streamlit"] = "streamlit" in content
+            tech_stack["django"] = "django" in content
+        
+        # Check package.json
+        pkg_file = project_path / "package.json"
+        if pkg_file.exists():
+            try:
+                pkg = json.loads(pkg_file.read_text())
+                deps_dict = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+                # Check keys for package names
+                deps_keys = " ".join(deps_dict.keys()).lower()
+                
+                tech_stack["react_native"] = "react-native" in deps_keys or "expo" in deps_keys
+                tech_stack["nextjs"] = "next" in deps_keys
+            except Exception:
+                pass
+        
+        return tech_stack
+
+    def _get_required_patterns(self, tech_stack: Dict[str, bool]) -> Dict[str, str]:
+        """Map tech stack to required CursorRules patterns."""
+        mapping = {
+            "fastapi": "python-fastapi.mdc",
+            "pytest": "pytest-testing.mdc",
+            "sqlalchemy": "sqlalchemy-database.mdc",
+            "streamlit": "streamlit-ui.mdc",
+            "react_native": "react-native-expo.mdc",
+            "django": "python-django.mdc",
+            "nextjs": "nextjs-react.mdc"
+        }
+        
+        return {k: v for k, v in mapping.items() if tech_stack.get(k, False)}
 
 
 def main():
