@@ -12,14 +12,11 @@ from unittest.mock import Mock, MagicMock, patch
 from datetime import datetime
 
 # Import modules to test
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from learning_batcher import (
+from cortex.batch.learning_batcher import (
     LearningBatcher,
     LearningContext,
 )
-from batch_config import BatchConfig
+from cortex.batch.batch_config import BatchConfig
 
 
 class TestLearningContext:
@@ -151,7 +148,7 @@ ADJUSTMENT_SUGGESTIONS:
         assert len(parsed["adjustment_suggestions"]) == 2
         assert "Increase confidence for type X" in parsed["adjustment_suggestions"]
 
-    @patch("learning_batcher.BatchAPIClient")
+    @patch("cortex.batch.learning_batcher.BatchAPIClient")
     def test_process_learning_result(self, mock_client):
         """Test processing learning API result"""
         batcher = LearningBatcher()
@@ -336,7 +333,7 @@ Reasoning: Limited data
         assert parsed["confidence_assessment"] == ""
         assert len(parsed["adjustment_suggestions"]) == 0
 
-    @patch("learning_batcher.BatchAPIClient")
+    @patch("cortex.batch.learning_batcher.BatchAPIClient")
     def test_batch_error_handling(self, mock_client):
         """Test handling of batch processing errors"""
         batcher = LearningBatcher()
@@ -356,7 +353,7 @@ Reasoning: Limited data
 
         assert "API Error" in str(exc_info.value)
 
-    @patch("learning_batcher.BatchAPIClient")
+    @patch("cortex.batch.learning_batcher.BatchAPIClient")
     def test_result_processing_error(self, mock_client):
         """Test handling of individual result processing errors"""
         batcher = LearningBatcher()

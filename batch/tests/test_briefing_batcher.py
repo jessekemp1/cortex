@@ -12,15 +12,12 @@ from unittest.mock import Mock, MagicMock, patch
 from datetime import datetime
 
 # Import modules to test
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from briefing_batcher import (
+from cortex.batch.briefing_batcher import (
     RecommendationBatcher,
     InsightBatcher,
     BriefingContext,
 )
-from batch_config import BatchConfig
+from cortex.batch.batch_config import BatchConfig
 
 
 class TestBriefingContext:
@@ -128,7 +125,7 @@ ALTERNATIVE_APPROACHES:
         assert parsed["recommended_focus"] == "Feature delivery"
         assert len(parsed["alternative_approaches"]) == 2
 
-    @patch("briefing_batcher.BatchAPIClient")
+    @patch("cortex.batch.briefing_batcher.BatchAPIClient")
     def test_process_recommendation_result(self, mock_client):
         """Test processing recommendation API result"""
         batcher = RecommendationBatcher()
@@ -233,7 +230,7 @@ ADJUSTMENT_SUGGESTIONS:
         assert "85%" in parsed["confidence_assessment"]
         assert len(parsed["adjustment_suggestions"]) == 2
 
-    @patch("briefing_batcher.BatchAPIClient")
+    @patch("cortex.batch.briefing_batcher.BatchAPIClient")
     def test_process_insight_result(self, mock_client):
         """Test processing insight API result"""
         batcher = InsightBatcher()
