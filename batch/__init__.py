@@ -7,7 +7,7 @@ All features are optional and default to disabled for safety.
 Batch Processors:
 - Research queue batching: Process multiple research requests in one batch (Phase 1)
 - Morning briefing batching: Batch recommendation + insight generation (Phase 2)
-- Learning system batching: Batch insights generation (Phase 3)
+- Learning system batching: Batch insights generation with file caching (Phase 3)
 """
 
 from .batch_api_client import (
@@ -28,6 +28,10 @@ from .briefing_batcher import (
     InsightBatcher,
     BriefingContext,
 )
+from .learning_batcher import (
+    LearningBatcher,
+    LearningContext,
+)
 
 __all__ = [
     "BatchAPIClient",
@@ -43,4 +47,6 @@ __all__ = [
     "RecommendationBatcher",
     "InsightBatcher",
     "BriefingContext",
+    "LearningBatcher",
+    "LearningContext",
 ]
