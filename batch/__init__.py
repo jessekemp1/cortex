@@ -4,9 +4,9 @@ Cortex Batch API Integration
 Provides batch processing capabilities for research queue and other async operations.
 All features are optional and default to disabled for safety.
 
-Features:
-- Research queue batching: Process multiple research requests in one batch
-- Morning briefing batching: Batch recommendation generation (Phase 2)
+Batch Processors:
+- Research queue batching: Process multiple research requests in one batch (Phase 1)
+- Morning briefing batching: Batch recommendation + insight generation (Phase 2)
 - Learning system batching: Batch insights generation (Phase 3)
 """
 
@@ -23,6 +23,11 @@ from .batch_api_client import (
 from .batch_config import BatchConfig
 from .batch_fallback import BatchFallback
 from .research_batcher import ResearchBatcher
+from .briefing_batcher import (
+    RecommendationBatcher,
+    InsightBatcher,
+    BriefingContext,
+)
 
 __all__ = [
     "BatchAPIClient",
@@ -35,4 +40,7 @@ __all__ = [
     "BatchConfig",
     "BatchFallback",
     "ResearchBatcher",
+    "RecommendationBatcher",
+    "InsightBatcher",
+    "BriefingContext",
 ]
