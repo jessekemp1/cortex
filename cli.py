@@ -581,6 +581,29 @@ def cmd_learn(args):
         sys.exit(1)
 
 
+def cmd_batch_status(args):
+    """Display batch configuration"""
+    from cortex.batch import BatchConfig
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║         CORTEX - BATCH API CONFIGURATION             ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("")
+    print("Batch Processing Status:")
+    print("────────────────")
+    print(f"  Learning batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('learning') else '❌ Disabled'}")
+    print(f"  Research batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('research') else '❌ Disabled'}")
+    print(f"  Recommendations batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('recommendations') else '❌ Disabled'}")
+    print("")
+    print(f"Any batch enabled: {'✅ Yes' if BatchConfig.is_any_batch_enabled() else '❌ No'}")
+    print("")
+    print("Enable batch processing:")
+    print("  export CORTEX_BATCH_LEARNING_ENABLED=true")
+    print("  export CORTEX_BATCH_RESEARCH_ENABLED=true")
+    print("  export CORTEX_BATCH_RECOMMENDATIONS_ENABLED=true")
+    print("")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -771,6 +794,10 @@ Examples:
     # Learn command
     learn_parser = subparsers.add_parser("learn", help="Show learning metrics and patterns")
     learn_parser.set_defaults(func=cmd_learn)
+
+    # Batch status command
+    batch_status_parser = subparsers.add_parser("batch-status", help="Show batch API configuration")
+    batch_status_parser.set_defaults(func=cmd_batch_status)
 
     # Briefing command
     briefing_parser = subparsers.add_parser("briefing", help="Generate daily briefing")
