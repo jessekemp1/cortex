@@ -447,4 +447,3 @@ converx status    # See current state across all projects
 ---
 
 *"The best use case is the one that solves YOUR specific problem. Start with your pain points. Add features as they provide value. Mastery comes from consistent use, not perfect setup."*
-

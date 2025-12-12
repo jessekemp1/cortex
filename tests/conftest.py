@@ -1,13 +1,17 @@
-import pytest
-import tempfile
 import shutil
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, MagicMock
 import sqlite3
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock
 
-from cortex.intelligence import StrategicOptions, ContextBuilder, DecisionLogger, OutcomeTracker
+import pytest
 from cortex.email_delivery import EmailDelivery
+from cortex.intelligence import (
+    ContextBuilder,
+    DecisionLogger,
+    OutcomeTracker,
+    StrategicOptions,
+)
 
 
 @pytest.fixture
@@ -23,17 +27,17 @@ def mock_git_repo(temp_dir):
     """Create a mock git repository structure."""
     repo_path = temp_dir / "test_repo"
     repo_path.mkdir()
-    
+
     # Create git directory
     (repo_path / ".git").mkdir()
-    
+
     # Create some test files
     (repo_path / "src").mkdir()
     (repo_path / "src" / "main.py").write_text("def main(): pass")
     (repo_path / "tests").mkdir()
     (repo_path / "tests" / "test_main.py").write_text("def test_main(): pass")
     (repo_path / "README.md").write_text("# Test Project")
-    
+
     return repo_path
 
 
@@ -42,9 +46,10 @@ def test_db(temp_dir):
     """Create a test database."""
     db_path = temp_dir / "cortex_test.db"
     conn = sqlite3.connect(str(db_path))
-    
+
     # Create tables
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE decisions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT NOT NULL,
@@ -53,9 +58,11 @@ def test_db(temp_dir):
             selected_option INTEGER,
             reasoning TEXT
         )
-    """)
-    
-    conn.execute("""
+    """
+    )
+
+    conn.execute(
+        """
         CREATE TABLE outcomes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             decision_id INTEGER NOT NULL,
@@ -65,11 +72,12 @@ def test_db(temp_dir):
             lessons_learned TEXT,
             FOREIGN KEY (decision_id) REFERENCES decisions(id)
         )
-    """)
-    
+    """
+    )
+
     conn.commit()
     conn.close()
-    
+
     return db_path
 
 
@@ -102,8 +110,8 @@ def mock_gmail_service():
     """Create a mock Gmail API service."""
     service = MagicMock()
     service.users().messages().send().execute.return_value = {
-        'id': 'test_message_id',
-        'labelIds': ['SENT']
+        "id": "test_message_id",
+        "labelIds": ["SENT"],
     }
     return service
 
@@ -113,7 +121,7 @@ def email_delivery(mock_gmail_service, temp_dir):
     """Create an EmailDelivery instance with mocked Gmail."""
     delivery = EmailDelivery(
         credentials_path=str(temp_dir / "credentials.json"),
-        token_path=str(temp_dir / "token.pickle")
+        token_path=str(temp_dir / "token.pickle"),
     )
     delivery.service = mock_gmail_service
     return delivery
@@ -123,26 +131,21 @@ def email_delivery(mock_gmail_service, temp_dir):
 def sample_context():
     """Sample context data for testing."""
     return {
-        'git_status': {
-            'branch': 'feature/cortex-tests',
-            'uncommitted_changes': True,
-            'files_changed': ['intelligence.py', 'cli.py']
+        "git_status": {
+            "branch": "feature/cortex-tests",
+            "uncommitted_changes": True,
+            "files_changed": ["intelligence.py", "cli.py"],
         },
-        'recent_errors': [
+        "recent_errors": [
             {
-                'file': 'intelligence.py',
-                'line': 42,
-                'error': 'TypeError: expected str, got None'
+                "file": "intelligence.py",
+                "line": 42,
+                "error": "TypeError: expected str, got None",
             }
         ],
-        'test_results': {
-            'total': 10,
-            'passed': 8,
-            'failed': 2,
-            'coverage': 65.5
-        },
-        'time_of_day': 'morning',
-        'recent_decisions': []
+        "test_results": {"total": 10, "passed": 8, "failed": 2, "coverage": 65.5},
+        "time_of_day": "morning",
+        "recent_decisions": [],
     }
 
 
@@ -151,27 +154,27 @@ def sample_options():
     """Sample strategic options for testing."""
     return [
         {
-            'title': 'Fix Critical Error in intelligence.py',
-            'description': 'Address TypeError in line 42 affecting core functionality',
-            'priority': 'high',
-            'estimated_time': '30 minutes',
-            'dependencies': [],
-            'reasoning': 'Blocking 2 failing tests'
+            "title": "Fix Critical Error in intelligence.py",
+            "description": "Address TypeError in line 42 affecting core functionality",
+            "priority": "high",
+            "estimated_time": "30 minutes",
+            "dependencies": [],
+            "reasoning": "Blocking 2 failing tests",
         },
         {
-            'title': 'Increase Test Coverage',
-            'description': 'Add tests for uncovered code paths in cli.py',
-            'priority': 'medium',
-            'estimated_time': '1 hour',
-            'dependencies': [],
-            'reasoning': 'Coverage below target (65.5%)'
+            "title": "Increase Test Coverage",
+            "description": "Add tests for uncovered code paths in cli.py",
+            "priority": "medium",
+            "estimated_time": "1 hour",
+            "dependencies": [],
+            "reasoning": "Coverage below target (65.5%)",
         },
         {
-            'title': 'Commit Current Progress',
-            'description': 'Commit working changes before proceeding',
-            'priority': 'medium',
-            'estimated_time': '5 minutes',
-            'dependencies': [],
-            'reasoning': 'Uncommitted changes on feature branch'
-        }
+            "title": "Commit Current Progress",
+            "description": "Commit working changes before proceeding",
+            "priority": "medium",
+            "estimated_time": "5 minutes",
+            "dependencies": [],
+            "reasoning": "Uncommitted changes on feature branch",
+        },
     ]

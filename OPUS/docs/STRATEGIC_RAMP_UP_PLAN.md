@@ -638,4 +638,3 @@ This plan leads you through an optimized path to build and bring Converx to maxi
 - [DESIGN_SPEC.md](DESIGN_SPEC.md) - Technical foundation
 - [OPUS_DESIGN.md](OPUS_DESIGN.md) - Full architecture
 - [README.md](README.md) - Current capabilities
-

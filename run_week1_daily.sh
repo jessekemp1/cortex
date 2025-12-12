@@ -7,4 +7,3 @@ python3 "cortex/week1_automation.py" --daily
 echo ""
 echo "💡 Run with --report to see progress"
 echo "💡 Run with --auto-detect to find value/friction points"
-

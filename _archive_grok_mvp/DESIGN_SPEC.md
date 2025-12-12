@@ -143,7 +143,7 @@ Blockers: 1 (VortexV2: Missing sensor preprocessing)
 ────────────────
 [HIGH PRIORITY] Complete Block 1.2: Sensor Data Preprocessing
 
-Why: Priority A goal from ACTION_PLAN.md. Blocks VortexV2 MVP 
+Why: Priority A goal from ACTION_PLAN.md. Blocks VortexV2 MVP
 completion (currently 60% complete). High commercial value (⭐⭐⭐⭐⭐).
 
 Effort: 4-6 hours
@@ -250,7 +250,7 @@ converx simulate "Complete VortexV2 Block 1.2"
 **Example**:
 ```bash
 converx forecast "VortexV2 MVP Completion"
-# Output: 
+# Output:
 # Optimistic: 2 weeks (90% confidence)
 # Likely: 3-4 weeks (70% confidence)
 # Conservative: 6-8 weeks (50% confidence)
@@ -288,7 +288,7 @@ converx weather
 **Example**:
 ```bash
 converx route "VortexV2 MVP Completion"
-# Output: 
+# Output:
 # Route: 5 waypoints
 # Current: Waypoint 2/5 (Sensor Preprocessing)
 # Next: Waypoint 3/5 (ML Models Integration)
@@ -308,7 +308,7 @@ converx route "VortexV2 MVP Completion"
 **Example**:
 ```bash
 converx reflect
-# Output: 
+# Output:
 # Patterns detected:
 # - You're most productive 13:00-20:00
 # - Complex tasks work best after morning planning
@@ -433,7 +433,7 @@ converx next --web-search
 
 **Given**: User runs `converx next`  
 **When**: All tools available and working  
-**Then**: 
+**Then**:
 - Returns top priority recommendation
 - Includes rationale and next steps
 - Takes <5 seconds
@@ -911,7 +911,7 @@ def calculate_weather(project_activity: List, goals: List, blockers: List) -> We
     - Active project count (>3 active adds 0.1 per extra)
     - Goal deadline proximity (within 7 days adds 0.3)
     - Recent commit velocity (high = more pressure)
-    
+
     Pressure Score:
     - 0.0-0.25: CALM
     - 0.25-0.5: MODERATE
@@ -926,22 +926,22 @@ def calculate_weather(project_activity: List, goals: List, blockers: List) -> We
 def calculate_scenarios(goal: Goal, current_state: Dict) -> ScenarioForecast:
     """
     Calculate scenario bands based on:
-    
+
     Optimistic:
     - Assumes: 25+ focused hours/week, no new blockers, high momentum
     - Days = base_estimate * 0.7
     - Confidence = 0.3 (30% chance)
-    
+
     Likely:
     - Assumes: 15-20 focused hours/week, 1-2 minor blockers
     - Days = base_estimate * 1.0
     - Confidence = 0.5 (50% chance)
-    
+
     Conservative:
     - Assumes: 10-15 focused hours/week, significant interruptions
     - Days = base_estimate * 1.5
     - Confidence = 0.2 (20% chance)
-    
+
     Base estimate derived from:
     - Historical velocity (commits/day)
     - Remaining waypoints
@@ -975,7 +975,7 @@ converx/
 
 #### Test Case P1.1: Weather Calculation - Calm State
 
-**Given**: 
+**Given**:
 - 0 blockers
 - 2 active projects
 - No deadlines within 7 days
@@ -1062,7 +1062,7 @@ def test_scenario_bands_all_present():
 
 #### Test Case P1.4: Scenario Tracking - Identifies Current Trajectory
 
-**Given**: 
+**Given**:
 - Goal with 3 scenario bands
 - Current velocity matches "likely" assumptions
 
@@ -1194,19 +1194,19 @@ class Waypoint:
     description: str
     estimated_hours: float
     status: WaypointStatus = WaypointStatus.PENDING
-    
+
     # Conditions
     entry_conditions: List[str] = field(default_factory=list)
     exit_conditions: List[str] = field(default_factory=list)
-    
+
     # Dependencies
     depends_on: List[str] = field(default_factory=list)  # Waypoint IDs
     blocks: List[str] = field(default_factory=list)       # Waypoint IDs
-    
+
     # Cross-domain impacts
     domain_impacts: Dict[str, str] = field(default_factory=dict)
     # e.g., {"health": "High focus may reduce sleep"}
-    
+
     # Tracking
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -1220,21 +1220,21 @@ class Route:
     domain: str
     waypoints: List[Waypoint]
     created_at: datetime
-    
+
     # Scenario bands
     optimistic_days: int
     likely_days: int
     conservative_days: int
-    
+
     # Progress
     @property
     def completed_count(self) -> int:
         return sum(1 for w in self.waypoints if w.status == WaypointStatus.COMPLETED)
-    
+
     @property
     def progress_percent(self) -> float:
         return (self.completed_count / len(self.waypoints)) * 100
-    
+
     @property
     def current_waypoint(self) -> Optional[Waypoint]:
         for w in self.waypoints:
@@ -1261,7 +1261,7 @@ class DomainState:
     weather: DomainWeather
     active_routes: List[Route]
     blockers: List[str]
-    
+
     # Cross-domain
     impacts_from: Dict[Domain, str] = field(default_factory=dict)
     impacts_to: Dict[Domain, str] = field(default_factory=dict)
@@ -1281,7 +1281,7 @@ class LifeWeatherMap:
 def create_route(goal: str, domain: Domain, context: Dict) -> Route:
     """
     Create a route from goal to completion.
-    
+
     Algorithm:
     1. Parse goal to identify scope
     2. Break into logical waypoints (3-7 typically)
@@ -1289,7 +1289,7 @@ def create_route(goal: str, domain: Domain, context: Dict) -> Route:
     4. Estimate hours per waypoint
     5. Calculate scenario bands
     6. Identify cross-domain impacts
-    
+
     Waypoint generation:
     - If goal references existing blocks (from ACTION_PLAN.md), use those
     - Otherwise, use AI to suggest logical breakdown
@@ -1299,13 +1299,13 @@ def create_route(goal: str, domain: Domain, context: Dict) -> Route:
 def calculate_route_scenarios(route: Route, velocity: float) -> Dict:
     """
     Calculate scenario bands for entire route.
-    
+
     Inputs:
     - Total remaining hours
     - Current velocity (hours completed per day)
     - Historical accuracy (actual vs estimated)
     - Current blockers
-    
+
     Outputs:
     - Optimistic/Likely/Conservative days
     - Conditions for each scenario
@@ -1318,13 +1318,13 @@ def calculate_route_scenarios(route: Route, velocity: float) -> Dict:
 def detect_cross_domain_impacts(action: str, domain: Domain) -> Dict[Domain, str]:
     """
     Detect how an action in one domain affects others.
-    
+
     Rules:
     - "60-hour week" in WORK_CODE -> HEALTH: "Risk of burnout, reduced sleep"
     - "Major expense" in FINANCE -> WORK_CODE: "May increase pressure"
     - "Skip exercise" in HEALTH -> WORK_CODE: "May reduce energy/focus"
     - "Deadline crunch" in WORK_CODE -> RELATIONSHIPS: "Less time available"
-    
+
     Returns dict of affected domains and impact descriptions.
     """
 ```
@@ -1472,7 +1472,7 @@ Finance:      Moderate       [====|      ] 45%
 
 Cross-Domain Alerts:
   - Work pressure may impact Health (sleep)
-  
+
 Recommended Focus: Work/Code (highest pressure, deadline in 5d)
 ```
 
@@ -1540,29 +1540,29 @@ class SearchResult:
 
 class Connector(ABC):
     """Base class for all data connectors."""
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """Connector name."""
         pass
-    
+
     @property
     @abstractmethod
     def domain(self) -> Domain:
         """Primary domain this connector serves."""
         pass
-    
+
     @abstractmethod
     def is_available(self) -> bool:
         """Check if connector is configured and available."""
         pass
-    
+
     @abstractmethod
     def fetch_recent(self, days: int = 7) -> List[DataPoint]:
         """Fetch recent data points."""
         pass
-    
+
     @abstractmethod
     def search(self, query: str, limit: int = 10) -> List[SearchResult]:
         """Search within this data source."""
@@ -1576,14 +1576,14 @@ class Connector(ABC):
 
 class GitHubConnector(Connector):
     """GitHub integration for Work/Code domain."""
-    
+
     name = "github"
     domain = Domain.WORK_CODE
-    
+
     def __init__(self, token: Optional[str] = None):
         self.token = token or os.getenv("GITHUB_TOKEN")
         self.client = Github(self.token) if self.token else None
-    
+
     def fetch_recent(self, days: int = 7) -> List[DataPoint]:
         """
         Fetch:
@@ -1592,7 +1592,7 @@ class GitHubConnector(Connector):
         - Review requests
         - Notifications
         """
-    
+
     def search(self, query: str, limit: int = 10) -> List[SearchResult]:
         """Search code, issues, PRs."""
 
@@ -1600,10 +1600,10 @@ class GitHubConnector(Connector):
 
 class GoogleFitConnector(Connector):
     """Google Fit integration for Health domain."""
-    
+
     name = "google_fit"
     domain = Domain.HEALTH
-    
+
     def fetch_recent(self, days: int = 7) -> List[DataPoint]:
         """
         Fetch from Pixel Watch / Google Fit:
@@ -1618,10 +1618,10 @@ class GoogleFitConnector(Connector):
 
 class PersonalAIConnector(Connector):
     """personal-ai-dataset integration."""
-    
+
     name = "personal_ai"
     domain = Domain.WORK_CODE  # Primary, but searches all
-    
+
     def search(self, query: str, limit: int = 10) -> List[SearchResult]:
         """
         Search 911 documents:
@@ -1634,10 +1634,10 @@ class PersonalAIConnector(Connector):
 
 class AlphaArenaConnector(Connector):
     """Alpha Arena integration for Finance domain."""
-    
+
     name = "alpha_arena"
     domain = Domain.FINANCE
-    
+
     def fetch_recent(self, days: int = 7) -> List[DataPoint]:
         """
         Fetch:
@@ -1655,17 +1655,17 @@ class AlphaArenaConnector(Connector):
 
 class KnowledgeAggregator:
     """Aggregates data from all connectors."""
-    
+
     def __init__(self):
         self.connectors: Dict[str, Connector] = {}
         self._register_available_connectors()
-    
+
     def search_all(self, query: str, domains: List[Domain] = None) -> List[SearchResult]:
         """Search across all relevant connectors."""
-    
+
     def get_domain_data(self, domain: Domain, days: int = 7) -> List[DataPoint]:
         """Get all recent data for a domain."""
-    
+
     def get_cross_domain_summary(self) -> Dict[Domain, Dict]:
         """Summary of all domains for weather map."""
 ```
@@ -1722,7 +1722,7 @@ def test_missing_connector_graceful():
     aggregator = KnowledgeAggregator()
     # Simulate missing Google Fit
     del aggregator.connectors["google_fit"]
-    
+
     result = aggregator.get_domain_data(Domain.HEALTH)
     assert result is not None  # Empty but not error
 ```
@@ -1745,7 +1745,7 @@ def test_missing_connector_graceful():
 def test_github_fetch_recent():
     connector = GitHubConnector(token=TEST_TOKEN)
     data = connector.fetch_recent(days=7)
-    
+
     assert len(data) > 0
     assert all(d.source == "github" for d in data)
     assert all(d.domain == Domain.WORK_CODE for d in data)
@@ -1770,7 +1770,7 @@ def test_github_fetch_recent():
 def test_cross_source_search():
     aggregator = KnowledgeAggregator()
     results = aggregator.search_all("VortexV2 forecasting")
-    
+
     sources = set(r.source for r in results)
     assert len(sources) > 1  # Multiple sources
     assert results[0].relevance >= results[-1].relevance  # Sorted
@@ -1794,9 +1794,9 @@ def test_cross_source_search():
 def test_health_weather_from_real_data():
     connector = GoogleFitConnector()
     data = connector.fetch_recent(days=7)
-    
+
     weather = calculate_health_weather(data)
-    
+
     # If sleep avg < 6h, should show pressure
     avg_sleep = get_avg_sleep(data)
     if avg_sleep < 6:
@@ -1878,17 +1878,17 @@ class Playbook:
     name: str
     description: str
     domain: Domain
-    
+
     steps: List[PlaybookStep]
-    
+
     # Inputs/outputs
     required_inputs: List[str]
     outputs: List[str]
-    
+
     # Safety
     side_effects: List[str]
     default_approval: ApprovalLevel
-    
+
     # Scheduling
     can_schedule: bool = False
     recommended_frequency: Optional[str] = None  # "daily", "weekly"
@@ -1901,10 +1901,10 @@ class PlaybookExecution:
     started_at: datetime
     completed_at: Optional[datetime]
     status: PlaybookStatus
-    
+
     inputs: Dict[str, Any]
     outputs: Dict[str, Any]
-    
+
     step_results: List[Dict]
     error: Optional[str] = None
 
@@ -1916,24 +1916,24 @@ class Policy:
     domain: Domain
     action_pattern: str            # Regex for action matching
     approval_level: ApprovalLevel
-    
+
     # Limits
     max_daily_executions: int = 10
     max_cost_usd: float = 0.0      # For API calls
-    
+
     # Time windows
     allowed_hours: List[int] = field(default_factory=lambda: list(range(24)))
     blocked_days: List[int] = field(default_factory=list)  # 0=Mon, 6=Sun
 
 class PolicyEngine:
     """Evaluates whether an action can proceed."""
-    
+
     def __init__(self, policies: List[Policy]):
         self.policies = policies
-    
+
     def can_execute(self, action: str, domain: Domain) -> Tuple[bool, str]:
         """Check if action can execute. Returns (allowed, reason)."""
-    
+
     def get_approval_level(self, action: str, domain: Domain) -> ApprovalLevel:
         """Get required approval level for action."""
 ```
@@ -2021,11 +2021,11 @@ WEEKLY_HEALTH_REVIEW = Playbook(
 
 class PlaybookExecutor:
     """Executes playbooks with policy enforcement."""
-    
+
     def __init__(self, policy_engine: PolicyEngine):
         self.policy_engine = policy_engine
         self.executions: Dict[str, PlaybookExecution] = {}
-    
+
     async def execute(
         self,
         playbook: Playbook,
@@ -2034,7 +2034,7 @@ class PlaybookExecutor:
     ) -> PlaybookExecution:
         """
         Execute a playbook.
-        
+
         1. Validate inputs
         2. Check policy for each step
         3. Request approval if needed
@@ -2042,10 +2042,10 @@ class PlaybookExecutor:
         5. Handle errors and rollbacks
         6. Record execution
         """
-    
+
     def _execute_step(self, step: PlaybookStep, context: Dict) -> Dict:
         """Execute a single step."""
-        
+
         if step.action.startswith("shell:"):
             return self._execute_shell(step.action[6:], context)
         elif step.action.startswith("ai:"):
@@ -2091,7 +2091,7 @@ async def test_playbook_execution_happy_path():
         playbook=ANALYZE_REPO,
         inputs={"repo_path": "/path/to/repo"}
     )
-    
+
     assert result.status == PlaybookStatus.COMPLETED
     assert "test_results" in result.outputs
     assert "coverage_percent" in result.outputs
@@ -2119,18 +2119,18 @@ async def test_policy_requires_approval():
         approval_level=ApprovalLevel.CONFIRM
     )
     executor = PlaybookExecutor(PolicyEngine([policy]))
-    
+
     approvals_requested = []
     async def approval_callback(step):
         approvals_requested.append(step)
         return True
-    
+
     result = await executor.execute(
         playbook=ANALYZE_REPO,
         inputs={"repo_path": "/path/to/repo"},
         approval_callback=approval_callback
     )
-    
+
     assert len(approvals_requested) > 0
 ```
 
@@ -2153,13 +2153,13 @@ async def test_policy_requires_approval():
 async def test_execution_rollback():
     playbook = make_playbook_with_rollback()
     executor = PlaybookExecutor(PolicyEngine([]))
-    
+
     # Inject failure
     result = await executor.execute(
         playbook=playbook,
         inputs={"should_fail": True}
     )
-    
+
     assert result.status == PlaybookStatus.FAILED
     assert result.error is not None
     assert result.step_results[-1]["rollback_executed"] == True
@@ -2187,13 +2187,13 @@ async def test_daily_execution_limit():
         max_daily_executions=3
     )
     engine = PolicyEngine([policy])
-    
+
     # Execute 3 times
     for _ in range(3):
         allowed, _ = engine.can_execute("test", Domain.WORK_CODE)
         assert allowed
         engine.record_execution("test", Domain.WORK_CODE)
-    
+
     # 4th should fail
     allowed, reason = engine.can_execute("test", Domain.WORK_CODE)
     assert not allowed
@@ -2219,7 +2219,7 @@ async def test_daily_execution_limit():
 def test_dry_run_mode():
     executor = PlaybookExecutor(PolicyEngine([]))
     preview = executor.preview(playbook=ANALYZE_REPO, inputs={"repo_path": "/test"})
-    
+
     assert preview["would_execute"] == True
     assert len(preview["steps"]) == 3
     assert preview["approvals_required"] == 0
@@ -2249,28 +2249,28 @@ from datetime import datetime
 class TwinState:
     """Complete state of the virtual twin."""
     timestamp: datetime
-    
+
     # Work domain
     focus_hours_per_week: float          # 0-60
     active_projects: int
     blockers: int
     momentum: float                       # 0.0 (stalled) to 1.0 (high velocity)
-    
+
     # Health domain
     energy_level: float                   # 0.0 to 1.0
     sleep_quality: float                  # 0.0 to 1.0
     burnout_risk: float                   # 0.0 to 1.0
     stress_level: float                   # 0.0 to 1.0
-    
+
     # Finance domain
     runway_months: float
     monthly_burn: float
     income_stability: float               # 0.0 to 1.0
-    
+
     # Meta
     overall_capacity: float               # Derived: ability to take on more
     risk_tolerance: float                 # User setting
-    
+
     @classmethod
     def from_observations(cls, data: Dict[str, List[DataPoint]]) -> "TwinState":
         """Create state from real observations."""
@@ -2281,30 +2281,30 @@ class TwinState:
 class Transition:
     """Rule for how an action changes state."""
     action: str                           # "push_hard", "rest", "cut_scope"
-    
+
     # State changes (deltas)
     focus_hours_delta: float = 0
     energy_delta: float = 0
     burnout_risk_delta: float = 0
     momentum_delta: float = 0
-    
+
     # Conditions
     min_energy: float = 0                 # Required to execute
     max_burnout: float = 1.0              # Max burnout to execute
-    
+
     # Uncertainty
     variance: float = 0.1                 # How much actual differs from predicted
 
 class TransitionModel:
     """Collection of transition rules."""
-    
+
     def __init__(self):
         self.rules: Dict[str, Transition] = self._load_default_rules()
         self.learned_adjustments: Dict[str, float] = {}
-    
+
     def apply(self, state: TwinState, action: str) -> TwinState:
         """Apply action to state, return new state."""
-    
+
     def learn_from_outcome(
         self,
         predicted: TwinState,
@@ -2320,31 +2320,31 @@ class SimulationResult:
     """Result of forward simulation."""
     route_id: str
     horizon_days: int
-    
+
     # Scenario outcomes
     optimistic: TwinState
     likely: TwinState
     conservative: TwinState
-    
+
     # Probabilities
     optimistic_probability: float
     likely_probability: float
     conservative_probability: float
-    
+
     # Risks identified
     burnout_risk_days: Optional[int]      # Day when burnout > 0.8
     energy_crash_days: Optional[int]      # Day when energy < 0.2
-    
+
     # Monte Carlo details (if run)
     num_simulations: int
     confidence_interval: Tuple[float, float]  # 95% CI for completion
 
 class Simulator:
     """Runs forward simulations."""
-    
+
     def __init__(self, transition_model: TransitionModel):
         self.transition_model = transition_model
-    
+
     def simulate_route(
         self,
         route: Route,
@@ -2352,7 +2352,7 @@ class Simulator:
         horizon_days: int = 30
     ) -> SimulationResult:
         """Simulate route completion under different scenarios."""
-    
+
     def monte_carlo(
         self,
         route: Route,
@@ -2372,16 +2372,16 @@ class PredictionRecord:
     """Record of a prediction for later comparison."""
     id: str
     timestamp: datetime
-    
+
     # What was predicted
     prediction_type: str              # "route_completion", "weather", "scenario"
     predicted_value: Any
     confidence: float
-    
+
     # Context at prediction time
     state_snapshot: TwinState
     route_snapshot: Optional[Route]
-    
+
     # Actual outcome (filled in later)
     actual_value: Optional[Any] = None
     actual_timestamp: Optional[datetime] = None
@@ -2389,27 +2389,27 @@ class PredictionRecord:
 
 class ReflectionEngine:
     """Compares predictions to actuals and learns."""
-    
+
     def __init__(self, transition_model: TransitionModel):
         self.transition_model = transition_model
         self.records: List[PredictionRecord] = []
-    
+
     def record_prediction(self, prediction: PredictionRecord):
         """Store prediction for later comparison."""
-    
+
     def record_actual(self, prediction_id: str, actual: Any):
         """Record actual outcome."""
-    
+
     def reflect(self) -> Dict:
         """
         Analyze prediction accuracy and update models.
-        
+
         Returns:
         - Overall accuracy metrics
         - Systematic biases detected
         - Suggested model adjustments
         """
-    
+
     def get_calibration_score(self) -> float:
         """How well-calibrated are predictions? 1.0 = perfect."""
 ```
@@ -2449,7 +2449,7 @@ def test_state_from_observations():
         "google_fit": [make_sleep(avg_hours=7, days=7)]
     }
     state = TwinState.from_observations(data)
-    
+
     assert 0 <= state.focus_hours_per_week <= 60
     assert 0 <= state.energy_level <= 1.0
     assert 0 <= state.burnout_risk <= 1.0
@@ -2473,9 +2473,9 @@ def test_state_from_observations():
 def test_transition_application():
     state = TwinState(energy_level=0.8, burnout_risk=0.3, ...)
     model = TransitionModel()
-    
+
     new_state = model.apply(state, "push_hard")
-    
+
     assert new_state.energy_level == pytest.approx(0.6, abs=0.05)
     assert new_state.burnout_risk == pytest.approx(0.5, abs=0.05)
 ```
@@ -2500,9 +2500,9 @@ def test_route_simulation():
     route = make_route(waypoints=5)
     state = make_healthy_state()
     simulator = Simulator(TransitionModel())
-    
+
     result = simulator.simulate_route(route, state, horizon_days=30)
-    
+
     assert result.optimistic.momentum > result.conservative.momentum
     total_prob = (
         result.optimistic_probability +
@@ -2531,9 +2531,9 @@ def test_burnout_detection():
     route = make_intensive_route(hours_per_week=50)
     state = make_healthy_state()
     simulator = Simulator(TransitionModel())
-    
+
     result = simulator.simulate_route(route, state, horizon_days=21)
-    
+
     assert result.burnout_risk_days is not None
     assert result.burnout_risk_days < 21  # Burnout before completion
 ```
@@ -2557,9 +2557,9 @@ def test_monte_carlo_ci():
     route = make_route(waypoints=5)
     state = make_healthy_state()
     simulator = Simulator(TransitionModel())
-    
+
     result = simulator.monte_carlo(route, state, num_simulations=1000)
-    
+
     assert result.num_simulations == 1000
     low, high = result.confidence_interval
     assert low < high
@@ -2583,7 +2583,7 @@ def test_monte_carlo_ci():
 ```python
 def test_learning_from_error():
     engine = ReflectionEngine(TransitionModel())
-    
+
     # Record prediction
     pred = PredictionRecord(
         prediction_type="route_completion",
@@ -2591,13 +2591,13 @@ def test_learning_from_error():
         confidence=0.7
     )
     engine.record_prediction(pred)
-    
+
     # Record actual
     engine.record_actual(pred.id, actual=15)
-    
+
     # Reflect
     insights = engine.reflect()
-    
+
     assert insights["mean_error"] == 5
     assert insights["bias"] == "optimistic"  # Consistently underestimating
 ```
@@ -2619,7 +2619,7 @@ def test_learning_from_error():
 ```python
 def test_calibration_score():
     engine = ReflectionEngine(TransitionModel())
-    
+
     # Add 100 predictions with 80% accuracy
     for i in range(100):
         pred = make_prediction()
@@ -2627,7 +2627,7 @@ def test_calibration_score():
         # 80% correct
         actual = pred.predicted_value if i < 80 else pred.predicted_value * 1.5
         engine.record_actual(pred.id, actual)
-    
+
     score = engine.get_calibration_score()
     assert 0.7 <= score <= 0.9  # ~80% accurate
 
@@ -3427,4 +3427,3 @@ The choice is yours.
 ---
 
 *"The system that helps you see clearly is more valuable than the system that helps you do more. Clarity creates leverage. Leverage creates freedom. Freedom creates the space to do what actually matters."*
-

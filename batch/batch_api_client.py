@@ -6,12 +6,12 @@ Provides high-level interface for submitting and monitoring batch requests to Cl
 """
 
 import json
-import time
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 try:
     import anthropic
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BatchRequest:
     """A single request in a batch"""
+
     custom_id: str  # Unique ID for this request
     params: Dict[str, Any]  # Message parameters (messages, system, etc.)
 
@@ -31,6 +32,7 @@ class BatchRequest:
 @dataclass
 class BatchResult:
     """Result from a completed batch"""
+
     custom_id: str
     result: Dict[str, Any]  # Either 'message' (success) or 'error'
     status: str  # "succeeded", "errored", "expired"
@@ -38,21 +40,25 @@ class BatchResult:
 
 class BatchAPIError(Exception):
     """Base exception for batch API errors"""
+
     pass
 
 
 class BatchSubmissionError(BatchAPIError):
     """Error submitting batch to API"""
+
     pass
 
 
 class BatchTimeoutError(BatchAPIError):
     """Batch did not complete within timeout"""
+
     pass
 
 
 class BatchResultError(BatchAPIError):
     """Error retrieving batch results"""
+
     pass
 
 
@@ -71,9 +77,7 @@ class BatchAPIClient:
         self.batch_dir.mkdir(parents=True, exist_ok=True)
 
     def submit_batch(
-        self,
-        requests: List[BatchRequest],
-        description: str = "Cortex batch request"
+        self, requests: List[BatchRequest], description: str = "Cortex batch request"
     ) -> str:
         """
         Submit a batch of requests to Claude API.
@@ -106,15 +110,13 @@ class BatchAPIClient:
                     "params": {
                         "model": "claude-opus-4-5-20251101",
                         "max_tokens": 2048,
-                        **req.params  # Merge user params (messages, system, etc.)
-                    }
+                        **req.params,  # Merge user params (messages, system, etc.)
+                    },
                 }
                 batch_requests.append(batch_request)
 
             # Submit to API
-            batch = self.client.beta.messages.batches.create(
-                requests=batch_requests
-            )
+            batch = self.client.beta.messages.batches.create(requests=batch_requests)
 
             batch_id = batch.id
 
@@ -164,17 +166,14 @@ class BatchAPIClient:
                     "succeeded": batch.request_counts.succeeded,
                     "errored": batch.request_counts.errored,
                     "expired": batch.request_counts.expired,
-                }
+                },
             }
         except anthropic.APIError as e:
             logger.error(f"Error getting batch status: {e}")
             raise BatchResultError(f"Failed to get batch status: {e}") from e
 
     def poll_results(
-        self,
-        batch_id: str,
-        timeout_minutes: int = 1440,
-        poll_interval_seconds: int = 5
+        self, batch_id: str, timeout_minutes: int = 1440, poll_interval_seconds: int = 5
     ) -> List[BatchResult]:
         """
         Poll for batch results until complete or timeout.
@@ -234,7 +233,7 @@ class BatchAPIClient:
                 batch_result = BatchResult(
                     custom_id=result.custom_id,
                     result=result.result,
-                    status=result.status_code  # "succeeded", "errored", etc.
+                    status=result.status_code,  # "succeeded", "errored", etc.
                 )
                 results.append(batch_result)
 

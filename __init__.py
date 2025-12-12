@@ -6,4 +6,3 @@ A thin orchestration layer that combines existing tools to answer:
 """
 
 __version__ = "0.1.0"
-

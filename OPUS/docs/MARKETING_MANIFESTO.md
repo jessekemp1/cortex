@@ -69,13 +69,13 @@ Every day, you make hundreds of micro-decisions:
 
 **BEFORE (Reactive)**:
 ```
-Wake up → Check inputs → React to urgent → Feel busy → 
+Wake up → Check inputs → React to urgent → Feel busy →
 End day exhausted → Wonder if it mattered
 ```
 
 **AFTER (Generative)**:
 ```
-Wake up → Check strategic position → Act on important → 
+Wake up → Check strategic position → Act on important →
 Feel directed → End day accomplished → Know exactly what moved
 ```
 
@@ -91,7 +91,7 @@ Feel directed → End day accomplished → Know exactly what moved
 
 **The Solution**: Converx continuously synthesizes your goals, current state, and environmental changes into clear strategic recommendations with confidence intervals.
 
-**Why It Matters**: 
+**Why It Matters**:
 - You know exactly what the most important thing is and why
 - You're not guessing - you're navigating with instruments
 - The anxiety of "am I working on the right thing?" dissolves
@@ -286,4 +286,3 @@ Feel directed → End day accomplished → Know exactly what moved
 - [STRATEGIC_RAMP_UP_PLAN.md](STRATEGIC_RAMP_UP_PLAN.md) - Optimized path to maximum potential
 - [DESIGN_SPEC.md](DESIGN_SPEC.md) - Technical foundation
 - [OPUS_DESIGN.md](OPUS_DESIGN.md) - Full architecture
-

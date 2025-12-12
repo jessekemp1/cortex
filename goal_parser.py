@@ -14,6 +14,7 @@ from typing import List, Optional
 @dataclass
 class Goal:
     """Parsed goal from ACTION_PLAN.md."""
+
     title: str
     priority: str  # "A", "B", "C"
     status: str  # "pending", "in_progress", "completed"
@@ -29,28 +30,28 @@ class GoalParser:
 
     # Project name mapping (handles various formats)
     PROJECT_ALIASES = {
-        'vortexv2': 'VortexV2',
-        'vortex v2': 'VortexV2',
-        'alpha arena': 'alpha_arena',
-        'alpha-arena': 'alpha_arena',
-        'alphaarena': 'alpha_arena',
-        'personal-ai-dataset': 'personal-ai-dataset',
-        'personal ai dataset': 'personal-ai-dataset',
-        'keto-tracker': 'keto-tracker',
-        'keto tracker': 'keto-tracker',
-        'ketotracker': 'keto-tracker',
-        'financial-aggregator': 'financial-aggregator',
-        'financial aggregator': 'financial-aggregator',
-        'ai-project-curator': 'ai-project-curator',
-        'cortex': 'cortex',
-        'converx': 'cortex',
-        'windfield': 'Windfield',
-        'vortex': 'Vortex',
-        'local-orchestrator': 'local-orchestrator',
-        'local orchestrator': 'local-orchestrator',
-        'databricks': 'Databricks',
-        'youtube-summarizer': 'youtube-summarizer',
-        'dj-copilot': 'DJ-CoPilot',
+        "vortexv2": "VortexV2",
+        "vortex v2": "VortexV2",
+        "alpha arena": "alpha_arena",
+        "alpha-arena": "alpha_arena",
+        "alphaarena": "alpha_arena",
+        "personal-ai-dataset": "personal-ai-dataset",
+        "personal ai dataset": "personal-ai-dataset",
+        "keto-tracker": "keto-tracker",
+        "keto tracker": "keto-tracker",
+        "ketotracker": "keto-tracker",
+        "financial-aggregator": "financial-aggregator",
+        "financial aggregator": "financial-aggregator",
+        "ai-project-curator": "ai-project-curator",
+        "cortex": "cortex",
+        "converx": "cortex",
+        "windfield": "Windfield",
+        "vortex": "Vortex",
+        "local-orchestrator": "local-orchestrator",
+        "local orchestrator": "local-orchestrator",
+        "databricks": "Databricks",
+        "youtube-summarizer": "youtube-summarizer",
+        "dj-copilot": "DJ-CoPilot",
     }
 
     def __init__(self, action_plan_path: Optional[Path] = None):
@@ -83,8 +84,8 @@ class GoalParser:
 
         # Find the priority section
         patterns = [
-            rf'###\s*Priority\s*{priority}[:\s]*.*?(?=###\s*Priority|##\s*[A-Z]|$)',
-            rf'##\s*Priority\s*{priority}[:\s]*.*?(?=##\s*Priority|##\s*[A-Z]|$)',
+            rf"###\s*Priority\s*{priority}[:\s]*.*?(?=###\s*Priority|##\s*[A-Z]|$)",
+            rf"##\s*Priority\s*{priority}[:\s]*.*?(?=##\s*Priority|##\s*[A-Z]|$)",
         ]
 
         section_content = None
@@ -99,7 +100,7 @@ class GoalParser:
 
         # Find numbered items (goals) in the section
         # Pattern: #### N. **Title** or #### N. Title
-        goal_pattern = r'####\s*(\d+)\.\s*\*\*([^*]+)\*\*|####\s*(\d+)\.\s*([^\n]+)'
+        goal_pattern = r"####\s*(\d+)\.\s*\*\*([^*]+)\*\*|####\s*(\d+)\.\s*([^\n]+)"
 
         matches = re.finditer(goal_pattern, section_content)
 
@@ -111,9 +112,11 @@ class GoalParser:
 
             # Get content after this goal header until next goal or section
             start_pos = match.end()
-            next_goal = re.search(r'####\s*\d+\.', section_content[start_pos:])
+            next_goal = re.search(r"####\s*\d+\.", section_content[start_pos:])
             if next_goal:
-                goal_content = section_content[start_pos:start_pos + next_goal.start()]
+                goal_content = section_content[
+                    start_pos : start_pos + next_goal.start()
+                ]
             else:
                 goal_content = section_content[start_pos:]
 
@@ -132,7 +135,7 @@ class GoalParser:
         goals = []
 
         # Pattern for numbered list items
-        pattern = r'^\s*(\d+)\.\s*\*\*([^*]+)\*\*|^\s*(\d+)\.\s*([^\n]+)'
+        pattern = r"^\s*(\d+)\.\s*\*\*([^*]+)\*\*|^\s*(\d+)\.\s*([^\n]+)"
 
         for match in re.finditer(pattern, section_content, re.MULTILINE):
             title = (match.group(2) or match.group(4) or "").strip()
@@ -140,7 +143,7 @@ class GoalParser:
                 continue
 
             # Skip if it looks like a sub-item or action
-            if title.startswith(('Create', 'Add', 'Update', 'Run', 'Verify')):
+            if title.startswith(("Create", "Add", "Update", "Run", "Verify")):
                 continue
 
             goal = Goal(
@@ -162,25 +165,28 @@ class GoalParser:
         project = self._extract_project(title + " " + content)
 
         # Extract description (first paragraph after title)
-        desc_match = re.search(r'\*\*Status\*\*:\s*([^\n]+)', content)
+        desc_match = re.search(r"\*\*Status\*\*:\s*([^\n]+)", content)
         description = desc_match.group(1).strip() if desc_match else ""
 
         # Extract actions (bulleted items)
         actions = []
-        action_pattern = r'^\s*[-*]\s+(.+)$'
+        action_pattern = r"^\s*[-*]\s+(.+)$"
         for action_match in re.finditer(action_pattern, content, re.MULTILINE):
             action = action_match.group(1).strip()
             # Skip if it's a status or metadata line
-            if not any(action.startswith(skip) for skip in ['Status:', 'Impact:', 'Gap:', 'Tool']):
+            if not any(
+                action.startswith(skip)
+                for skip in ["Status:", "Impact:", "Gap:", "Tool"]
+            ):
                 actions.append(action)
 
         # Extract success criteria
-        success_match = re.search(r'\*\*Success Criteria\*\*:\s*([^\n]+)', content)
+        success_match = re.search(r"\*\*Success Criteria\*\*:\s*([^\n]+)", content)
         success_criteria = success_match.group(1).strip() if success_match else ""
 
         # Extract blockers
         blockers = []
-        blocker_match = re.search(r'\*\*Gap\*\*:\s*([^\n]+)', content)
+        blocker_match = re.search(r"\*\*Gap\*\*:\s*([^\n]+)", content)
         if blocker_match:
             blockers.append(blocker_match.group(1).strip())
 
@@ -192,7 +198,7 @@ class GoalParser:
             description=description,
             actions=actions[:5],  # Limit to 5 actions
             success_criteria=success_criteria,
-            blockers=blockers
+            blockers=blockers,
         )
 
     def _infer_status(self, title: str, content: str) -> str:
@@ -200,13 +206,16 @@ class GoalParser:
         combined = (title + " " + content).lower()
 
         # Check for explicit status markers
-        if any(marker in combined for marker in ['✅', 'complete', 'done', 'finished']):
+        if any(marker in combined for marker in ["✅", "complete", "done", "finished"]):
             return "completed"
 
-        if any(marker in combined for marker in ['🔴', 'critical', 'urgent', 'in progress', 'active']):
+        if any(
+            marker in combined
+            for marker in ["🔴", "critical", "urgent", "in progress", "active"]
+        ):
             return "in_progress"
 
-        if any(marker in combined for marker in ['🟡', 'medium', 'next']):
+        if any(marker in combined for marker in ["🟡", "medium", "next"]):
             return "pending"
 
         # Default based on priority
@@ -223,9 +232,9 @@ class GoalParser:
 
         # Check for project patterns
         patterns = [
-            r'\*\*(\w+[-_]?\w*)\*\*\s*[-:]',  # **ProjectName** -
-            r'`(\w+[-_]?\w*)`',  # `project-name`
-            r'\((\w+[-_]?\w*)\)',  # (ProjectName)
+            r"\*\*(\w+[-_]?\w*)\*\*\s*[-:]",  # **ProjectName** -
+            r"`(\w+[-_]?\w*)`",  # `project-name`
+            r"\((\w+[-_]?\w*)\)",  # (ProjectName)
         ]
 
         for pattern in patterns:
@@ -255,10 +264,12 @@ def main():
     import argparse
     import json
 
-    parser = argparse.ArgumentParser(description='Parse goals from ACTION_PLAN.md')
-    parser.add_argument('--path', help='Path to ACTION_PLAN.md')
-    parser.add_argument('--json', action='store_true', help='JSON output')
-    parser.add_argument('--priority', choices=['A', 'B', 'C'], help='Filter by priority')
+    parser = argparse.ArgumentParser(description="Parse goals from ACTION_PLAN.md")
+    parser.add_argument("--path", help="Path to ACTION_PLAN.md")
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument(
+        "--priority", choices=["A", "B", "C"], help="Filter by priority"
+    )
     args = parser.parse_args()
 
     goal_parser = GoalParser(Path(args.path) if args.path else None)
@@ -270,30 +281,36 @@ def main():
     if args.json:
         output = []
         for g in goals:
-            output.append({
-                'title': g.title,
-                'priority': g.priority,
-                'status': g.status,
-                'project': g.project,
-                'description': g.description,
-                'actions': g.actions,
-                'success_criteria': g.success_criteria,
-                'blockers': g.blockers
-            })
+            output.append(
+                {
+                    "title": g.title,
+                    "priority": g.priority,
+                    "status": g.status,
+                    "project": g.project,
+                    "description": g.description,
+                    "actions": g.actions,
+                    "success_criteria": g.success_criteria,
+                    "blockers": g.blockers,
+                }
+            )
         print(json.dumps(output, indent=2))
     else:
         print(f"Found {len(goals)} goals\n")
 
-        for priority in ['A', 'B', 'C']:
+        for priority in ["A", "B", "C"]:
             priority_goals = [g for g in goals if g.priority == priority]
             if priority_goals:
                 print(f"PRIORITY {priority}:")
                 for g in priority_goals:
-                    status_icon = {'completed': '✅', 'in_progress': '🔄', 'pending': '⏳'}.get(g.status, '❓')
+                    status_icon = {
+                        "completed": "✅",
+                        "in_progress": "🔄",
+                        "pending": "⏳",
+                    }.get(g.status, "❓")
                     project_str = f" [{g.project}]" if g.project else ""
                     print(f"  {status_icon} {g.title}{project_str}")
                 print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

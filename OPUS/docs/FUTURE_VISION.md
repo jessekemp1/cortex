@@ -35,7 +35,7 @@ You open Converx. Not a task list. Not a calendar. A **strategic command center*
 
 **What It Does**: Continuously scans all domains, identifies patterns before they fully emerge, predicts outcomes with 85%+ accuracy, and surfaces both risks and opportunities you wouldn't see until it's too late.
 
-**Example**: 
+**Example**:
 - Detects that pushing 50-hour weeks for 3 weeks will cause burnout in week 4, reducing net output by 20%
 - Identifies that completing Block 1.4 today (instead of tomorrow) moves you from "Likely" to "Optimistic" scenario, saving 2 days
 - Surfaces that a market opportunity aligns with your current energy state and available runway

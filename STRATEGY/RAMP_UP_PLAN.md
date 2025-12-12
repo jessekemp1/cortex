@@ -425,5 +425,3 @@ Start simple. Add complexity only when value is proven. Trust the process.
 ---
 
 *"The best system is the one you actually use. Start simple. Add complexity only when it provides value. Mastery comes from consistent use, not perfect setup."*
-
-

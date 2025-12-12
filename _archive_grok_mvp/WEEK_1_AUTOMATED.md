@@ -171,4 +171,3 @@ Then decide: **Proceed to Week 2?** ✅/❌
 **You're all set!** Just run `--daily` each morning. 🚀
 
 The system handles the rest automatically.
-

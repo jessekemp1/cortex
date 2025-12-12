@@ -8,15 +8,13 @@ Cost: Same token cost as sequential (learning reasoning unchanged)
 Efficiency: 80-90% reduction in file I/O via metrics caching
 """
 
+import json
 import logging
-from typing import Dict, List, Any, Optional
-from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
-import json
+from typing import Any, Dict, List
 
 from .batch_api_client import BatchAPIClient, BatchRequest
-from .batch_config import BatchConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,7 @@ class LearningContext:
     Encapsulates execution history, goals, and pre-computed metrics
     for batch analysis of learning patterns.
     """
+
     execution_history: Dict[str, Any]
     goals_context: Dict[str, Any]
     metrics_data: Dict[str, Any]  # Pre-computed from single outcomes.jsonl read
@@ -152,7 +151,9 @@ ADJUSTMENT_SUGGESTIONS:
             logger.error(f"Learning batch processing failed: {e}")
             raise
 
-    def _build_learning_requests(self, contexts: List[LearningContext]) -> List[BatchRequest]:
+    def _build_learning_requests(
+        self, contexts: List[LearningContext]
+    ) -> List[BatchRequest]:
         """Convert learning contexts to batch requests"""
         requests = []
 

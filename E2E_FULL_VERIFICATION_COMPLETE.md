@@ -185,4 +185,3 @@ The Cortex-local-orchestrator integration is fully functional and ready for use.
 - Learn from execution patterns
 
 **Next**: Start local-orchestrator service to enable full scheduling and execution.
-

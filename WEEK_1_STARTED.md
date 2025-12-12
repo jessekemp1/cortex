@@ -72,4 +72,3 @@ Remember: This is calibration, not perfection. The system learns from you, and y
 ---
 
 **Next Step**: Run `cortex next` and begin your Week 1 journey!
-

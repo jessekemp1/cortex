@@ -17,7 +17,7 @@ Successfully integrated converx with ACTION_PLAN.md. Converx now generates actio
 
 **Problem**: ProjectScanner only detected git repos, missing monorepo subdirectories referenced in ACTION_PLAN.md.
 
-**Solution**: 
+**Solution**:
 - Added `_detect_projects_from_goals()` method to detect projects from goal project names
 - Projects are detected even if they're not git repos (monorepo subdirectories)
 - Merges git repos + goal projects, deduplicating by name
@@ -121,7 +121,7 @@ Blockers: 1
 ────────────────
 [HIGH] Git Repository Cleanup
 
-Why: Priority A goal from ACTION_PLAN.md. 
+Why: Priority A goal from ACTION_PLAN.md.
 
 Effort: Unknown
 Impact: blocks
@@ -133,10 +133,10 @@ Related Goals: A_1
 💡 ALTERNATIVE ACTIONS
 ────────────────────────────────────────────────────────────
 2. 🟡 [MEDIUM] Alpha Arena - Trading Engine Hardening
-   Priority B goal from ACTION_PLAN.md. High commercial value (⭐⭐⭐⭐). 
+   Priority B goal from ACTION_PLAN.md. High commercial value (⭐⭐⭐⭐).
 
 3. 🟡 [MEDIUM] personal-ai-dataset - Context Engineering Expansion
-   Priority B goal from ACTION_PLAN.md. 
+   Priority B goal from ACTION_PLAN.md.
 
 4. 🟡 [MEDIUM] Address TODO/FIXME items in khoj-research
    Blocking development in khoj-research. Quick fix can unblock progress.
@@ -147,7 +147,7 @@ Related Goals: A_1
 ## How It Works
 
 1. **Goal Parsing**: `goal_parser.py` extracts goals from ACTION_PLAN.md
-2. **Project Detection**: 
+2. **Project Detection**:
    - Scans for git repos (existing behavior)
    - Detects projects from goal project names (new)
    - Merges and deduplicates
@@ -252,4 +252,3 @@ Converx now works seamlessly with:
 ---
 
 **Next Action**: Use `converx next` each morning to get strategic recommendations aligned with your ACTION_PLAN.md goals.
-

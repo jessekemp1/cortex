@@ -12,12 +12,13 @@ import sys
 from pathlib import Path
 
 try:
-    from .orchestrator import ConverxOrchestrator
     from .formatter import ConverxFormatter
+    from .orchestrator import ConverxOrchestrator
 except ImportError:
     # Allow standalone execution
-    from orchestrator import ConverxOrchestrator
     from formatter import ConverxFormatter
+
+    from orchestrator import ConverxOrchestrator
 
 
 def cmd_next(args):
@@ -28,7 +29,7 @@ def cmd_next(args):
         response = orchestrator.get_next_action(
             project_filter=args.project,
             include_context=args.with_context,
-            limit=args.limit
+            limit=args.limit,
         )
 
         formatter = ConverxFormatter()
@@ -45,7 +46,9 @@ def cmd_status(args):
     orchestrator = ConverxOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
+        response = orchestrator.get_next_action(
+            limit=0
+        )  # Just get state, no recommendations
 
         state = response.current_state
 
@@ -109,14 +112,14 @@ Examples:
   converx next --with-context    # Include context predictions
   converx next --json            # JSON output
   converx status                 # Show current state
-        """
+        """,
     )
 
     parser.add_argument(
         "--root",
         type=str,
         default="/Users/jesse.kemp/Dev",
-        help="Root directory to scan (default: /Users/jesse.kemp/Dev)"
+        help="Root directory to scan (default: /Users/jesse.kemp/Dev)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
@@ -124,25 +127,17 @@ Examples:
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
     next_parser.add_argument(
-        "project",
-        nargs="?",
-        help="Filter by project name (optional)"
+        "project", nargs="?", help="Filter by project name (optional)"
     )
     next_parser.add_argument(
-        "--with-context",
-        action="store_true",
-        help="Include context predictions"
+        "--with-context", action="store_true", help="Include context predictions"
     )
-    next_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output JSON format"
-    )
+    next_parser.add_argument("--json", action="store_true", help="Output JSON format")
     next_parser.add_argument(
         "--limit",
         type=int,
         default=3,
-        help="Number of alternative actions to show (default: 3)"
+        help="Number of alternative actions to show (default: 3)",
     )
     next_parser.set_defaults(func=cmd_next)
 
@@ -161,4 +156,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

@@ -117,4 +117,3 @@ local-orchestrator/venv/bin/python cortex/cli.py schedule
 ---
 
 **Note**: Always provide dependency resolution plans and recommendations when gaps are identified. This is now documented for future reference.
-

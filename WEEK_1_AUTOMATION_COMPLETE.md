@@ -253,4 +253,3 @@ python3 "cortex/week1_automation.py" --auto-detect
 Just run the daily script each morning. The system handles everything else automatically using data from your dev folder.
 
 **Thank you for using Cortex!** The automation makes Week 1 calibration effortless while still providing valuable insights.
-

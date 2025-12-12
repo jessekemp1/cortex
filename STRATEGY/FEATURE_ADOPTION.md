@@ -629,4 +629,3 @@ This document guides you through adopting Converx features in the optimal order.
 ---
 
 *"Feature adoption is not about using every feature. It's about using the right features at the right time to maximize value. Start simple. Add complexity only when proven useful."*
-

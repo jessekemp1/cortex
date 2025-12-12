@@ -20,155 +20,155 @@
 
 ### Day 1 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 2 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 3 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 4 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 5 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 6 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
 ### Day 7 - [DATE]
 
-**Action Recommended**: 
+**Action Recommended**:
 ```
 [Run cortex next and paste here]
 ```
 
 **Executed**: [ ] Yes [ ] No  
 **Useful**: [ ] Yes [ ] No  
-**Notes**: 
+**Notes**:
 ```
 [What happened? Was it the right action?]
 ```
 
 **Friction Points**:
-- 
+-
 
 **Value Points**:
-- 
+-
 
 ---
 
@@ -188,25 +188,25 @@
 Run: `cortex feedback --stats`
 
 **Results**:
-- Total Entries: 
-- Useful Count: 
-- Not Useful Count: 
-- Useful Rate: 
+- Total Entries:
+- Useful Count:
+- Not Useful Count:
+- Useful Rate:
 
 ### Value Points Identified
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ### Friction Points Documented
 
-1. 
-2. 
+1.
+2.
 
 ### Patterns Observed
 
-- 
+-
 
 ### Decision Point
 
@@ -237,4 +237,3 @@ cortex health
 # Show status
 cortex status
 ```
-

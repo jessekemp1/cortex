@@ -87,7 +87,7 @@ OPUS/
   converx               # Entry script
   OPUS_DESIGN.md        # Unified design document
   README.md             # This file
-  
+
   docs/                 # Documentation
     DESIGN_SPEC.md      # Technical specification
     USE_CASES.md        # Persona-based use cases
@@ -96,12 +96,12 @@ OPUS/
     MARKETING_MANIFESTO.md # Why it matters
     STRATEGIC_RAMP_UP_PLAN.md # Implementation guide
     FUTURE_VISION.md    # Long-term vision
-  
+
   tests/                # Test suite
     test_orchestrator.py
     test_formatter.py
     test_e2e_situational.py
-  
+
   strategy/             # Phase 1-2 (planned)
   knowledge/            # Phase 3 (planned)
   twin/                 # Phase 5 (planned)
@@ -196,4 +196,3 @@ At the end, you'll know:
 ---
 
 *"The system that helps you see clearly is more valuable than the system that helps you do more."*
-

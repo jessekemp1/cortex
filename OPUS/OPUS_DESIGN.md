@@ -343,30 +343,30 @@ converx/OPUS/
   cli.py                    # CLI
   orchestrator.py           # Orchestration
   formatter.py              # Formatting
-  
+
   strategy/                 # Phase 1-2
     model.py                # Goals, Routes, Waypoints
     status_map.py           # Domain status
     forecast.py             # Forecast range calculation
     domains.py              # Multi-domain support
-  
+
   knowledge/                # Phase 3
     base.py                 # Connector interface
     personal_ai.py          # personal-ai-dataset
     github.py               # GitHub
     alpha_arena.py          # Finance
     health.py               # Health data
-  
+
   twin/                     # Phase 5
     state.py                # State model
     transitions.py          # Transition rules
     simulation.py           # Forward simulation
-  
+
   playbooks/                # Phase 4
     base.py                 # Playbook interface
     executor.py             # Execution engine
     policies.py             # Policy definitions
-  
+
   memory/                   # Phase 1+
     store.py                # Snapshots
     reflection.py           # Predicted vs actual
@@ -440,4 +440,3 @@ At the end, you'll know:
 *"The system that helps you see clearly is more valuable than the system that helps you do more. Clarity creates leverage. Leverage creates freedom. Freedom creates the space to do what actually matters."*
 
 **Last Updated**: January 2025
-

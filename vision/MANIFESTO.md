@@ -209,5 +209,3 @@ Converx is the bridge.
 ---
 
 *"In an age of infinite execution leverage, the only sustainable advantage is strategic clarity. Converx is the infrastructure that makes that clarity possible."*
-
-

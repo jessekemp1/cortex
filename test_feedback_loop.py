@@ -16,9 +16,9 @@ from pathlib import Path
 cortex_dir = Path(__file__).parent
 sys.path.insert(0, str(cortex_dir))
 
-from orchestrator import CortexOrchestrator
 from feedback import FeedbackLogger
 from learning import LearningSystem
+from orchestrator import CortexOrchestrator
 from recommendation_engine import RecommendationEngine
 
 
@@ -35,7 +35,7 @@ def test_feedback_loop():
 
     # Step 2: Get recommendation from orchestrator
     print("\n2. Get recommendation from orchestrator")
-    orchestrator = CortexOrchestrator(root_dir=Path('/Users/jesse.kemp/Dev'))
+    orchestrator = CortexOrchestrator(root_dir=Path("/Users/jesse.kemp/Dev"))
     response = orchestrator.get_next_action(limit=1)
 
     if not response.next_action:
@@ -67,7 +67,7 @@ def test_feedback_loop():
 
         # Test adjustment for each type
         for rec_type, pattern_metrics in list(patterns.items())[:3]:  # Test first 3
-            if pattern_metrics['followed'] >= 3:
+            if pattern_metrics["followed"] >= 3:
                 adjusted, explanation = learning.adjust_confidence_based_on_history(
                     rec_type, 0.8
                 )
@@ -94,7 +94,7 @@ def test_feedback_loop():
             followed=True,
             outcome="success",
             notes="Integration test outcome",
-            context={"test": True}
+            context={"test": True},
         )
 
         # Count outcomes after
@@ -105,7 +105,9 @@ def test_feedback_loop():
 
         # Verify last outcome
         last_outcome = logger.load_outcomes()[-1]
-        assert last_outcome.recommendation_id == rec.id, "Recommendation ID should match"
+        assert (
+            last_outcome.recommendation_id == rec.id
+        ), "Recommendation ID should match"
         assert last_outcome.outcome == "success", "Outcome should be success"
         print(f"   ✓ Outcome verified: {last_outcome.recommendation_title}")
 

@@ -5,13 +5,12 @@ Converx Formatter - Formats strategist responses for display
 Formats StrategistResponse objects into human-readable output.
 """
 
-from typing import Optional
 import json
 
 try:
-    from .orchestrator import StrategistResponse, Recommendation, ContextPrediction
+    from .orchestrator import ContextPrediction, Recommendation, StrategistResponse
 except ImportError:
-    from orchestrator import StrategistResponse, Recommendation, ContextPrediction
+    from orchestrator import ContextPrediction, Recommendation, StrategistResponse
 
 
 class ConverxFormatter:
@@ -88,7 +87,11 @@ class ConverxFormatter:
         if response.next_action:
             lines.append("🎯 NEXT ACTION")
             lines.append("────────────────")
-            lines.append(ConverxFormatter._format_recommendation(response.next_action, detailed=True))
+            lines.append(
+                ConverxFormatter._format_recommendation(
+                    response.next_action, detailed=True
+                )
+            )
             lines.append("")
         else:
             lines.append("🎯 NEXT ACTION")
@@ -108,7 +111,9 @@ class ConverxFormatter:
             lines.append("────────────────────────────────────────────────────────────")
 
             for i, rec in enumerate(response.alternative_actions, 2):
-                lines.append(f"{i}. {ConverxFormatter._format_recommendation(rec, detailed=False)}")
+                lines.append(
+                    f"{i}. {ConverxFormatter._format_recommendation(rec, detailed=False)}"
+                )
                 lines.append("")
 
         # Context Predictions
@@ -118,8 +123,14 @@ class ConverxFormatter:
             lines.append("────────────────────────────────────────────────────────────")
 
             for pred in response.context_predictions[:3]:  # Show top 3
-                confidence_icon = "🟢" if pred.confidence >= 0.8 else "🟡" if pred.confidence >= 0.6 else "⚪"
-                lines.append(f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)")
+                confidence_icon = (
+                    "🟢"
+                    if pred.confidence >= 0.8
+                    else "🟡" if pred.confidence >= 0.6 else "⚪"
+                )
+                lines.append(
+                    f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)"
+                )
                 lines.append(f"   {pred.description}")
                 lines.append(f"   Command: {pred.command}")
                 lines.append("")
@@ -129,7 +140,11 @@ class ConverxFormatter:
     @staticmethod
     def _format_recommendation(rec: Recommendation, detailed: bool = True) -> str:
         """Format a single recommendation."""
-        priority_icon = "🔴" if rec.priority == "high" else "🟡" if rec.priority == "medium" else "⚪"
+        priority_icon = (
+            "🔴"
+            if rec.priority == "high"
+            else "🟡" if rec.priority == "medium" else "⚪"
+        )
         priority_label = rec.priority.upper()
 
         lines = []
@@ -154,7 +169,11 @@ class ConverxFormatter:
                         lines.append("Next Steps:")
                     elif next_steps_started and line.strip().startswith("•"):
                         lines.append(f"  {line.strip()}")
-                    elif next_steps_started and line.strip() and not line.strip().startswith("•"):
+                    elif (
+                        next_steps_started
+                        and line.strip()
+                        and not line.strip().startswith("•")
+                    ):
                         # End of next steps
                         break
 
@@ -165,7 +184,11 @@ class ConverxFormatter:
                 lines.append(f"Related Goals: {', '.join(rec.related_goals)}")
         else:
             lines.append(f"{priority_icon} [{priority_label}] {rec.title}")
-            lines.append(f"   {rec.rationale[:100]}..." if len(rec.rationale) > 100 else f"   {rec.rationale}")
+            lines.append(
+                f"   {rec.rationale[:100]}..."
+                if len(rec.rationale) > 100
+                else f"   {rec.rationale}"
+            )
 
         return "\n".join(lines)
 
@@ -174,13 +197,19 @@ class ConverxFormatter:
         """Format as JSON."""
         data = {
             "current_state": response.current_state,
-            "next_action": ConverxFormatter._recommendation_to_dict(response.next_action) if response.next_action else None,
+            "next_action": (
+                ConverxFormatter._recommendation_to_dict(response.next_action)
+                if response.next_action
+                else None
+            ),
             "alternative_actions": [
-                ConverxFormatter._recommendation_to_dict(rec) for rec in response.alternative_actions
+                ConverxFormatter._recommendation_to_dict(rec)
+                for rec in response.alternative_actions
             ],
             "context_predictions": [
-                ConverxFormatter._context_prediction_to_dict(pred) for pred in response.context_predictions
-            ]
+                ConverxFormatter._context_prediction_to_dict(pred)
+                for pred in response.context_predictions
+            ],
         }
         return json.dumps(data, indent=2, default=str)
 
@@ -199,7 +228,7 @@ class ConverxFormatter:
             "confidence": rec.confidence,
             "related_projects": rec.related_projects,
             "related_goals": rec.related_goals,
-            "prerequisites": rec.prerequisites
+            "prerequisites": rec.prerequisites,
         }
 
     @staticmethod
@@ -211,6 +240,5 @@ class ConverxFormatter:
             "description": pred.description,
             "confidence": pred.confidence,
             "rationale": pred.rationale,
-            "command": pred.command
+            "command": pred.command,
         }
-

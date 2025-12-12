@@ -11,15 +11,15 @@ sys.path.insert(0, str(grok_mvp_dir))
 
 # Change to the directory so relative imports work
 import os
+
 original_cwd = os.getcwd()
 os.chdir(str(grok_mvp_dir))
 
 try:
     # Now import and run
     from cli import main
-    
+
     if __name__ == "__main__":
         main()
 finally:
     os.chdir(original_cwd)
-

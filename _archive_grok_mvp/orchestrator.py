@@ -10,9 +10,9 @@ Orchestrates:
 """
 
 import sys
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path to import existing tools
 # Path(__file__) is in converx/Grok MVP/, so parent.parent is /Users/jesse.kemp/Dev
@@ -22,19 +22,19 @@ dev_root = script_dir.parent.parent
 sys.path.insert(0, str(dev_root))
 
 try:
-    from ai_intelligence import ProjectScanner, ProjectActivity
+    from ai_intelligence import ProjectActivity, ProjectScanner
 except ImportError:
     ProjectScanner = None
     ProjectActivity = None
 
 try:
-    from goal_parser import GoalParser, Goal
+    from goal_parser import Goal, GoalParser
 except ImportError:
     GoalParser = None
     Goal = None
 
 try:
-    from recommendation_engine import RecommendationEngine, Recommendation
+    from recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
     RecommendationEngine = None
     Recommendation = None
@@ -49,31 +49,36 @@ except ImportError:
 @dataclass
 class SystemHealth:
     """System health status for Golden Spec verification."""
+
     project_scanner: bool
     goal_parser: bool
     recommendation_engine: bool
     context_intelligence: bool
-    
+
     @property
     def all_active(self) -> bool:
         """Check if all integrations are active."""
-        return all([
-            self.project_scanner,
-            self.goal_parser,
-            self.recommendation_engine,
-            self.context_intelligence
-        ])
-    
+        return all(
+            [
+                self.project_scanner,
+                self.goal_parser,
+                self.recommendation_engine,
+                self.context_intelligence,
+            ]
+        )
+
     @property
     def active_count(self) -> int:
         """Count of active integrations."""
-        return sum([
-            self.project_scanner,
-            self.goal_parser,
-            self.recommendation_engine,
-            self.context_intelligence
-        ])
-    
+        return sum(
+            [
+                self.project_scanner,
+                self.goal_parser,
+                self.recommendation_engine,
+                self.context_intelligence,
+            ]
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -83,13 +88,14 @@ class SystemHealth:
             "context_intelligence": self.context_intelligence,
             "all_active": self.all_active,
             "active_count": self.active_count,
-            "total_integrations": 4
+            "total_integrations": 4,
         }
 
 
 @dataclass
 class StrategistResponse:
     """Formatted strategist response."""
+
     current_state: Dict[str, Any]
     next_action: Optional[Recommendation]
     alternative_actions: List[Recommendation]
@@ -108,14 +114,18 @@ class ConverxOrchestrator:
         # Initialize tools (gracefully handle missing tools)
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
-        self.context_intel = ContextIntelligence(root_dir) if ContextIntelligence else None
+        self.recommendation_engine = (
+            RecommendationEngine() if RecommendationEngine else None
+        )
+        self.context_intel = (
+            ContextIntelligence(root_dir) if ContextIntelligence else None
+        )
 
     def get_next_action(
         self,
         project_filter: Optional[str] = None,
         include_context: bool = False,
-        limit: int = 3
+        limit: int = 3,
     ) -> StrategistResponse:
         """
         Get next action with current state summary.
@@ -138,7 +148,7 @@ class ConverxOrchestrator:
 
         # 2. Get project activity (git repos + projects from goals)
         project_activity = []
-        
+
         # 2a. Get git repos
         git_projects = []
         if self.project_scanner:
@@ -152,7 +162,7 @@ class ConverxOrchestrator:
 
         # 2b. Detect projects from goals (even if not git repos)
         goal_projects = self._detect_projects_from_goals(goals, git_projects)
-        
+
         # 2c. Merge: git projects + goal projects (deduplicate by name)
         project_activity = self._merge_projects(git_projects, goal_projects)
 
@@ -162,16 +172,19 @@ class ConverxOrchestrator:
             try:
                 recommendations = self.recommendation_engine.generate_recommendations(
                     project_activity=project_activity if project_activity else None,
-                    limit=limit + 1  # +1 for next action
+                    limit=limit + 1,  # +1 for next action
                 )
             except Exception as e:
-                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
+                )
 
         # 4. Filter by project if specified
         if project_filter and recommendations:
             project_lower = project_filter.lower()
             recommendations = [
-                r for r in recommendations
+                r
+                for r in recommendations
                 if any(project_lower in proj.lower() for proj in r.related_projects)
             ]
 
@@ -191,14 +204,16 @@ class ConverxOrchestrator:
 
         # 7. Extract next action and alternatives
         next_action = recommendations[0] if recommendations else None
-        alternative_actions = recommendations[1:limit + 1] if len(recommendations) > 1 else []
+        alternative_actions = (
+            recommendations[1 : limit + 1] if len(recommendations) > 1 else []
+        )
 
         # 8. Build system health status (Golden Spec: Dependency Transparency)
         system_health = SystemHealth(
             project_scanner=self.project_scanner is not None,
             goal_parser=self.goal_parser is not None,
             recommendation_engine=self.recommendation_engine is not None,
-            context_intelligence=self.context_intel is not None
+            context_intelligence=self.context_intel is not None,
         )
 
         return StrategistResponse(
@@ -206,13 +221,11 @@ class ConverxOrchestrator:
             next_action=next_action,
             alternative_actions=alternative_actions,
             context_predictions=context_predictions,
-            system_health=system_health
+            system_health=system_health,
         )
 
     def _build_current_state(
-        self,
-        project_activity: List[ProjectActivity],
-        goals: List[Goal]
+        self, project_activity: List[ProjectActivity], goals: List[Goal]
     ) -> Dict[str, Any]:
         """Build current state summary."""
         state = {
@@ -225,7 +238,7 @@ class ConverxOrchestrator:
             "priority_c_goals": 0,
             "goals_pending": 0,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         }
 
         if project_activity:
@@ -238,10 +251,12 @@ class ConverxOrchestrator:
                     state["dormant_projects"] += 1
 
                 if project.blockers:
-                    state["blockers"].extend([
-                        {"project": project.name, "blocker": blocker}
-                        for blocker in project.blockers
-                    ])
+                    state["blockers"].extend(
+                        [
+                            {"project": project.name, "blocker": blocker}
+                            for blocker in project.blockers
+                        ]
+                    )
 
         if goals:
             for goal in goals:
@@ -260,9 +275,7 @@ class ConverxOrchestrator:
         return state
 
     def _detect_projects_from_goals(
-        self,
-        goals: List[Goal],
-        existing_projects: List[ProjectActivity]
+        self, goals: List[Goal], existing_projects: List[ProjectActivity]
     ) -> List[ProjectActivity]:
         """
         Detect projects from goal project names.
@@ -289,15 +302,17 @@ class ConverxOrchestrator:
                 continue
 
             # Check if it looks like a project (has some project files)
-            has_project_files = any([
-                (project_path / 'requirements.txt').exists(),
-                (project_path / 'package.json').exists(),
-                (project_path / 'README.md').exists(),
-                (project_path / 'pyproject.toml').exists(),
-                (project_path / 'setup.py').exists(),
-                (project_path / 'src').exists(),
-                (project_path / 'app').exists(),
-            ])
+            has_project_files = any(
+                [
+                    (project_path / "requirements.txt").exists(),
+                    (project_path / "package.json").exists(),
+                    (project_path / "README.md").exists(),
+                    (project_path / "pyproject.toml").exists(),
+                    (project_path / "setup.py").exists(),
+                    (project_path / "src").exists(),
+                    (project_path / "app").exists(),
+                ]
+            )
 
             if not has_project_files:
                 continue
@@ -314,7 +329,7 @@ class ConverxOrchestrator:
                 blockers=[],
                 current_branch="",
                 last_commit_date=None,
-                last_commit_msg=""
+                last_commit_msg="",
             )
 
             # Try to detect blockers for non-git projects
@@ -329,20 +344,23 @@ class ConverxOrchestrator:
         blockers = []
 
         # Check for .env.example without .env
-        if (project_path / '.env.example').exists() and not (project_path / '.env').exists():
+        if (project_path / ".env.example").exists() and not (
+            project_path / ".env"
+        ).exists():
             blockers.append("Missing .env file")
 
         # Check for requirements.txt without venv
-        if (project_path / 'requirements.txt').exists():
-            if not (project_path / 'venv').exists() and not (project_path / 'env').exists():
+        if (project_path / "requirements.txt").exists():
+            if (
+                not (project_path / "venv").exists()
+                and not (project_path / "env").exists()
+            ):
                 blockers.append("No virtualenv detected")
 
         return blockers
 
     def _merge_projects(
-        self,
-        git_projects: List[ProjectActivity],
-        goal_projects: List[ProjectActivity]
+        self, git_projects: List[ProjectActivity], goal_projects: List[ProjectActivity]
     ) -> List[ProjectActivity]:
         """
         Merge git projects and goal projects, deduplicating by name.
@@ -363,4 +381,3 @@ class ConverxOrchestrator:
                 seen_names.add(project.name.lower())
 
         return merged
-

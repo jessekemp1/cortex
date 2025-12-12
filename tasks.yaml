@@ -6,7 +6,7 @@ tasks:
     working_dir: .
     schedule: "1 3 * * *"  # 3:01 AM daily
     type: test
-    
+
   # Briefing tests
   - id: briefing-tests
     name: Briefing Tests
@@ -14,7 +14,7 @@ tasks:
     working_dir: .
     schedule: "1 3 * * *"  # 3:01 AM daily
     type: test
-    
+
   # Generate morning briefing
   - id: morning-briefing
     name: Generate Morning Briefing
@@ -23,7 +23,7 @@ tasks:
     schedule: "1 3 * * *"  # 3:01 AM daily
     type: validation
     output_file: "logs/briefing_$(date +%Y%m%d).txt"
-    
+
   # Week 1 Automation
   - id: week1-automation
     name: Week 1 Automation
@@ -31,4 +31,3 @@ tasks:
     working_dir: .
     schedule: "0 7 * * *"  # 7:00 AM daily
     type: validation
-

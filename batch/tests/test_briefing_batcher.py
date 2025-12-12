@@ -4,20 +4,17 @@ Unit tests for briefing batch processor
 Tests recommendation and insight batching functionality.
 """
 
-import pytest
-import os
 import json
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime
+from unittest.mock import patch
+
+import pytest
 
 # Import modules to test
 from cortex.batch.briefing_batcher import (
-    RecommendationBatcher,
-    InsightBatcher,
     BriefingContext,
+    InsightBatcher,
+    RecommendationBatcher,
 )
-from cortex.batch.batch_config import BatchConfig
 
 
 class TestBriefingContext:

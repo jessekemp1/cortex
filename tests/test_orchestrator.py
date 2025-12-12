@@ -3,9 +3,10 @@
 Tests for CortexOrchestrator
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add converx directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -45,7 +46,9 @@ def test_get_next_action_with_project_filter():
     assert isinstance(response, StrategistResponse)
     # If recommendations exist, they should be filtered
     if response.next_action:
-        assert any("vortexv2" in proj.lower() for proj in response.next_action.related_projects)
+        assert any(
+            "vortexv2" in proj.lower() for proj in response.next_action.related_projects
+        )
 
 
 def test_get_next_action_with_context():
@@ -86,11 +89,10 @@ def test_graceful_degradation():
     """Test orchestrator handles missing tools gracefully."""
     # This test verifies that missing tools don't crash the orchestrator
     orchestrator = CortexOrchestrator()
-    
+
     # Should not raise exception even if tools are missing
     try:
         response = orchestrator.get_next_action(limit=0)
         assert isinstance(response, StrategistResponse)
     except Exception as e:
         pytest.fail(f"Orchestrator should handle missing tools gracefully: {e}")
-

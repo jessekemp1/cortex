@@ -12,18 +12,17 @@ ROOT_DIR = Path(__file__).parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import json
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-import json
-import os
+from typing import Any, List, Optional
 
 
 @dataclass
 class ContextPrediction:
     """A predicted context item that may be relevant."""
+
     title: str
     context_type: str  # "knowledge_base", "project_docs", "recent_activity"
     confidence: float  # 0.0 - 1.0
@@ -41,7 +40,13 @@ class ContextIntelligence:
     KNOWLEDGE_BASE_PATH = Path("/Users/jesse.kemp/Dev/personal-ai-dataset")
 
     # Project documentation patterns
-    DOC_PATTERNS = ['README.md', 'CLAUDE.md', 'ACTION_PLAN.md', 'docs/', 'documentation/']
+    DOC_PATTERNS = [
+        "README.md",
+        "CLAUDE.md",
+        "ACTION_PLAN.md",
+        "docs/",
+        "documentation/",
+    ]
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
@@ -59,7 +64,7 @@ class ContextIntelligence:
         current_project: Optional[str] = None,
         current_task: Optional[str] = None,
         keywords: Optional[List[str]] = None,
-        limit: int = 5
+        limit: int = 5,
     ) -> List[ContextPrediction]:
         """
         Predict relevant context for current work.
@@ -81,7 +86,7 @@ class ContextIntelligence:
                 project=current_project,
                 task=current_task,
                 keywords=keywords,
-                limit=limit
+                limit=limit,
             )
             predictions.extend(kb_results)
 
@@ -95,7 +100,9 @@ class ContextIntelligence:
         predictions.extend(recent_results)
 
         # 4. Find CursorRules Context (Explicit or Implicit)
-        if (keywords and "cursorrules" in keywords) or (current_task and "rules" in current_task.lower()):
+        if (keywords and "cursorrules" in keywords) or (
+            current_task and "rules" in current_task.lower()
+        ):
             predictions.extend(self._find_cursorrules_context(current_project))
 
         # Sort by relevance and deduplicate
@@ -109,7 +116,7 @@ class ContextIntelligence:
         project: Optional[str] = None,
         task: Optional[str] = None,
         keywords: Optional[List[str]] = None,
-        limit: int = 5
+        limit: int = 5,
     ) -> List[ContextPrediction]:
         """Search personal-ai-dataset for relevant context."""
         predictions = []
@@ -135,46 +142,50 @@ class ContextIntelligence:
         try:
             # Run kb_cli.py search
             result = subprocess.run(
-                ['python3', 'kb_cli.py', 'search', query, '--limit', str(limit)],
+                ["python3", "kb_cli.py", "search", query, "--limit", str(limit)],
                 cwd=self.KNOWLEDGE_BASE_PATH,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode == 0 and result.stdout:
                 # Parse output (assumes JSON or structured output)
-                for line in result.stdout.strip().split('\n'):
+                for line in result.stdout.strip().split("\n"):
                     if not line.strip():
                         continue
 
                     # Try to parse as JSON first
                     try:
                         item = json.loads(line)
-                        predictions.append(ContextPrediction(
-                            title=item.get('title', 'Knowledge Base Result'),
-                            context_type="knowledge_base",
-                            confidence=float(item.get('score', 0.7)),
-                            description=item.get('snippet', '')[:200],
-                            rationale="From personal knowledge base search",
-                            command=f"kb search '{query}'",
-                            file_path=item.get('path'),
-                            keywords=search_terms
-                        ))
+                        predictions.append(
+                            ContextPrediction(
+                                title=item.get("title", "Knowledge Base Result"),
+                                context_type="knowledge_base",
+                                confidence=float(item.get("score", 0.7)),
+                                description=item.get("snippet", "")[:200],
+                                rationale="From personal knowledge base search",
+                                command=f"kb search '{query}'",
+                                file_path=item.get("path"),
+                                keywords=search_terms,
+                            )
+                        )
                     except json.JSONDecodeError:
                         # Plain text result
                         if len(line) > 10:
-                            predictions.append(ContextPrediction(
-                                title=line[:100],
-                                context_type="knowledge_base",
-                                confidence=0.6,
-                                description=line[:200],
-                                rationale="From personal knowledge base",
-                                command=f"kb search '{query}'",
-                                keywords=search_terms
-                            ))
+                            predictions.append(
+                                ContextPrediction(
+                                    title=line[:100],
+                                    context_type="knowledge_base",
+                                    confidence=0.6,
+                                    description=line[:200],
+                                    rationale="From personal knowledge base",
+                                    command=f"kb search '{query}'",
+                                    keywords=search_terms,
+                                )
+                            )
 
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             # Silently fail - context is optional
             pass
 
@@ -191,12 +202,14 @@ class ContextIntelligence:
 
         # Look for documentation files
         for pattern in self.DOC_PATTERNS:
-            if pattern.endswith('/'):
+            if pattern.endswith("/"):
                 # Directory pattern
-                doc_dir = project_path / pattern.rstrip('/')
+                doc_dir = project_path / pattern.rstrip("/")
                 if doc_dir.exists() and doc_dir.is_dir():
-                    for doc_file in doc_dir.glob('*.md'):
-                        predictions.append(self._create_doc_prediction(doc_file, project))
+                    for doc_file in doc_dir.glob("*.md"):
+                        predictions.append(
+                            self._create_doc_prediction(doc_file, project)
+                        )
             else:
                 # File pattern
                 doc_file = project_path / pattern
@@ -210,7 +223,11 @@ class ContextIntelligence:
         try:
             content = doc_path.read_text()[:500]
             # Extract first meaningful line as snippet
-            lines = [l.strip() for l in content.split('\n') if l.strip() and not l.startswith('#')]
+            lines = [
+                l.strip()
+                for l in content.split("\n")
+                if l.strip() and not l.startswith("#")
+            ]
             snippet = lines[0] if lines else ""
         except Exception:
             snippet = ""
@@ -218,72 +235,84 @@ class ContextIntelligence:
         return ContextPrediction(
             title=f"{project}/{doc_path.name}",
             context_type="project_docs",
-            confidence=0.8 if doc_path.name in ['README.md', 'CLAUDE.md'] else 0.6,
+            confidence=0.8 if doc_path.name in ["README.md", "CLAUDE.md"] else 0.6,
             description=snippet[:200],
             rationale=f"Project documentation for {project}",
             command=f"cat {doc_path}",
             file_path=str(doc_path),
-            keywords=[project, doc_path.stem]
+            keywords=[project, doc_path.stem],
         )
 
-    def _find_recent_context(self, project: Optional[str] = None) -> List[ContextPrediction]:
+    def _find_recent_context(
+        self, project: Optional[str] = None
+    ) -> List[ContextPrediction]:
         """Find context from recent git activity."""
         predictions = []
 
         if project:
             project_path = self._find_project_path(project)
             if project_path:
-                predictions.extend(self._get_recent_commits_context(project_path, project))
+                predictions.extend(
+                    self._get_recent_commits_context(project_path, project)
+                )
 
         # Also check ACTION_PLAN.md for recent context
         action_plan = self.root_dir / "ACTION_PLAN.md"
         if action_plan.exists():
-            predictions.append(ContextPrediction(
-                title="ACTION_PLAN.md - Current priorities",
-                context_type="recent_activity",
-                confidence=0.9,
-                description="Repository action plan with current goals and priorities",
-                rationale="Contains your current strategic goals and priorities",
-                command=f"cat {action_plan}",
-                file_path=str(action_plan),
-                keywords=["goals", "priorities", "action plan"]
-            ))
+            predictions.append(
+                ContextPrediction(
+                    title="ACTION_PLAN.md - Current priorities",
+                    context_type="recent_activity",
+                    confidence=0.9,
+                    description="Repository action plan with current goals and priorities",
+                    rationale="Contains your current strategic goals and priorities",
+                    command=f"cat {action_plan}",
+                    file_path=str(action_plan),
+                    keywords=["goals", "priorities", "action plan"],
+                )
+            )
 
         return predictions
 
-    def _get_recent_commits_context(self, project_path: Path, project: str) -> List[ContextPrediction]:
+    def _get_recent_commits_context(
+        self, project_path: Path, project: str
+    ) -> List[ContextPrediction]:
         """Get context from recent commits."""
         predictions = []
 
         try:
             result = subprocess.run(
-                ['git', 'log', '--oneline', '-5', '--format=%s'],
+                ["git", "log", "--oneline", "-5", "--format=%s"],
                 cwd=project_path,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0 and result.stdout:
-                commits = result.stdout.strip().split('\n')
+                commits = result.stdout.strip().split("\n")
                 if commits and commits[0]:
-                    predictions.append(ContextPrediction(
-                        title=f"Recent {project} commits",
-                        context_type="recent_activity",
-                        confidence=0.7,
-                        description="; ".join(commits[:3]),
-                        rationale=f"Recent development activity in {project}",
-                        command=f"git -C {project_path} log --oneline -5",
-                        file_path=str(project_path),
-                        keywords=[project, "commits", "recent"]
-                    ))
+                    predictions.append(
+                        ContextPrediction(
+                            title=f"Recent {project} commits",
+                            context_type="recent_activity",
+                            confidence=0.7,
+                            description="; ".join(commits[:3]),
+                            rationale=f"Recent development activity in {project}",
+                            command=f"git -C {project_path} log --oneline -5",
+                            file_path=str(project_path),
+                            keywords=[project, "commits", "recent"],
+                        )
+                    )
 
         except Exception:
             pass
 
         return predictions
 
-    def _find_cursorrules_context(self, project_name: Optional[str]) -> List[ContextPrediction]:
+    def _find_cursorrules_context(
+        self, project_name: Optional[str]
+    ) -> List[ContextPrediction]:
         """Find CursorRules specific context."""
         predictions = []
         if not project_name:
@@ -296,40 +325,45 @@ class ContextIntelligence:
         try:
             # Lazy import to avoid circular dependencies
             from cortex.ai_intelligence import ProjectScanner
+
             scanner = ProjectScanner(self.root_dir)
-            
+
             # Use the new scoring method
             score, missing = scanner._score_cursorrules(project_path)
-            
-            predictions.append(ContextPrediction(
-                title=f"CursorRules Status: {project_name} (Score: {score:.0f})",
-                context_type="cursorrules",
-                confidence=1.0,
-                description=f"Score: {score}/100. Missing patterns: {', '.join(missing) if missing else 'None'}.",
-                rationale="Current CursorRules configuration state",
-                command="cortex scan (internal)",
-                file_path=str(project_path / ".cursorrules"),
-                keywords=["cursorrules", "rules", "ai context"]
-            ))
-            
+
+            predictions.append(
+                ContextPrediction(
+                    title=f"CursorRules Status: {project_name} (Score: {score:.0f})",
+                    context_type="cursorrules",
+                    confidence=1.0,
+                    description=f"Score: {score}/100. Missing patterns: {', '.join(missing) if missing else 'None'}.",
+                    rationale="Current CursorRules configuration state",
+                    command="cortex scan (internal)",
+                    file_path=str(project_path / ".cursorrules"),
+                    keywords=["cursorrules", "rules", "ai context"],
+                )
+            )
+
             # If missing patterns, suggest them
             if missing:
                 for pattern in missing:
-                    predictions.append(ContextPrediction(
-                        title=f"Missing Rule: {pattern}",
-                        context_type="cursorrules_gap",
-                        confidence=0.9,
-                        description=f"Project needs {pattern} rules but they are missing.",
-                        rationale=f"Detected {pattern} usage but no corresponding .mdc rule found.",
-                        command=f"trigger cursorrules_enhancer",
-                        keywords=["missing", pattern]
-                    ))
-                    
+                    predictions.append(
+                        ContextPrediction(
+                            title=f"Missing Rule: {pattern}",
+                            context_type="cursorrules_gap",
+                            confidence=0.9,
+                            description=f"Project needs {pattern} rules but they are missing.",
+                            rationale=f"Detected {pattern} usage but no corresponding .mdc rule found.",
+                            command="trigger cursorrules_enhancer",
+                            keywords=["missing", pattern],
+                        )
+                    )
+
         except ImportError:
             pass
         except Exception:
             pass
-            
+
         return predictions
 
     def _find_project_path(self, project: str) -> Optional[Path]:
@@ -357,18 +391,100 @@ class ContextIntelligence:
         """Extract keywords from text."""
         # Simple keyword extraction
         stop_words = {
-            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
-            'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
-            'would', 'could', 'should', 'may', 'might', 'must', 'shall',
-            'can', 'need', 'to', 'of', 'in', 'for', 'on', 'with', 'at',
-            'by', 'from', 'as', 'into', 'through', 'during', 'before',
-            'after', 'above', 'below', 'between', 'under', 'again',
-            'further', 'then', 'once', 'and', 'but', 'or', 'nor', 'so',
-            'yet', 'both', 'each', 'few', 'more', 'most', 'other', 'some',
-            'such', 'no', 'not', 'only', 'own', 'same', 'than', 'too',
-            'very', 'just', 'also', 'now', 'here', 'there', 'when', 'where',
-            'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
-            'most', 'other', 'some', 'such', 'this', 'that', 'these', 'those'
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "as",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "between",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "and",
+            "but",
+            "or",
+            "nor",
+            "so",
+            "yet",
+            "both",
+            "each",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "not",
+            "only",
+            "own",
+            "same",
+            "than",
+            "too",
+            "very",
+            "just",
+            "also",
+            "now",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "any",
+            "both",
+            "each",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "this",
+            "that",
+            "these",
+            "those",
         }
 
         # Tokenize and filter
@@ -377,13 +493,15 @@ class ContextIntelligence:
 
         for word in words:
             # Clean word
-            clean = ''.join(c for c in word if c.isalnum() or c == '-')
+            clean = "".join(c for c in word if c.isalnum() or c == "-")
             if clean and len(clean) > 2 and clean not in stop_words:
                 keywords.append(clean)
 
         return keywords[:10]
 
-    def _deduplicate(self, predictions: List[ContextPrediction]) -> List[ContextPrediction]:
+    def _deduplicate(
+        self, predictions: List[ContextPrediction]
+    ) -> List[ContextPrediction]:
         """Remove duplicate predictions."""
         seen = set()
         unique = []
@@ -397,22 +515,26 @@ class ContextIntelligence:
         return unique
 
     def get_context_for_recommendation(
-        self,
-        recommendation: Any
+        self, recommendation: Any
     ) -> List[ContextPrediction]:
         """Get context specifically for a recommendation."""
         keywords = []
 
         # Extract keywords from recommendation
-        if hasattr(recommendation, 'title'):
+        if hasattr(recommendation, "title"):
             keywords.extend(self._extract_keywords(recommendation.title))
-        if hasattr(recommendation, 'related_projects'):
+        if hasattr(recommendation, "related_projects"):
             keywords.extend(recommendation.related_projects)
 
         return self.predict_context(
-            current_project=recommendation.related_projects[0] if hasattr(recommendation, 'related_projects') and recommendation.related_projects else None,
+            current_project=(
+                recommendation.related_projects[0]
+                if hasattr(recommendation, "related_projects")
+                and recommendation.related_projects
+                else None
+            ),
             keywords=keywords,
-            limit=3
+            limit=3,
         )
 
 
@@ -420,12 +542,12 @@ def main():
     """CLI for testing context intelligence."""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Predict relevant context')
-    parser.add_argument('--project', help='Current project')
-    parser.add_argument('--task', help='Current task description')
-    parser.add_argument('--keywords', nargs='+', help='Search keywords')
-    parser.add_argument('--limit', type=int, default=5, help='Max predictions')
-    parser.add_argument('--json', action='store_true', help='JSON output')
+    parser = argparse.ArgumentParser(description="Predict relevant context")
+    parser.add_argument("--project", help="Current project")
+    parser.add_argument("--task", help="Current task description")
+    parser.add_argument("--keywords", nargs="+", help="Search keywords")
+    parser.add_argument("--limit", type=int, default=5, help="Max predictions")
+    parser.add_argument("--json", action="store_true", help="JSON output")
     args = parser.parse_args()
 
     intel = ContextIntelligence()
@@ -436,28 +558,32 @@ def main():
         current_project=args.project,
         current_task=args.task,
         keywords=args.keywords,
-        limit=args.limit
+        limit=args.limit,
     )
 
     if args.json:
         output = []
         for p in predictions:
-            output.append({
-                'title': p.title,
-                'context_type': p.context_type,
-                'confidence': p.confidence,
-                'description': p.description,
-                'rationale': p.rationale,
-                'command': p.command,
-                'file_path': p.file_path,
-                'keywords': p.keywords
-            })
+            output.append(
+                {
+                    "title": p.title,
+                    "context_type": p.context_type,
+                    "confidence": p.confidence,
+                    "description": p.description,
+                    "rationale": p.rationale,
+                    "command": p.command,
+                    "file_path": p.file_path,
+                    "keywords": p.keywords,
+                }
+            )
         print(json.dumps(output, indent=2))
     else:
         print(f"Found {len(predictions)} context predictions\n")
 
         for i, pred in enumerate(predictions, 1):
-            confidence_bar = '█' * int(pred.confidence * 10) + '░' * (10 - int(pred.confidence * 10))
+            confidence_bar = "█" * int(pred.confidence * 10) + "░" * (
+                10 - int(pred.confidence * 10)
+            )
             print(f"{i}. [{confidence_bar}] {pred.title}")
             print(f"   Type: {pred.context_type} | Confidence: {pred.confidence:.0%}")
             if pred.description:
@@ -467,5 +593,5 @@ def main():
             print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

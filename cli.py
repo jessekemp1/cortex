@@ -15,12 +15,13 @@ from pathlib import Path
 cortex_dir = Path(__file__).parent
 sys.path.insert(0, str(cortex_dir))
 
-from orchestrator import CortexOrchestrator
 from formatter import CortexFormatter
+
+from briefing import format_briefing, format_briefing_json, generate_daily_briefing
 from feedback import FeedbackLogger
-from learning import LearningSystem
 from integration.local_orchestrator import CortexLocalOrchestratorIntegration
-from briefing import generate_daily_briefing, format_briefing, format_briefing_json
+from learning import LearningSystem
+from orchestrator import CortexOrchestrator
 
 
 def cmd_next(args):
@@ -31,7 +32,7 @@ def cmd_next(args):
         response = orchestrator.get_next_action(
             project_filter=args.project,
             include_context=args.with_context,
-            limit=args.limit
+            limit=args.limit,
         )
 
         formatter = CortexFormatter()
@@ -48,7 +49,9 @@ def cmd_status(args):
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
+        response = orchestrator.get_next_action(
+            limit=0
+        )  # Just get state, no recommendations
 
         state = response.current_state
         health = response.system_health
@@ -134,7 +137,7 @@ def cmd_feedback(args):
         print(f"Total Entries: {stats['total_entries']}")
         print(f"Useful: {stats['useful_count']}")
         print(f"Not Useful: {stats['not_useful_count']}")
-        if stats['total_entries'] > 0:
+        if stats["total_entries"] > 0:
             print(f"Useful Rate: {stats['useful_rate']:.1%}")
         print(f"Log File: {stats['log_file']}")
         print("")
@@ -159,7 +162,9 @@ def cmd_feedback(args):
 
         if not response.next_action:
             print("Error: No recent recommendation found to log feedback for.")
-            print("Run 'cortex next' or 'cortex briefing' first to get recommendations.")
+            print(
+                "Run 'cortex next' or 'cortex briefing' first to get recommendations."
+            )
             sys.exit(1)
 
         rec = response.next_action
@@ -167,7 +172,9 @@ def cmd_feedback(args):
         # Validate outcome
         valid_outcomes = ["success", "partial", "failed", "unknown"]
         if args.outcome not in valid_outcomes:
-            print(f"Error: Invalid outcome '{args.outcome}'. Must be one of: {', '.join(valid_outcomes)}")
+            print(
+                f"Error: Invalid outcome '{args.outcome}'. Must be one of: {', '.join(valid_outcomes)}"
+            )
             sys.exit(1)
 
         # Log structured outcome
@@ -175,15 +182,14 @@ def cmd_feedback(args):
             recommendation_id=rec.id,
             recommendation_title=rec.title,
             recommendation_type=rec.type,
-            priority=rec.priority.upper()[0] if rec.priority else "B",  # Convert "high" -> "A", etc.
+            priority=(
+                rec.priority.upper()[0] if rec.priority else "B"
+            ),  # Convert "high" -> "A", etc.
             confidence=rec.confidence,
             followed=True,  # Assume followed if providing feedback
             outcome=args.outcome,
             notes=args.notes,
-            context={
-                "projects": rec.related_projects,
-                "goals": rec.related_goals
-            }
+            context={"projects": rec.related_projects, "goals": rec.related_goals},
         )
 
         # Map outcome to emoji
@@ -191,7 +197,7 @@ def cmd_feedback(args):
             "success": "✅",
             "partial": "🟡",
             "failed": "❌",
-            "unknown": "❔"
+            "unknown": "❔",
         }
 
         print(f"{outcome_emoji[args.outcome]} Outcome logged: {rec.title}")
@@ -203,7 +209,9 @@ def cmd_feedback(args):
     else:
         # Legacy interactive feedback
         action_title = args.action_title or "Last Recommendation"
-        useful = args.useful.lower() in ["yes", "y", "true", "1"] if args.useful else None
+        useful = (
+            args.useful.lower() in ["yes", "y", "true", "1"] if args.useful else None
+        )
 
         if useful is None:
             print("Error: Either provide --outcome or --useful")
@@ -214,52 +222,63 @@ def cmd_feedback(args):
             useful=useful,
             action_id=args.action_id,
             notes=args.notes,
-            actual_outcome=args.outcome
+            actual_outcome=args.outcome,
         )
 
-        print(f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}")
+        print(
+            f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}"
+        )
 
 
 def cmd_health(args):
     """Show system health check (Golden Spec: Dependency Transparency)."""
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
-    
+
     try:
         response = orchestrator.get_next_action(limit=0)
         health = response.system_health
-        
+
         print("╔══════════════════════════════════════════════════════╗")
         print("║              CORTEX - SYSTEM HEALTH                  ║")
         print("╚══════════════════════════════════════════════════════╝")
         print("")
-        
+
         integrations = [
             ("Project Scanner", health.project_scanner, "Scans git repos for activity"),
             ("Goal Parser", health.goal_parser, "Parses goals from ACTION_PLAN.md"),
-            ("Recommendation Engine", health.recommendation_engine, "Generates strategic recommendations"),
-            ("Context Intelligence", health.context_intelligence, "Predicts needed context")
+            (
+                "Recommendation Engine",
+                health.recommendation_engine,
+                "Generates strategic recommendations",
+            ),
+            (
+                "Context Intelligence",
+                health.context_intelligence,
+                "Predicts needed context",
+            ),
         ]
-        
+
         for name, active, description in integrations:
             status = "✅ Active" if active else "❌ Missing"
             print(f"{status:12} {name}")
             print(f"             {description}")
             print("")
-        
+
         print("──────────────────────────────────────────────────────")
-        overall = "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
+        overall = (
+            "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
+        )
         print(f"{overall}")
         print(f"Active: {health.active_count}/4 integrations")
         print("")
-        
+
         if not health.all_active:
             print("Note: System will work with reduced capability.")
             print("      Some features may be unavailable.")
-        
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
-
 
 
 def cmd_briefing(args):
@@ -269,7 +288,7 @@ def cmd_briefing(args):
         briefing = generate_daily_briefing(root_dir=Path(args.root))
 
         # Format output
-        if args.format == 'json':
+        if args.format == "json":
             output = format_briefing_json(briefing)
         else:
             output = format_briefing(briefing, use_color=not args.no_color)
@@ -283,23 +302,22 @@ def cmd_briefing(args):
 
 def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
-    from orchestrator import CortexOrchestrator
     from agent_factory import AgentFactory
+    from orchestrator import CortexOrchestrator
 
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
-    
+
     # Check if we are in "Team Provisioning" mode
     if args.team:
         # Determine intent: either explicit argument or from next recommendation
         intent = args.intent
         recommendation = None
-        
+
         if not intent:
             # Fetch recommendation if no intent provided
             try:
                 response = orchestrator.get_next_action(
-                    project_filter=args.project,
-                    limit=1
+                    project_filter=args.project, limit=1
                 )
                 if response.next_action:
                     recommendation = response.next_action
@@ -307,43 +325,46 @@ def cmd_schedule(args):
             except Exception as e:
                 print(f"Error fetching recommendation: {e}", file=sys.stderr)
                 sys.exit(1)
-                
+
         if not intent:
             print("Error: No intent provided and no active recommendation found.")
             print("Usage: cortex schedule 'Build X' --team")
             sys.exit(1)
-            
+
         # Generate Team Configuration
         print(f"Provisioning Agent Team for: {intent}")
         try:
             yaml_content = AgentFactory.create_team_config(intent=intent)
-            
+
             # Write to Drop Zone
             # Locate local-orchestrator relative to root or cortex
             # We assume standard structure: root/local-orchestrator
             drop_zone = Path(args.root) / "local-orchestrator" / "agents" / "dynamic"
             if not drop_zone.exists():
                 # Try relative to this file if root is weird
-                drop_zone = cortex_dir.parent / "local-orchestrator" / "agents" / "dynamic"
-                
+                drop_zone = (
+                    cortex_dir.parent / "local-orchestrator" / "agents" / "dynamic"
+                )
+
             if not drop_zone.exists():
                 print(f"Error: Drop zone not found at {drop_zone}")
                 print("Make sure local-orchestrator/agents/dynamic exists.")
                 sys.exit(1)
-                
+
             # Generate filename
             import re
-            safe_name = re.sub(r'[^a-zA-Z0-9]', '_', intent.lower())[:50]
+
+            safe_name = re.sub(r"[^a-zA-Z0-9]", "_", intent.lower())[:50]
             file_path = drop_zone / f"{safe_name}.yaml"
-            
+
             file_path.write_text(yaml_content)
             print(f"✨ Team Configuration written to: {file_path}")
             print("   The Local Orchestrator should pick this up automatically.")
-            
+
         except Exception as e:
             print(f"Error provisioning team: {e}", file=sys.stderr)
             sys.exit(1)
-            
+
         return
 
     # Standard Schedule Logic (Single Function)
@@ -353,10 +374,7 @@ def cmd_schedule(args):
             print("Error: explicit intent only supported with --team flag currently.")
             sys.exit(1)
 
-        response = orchestrator.get_next_action(
-            project_filter=args.project,
-            limit=1
-        )
+        response = orchestrator.get_next_action(project_filter=args.project, limit=1)
 
         if not response.next_action:
             print("No recommendations available to schedule.")
@@ -401,7 +419,7 @@ def cmd_execute(args):
         # Get recommendations
         response = orchestrator.get_next_action(
             project_filter=args.project,
-            limit=10  # Get more to allow selection by index
+            limit=10,  # Get more to allow selection by index
         )
 
         # Combine next_action and alternatives for indexing
@@ -418,7 +436,9 @@ def cmd_execute(args):
         if args.index is not None:
             # Execute by index (1-based)
             if args.index < 1 or args.index > len(all_recommendations):
-                print(f"Error: Index {args.index} out of range (1-{len(all_recommendations)})")
+                print(
+                    f"Error: Index {args.index} out of range (1-{len(all_recommendations)})"
+                )
                 sys.exit(1)
             recommendation = all_recommendations[args.index - 1]
         elif args.id:
@@ -474,8 +494,8 @@ def cmd_execute(args):
                     context={
                         "execution_time": result.get("execution_time"),
                         "timestamp": result.get("timestamp"),
-                        "data": result.get("data")
-                    }
+                        "data": result.get("data"),
+                    },
                 )
                 print("\n✓ Outcome logged to feedback system")
         else:
@@ -494,9 +514,7 @@ def cmd_execute(args):
                     followed=True,
                     outcome="failed",
                     notes=result.get("message"),
-                    context={
-                        "error": result.get("error")
-                    }
+                    context={"error": result.get("error")},
                 )
                 print("\n✓ Failure logged to feedback system")
             sys.exit(1)
@@ -504,6 +522,7 @@ def cmd_execute(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
@@ -540,7 +559,9 @@ def cmd_learn(args):
             print("────────────────")
             print("How well do confidence scores predict success?")
             print("")
-            for bucket, success_rate in sorted(metrics.confidence_calibration.items(), reverse=True):
+            for bucket, success_rate in sorted(
+                metrics.confidence_calibration.items(), reverse=True
+            ):
                 if success_rate > 0:
                     bar_length = int(success_rate * 20)
                     bar = "█" * bar_length + "░" * (20 - bar_length)
@@ -557,21 +578,25 @@ def cmd_learn(args):
             # Sort by success rate
             sorted_patterns = sorted(
                 metrics.outcome_patterns.items(),
-                key=lambda x: x[1]['success_rate'],
-                reverse=True
+                key=lambda x: x[1]["success_rate"],
+                reverse=True,
             )
 
             for rec_type, pattern in sorted_patterns:
-                if pattern['followed'] > 0:
+                if pattern["followed"] > 0:
                     print(f"  {rec_type}")
-                    print(f"    Total: {pattern['total']}, Followed: {pattern['followed']}")
+                    print(
+                        f"    Total: {pattern['total']}, Followed: {pattern['followed']}"
+                    )
                     print(f"    Success Rate: {pattern['success_rate']:.1%}")
                     print(f"    Avg Confidence: {pattern['avg_confidence']:.2f}")
                     print("")
         else:
             print("💡 TIP")
             print("────────────────")
-            print("No outcome patterns yet. Start tracking outcomes to enable learning!")
+            print(
+                "No outcome patterns yet. Start tracking outcomes to enable learning!"
+            )
             print("")
             print("Log outcomes with:")
             print("  cortex feedback --outcome <success|partial|failed>")
@@ -591,16 +616,106 @@ def cmd_batch_status(args):
     print("")
     print("Batch Processing Status:")
     print("────────────────")
-    print(f"  Learning batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('learning') else '❌ Disabled'}")
-    print(f"  Research batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('research') else '❌ Disabled'}")
-    print(f"  Recommendations batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('recommendations') else '❌ Disabled'}")
+    print(
+        f"  Learning batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('learning') else '❌ Disabled'}"
+    )
+    print(
+        f"  Research batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('research') else '❌ Disabled'}"
+    )
+    print(
+        f"  Recommendations batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('recommendations') else '❌ Disabled'}"
+    )
     print("")
-    print(f"Any batch enabled: {'✅ Yes' if BatchConfig.is_any_batch_enabled() else '❌ No'}")
+    print(
+        f"Any batch enabled: {'✅ Yes' if BatchConfig.is_any_batch_enabled() else '❌ No'}"
+    )
     print("")
-    print("Enable batch processing:")
-    print("  export CORTEX_BATCH_LEARNING_ENABLED=true")
-    print("  export CORTEX_BATCH_RESEARCH_ENABLED=true")
     print("  export CORTEX_BATCH_RECOMMENDATIONS_ENABLED=true")
+    print("")
+
+
+def cmd_dashboard(args):
+    """Show Symbiosis Dashboard (Night Shift & Agents)."""
+    from datetime import datetime
+
+    from integration.local_orchestrator import CortexLocalOrchestratorIntegration
+
+    # Initialize integration
+    integration = CortexLocalOrchestratorIntegration(root_dir=Path(args.root))
+
+    if not integration.is_available():
+        print("Error: Local Orchestrator not available.")
+        sys.exit(1)
+
+    stats = integration.get_dashboard_stats()
+
+    if "error" in stats:
+        print(f"Error fetching stats: {stats['error']}")
+        sys.exit(1)
+
+    queue = stats.get("queue", {})
+    recent = stats.get("recent_activity", [])
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║           SYMBIOSIS ENGINE STATUS                    ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("")
+
+    # 1. Night Shift Status
+    print("🌙 NIGHT SHIFT (Batch System)")
+    print("─────────────────────────────")
+    pending = queue.get("pending", 0)
+    active = queue.get("active_batches", 0)
+
+    print(f"Queue Depth: {pending} items")
+    print(f"Active Batches: {active}")
+
+    if active > 0:
+        print("\n  Active Batches:")
+        for batch in queue.get("batches", []):
+            print(f"  • {batch.get('batch_id')} ({batch.get('status')})")
+    print("")
+
+    # 2. Agent Activity
+    print("🤖 AGENT ACTIVITY (Last 10 Runs)")
+    print("──────────────────────────────")
+
+    if not recent:
+        print("No recent activity.")
+    else:
+        # Simple table
+        print(f"{'AGENT':<25} {'STATUS':<10} {'TIME':<20} {'MESSAGE'}")
+        print(f"{'-'*25} {'-'*10} {'-'*20} {'-'*15}")
+
+        for run in recent:
+            agent_id = run.get("agent_id", "unknown")
+            # Shorten ID
+            name = agent_id.replace("system_", "").replace("agent_", "")[:24]
+            status = run.get("status", "unknown")
+            status_icon = (
+                "✅"
+                if status == "completed" or status == True
+                else "❌" if status == "failed" else "⏳"
+            )
+
+            # Timestamp formatting
+            ts_str = run.get("timestamp", "")
+            if isinstance(ts_str, datetime):
+                time_val = ts_str.strftime("%H:%M:%S")
+            else:
+                try:
+                    # Truncate parsing for simplicity
+                    time_val = ts_str.split("T")[1].split(".")[0]
+                except:
+                    time_val = str(ts_str)[:8]
+
+            msg = (
+                run.get("message", "")[:30] + "..."
+                if len(run.get("message", "")) > 30
+                else run.get("message", "")
+            )
+
+            print(f"{name:<25} {status_icon} {status:<8} {time_val:<20} {msg}")
     print("")
 
 
@@ -624,14 +739,14 @@ Examples:
   cortex briefing --format=json # Daily briefing in JSON
   cortex feedback --stats       # Show feedback statistics
   cortex feedback --log "Note"  # Quick log entry
-        """
+        """,
     )
 
     parser.add_argument(
         "--root",
         type=str,
         default="/Users/jesse.kemp/Dev",
-        help="Root directory to scan (default: /Users/jesse.kemp/Dev)"
+        help="Root directory to scan (default: /Users/jesse.kemp/Dev)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
@@ -639,25 +754,17 @@ Examples:
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
     next_parser.add_argument(
-        "project",
-        nargs="?",
-        help="Filter by project name (optional)"
+        "project", nargs="?", help="Filter by project name (optional)"
     )
     next_parser.add_argument(
-        "--with-context",
-        action="store_true",
-        help="Include context predictions"
+        "--with-context", action="store_true", help="Include context predictions"
     )
-    next_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output JSON format"
-    )
+    next_parser.add_argument("--json", action="store_true", help="Output JSON format")
     next_parser.add_argument(
         "--limit",
         type=int,
         default=3,
-        help="Number of alternative actions to show (default: 3)"
+        help="Number of alternative actions to show (default: 3)",
     )
     next_parser.set_defaults(func=cmd_next)
 
@@ -670,56 +777,49 @@ Examples:
     health_parser.set_defaults(func=cmd_health)
 
     # Feedback command
-    feedback_parser = subparsers.add_parser("feedback", help="Log feedback for recommendations")
-    feedback_parser.add_argument(
-        "--action-title",
-        type=str,
-        help="Title of the action/recommendation"
+    feedback_parser = subparsers.add_parser(
+        "feedback", help="Log feedback for recommendations"
     )
     feedback_parser.add_argument(
-        "--action-id",
-        type=str,
-        help="ID of the action (if available)"
+        "--action-title", type=str, help="Title of the action/recommendation"
     )
     feedback_parser.add_argument(
-        "--useful",
-        type=str,
-        required=False,
-        help="Was it useful? (yes/no)"
+        "--action-id", type=str, help="ID of the action (if available)"
     )
     feedback_parser.add_argument(
-        "--notes",
-        type=str,
-        help="Optional notes"
+        "--useful", type=str, required=False, help="Was it useful? (yes/no)"
     )
-    feedback_parser.add_argument(
-        "--outcome",
-        type=str,
-        help="What actually happened?"
-    )
+    feedback_parser.add_argument("--notes", type=str, help="Optional notes")
+    feedback_parser.add_argument("--outcome", type=str, help="What actually happened?")
     feedback_parser.add_argument(
         "--stats",
         type=str,
         nargs="?",
         const="summary",
-        help="Show feedback statistics (use 'recent' for recent entries)"
+        help="Show feedback statistics (use 'recent' for recent entries)",
     )
     feedback_parser.add_argument(
-        "--log",
-        type=str,
-        help="Quick log entry (general note)"
+        "--log", type=str, help="Quick log entry (general note)"
     )
     feedback_parser.set_defaults(func=cmd_feedback)
 
     # Check command (Golden Spec Validator)
     from golden_spec_validator import GoldenSpecValidator
-    
+
     def cmd_check(args):
         """Check project alignment with Golden Spec."""
         validator = GoldenSpecValidator(Path(args.root))
-        
-        target_projects = [args.project] if args.project else [p.name for p in Path(args.root).iterdir() if p.is_dir() and not p.name.startswith('.')]
-        
+
+        target_projects = (
+            [args.project]
+            if args.project
+            else [
+                p.name
+                for p in Path(args.root).iterdir()
+                if p.is_dir() and not p.name.startswith(".")
+            ]
+        )
+
         print("╔══════════════════════════════════════════════════════╗")
         print("║          CORTEX - GOLDEN SPEC VALIDATOR              ║")
         print("╚══════════════════════════════════════════════════════╝")
@@ -727,9 +827,12 @@ Examples:
 
         for proj in target_projects:
             # Skip non-project dirs in bulk scan
-            if not args.project and (proj in ["logs", "scripts", "reports", "archive"] or not (Path(args.root)/proj).is_dir()):
+            if not args.project and (
+                proj in ["logs", "scripts", "reports", "archive"]
+                or not (Path(args.root) / proj).is_dir()
+            ):
                 continue
-                
+
             status = validator.validate_project(proj)
             if not status.has_spec_file and not args.project:
                 # In bulk mode, skip projects without specs to reduce noise, unless they look active
@@ -737,67 +840,81 @@ Examples:
 
             print(f"Project: {status.project_name}")
             print(f"Spec File: {status.spec_path or '❌ Missing'}")
-            
+
             # Draw score bar
             bar_len = int(status.compliance_score * 20)
             bar = "█" * bar_len + "░" * (20 - bar_len)
             print(f"Compliance: {bar} {status.compliance_score:.0%}")
-            
+
             if status.has_spec_file:
                 print("\n  Phases:")
                 for phase in status.phases:
                     icon = "✅" if phase.completed else "⭕"
                     print(f"  {icon} {phase.name}")
-            
+
             if status.recommendations:
                 print("\n  Recommendations:")
                 for rec in status.recommendations:
                     print(f"  • {rec}")
             print("\n" + "─" * 40 + "\n")
 
-    check_parser = subparsers.add_parser("check", help="Check project compliance with Golden Spec")
+    check_parser = subparsers.add_parser(
+        "check", help="Check project compliance with Golden Spec"
+    )
     check_parser.add_argument("project", nargs="?", help="Project to check")
     check_parser.set_defaults(func=cmd_check)
 
     # Draft command (Spec Generator)
     from spec_generator import SpecGenerator
-    
+
     def cmd_draft(args):
         """Draft a new Golden Spec from intent."""
         generator = SpecGenerator(Path(args.root))
-        
+
         # Determine project name: explicitly provided or current dir name
         project_name = args.project
         if not project_name:
             project_name = Path.cwd().name
-            
+
         try:
             file_path = generator.generate(
-                intent=args.intent,
-                project_name=project_name,
-                target_dir=Path.cwd()
+                intent=args.intent, project_name=project_name, target_dir=Path.cwd()
             )
             print(f"✨ Golden Spec drafted: {file_path}")
             print(f"   Project: {project_name}")
             print(f"   Intent: {args.intent}")
             print("\nNext: Open the file and refine Phase 1 (Deep Understanding).")
-            
+
         except Exception as e:
             print(f"Error drafting spec: {e}", file=sys.stderr)
             sys.exit(1)
 
-    draft_parser = subparsers.add_parser("draft", help="Draft a new Golden Spec from intent")
+    draft_parser = subparsers.add_parser(
+        "draft", help="Draft a new Golden Spec from intent"
+    )
     draft_parser.add_argument("intent", help="The intent or goal of the project")
-    draft_parser.add_argument("--project", help="Project name (optional, defaults to current dir)")
+    draft_parser.add_argument(
+        "--project", help="Project name (optional, defaults to current dir)"
+    )
     draft_parser.set_defaults(func=cmd_draft)
 
     # Learn command
-    learn_parser = subparsers.add_parser("learn", help="Show learning metrics and patterns")
+    learn_parser = subparsers.add_parser(
+        "learn", help="Show learning metrics and patterns"
+    )
     learn_parser.set_defaults(func=cmd_learn)
 
     # Batch status command
-    batch_status_parser = subparsers.add_parser("batch-status", help="Show batch API configuration")
+    batch_status_parser = subparsers.add_parser(
+        "batch-status", help="Show batch API configuration"
+    )
     batch_status_parser.set_defaults(func=cmd_batch_status)
+
+    # Dashboard command (Symbiosis Engine)
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Show Symbiosis Engine Dashboard"
+    )
+    dashboard_parser.set_defaults(func=cmd_dashboard)
 
     # Briefing command
     briefing_parser = subparsers.add_parser("briefing", help="Generate daily briefing")
@@ -806,68 +923,50 @@ Examples:
         type=str,
         choices=["text", "json"],
         default="text",
-        help="Output format (default: text)"
+        help="Output format (default: text)",
     )
     briefing_parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable color output"
+        "--no-color", action="store_true", help="Disable color output"
     )
     briefing_parser.set_defaults(func=cmd_briefing)
 
     # Schedule command
     schedule_parser = subparsers.add_parser(
-        'schedule',
-        help='Schedule a recommendation as a local-orchestrator agent'
+        "schedule", help="Schedule a recommendation as a local-orchestrator agent"
     )
     schedule_parser.add_argument(
-        'intent',
-        nargs='?',
-        help='Optional intent string (requires --team)'
+        "intent", nargs="?", help="Optional intent string (requires --team)"
     )
+    schedule_parser.add_argument("--project", type=str, help="Filter by project name")
     schedule_parser.add_argument(
-        '--project',
-        type=str,
-        help='Filter by project name'
-    )
-    schedule_parser.add_argument(
-        '--schedule',
+        "--schedule",
         type=str,
         default="0 8 * * *",
-        help='Cron schedule (default: "0 8 * * *" for daily at 8 AM)'
+        help='Cron schedule (default: "0 8 * * *" for daily at 8 AM)',
     )
     schedule_parser.add_argument(
-        '--team',
-        action='store_true',
-        help='Provision a full Agent Team for this intent'
+        "--team",
+        action="store_true",
+        help="Provision a full Agent Team for this intent",
     )
     schedule_parser.set_defaults(func=cmd_schedule)
 
     # Execute command
     execute_parser = subparsers.add_parser(
-        'execute',
-        help='Execute a recommendation immediately'
+        "execute", help="Execute a recommendation immediately"
     )
     execute_parser.add_argument(
-        'index',
-        nargs='?',
+        "index",
+        nargs="?",
         type=int,
-        help='Index of recommendation to execute (1-based, optional)'
+        help="Index of recommendation to execute (1-based, optional)",
     )
+    execute_parser.add_argument("--id", type=str, help="Execute recommendation by ID")
+    execute_parser.add_argument("--project", type=str, help="Filter by project name")
     execute_parser.add_argument(
-        '--id',
-        type=str,
-        help='Execute recommendation by ID'
-    )
-    execute_parser.add_argument(
-        '--project',
-        type=str,
-        help='Filter by project name'
-    )
-    execute_parser.add_argument(
-        '--no-feedback',
-        action='store_true',
-        help='Skip logging outcome to feedback system'
+        "--no-feedback",
+        action="store_true",
+        help="Skip logging outcome to feedback system",
     )
     execute_parser.set_defaults(func=cmd_execute)
 
@@ -882,4 +981,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

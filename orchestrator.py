@@ -10,17 +10,19 @@ Orchestrates:
 """
 
 import sys
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class Priority(str, Enum):
     """Priority levels for recommendations"""
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+
 
 # Add parent directory to path to import existing tools
 # Path(__file__) is in cortex/, so parent is /Users/jesse.kemp/Dev
@@ -30,33 +32,33 @@ dev_root = script_dir.parent
 
 # Prioritize cortex directory first (has latest versions), then scripts
 sys.path.insert(0, str(script_dir))  # cortex/ directory (this directory)
-sys.path.insert(1, str(dev_root))    # Dev/ directory
+sys.path.insert(1, str(dev_root))  # Dev/ directory
 scripts_dir = dev_root / "scripts"
-sys.path.insert(2, str(scripts_dir)) # scripts/ directory (legacy)
+sys.path.insert(2, str(scripts_dir))  # scripts/ directory (legacy)
 
 try:
-    from ai_intelligence import ProjectScanner, ProjectActivity
+    from ai_intelligence import ProjectActivity, ProjectScanner
 except ImportError:
     try:
-        from scripts.ai_intelligence import ProjectScanner, ProjectActivity
+        from scripts.ai_intelligence import ProjectActivity, ProjectScanner
     except ImportError:
         ProjectScanner = None
         ProjectActivity = None
 
 try:
-    from goal_parser import GoalParser, Goal
+    from goal_parser import Goal, GoalParser
 except ImportError:
     try:
-        from scripts.goal_parser import GoalParser, Goal
+        from scripts.goal_parser import Goal, GoalParser
     except ImportError:
         GoalParser = None
         Goal = None
 
 try:
-    from recommendation_engine import RecommendationEngine, Recommendation
+    from recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
     try:
-        from scripts.recommendation_engine import RecommendationEngine, Recommendation
+        from scripts.recommendation_engine import Recommendation, RecommendationEngine
     except ImportError:
         RecommendationEngine = None
         Recommendation = None
@@ -72,7 +74,8 @@ except ImportError:
 
 # Task discovery integration
 try:
-    from task_discovery import get_tasks_for_project, get_all_tasks
+    from task_discovery import get_all_tasks, get_tasks_for_project
+
     TASK_DISCOVERY_AVAILABLE = True
 except ImportError:
     get_tasks_for_project = None
@@ -82,6 +85,7 @@ except ImportError:
 # Optional local-orchestrator integration
 try:
     from integration.local_orchestrator import CortexLocalOrchestratorIntegration
+
     LOCAL_ORCHESTRATOR_INTEGRATION_AVAILABLE = True
 except ImportError:
     CortexLocalOrchestratorIntegration = None
@@ -91,6 +95,7 @@ except ImportError:
 try:
     from integration.feedback_loop import FeedbackLoop
     from integration.history_analyzer import ExecutionHistoryAnalyzer
+
     LEARNING_AVAILABLE = True
 except ImportError:
     FeedbackLoop = None
@@ -100,6 +105,7 @@ except ImportError:
 # Cortex learning system
 try:
     from learning import LearningSystem
+
     CORTEX_LEARNING_AVAILABLE = True
 except ImportError:
     LearningSystem = None
@@ -109,31 +115,36 @@ except ImportError:
 @dataclass
 class SystemHealth:
     """System health status for Golden Spec verification."""
+
     project_scanner: bool
     goal_parser: bool
     recommendation_engine: bool
     context_intelligence: bool
-    
+
     @property
     def all_active(self) -> bool:
         """Check if all integrations are active."""
-        return all([
-            self.project_scanner,
-            self.goal_parser,
-            self.recommendation_engine,
-            self.context_intelligence
-        ])
-    
+        return all(
+            [
+                self.project_scanner,
+                self.goal_parser,
+                self.recommendation_engine,
+                self.context_intelligence,
+            ]
+        )
+
     @property
     def active_count(self) -> int:
         """Count of active integrations."""
-        return sum([
-            self.project_scanner,
-            self.goal_parser,
-            self.recommendation_engine,
-            self.context_intelligence
-        ])
-    
+        return sum(
+            [
+                self.project_scanner,
+                self.goal_parser,
+                self.recommendation_engine,
+                self.context_intelligence,
+            ]
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -143,13 +154,14 @@ class SystemHealth:
             "context_intelligence": self.context_intelligence,
             "all_active": self.all_active,
             "active_count": self.active_count,
-            "total_integrations": 4
+            "total_integrations": 4,
         }
 
 
 @dataclass
 class StrategistResponse:
     """Formatted strategist response."""
+
     current_state: Dict[str, Any]
     next_action: Optional[Recommendation]
     alternative_actions: List[Recommendation]
@@ -168,15 +180,24 @@ class CortexOrchestrator:
         # Initialize tools (gracefully handle missing tools)
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
-        self.context_intel = ContextIntelligence(root_dir) if ContextIntelligence else None
-        
+        self.recommendation_engine = (
+            RecommendationEngine() if RecommendationEngine else None
+        )
+        self.context_intel = (
+            ContextIntelligence(root_dir) if ContextIntelligence else None
+        )
+
         # Optional local-orchestrator integration
-        if LOCAL_ORCHESTRATOR_INTEGRATION_AVAILABLE and CortexLocalOrchestratorIntegration:
-            self.local_orchestrator_integration = CortexLocalOrchestratorIntegration(root_dir)
+        if (
+            LOCAL_ORCHESTRATOR_INTEGRATION_AVAILABLE
+            and CortexLocalOrchestratorIntegration
+        ):
+            self.local_orchestrator_integration = CortexLocalOrchestratorIntegration(
+                root_dir
+            )
         else:
             self.local_orchestrator_integration = None
-        
+
         # Learning and feedback loop
         if LEARNING_AVAILABLE and FeedbackLoop:
             self.feedback_loop = FeedbackLoop(root_dir)
@@ -194,12 +215,11 @@ class CortexOrchestrator:
         else:
             self.learning_system = None
 
-
     def get_next_action(
         self,
         project_filter: Optional[str] = None,
         include_context: bool = False,
-        limit: int = 3
+        limit: int = 3,
     ) -> StrategistResponse:
         """
         Get next action with current state summary.
@@ -222,7 +242,7 @@ class CortexOrchestrator:
 
         # 2. Get project activity (git repos + projects from goals)
         project_activity = []
-        
+
         # 2a. Get git repos
         git_projects = []
         if self.project_scanner:
@@ -236,7 +256,7 @@ class CortexOrchestrator:
 
         # 2b. Detect projects from goals (even if not git repos)
         goal_projects = self._detect_projects_from_goals(goals, git_projects)
-        
+
         # 2c. Merge: git projects + goal projects (deduplicate by name)
         project_activity = self._merge_projects(git_projects, goal_projects)
 
@@ -246,7 +266,7 @@ class CortexOrchestrator:
             try:
                 recommendations = self.recommendation_engine.generate_recommendations(
                     project_activity=project_activity if project_activity else None,
-                    limit=limit + 1  # +1 for next action
+                    limit=limit + 1,  # +1 for next action
                 )
 
                 # Apply learning adjustments if available
@@ -254,9 +274,11 @@ class CortexOrchestrator:
                     adjusted_recommendations = []
                     for rec in recommendations:
                         # Adjust confidence based on historical outcomes
-                        adjusted_confidence, explanation = self.learning_system.adjust_confidence_based_on_history(
-                            recommendation_type=rec.type,
-                            base_confidence=rec.confidence
+                        adjusted_confidence, explanation = (
+                            self.learning_system.adjust_confidence_based_on_history(
+                                recommendation_type=rec.type,
+                                base_confidence=rec.confidence,
+                            )
                         )
 
                         # Update recommendation with adjusted confidence
@@ -270,13 +292,16 @@ class CortexOrchestrator:
                     recommendations = adjusted_recommendations
 
             except Exception as e:
-                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
+                )
 
         # 4. Filter by project if specified
         if project_filter and recommendations:
             project_lower = project_filter.lower()
             recommendations = [
-                r for r in recommendations
+                r
+                for r in recommendations
                 if any(project_lower in proj.lower() for proj in r.related_projects)
             ]
 
@@ -298,25 +323,33 @@ class CortexOrchestrator:
                 all_tasks = get_all_tasks()
                 # Filter by project if specified
                 if project_filter:
-                    discovered_tasks = [t for t in all_tasks if t.get('project', '').lower() == project_filter.lower()]
+                    discovered_tasks = [
+                        t
+                        for t in all_tasks
+                        if t.get("project", "").lower() == project_filter.lower()
+                    ]
                 else:
                     discovered_tasks = all_tasks[:limit]  # Limit to avoid overwhelming
             except Exception as e:
                 print(f"Warning: Could not discover tasks: {e}", file=sys.stderr)
 
         # 7. Build current state summary
-        current_state = self._build_current_state(project_activity, goals, discovered_tasks)
+        current_state = self._build_current_state(
+            project_activity, goals, discovered_tasks
+        )
 
         # 8. Extract next action and alternatives
         next_action = recommendations[0] if recommendations else None
-        alternative_actions = recommendations[1:limit + 1] if len(recommendations) > 1 else []
+        alternative_actions = (
+            recommendations[1 : limit + 1] if len(recommendations) > 1 else []
+        )
 
         # 9. Build system health status (Golden Spec: Dependency Transparency)
         system_health = SystemHealth(
             project_scanner=self.project_scanner is not None,
             goal_parser=self.goal_parser is not None,
             recommendation_engine=self.recommendation_engine is not None,
-            context_intelligence=self.context_intel is not None
+            context_intelligence=self.context_intel is not None,
         )
 
         return StrategistResponse(
@@ -324,19 +357,19 @@ class CortexOrchestrator:
             next_action=next_action,
             alternative_actions=alternative_actions,
             context_predictions=context_predictions,
-            system_health=system_health
+            system_health=system_health,
         )
 
     def _build_current_state(
         self,
         project_activity: List[ProjectActivity],
         goals: List[Goal],
-        discovered_tasks: List[Dict[str, Any]] = None
+        discovered_tasks: List[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build current state summary."""
         if discovered_tasks is None:
             discovered_tasks = []
-            
+
         state = {
             "active_projects": 0,
             "recent_projects": 0,
@@ -349,20 +382,22 @@ class CortexOrchestrator:
             "goals_in_progress": 0,
             "blockers": [],
             "discovered_tasks": len(discovered_tasks),
-            "tasks_by_project": {}
+            "tasks_by_project": {},
         }
-        
+
         # Group tasks by project
         for task in discovered_tasks:
-            project = task.get('project', 'unknown')
+            project = task.get("project", "unknown")
             if project not in state["tasks_by_project"]:
                 state["tasks_by_project"][project] = []
-            state["tasks_by_project"][project].append({
-                "id": task.get('id'),
-                "name": task.get('name'),
-                "type": task.get('type'),
-                "schedule": task.get('schedule')
-            })
+            state["tasks_by_project"][project].append(
+                {
+                    "id": task.get("id"),
+                    "name": task.get("name"),
+                    "type": task.get("type"),
+                    "schedule": task.get("schedule"),
+                }
+            )
 
         if project_activity:
             for project in project_activity:
@@ -374,10 +409,12 @@ class CortexOrchestrator:
                     state["dormant_projects"] += 1
 
                 if project.blockers:
-                    state["blockers"].extend([
-                        {"project": project.name, "blocker": blocker}
-                        for blocker in project.blockers
-                    ])
+                    state["blockers"].extend(
+                        [
+                            {"project": project.name, "blocker": blocker}
+                            for blocker in project.blockers
+                        ]
+                    )
 
         if goals:
             for goal in goals:
@@ -396,9 +433,7 @@ class CortexOrchestrator:
         return state
 
     def _detect_projects_from_goals(
-        self,
-        goals: List[Goal],
-        existing_projects: List[ProjectActivity]
+        self, goals: List[Goal], existing_projects: List[ProjectActivity]
     ) -> List[ProjectActivity]:
         """
         Detect projects from goal project names.
@@ -425,15 +460,17 @@ class CortexOrchestrator:
                 continue
 
             # Check if it looks like a project (has some project files)
-            has_project_files = any([
-                (project_path / 'requirements.txt').exists(),
-                (project_path / 'package.json').exists(),
-                (project_path / 'README.md').exists(),
-                (project_path / 'pyproject.toml').exists(),
-                (project_path / 'setup.py').exists(),
-                (project_path / 'src').exists(),
-                (project_path / 'app').exists(),
-            ])
+            has_project_files = any(
+                [
+                    (project_path / "requirements.txt").exists(),
+                    (project_path / "package.json").exists(),
+                    (project_path / "README.md").exists(),
+                    (project_path / "pyproject.toml").exists(),
+                    (project_path / "setup.py").exists(),
+                    (project_path / "src").exists(),
+                    (project_path / "app").exists(),
+                ]
+            )
 
             if not has_project_files:
                 continue
@@ -450,7 +487,7 @@ class CortexOrchestrator:
                 blockers=[],
                 current_branch="",
                 last_commit_date=None,
-                last_commit_msg=""
+                last_commit_msg="",
             )
 
             # Try to detect blockers for non-git projects
@@ -465,20 +502,23 @@ class CortexOrchestrator:
         blockers = []
 
         # Check for .env.example without .env
-        if (project_path / '.env.example').exists() and not (project_path / '.env').exists():
+        if (project_path / ".env.example").exists() and not (
+            project_path / ".env"
+        ).exists():
             blockers.append("Missing .env file")
 
         # Check for requirements.txt without venv
-        if (project_path / 'requirements.txt').exists():
-            if not (project_path / 'venv').exists() and not (project_path / 'env').exists():
+        if (project_path / "requirements.txt").exists():
+            if (
+                not (project_path / "venv").exists()
+                and not (project_path / "env").exists()
+            ):
                 blockers.append("No virtualenv detected")
 
         return blockers
 
     def _merge_projects(
-        self,
-        git_projects: List[ProjectActivity],
-        goal_projects: List[ProjectActivity]
+        self, git_projects: List[ProjectActivity], goal_projects: List[ProjectActivity]
     ) -> List[ProjectActivity]:
         """
         Merge git projects and goal projects, deduplicating by name.
@@ -499,4 +539,3 @@ class CortexOrchestrator:
                 seen_names.add(project.name.lower())
 
         return merged
-

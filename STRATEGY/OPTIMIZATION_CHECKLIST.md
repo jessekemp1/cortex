@@ -428,4 +428,3 @@ alias cxs='converx status'
 ---
 
 *"Optimization is not about perfection. It's about continuous improvement. Start with basics. Add complexity only when value is proven. Track progress. Adjust based on results."*
-

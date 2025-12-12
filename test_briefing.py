@@ -9,9 +9,9 @@ Tests:
 - CLI integration
 """
 
+import json
 import sys
 from pathlib import Path
-import json
 
 # Add cortex to path
 cortex_dir = Path(__file__).parent
@@ -19,10 +19,10 @@ sys.path.insert(0, str(cortex_dir))
 sys.path.insert(0, str(cortex_dir.parent / "scripts"))
 
 from briefing import (
-    generate_daily_briefing,
+    BriefingGenerator,
     format_briefing,
     format_briefing_json,
-    BriefingGenerator
+    generate_daily_briefing,
 )
 
 
@@ -42,7 +42,9 @@ def test_briefing_generation():
     assert isinstance(briefing.patterns, list)
     assert isinstance(briefing.waiting_on, list)
 
-    print(f"  ✓ Generated briefing with {len(briefing.active_projects)} active projects")
+    print(
+        f"  ✓ Generated briefing with {len(briefing.active_projects)} active projects"
+    )
     print(f"  ✓ {briefing.total_commits_7d} commits in last 7 days")
     print(f"  ✓ {len(briefing.priority_actions)} priority actions")
     return True
@@ -180,7 +182,7 @@ def run_all_tests():
         test_briefing_generator,
         test_pattern_detection,
         test_priority_actions,
-        test_blockers
+        test_blockers,
     ]
 
     passed = 0

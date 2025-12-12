@@ -22,4 +22,3 @@ sys.path.insert(1, 'local-orchestrator')
 from cortex.cli import main
 main()
 " "$@"
-

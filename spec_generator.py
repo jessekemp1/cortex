@@ -1,6 +1,7 @@
+import datetime
 from pathlib import Path
 from typing import Optional
-import datetime
+
 
 class SpecGenerator:
     """Generates Golden Spec skeletons based on user intent."""
@@ -27,7 +28,7 @@ class SpecGenerator:
 
 ## 2. Outcome Definition (The "What")
 
-**Target Outcome**: 
+**Target Outcome**:
 
 *Tip: Describe the end state as if it has already happened. Be specific and measurable.*
 
@@ -88,41 +89,43 @@ class SpecGenerator:
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
 
-    def generate(self, intent: str, project_name: str, target_dir: Optional[Path] = None) -> Path:
+    def generate(
+        self, intent: str, project_name: str, target_dir: Optional[Path] = None
+    ) -> Path:
         """
         Generate a GOLDEN_SPEC.md file.
-        
+
         Args:
             intent: The user's intended goal.
             project_name: Name of the project.
             target_dir: Directory to write the spec to (defaults to root/project_name or cwd).
-            
+
         Returns:
             Path to the created file.
         """
         if target_dir is None:
             # Default to current working directory if not specified
             target_dir = Path.cwd()
-            
+
         if not target_dir.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
-            
+
         content = self.GOLDEN_SPEC_TEMPLATE.format(
             project_name=project_name,
             date=datetime.date.today().isoformat(),
-            intent=intent
+            intent=intent,
         )
-        
+
         # Determine filename
         # If project_name is generic or empty, use GOLDEN_SPEC.md
         # If project_name is specific, use PROJECT_NAME_SPEC.md
         filename = "GOLDEN_SPEC.md"
         file_path = target_dir / filename
-        
+
         if file_path.exists():
             # Don't overwrite, append timestamp
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = target_dir / f"GOLDEN_SPEC_{timestamp}.md"
-            
+
         file_path.write_text(content)
         return file_path

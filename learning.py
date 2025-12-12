@@ -8,23 +8,19 @@ Analyzes outcome data to:
 3. Calibrate confidence scores
 """
 
-from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
-from feedback import FeedbackLogger, OutcomeEntry
-from cortex.batch import (
-    BatchFallback,
-    LearningBatcher,
-    LearningContext,
-    BatchConfig,
-)
+from cortex.batch import BatchConfig, BatchFallback, LearningBatcher, LearningContext
+from feedback import FeedbackLogger
 
 
 @dataclass
 class LearningMetrics:
     """Learning metrics summary."""
+
     total_outcomes: int
     followed_count: int
     success_rate: float  # Of followed recommendations
@@ -104,7 +100,11 @@ class LearningSystem:
 
             if followed:
                 success_count = sum(
-                    1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0
+                    (
+                        1.0
+                        if o.outcome == "success"
+                        else 0.5 if o.outcome == "partial" else 0.0
+                    )
                     for o in followed
                 )
                 success_rate = success_count / len(followed)
@@ -115,7 +115,8 @@ class LearningSystem:
                 "total": len(type_outcomes),
                 "followed": len(followed),
                 "success_rate": success_rate,
-                "avg_confidence": sum(o.confidence for o in type_outcomes) / len(type_outcomes)
+                "avg_confidence": sum(o.confidence for o in type_outcomes)
+                / len(type_outcomes),
             }
 
         return patterns
@@ -138,11 +139,7 @@ class LearningSystem:
             return {}
 
         # Group by confidence bucket
-        buckets = {
-            "high (0.8-1.0)": [],
-            "medium (0.5-0.8)": [],
-            "low (0.0-0.5)": []
-        }
+        buckets = {"high (0.8-1.0)": [], "medium (0.5-0.8)": [], "low (0.0-0.5)": []}
 
         for outcome in outcomes:
             if not outcome.followed:
@@ -162,7 +159,11 @@ class LearningSystem:
         for bucket, bucket_outcomes in buckets.items():
             if bucket_outcomes:
                 success_count = sum(
-                    1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0
+                    (
+                        1.0
+                        if o.outcome == "success"
+                        else 0.5 if o.outcome == "partial" else 0.0
+                    )
                     for o in bucket_outcomes
                 )
                 calibration[bucket] = success_count / len(bucket_outcomes)
@@ -189,7 +190,7 @@ class LearningSystem:
                 failed_rate=0.0,
                 recommendation_accuracy=0.0,
                 confidence_calibration={},
-                outcome_patterns={}
+                outcome_patterns={},
             )
 
         followed = [o for o in outcomes if o.followed]
@@ -215,7 +216,7 @@ class LearningSystem:
             failed_rate=failed_rate,
             recommendation_accuracy=self.calculate_recommendation_accuracy(),
             confidence_calibration=self.get_confidence_calibration(),
-            outcome_patterns=self.get_outcome_patterns()
+            outcome_patterns=self.get_outcome_patterns(),
         )
 
     def _read_metrics_once(self) -> Dict[str, Any]:
@@ -232,7 +233,7 @@ class LearningSystem:
             "followed_count": sum(1 for o in outcomes if o.followed),
             "success_rate": self.calculate_recommendation_accuracy(),
             "confidence_calibration": self.get_confidence_calibration(),
-            "pattern_summary": self.get_outcome_patterns()
+            "pattern_summary": self.get_outcome_patterns(),
         }
 
     def _analyze_patterns_batch(self, context: LearningContext) -> Dict[str, Any]:
@@ -249,7 +250,7 @@ class LearningSystem:
             "key_insights": [],
             "pattern_discoveries": [],
             "confidence_assessment": "Sequential processing (batch disabled)",
-            "adjustment_suggestions": []
+            "adjustment_suggestions": [],
         }
 
     def analyze_patterns(self, execution_history: Dict) -> Dict[str, Any]:
@@ -266,23 +267,23 @@ class LearningSystem:
                 execution_history=execution_history,
                 goals_context={},  # Would come from orchestrator context
                 metrics_data=metrics_data,  # SINGLE FILE READ
-                context_id="learning_001"
+                context_id="learning_001",
             )
 
             result = BatchFallback.process_with_fallback(
                 items=[context],
                 batch_processor=self._analyze_patterns_batch,
-                sequential_processor=lambda ctx: self._analyze_patterns_sequential(ctx.execution_history),
-                feature="learning"
+                sequential_processor=lambda ctx: self._analyze_patterns_sequential(
+                    ctx.execution_history
+                ),
+                feature="learning",
             )
             return result
         else:
             return self._analyze_patterns_sequential(execution_history)
 
     def adjust_confidence_based_on_history(
-        self,
-        recommendation_type: str,
-        base_confidence: float
+        self, recommendation_type: str, base_confidence: float
     ) -> Tuple[float, str]:
         """
         Adjust recommendation confidence based on historical outcomes.
@@ -302,7 +303,10 @@ class LearningSystem:
         type_metrics = patterns[recommendation_type]
 
         if type_metrics["followed"] < 3:
-            return base_confidence, f"Limited data ({type_metrics['followed']} outcomes)"
+            return (
+                base_confidence,
+                f"Limited data ({type_metrics['followed']} outcomes)",
+            )
 
         # Adjust based on historical success rate
         historical_success = type_metrics["success_rate"]

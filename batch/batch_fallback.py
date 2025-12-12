@@ -6,11 +6,11 @@ Provides graceful degradation from batch to sequential processing.
 """
 
 import logging
-from typing import Callable, TypeVar, List, Any
+from typing import Any, Callable, List, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')  # Generic return type
+T = TypeVar("T")  # Generic return type
 
 
 class BatchFallback:
@@ -21,7 +21,7 @@ class BatchFallback:
         items: List[Any],
         batch_processor: Callable,
         sequential_processor: Callable,
-        feature: str = "unknown"
+        feature: str = "unknown",
     ) -> Any:
         """
         Process items with automatic fallback.
@@ -89,10 +89,7 @@ class BatchFallback:
 
     @staticmethod
     def safe_batch_call(
-        batch_func: Callable,
-        sequential_func: Callable,
-        *args,
-        **kwargs
+        batch_func: Callable, sequential_func: Callable, *args, **kwargs
     ) -> Any:
         """
         Wrapper for single function call with batch/sequential fallback.
@@ -114,5 +111,7 @@ class BatchFallback:
         try:
             return batch_func(*args, **kwargs)
         except Exception as e:
-            logger.warning(f"Batch call failed: {type(e).__name__}: {e}, falling back to sequential")
+            logger.warning(
+                f"Batch call failed: {type(e).__name__}: {e}, falling back to sequential"
+            )
             return sequential_func(*args, **kwargs)

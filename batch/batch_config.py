@@ -7,7 +7,6 @@ All features default to DISABLED for safety.
 """
 
 import os
-from typing import Optional
 
 
 class BatchConfig:

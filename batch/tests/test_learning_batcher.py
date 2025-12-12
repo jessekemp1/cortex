@@ -4,19 +4,13 @@ Unit tests for learning system batch processor
 Tests learning analysis batching functionality.
 """
 
-import pytest
-import os
 import json
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
-from datetime import datetime
+from unittest.mock import patch
+
+import pytest
 
 # Import modules to test
-from cortex.batch.learning_batcher import (
-    LearningBatcher,
-    LearningContext,
-)
-from cortex.batch.batch_config import BatchConfig
+from cortex.batch.learning_batcher import LearningBatcher, LearningContext
 
 
 class TestLearningContext:
@@ -30,7 +24,7 @@ class TestLearningContext:
             metrics_data={
                 "total_outcomes": 20,
                 "followed_count": 15,
-                "success_rate": 0.75
+                "success_rate": 0.75,
             },
             context_id="learning_001",
         )
@@ -60,11 +54,13 @@ class TestLearningContext:
         )
 
         # Should not raise
-        json_str = json.dumps({
-            "execution_history": context.execution_history,
-            "goals_context": context.goals_context,
-            "metrics_data": context.metrics_data,
-        })
+        json_str = json.dumps(
+            {
+                "execution_history": context.execution_history,
+                "goals_context": context.goals_context,
+                "metrics_data": context.metrics_data,
+            }
+        )
         assert "tasks" in json_str
         assert "count" in json_str
 
@@ -202,7 +198,7 @@ class TestFileCaching:
             "pattern_summary": {
                 "goal_progress": {"total": 10, "success_rate": 0.9},
                 "blocker_removal": {"total": 5, "success_rate": 0.7},
-            }
+            },
         }
 
         # Should be JSON serializable
@@ -225,7 +221,7 @@ class TestFileCaching:
                 "followed_count": 40,
                 "success_rate": 0.8,
                 "confidence_calibration": {"high (0.8-1.0)": 0.85},
-                "pattern_summary": {"type1": {"success_rate": 0.9}}
+                "pattern_summary": {"type1": {"success_rate": 0.9}},
             },
         )
 
@@ -247,7 +243,7 @@ class TestIntegration:
             goals_context={"goal": "test", "priority": "high"},
             metrics_data={
                 "total_outcomes": 20,
-                "confidence_calibration": {"high": 0.9}
+                "confidence_calibration": {"high": 0.9},
             },
             context_id="test",
         )
@@ -359,11 +355,7 @@ Reasoning: Limited data
         batcher = LearningBatcher()
 
         # Create a result with invalid structure
-        result = {
-            "message": {
-                "content": []  # Empty content
-            }
-        }
+        result = {"message": {"content": []}}  # Empty content
 
         processed = batcher._process_learning_result("test_001", result)
 

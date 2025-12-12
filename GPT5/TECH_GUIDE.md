@@ -180,7 +180,7 @@ class RiskDetector:
         finance_state: Optional[FinanceState] = None
     ) -> List[Risk]:
         risks = []
-        
+
         # Example: Detect burnout risk
         if self._high_workload_with_low_energy(project_activity):
             risks.append(Risk(
@@ -189,7 +189,7 @@ class RiskDetector:
                 description="High workload with low energy signals burnout risk",
                 horizon_days=14
             ))
-        
+
         # Example: Detect runway risk
         if finance_state and finance_state.runway_months < 3:
             risks.append(Risk(
@@ -198,7 +198,7 @@ class RiskDetector:
                 description="Runway below 3 months",
                 horizon_days=90
             ))
-        
+
         return risks
 ```
 
@@ -271,10 +271,10 @@ class ScenarioCalculator:
         # - Project momentum (commits, activity)
         # - Blockers and risks
         # - Historical patterns (if available)
-        
+
         momentum = self._calculate_momentum(project_activity)
         blockers = self._count_blockers(project_activity)
-        
+
         if momentum > 0.8 and blockers == 0:
             # High momentum, no blockers = optimistic
             optimistic = "2 weeks"
@@ -290,7 +290,7 @@ class ScenarioCalculator:
             optimistic = "4 weeks"
             likely = "6 weeks"
             conservative = "8 weeks"
-        
+
         return ScenarioBand(
             optimistic=optimistic,
             likely=likely,
@@ -341,7 +341,7 @@ class RiskDetector:
     def detect_risks(self, data):
         # Local: Analyze local data first
         local_risks = self._analyze_local(data)
-        
+
         # Connected: Optionally augment with AI if available
         if self.ai_model_available:
             ai_risks = self._analyze_with_ai(data)
@@ -366,7 +366,7 @@ def get_next_action(self):
         except Exception as e:
             print(f"Warning: Finance analysis unavailable: {e}", file=sys.stderr)
             # Continue without finance - still provide value
-    
+
     # Try to get health state (optional)
     health_state = None
     if self.health_analyzer:
@@ -375,7 +375,7 @@ def get_next_action(self):
         except Exception as e:
             print(f"Warning: Health analysis unavailable: {e}", file=sys.stderr)
             # Continue without health - still provide value
-    
+
     # Return recommendations with available data
     return self._generate_recommendations(
         finance_state=finance_state,  # May be None
@@ -478,7 +478,7 @@ def get_next_action(self):
         project_future = executor.submit(self._scan_projects)
         goals_future = executor.submit(self._parse_goals)
         finance_future = executor.submit(self._analyze_finance)
-        
+
         # Wait for results
         project_activity = project_future.result()
         goals = goals_future.result()
@@ -539,4 +539,3 @@ Converx is designed for **safe extension**:
 - **Performance-conscious**: Fast execution, low memory footprint
 
 **Key Principle**: Every extension should follow the same patterns: graceful error handling, hybrid local/connected, and clear integration points.
-

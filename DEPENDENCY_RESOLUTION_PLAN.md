@@ -315,4 +315,3 @@ cortex schedule  # Should attempt to schedule (may need orchestrator running)
 ---
 
 **Status**: ⚠️ **PLAN READY** - Execute resolution steps to enable full E2E testing
-

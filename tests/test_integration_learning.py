@@ -1,13 +1,14 @@
 """Tests for learning and adaptation"""
-import pytest
-from pathlib import Path
+
 import sys
+from pathlib import Path
+
 
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from integration.history_analyzer import ExecutionHistoryAnalyzer
 from integration.feedback_loop import FeedbackLoop
+from integration.history_analyzer import ExecutionHistoryAnalyzer
 
 
 def test_history_analyzer_import():

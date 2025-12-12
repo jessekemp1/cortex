@@ -125,4 +125,3 @@ python3 "converx/Grok MVP/cli.py" status
 **You've got this!** 🚀
 
 Start with Day 1: Run `converx next` and see what it recommends.
-

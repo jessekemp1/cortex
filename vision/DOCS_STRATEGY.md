@@ -434,4 +434,3 @@ api/
 ---
 
 *"Documentation is not just reference material. It is the substrate that enables strategic reasoning. The better the documentation, the better the Virtual Twin."*
-

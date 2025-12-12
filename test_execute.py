@@ -7,9 +7,9 @@ from pathlib import Path
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from orchestrator import CortexOrchestrator
-from integration.local_orchestrator import CortexLocalOrchestratorIntegration
 from feedback import FeedbackLogger
+from integration.local_orchestrator import CortexLocalOrchestratorIntegration
+from orchestrator import CortexOrchestrator
 
 
 def test_execute_flow():
@@ -25,6 +25,7 @@ def test_execute_flow():
 
     # Check LOCAL_ORCHESTRATOR_AVAILABLE
     from integration.local_orchestrator import LOCAL_ORCHESTRATOR_AVAILABLE
+
     print(f"   LOCAL_ORCHESTRATOR_AVAILABLE: {LOCAL_ORCHESTRATOR_AVAILABLE}")
 
     orchestrator = CortexOrchestrator(root_dir=root_dir)
@@ -65,7 +66,7 @@ def test_execute_flow():
         # This is expected for MVP - the task function doesn't do real work yet
         print("   Note: This is expected for MVP - demonstrating execution flow")
     else:
-        print(f"   ✓ Execution succeeded")
+        print("   ✓ Execution succeeded")
         print(f"     Message: {result['message']}")
     print()
 
@@ -83,8 +84,8 @@ def test_execute_flow():
         context={
             "test": True,
             "execution_time": result.get("execution_time"),
-            "timestamp": result.get("timestamp")
-        }
+            "timestamp": result.get("timestamp"),
+        },
     )
     print("   ✓ Outcome logged")
     print()
@@ -114,5 +115,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

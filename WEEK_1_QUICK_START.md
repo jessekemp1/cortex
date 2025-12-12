@@ -125,4 +125,3 @@ python3 "cortex/cli.py" status
 **You've got this!** 🚀
 
 Start with Day 1: Run `cortex next` and see what it recommends.
-

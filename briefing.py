@@ -10,29 +10,28 @@ Synthesizes:
 """
 
 import sys
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
-from collections import Counter
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Import existing tools
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 try:
-    from ai_intelligence import ProjectScanner, ProjectActivity
+    from ai_intelligence import ProjectActivity, ProjectScanner
 except ImportError:
     ProjectScanner = None
     ProjectActivity = None
 
 try:
-    from goal_parser import GoalParser, Goal
+    from goal_parser import Goal, GoalParser
 except ImportError:
     GoalParser = None
     Goal = None
 
 try:
-    from recommendation_engine import RecommendationEngine, Recommendation
+    from recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
     RecommendationEngine = None
     Recommendation = None
@@ -41,6 +40,7 @@ except ImportError:
 @dataclass
 class BriefingData:
     """Structured briefing data."""
+
     # Portfolio pulse
     active_projects: List[str]
     recent_commits_24h: int
@@ -72,7 +72,9 @@ class BriefingGenerator:
         # Initialize tools
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
+        self.recommendation_engine = (
+            RecommendationEngine() if RecommendationEngine else None
+        )
 
     def generate_daily_briefing(self) -> BriefingData:
         """
@@ -106,10 +108,12 @@ class BriefingGenerator:
             try:
                 recommendations = self.recommendation_engine.generate_recommendations(
                     project_activity=project_activity if project_activity else None,
-                    limit=5
+                    limit=5,
                 )
             except Exception as e:
-                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
+                )
 
         # 4. Build briefing sections
         briefing = BriefingData(
@@ -120,7 +124,7 @@ class BriefingGenerator:
             priority_actions=self._get_priority_actions(recommendations, goals),
             patterns=self._detect_patterns(project_activity),
             waiting_on=self._get_waiting_on(goals, project_activity),
-            generated_at=datetime.now()
+            generated_at=datetime.now(),
         )
 
         return briefing
@@ -131,15 +135,15 @@ class BriefingGenerator:
             return []
 
         # Active = has commits in last 7 days
-        active = [
-            p.name for p in projects
-            if p.commits_7d > 0
-        ]
+        active = [p.name for p in projects if p.commits_7d > 0]
 
         # Sort by activity (most commits first)
-        active.sort(key=lambda name: next(
-            (p.commits_7d for p in projects if p.name == name), 0
-        ), reverse=True)
+        active.sort(
+            key=lambda name: next(
+                (p.commits_7d for p in projects if p.name == name), 0
+            ),
+            reverse=True,
+        )
 
         return active
 
@@ -147,7 +151,7 @@ class BriefingGenerator:
         self,
         projects: List[ProjectActivity],
         hours: Optional[int] = None,
-        days: Optional[int] = None
+        days: Optional[int] = None,
     ) -> int:
         """Count commits in recent time period."""
         if not projects:
@@ -173,9 +177,7 @@ class BriefingGenerator:
         return total
 
     def _get_blockers(
-        self,
-        projects: List[ProjectActivity],
-        goals: List[Goal]
+        self, projects: List[ProjectActivity], goals: List[Goal]
     ) -> List[Dict[str, str]]:
         """Get all current blockers from projects and goals."""
         blockers = []
@@ -185,11 +187,13 @@ class BriefingGenerator:
             for project in projects:
                 if project.blockers and project.status in ["active", "recent"]:
                     for blocker in project.blockers:
-                        blockers.append({
-                            "project": project.name,
-                            "blocker": blocker,
-                            "source": "project"
-                        })
+                        blockers.append(
+                            {
+                                "project": project.name,
+                                "blocker": blocker,
+                                "source": "project",
+                            }
+                        )
 
         # Goal blockers
         if goals:
@@ -198,18 +202,18 @@ class BriefingGenerator:
                     blocker_text = f"{goal.title}"
                     if goal.blockers:
                         blocker_text = goal.blockers[0]
-                    blockers.append({
-                        "project": goal.project,
-                        "blocker": blocker_text,
-                        "source": "goal"
-                    })
+                    blockers.append(
+                        {
+                            "project": goal.project,
+                            "blocker": blocker_text,
+                            "source": "goal",
+                        }
+                    )
 
         return blockers
 
     def _get_priority_actions(
-        self,
-        recommendations: List[Recommendation],
-        goals: List[Goal]
+        self, recommendations: List[Recommendation], goals: List[Goal]
     ) -> List[Dict[str, Any]]:
         """Get top 3 priority actions from recommendations and goals."""
         actions = []
@@ -217,29 +221,42 @@ class BriefingGenerator:
         # Add recommendations
         if recommendations:
             for rec in recommendations[:3]:
-                actions.append({
-                    "title": rec.action_title if hasattr(rec, 'action_title') else rec.title,
-                    "priority": rec.priority.upper(),
-                    "project": rec.related_projects[0] if rec.related_projects else "General",
-                    "rationale": rec.rationale,
-                    "source": "recommendation"
-                })
+                actions.append(
+                    {
+                        "title": (
+                            rec.action_title
+                            if hasattr(rec, "action_title")
+                            else rec.title
+                        ),
+                        "priority": rec.priority.upper(),
+                        "project": (
+                            rec.related_projects[0]
+                            if rec.related_projects
+                            else "General"
+                        ),
+                        "rationale": rec.rationale,
+                        "source": "recommendation",
+                    }
+                )
 
         # Fill remaining with high-priority goals if needed
         if len(actions) < 3 and goals:
             priority_goals = [
-                g for g in goals
+                g
+                for g in goals
                 if g.priority == "A" and g.status in ["pending", "in_progress"]
             ]
 
-            for goal in priority_goals[:3 - len(actions)]:
-                actions.append({
-                    "title": goal.title,
-                    "priority": "HIGH",
-                    "project": goal.project or "General",
-                    "rationale": goal.description[:100] if goal.description else "",
-                    "source": "goal"
-                })
+            for goal in priority_goals[: 3 - len(actions)]:
+                actions.append(
+                    {
+                        "title": goal.title,
+                        "priority": "HIGH",
+                        "project": goal.project or "General",
+                        "rationale": goal.description[:100] if goal.description else "",
+                        "source": "goal",
+                    }
+                )
 
         return actions[:3]
 
@@ -266,18 +283,16 @@ class BriefingGenerator:
 
         # 3. Dormant projects awakening
         recently_awakened = [
-            p for p in projects
+            p
+            for p in projects
             if p.commits_7d > 0 and p.commits_30d <= p.commits_7d + 1
         ]
         if recently_awakened:
-            patterns.append(
-                f"Renewed focus on {recently_awakened[0].name}"
-            )
+            patterns.append(f"Renewed focus on {recently_awakened[0].name}")
 
         # 4. Consistency patterns (commits every day vs burst)
         steady_projects = [
-            p for p in active_projects
-            if p.commits_7d >= 5 and p.commits_7d <= 10
+            p for p in active_projects if p.commits_7d >= 5 and p.commits_7d <= 10
         ]
         if steady_projects:
             patterns.append(
@@ -285,10 +300,7 @@ class BriefingGenerator:
             )
 
         # 5. Burst activity
-        burst_projects = [
-            p for p in active_projects
-            if p.commits_7d >= 15
-        ]
+        burst_projects = [p for p in active_projects if p.commits_7d >= 15]
         if burst_projects:
             patterns.append(
                 f"Sprint on {burst_projects[0].name} ({burst_projects[0].commits_7d} commits)"
@@ -297,9 +309,7 @@ class BriefingGenerator:
         return patterns[:3]  # Top 3 patterns
 
     def _get_waiting_on(
-        self,
-        goals: List[Goal],
-        projects: List[ProjectActivity]
+        self, goals: List[Goal], projects: List[ProjectActivity]
     ) -> List[str]:
         """Get list of things waiting on user decisions."""
         waiting = []
@@ -361,6 +371,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     try:
         if use_color:
             from colorama import Fore, Style, init
+
             init(autoreset=True)
             BOLD = Style.BRIGHT
             RESET = Style.RESET_ALL
@@ -375,14 +386,20 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
 
     # Header
     lines.append("=" * 64)
-    lines.append(f"{BOLD}DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}{RESET}")
+    lines.append(
+        f"{BOLD}DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}{RESET}"
+    )
     lines.append("=" * 64)
     lines.append("")
 
     # Portfolio Pulse
     lines.append(f"{BOLD}PORTFOLIO PULSE{RESET}")
-    lines.append(f"  Active projects: {len(briefing.active_projects)} ({', '.join(briefing.active_projects[:5])}{'...' if len(briefing.active_projects) > 5 else ''})")
-    lines.append(f"  Recent commits: {briefing.recent_commits_24h} in last 24h, {briefing.total_commits_7d} in last 7d")
+    lines.append(
+        f"  Active projects: {len(briefing.active_projects)} ({', '.join(briefing.active_projects[:5])}{'...' if len(briefing.active_projects) > 5 else ''})"
+    )
+    lines.append(
+        f"  Recent commits: {briefing.recent_commits_24h} in last 24h, {briefing.total_commits_7d} in last 7d"
+    )
 
     if briefing.blockers:
         lines.append(f"  {RED}Blockers: {len(briefing.blockers)}{RESET}")
@@ -397,19 +414,31 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     lines.append(f"{BOLD}PRIORITY ACTIONS{RESET}")
     if briefing.priority_actions:
         for i, action in enumerate(briefing.priority_actions, 1):
-            priority_color = RED if action['priority'] == 'HIGH' else YELLOW if action['priority'] == 'MEDIUM' else GREEN
-            lines.append(f"  {i}. [{priority_color}{action['priority']}{RESET}] {action['title']}")
-            if action.get('project') and action['project'] != 'General':
+            priority_color = (
+                RED
+                if action["priority"] == "HIGH"
+                else YELLOW if action["priority"] == "MEDIUM" else GREEN
+            )
+            lines.append(
+                f"  {i}. [{priority_color}{action['priority']}{RESET}] {action['title']}"
+            )
+            if action.get("project") and action["project"] != "General":
                 lines.append(f"     Project: {action['project']}")
-            if action.get('rationale'):
+            if action.get("rationale"):
                 # Truncate rationale to 80 chars
-                rationale = action['rationale'][:80] + "..." if len(action['rationale']) > 80 else action['rationale']
+                rationale = (
+                    action["rationale"][:80] + "..."
+                    if len(action["rationale"]) > 80
+                    else action["rationale"]
+                )
                 lines.append(f"     {rationale}")
 
         lines.append("")
         lines.append(f"{BOLD}💡 PROVIDE FEEDBACK{RESET}")
         lines.append("  After completing a recommendation, log the outcome:")
-        lines.append(f"  {BLUE}cortex feedback --outcome <success|partial|failed>{RESET}")
+        lines.append(
+            f"  {BLUE}cortex feedback --outcome <success|partial|failed>{RESET}"
+        )
         lines.append("  This helps the learning system improve future recommendations.")
     else:
         lines.append("  No priority actions at this time")
@@ -458,11 +487,11 @@ def format_briefing_json(briefing: BriefingData) -> str:
             "active_projects": briefing.active_projects,
             "recent_commits_24h": briefing.recent_commits_24h,
             "total_commits_7d": briefing.total_commits_7d,
-            "blockers": briefing.blockers
+            "blockers": briefing.blockers,
         },
         "priority_actions": briefing.priority_actions,
         "patterns_noticed": briefing.patterns,
-        "waiting_on": briefing.waiting_on
+        "waiting_on": briefing.waiting_on,
     }
 
     return json.dumps(data, indent=2)

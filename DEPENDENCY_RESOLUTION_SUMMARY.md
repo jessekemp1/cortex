@@ -229,4 +229,3 @@ print(f'Integration available: {i.is_available()}')
 ---
 
 **Next Action**: Complete dependency installation, then verify and test full E2E integration.
-

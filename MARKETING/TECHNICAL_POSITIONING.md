@@ -136,23 +136,23 @@ Converx uses a **connector pattern** for data sources:
 ```python
 class Connector(ABC):
     """Base class for all data connectors."""
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """Connector name."""
         pass
-    
+
     @abstractmethod
     def is_available(self) -> bool:
         """Check if connector is configured."""
         pass
-    
+
     @abstractmethod
     def fetch_recent(self, days: int = 7) -> List[DataPoint]:
         """Fetch recent data points."""
         pass
-    
+
     @abstractmethod
     def search(self, query: str, limit: int = 10) -> List[SearchResult]:
         """Search within this data source."""
@@ -477,4 +477,3 @@ The technical architecture enables the strategic vision: **strategic clarity thr
 ---
 
 *"The best architecture is the one that gets out of the way. Converx orchestrates. You strategize. The system carries the complexity. You carry the decisions."*
-

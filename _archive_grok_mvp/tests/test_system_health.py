@@ -3,13 +3,13 @@
 Tests for System Health (Golden Spec: Dependency Transparency)
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from orchestrator import SystemHealth, ConverxOrchestrator
+from orchestrator import ConverxOrchestrator, SystemHealth
 
 
 def test_system_health_all_active():
@@ -18,9 +18,9 @@ def test_system_health_all_active():
         project_scanner=True,
         goal_parser=True,
         recommendation_engine=True,
-        context_intelligence=True
+        context_intelligence=True,
     )
-    
+
     assert health.all_active == True
     assert health.active_count == 4
 
@@ -31,9 +31,9 @@ def test_system_health_partial():
         project_scanner=True,
         goal_parser=False,
         recommendation_engine=True,
-        context_intelligence=False
+        context_intelligence=False,
     )
-    
+
     assert health.all_active == False
     assert health.active_count == 2
 
@@ -44,11 +44,11 @@ def test_system_health_to_dict():
         project_scanner=True,
         goal_parser=True,
         recommendation_engine=False,
-        context_intelligence=False
+        context_intelligence=False,
     )
-    
+
     health_dict = health.to_dict()
-    
+
     assert health_dict["project_scanner"] == True
     assert health_dict["goal_parser"] == True
     assert health_dict["recommendation_engine"] == False
@@ -62,9 +62,8 @@ def test_orchestrator_includes_health():
     """Test orchestrator includes system health in response."""
     orchestrator = ConverxOrchestrator()
     response = orchestrator.get_next_action(limit=0)
-    
+
     assert hasattr(response, "system_health")
     assert isinstance(response.system_health, SystemHealth)
     assert response.system_health.active_count >= 0
     assert response.system_health.active_count <= 4
-

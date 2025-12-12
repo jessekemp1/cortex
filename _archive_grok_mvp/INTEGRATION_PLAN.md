@@ -16,7 +16,7 @@
 
 ### ❌ What's Missing
 
-1. **Project Detection Gap**: 
+1. **Project Detection Gap**:
    - ProjectScanner only finds 3 git repos (claude-usage-optimizer, keto-tracker, khoj-research)
    - ACTION_PLAN.md references many more projects (VortexV2, alpha_arena, personal-ai-dataset, etc.)
    - These projects are subdirectories in monorepo, not separate git repos
@@ -285,4 +285,3 @@ python converx/Grok\ MVP/run_converx.py next vortexv2
 **Status**: Ready for implementation  
 **Estimated Time**: 2-3 hours total  
 **Risk**: Low (all tools exist, just need integration)
-

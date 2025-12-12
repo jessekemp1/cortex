@@ -456,4 +456,3 @@ When strategic clarity is accessible at scale, better decisions compound into be
 ---
 
 *"When strategic clarity is accessible, better decisions compound into better outcomes. Not just for individuals, but for teams, organizations, and society. That's the possibility. That's the vision. That's why this matters."*
-

@@ -3,15 +3,17 @@
 Tests for ConverxFormatter
 """
 
-import pytest
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from formatter import ConverxFormatter
+
 from orchestrator import StrategistResponse
 
 
@@ -25,11 +27,11 @@ def test_format_response_text():
             "priority_a_goals": 2,
             "goals_pending": 1,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
-        context_predictions=[]
+        context_predictions=[],
     )
 
     formatter = ConverxFormatter()
@@ -49,11 +51,11 @@ def test_format_response_json():
             "priority_a_goals": 2,
             "goals_pending": 1,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
-        context_predictions=[]
+        context_predictions=[],
     )
 
     formatter = ConverxFormatter()
@@ -86,7 +88,7 @@ def test_format_recommendation():
         estimated_impact="high",
         confidence=0.9,
         related_projects=["test-project"],
-        related_goals=["test-goal"]
+        related_goals=["test-goal"],
     )
 
     formatter = ConverxFormatter()
@@ -106,11 +108,11 @@ def test_format_empty_state():
             "priority_a_goals": 0,
             "goals_pending": 0,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
-        context_predictions=[]
+        context_predictions=[],
     )
 
     formatter = ConverxFormatter()
@@ -119,4 +121,3 @@ def test_format_empty_state():
     assert isinstance(output, str)
     # Should still produce valid output
     assert "CONVERX" in output
-

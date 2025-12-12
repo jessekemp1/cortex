@@ -9,22 +9,23 @@ Supports:
 - Email delivery (optional)
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime, timedelta
-from typing import Optional, Callable
-from dataclasses import dataclass
-import subprocess
 import json
+import subprocess
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
 # Import briefing module
 sys.path.insert(0, str(Path(__file__).parent))
-from briefing import generate_daily_briefing, format_briefing, format_briefing_json
+from briefing import format_briefing, format_briefing_json, generate_daily_briefing
 
 
 @dataclass
 class ScheduleConfig:
     """Schedule configuration."""
+
     cron_expression: str
     output_format: str = "text"
     output_file: Optional[str] = None
@@ -49,7 +50,7 @@ class BriefingScheduler:
         cron_expression: str = "0 8 * * *",
         output_format: str = "text",
         output_file: Optional[str] = None,
-        email_to: Optional[str] = None
+        email_to: Optional[str] = None,
     ) -> bool:
         """
         Schedule a daily briefing.
@@ -68,7 +69,7 @@ class BriefingScheduler:
             output_format=output_format,
             output_file=output_file,
             email_to=email_to,
-            enabled=True
+            enabled=True,
         )
 
         # Save configuration
@@ -164,7 +165,7 @@ class BriefingScheduler:
             "output_format": config.output_format,
             "output_file": config.output_file,
             "email_to": config.email_to,
-            "enabled": config.enabled
+            "enabled": config.enabled,
         }
 
         self.config_file.write_text(json.dumps(config_data, indent=2))
@@ -185,9 +186,7 @@ class BriefingScheduler:
         """Check if cron is available on the system."""
         try:
             result = subprocess.run(
-                ["which", "crontab"],
-                capture_output=True,
-                timeout=2
+                ["which", "crontab"], capture_output=True, timeout=2
             )
             return result.returncode == 0
         except Exception:
@@ -217,22 +216,19 @@ class BriefingScheduler:
             cron_line = f"{config.cron_expression} {cmd}"
 
             # Get current crontab
-            result = subprocess.run(
-                ["crontab", "-l"],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
 
             current_crontab = result.stdout if result.returncode == 0 else ""
 
             # Remove existing cortex briefing lines
             lines = [
-                line for line in current_crontab.split("\n")
+                line
+                for line in current_crontab.split("\n")
                 if "cortex briefing" not in line
             ]
 
             # Add new line
-            lines.append(f"# Cortex Daily Briefing")
+            lines.append("# Cortex Daily Briefing")
             lines.append(cron_line)
 
             # Install new crontab
@@ -242,7 +238,7 @@ class BriefingScheduler:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
             )
             stdout, stderr = process.communicate(input=new_crontab)
 
@@ -266,11 +262,7 @@ class BriefingScheduler:
         """
         try:
             # Get current crontab
-            result = subprocess.run(
-                ["crontab", "-l"],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
 
             if result.returncode != 0:
                 return True  # No crontab exists
@@ -279,7 +271,8 @@ class BriefingScheduler:
 
             # Remove cortex briefing lines
             lines = [
-                line for line in current_crontab.split("\n")
+                line
+                for line in current_crontab.split("\n")
                 if "cortex briefing" not in line and "Cortex Daily Briefing" not in line
             ]
 
@@ -290,7 +283,7 @@ class BriefingScheduler:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
             )
             stdout, stderr = process.communicate(input=new_crontab)
 
@@ -311,21 +304,21 @@ class BriefingScheduler:
         """
         try:
             import smtplib
-            from email.mime.text import MIMEText
             from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
 
             # Create message
             msg = MIMEMultipart()
-            msg['From'] = "cortex@localhost"
-            msg['To'] = to_address
-            msg['Subject'] = f"Daily Briefing - {date.strftime('%B %d, %Y')}"
+            msg["From"] = "cortex@localhost"
+            msg["To"] = to_address
+            msg["Subject"] = f"Daily Briefing - {date.strftime('%B %d, %Y')}"
 
             # Add content
-            msg.attach(MIMEText(content, 'plain'))
+            msg.attach(MIMEText(content, "plain"))
 
             # Send via local sendmail or SMTP
             # Note: This requires sendmail or SMTP configuration
-            server = smtplib.SMTP('localhost')
+            server = smtplib.SMTP("localhost")
             server.send_message(msg)
             server.quit()
 
@@ -370,7 +363,7 @@ def parse_cron_expression(expression: str) -> dict:
         "day": day,
         "month": month,
         "weekday": weekday,
-        "description": description
+        "description": description,
     }
 
 
@@ -382,28 +375,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--schedule",
         type=str,
-        help="Schedule briefing with cron expression (e.g., '0 8 * * *')"
+        help="Schedule briefing with cron expression (e.g., '0 8 * * *')",
     )
     parser.add_argument(
-        "--unschedule",
-        action="store_true",
-        help="Remove scheduled briefing"
+        "--unschedule", action="store_true", help="Remove scheduled briefing"
     )
-    parser.add_argument(
-        "--run",
-        action="store_true",
-        help="Run briefing now"
-    )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Show schedule status"
-    )
-    parser.add_argument(
-        "--output-file",
-        type=str,
-        help="File to write briefing to"
-    )
+    parser.add_argument("--run", action="store_true", help="Run briefing now")
+    parser.add_argument("--status", action="store_true", help="Show schedule status")
+    parser.add_argument("--output-file", type=str, help="File to write briefing to")
 
     args = parser.parse_args()
 
@@ -411,8 +390,7 @@ if __name__ == "__main__":
 
     if args.schedule:
         scheduler.schedule_briefing(
-            cron_expression=args.schedule,
-            output_file=args.output_file
+            cron_expression=args.schedule, output_file=args.output_file
         )
     elif args.unschedule:
         scheduler.unschedule_briefing()

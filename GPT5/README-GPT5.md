@@ -20,7 +20,7 @@ This package contains the **complete documentation, manifesto, strategy, and mar
 - The 5-10 year vision: Full decision intelligence OS
 - Why this matters: The human/AI future
 
-**When to read**: 
+**When to read**:
 - **First time**: Read once to understand the vision
 - **Reference**: Return when you need to remember "why this matters"
 
@@ -39,7 +39,7 @@ This package contains the **complete documentation, manifesto, strategy, and mar
 - Phase 3 (Days 31-60): Risk/opportunity radar
 - Phase 4 (Days 61-90): Virtual twin & scenarios
 
-**When to use**: 
+**When to use**:
 - **Start here**: Follow the 90-day plan day-by-day
 - **Daily reference**: Use as your tactical playbook
 - **Checkpoint reviews**: Use success criteria to validate progress
@@ -272,4 +272,3 @@ This GPT5 package provides everything you need to:
 **Start with MANIFESTO.md, then live in STRATEGIC_USAGE_RAMP.md for the next 90 days.**
 
 That's the path to maximum potential.
-

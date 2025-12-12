@@ -259,5 +259,3 @@ Build your Virtual Twin. Navigate by routes. See the full map. Make decisions al
 ---
 
 *"The best way to predict the future is to reverse-engineer it from its full potential. This is what we did with Converx. And it worked."*
-
-

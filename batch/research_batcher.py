@@ -8,9 +8,9 @@ then polls for and processes results.
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List
 
 from .batch_api_client import BatchAPIClient, BatchRequest
 
@@ -79,8 +79,7 @@ Format as markdown with clear sections."""
 
         # Step 2: Submit batch
         batch_id = self.batch_client.submit_batch(
-            batch_requests,
-            description=f"Research batch: {len(research_items)} items"
+            batch_requests, description=f"Research batch: {len(research_items)} items"
         )
         logger.info(f"Submitted batch {batch_id}")
 
@@ -99,10 +98,12 @@ Format as markdown with clear sections."""
             "batch_id": batch_id,
             "submitted_count": len(research_items),
             "completed_count": len(results),
-            "results": processed_results
+            "results": processed_results,
         }
 
-    def _build_batch_requests(self, research_items: List[Dict[str, Any]]) -> List[BatchRequest]:
+    def _build_batch_requests(
+        self, research_items: List[Dict[str, Any]]
+    ) -> List[BatchRequest]:
         """Convert research items to batch requests"""
         requests = []
 
@@ -114,23 +115,16 @@ Format as markdown with clear sections."""
 
             # Build prompt
             user_prompt = self.RESEARCH_USER_PROMPT_TEMPLATE.format(
-                topic=topic,
-                context=context,
-                priority=priority
+                topic=topic, context=context, priority=priority
             )
 
             # Create batch request
             request = BatchRequest(
                 custom_id=item_id,
                 params={
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": user_prompt
-                        }
-                    ],
-                    "system": self.RESEARCH_SYSTEM_PROMPT
-                }
+                    "messages": [{"role": "user", "content": user_prompt}],
+                    "system": self.RESEARCH_SYSTEM_PROMPT,
+                },
             )
             requests.append(request)
 
@@ -166,7 +160,7 @@ Format as markdown with clear sections."""
                 "status": "success",
                 "report": content,
                 "result_file": str(result_file),
-                "completed_at": datetime.now().isoformat()
+                "completed_at": datetime.now().isoformat(),
             }
 
         elif result.status == "errored":
@@ -179,17 +173,19 @@ Format as markdown with clear sections."""
                 "id": item_id,
                 "status": "error",
                 "error": error_msg,
-                "completed_at": datetime.now().isoformat()
+                "completed_at": datetime.now().isoformat(),
             }
 
         else:
-            logger.warning(f"Research item {item_id} has unknown status: {result.status}")
+            logger.warning(
+                f"Research item {item_id} has unknown status: {result.status}"
+            )
 
             return {
                 "id": item_id,
                 "status": "unknown",
                 "status_code": result.status,
-                "completed_at": datetime.now().isoformat()
+                "completed_at": datetime.now().isoformat(),
             }
 
     def save_results_to_queue(self, research_results: Dict[str, Any], queue_file: Path):
@@ -204,7 +200,7 @@ Format as markdown with clear sections."""
 
         try:
             # Load current queue
-            with open(queue_file, 'r') as f:
+            with open(queue_file, "r") as f:
                 queue_data = json.load(f)
 
             # Mark items as completed
@@ -229,7 +225,7 @@ Format as markdown with clear sections."""
             queue_data["completed_research"] = completed
             queue_data["last_updated"] = datetime.now().isoformat()
 
-            with open(queue_file, 'w') as f:
+            with open(queue_file, "w") as f:
                 json.dump(queue_data, f, indent=2)
 
             logger.info(f"Updated queue file: {len(completed)} items completed")

@@ -662,4 +662,3 @@ Technology serves the strategic vision. We build for capability, extend for scal
 ---
 
 *"Technology is a means to an end. The end is strategic clarity. The means evolve, but the end remains constant."*
-

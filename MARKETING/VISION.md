@@ -334,4 +334,3 @@ The choice is yours.
 ---
 
 *"The system that helps you see clearly is more valuable than the system that helps you do more. Clarity creates leverage. Leverage creates freedom. Freedom creates the space to do what actually matters."*
-

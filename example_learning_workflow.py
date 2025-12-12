@@ -10,6 +10,7 @@ Demonstrates:
 """
 
 from pathlib import Path
+
 from feedback import FeedbackLogger
 from learning import LearningSystem
 from orchestrator import CortexOrchestrator
@@ -55,8 +56,10 @@ def main():
             outcome="success",
             notes="Example workflow - simulated success",
             context={
-                "project": rec.related_projects[0] if rec.related_projects else "unknown"
-            }
+                "project": (
+                    rec.related_projects[0] if rec.related_projects else "unknown"
+                )
+            },
         )
         print("✓ Outcome logged")
         print()
@@ -77,7 +80,9 @@ def main():
     if metrics.confidence_calibration:
         print("STEP 4: Confidence Calibration")
         print("-" * 60)
-        for bucket, rate in sorted(metrics.confidence_calibration.items(), reverse=True):
+        for bucket, rate in sorted(
+            metrics.confidence_calibration.items(), reverse=True
+        ):
             if rate > 0:
                 print(f"  {bucket}: {rate:.1%}")
         print()
@@ -88,13 +93,15 @@ def main():
         print("-" * 60)
         sorted_patterns = sorted(
             metrics.outcome_patterns.items(),
-            key=lambda x: x[1]['success_rate'],
-            reverse=True
+            key=lambda x: x[1]["success_rate"],
+            reverse=True,
         )
         for rec_type, pattern in sorted_patterns[:3]:  # Top 3
-            if pattern['followed'] > 0:
+            if pattern["followed"] > 0:
                 print(f"  {rec_type}:")
-                print(f"    Success Rate: {pattern['success_rate']:.1%} ({pattern['followed']} outcomes)")
+                print(
+                    f"    Success Rate: {pattern['success_rate']:.1%} ({pattern['followed']} outcomes)"
+                )
         print()
 
     # Step 6: Demonstrate confidence adjustment
@@ -105,8 +112,7 @@ def main():
     for rec_type in ["goal_progress", "blocker_resolution", "optimization"]:
         if rec_type in metrics.outcome_patterns:
             adjusted, explanation = learning.adjust_confidence_based_on_history(
-                recommendation_type=rec_type,
-                base_confidence=base_confidence
+                recommendation_type=rec_type, base_confidence=base_confidence
             )
             print(f"{rec_type}:")
             print(f"  Base: {base_confidence:.2f} → Adjusted: {adjusted:.2f}")

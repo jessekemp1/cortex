@@ -3,17 +3,17 @@
 Tests for Feedback Logger (Golden Spec: Phase 7 Verification)
 """
 
-import pytest
 import json
-from pathlib import Path
-import tempfile
-import os
-
 import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+
 # Add converx directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from feedback import FeedbackLogger, FeedbackEntry
+from feedback import FeedbackLogger
 
 
 def test_feedback_logger_initialization():
@@ -30,16 +30,14 @@ def test_log_feedback():
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
-        
+
         logger.log_feedback(
-            action_title="Test Action",
-            useful=True,
-            notes="This was helpful"
+            action_title="Test Action", useful=True, notes="This was helpful"
         )
-        
+
         # Verify entry was written
         assert log_file.exists()
-        with open(log_file, 'r') as f:
+        with open(log_file, "r") as f:
             entries = json.load(f)
             assert len(entries) == 1
             assert entries[0]["action_title"] == "Test Action"
@@ -52,10 +50,10 @@ def test_log_quick():
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
-        
+
         logger.log_quick("Test note")
-        
-        with open(log_file, 'r') as f:
+
+        with open(log_file, "r") as f:
             entries = json.load(f)
             assert len(entries) == 1
             assert entries[0]["action_title"] == "Note"
@@ -67,18 +65,18 @@ def test_get_stats():
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
-        
+
         # Add some entries
         logger.log_feedback("Action 1", useful=True)
         logger.log_feedback("Action 2", useful=True)
         logger.log_feedback("Action 3", useful=False)
-        
+
         stats = logger.get_stats()
-        
+
         assert stats["total_entries"] == 3
         assert stats["useful_count"] == 2
         assert stats["not_useful_count"] == 1
-        assert stats["useful_rate"] == pytest.approx(2/3, abs=0.01)
+        assert stats["useful_rate"] == pytest.approx(2 / 3, abs=0.01)
 
 
 def test_get_recent():
@@ -86,12 +84,11 @@ def test_get_recent():
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
-        
+
         # Add multiple entries
         for i in range(5):
             logger.log_feedback(f"Action {i}", useful=True)
-        
+
         recent = logger.get_recent(limit=3)
         assert len(recent) == 3
         assert recent[-1]["action_title"] == "Action 4"  # Most recent
-

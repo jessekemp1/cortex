@@ -136,10 +136,10 @@ pip install structlog apscheduler fastapi uvicorn pydantic python-dotenv pytz
    ```bash
    # Get recommendation
    cortex next
-   
+
    # Schedule it
    cortex schedule
-   
+
    # Check scheduled agents
    curl http://localhost:8000/api/v1/tasks
    ```
@@ -188,7 +188,7 @@ pip install structlog apscheduler fastapi uvicorn pydantic python-dotenv pytz
    # Terminal 1: Start local-orchestrator
    cd local-orchestrator
    python orchestrator.py
-   
+
    # Terminal 2: Test integration
    cortex schedule
    ```

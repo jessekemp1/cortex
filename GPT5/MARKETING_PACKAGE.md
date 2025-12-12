@@ -363,4 +363,3 @@ Converx is positioned as **"The Decision Intelligence OS"**—a strategist-first
 **Target Audience**: Builders, strategists, high-agency individuals managing complex, multi-domain lives.
 
 **Value Proposition**: Make decisions with full predictive awareness—seeing immediate actions, long-term trajectories, and cross-domain impacts simultaneously.
-

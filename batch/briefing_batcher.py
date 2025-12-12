@@ -8,15 +8,13 @@ Cost: 40-50% reduction on briefing generation
 Time: Same end-to-end latency, asynchronous batch submission
 """
 
+import json
 import logging
-from typing import Dict, List, Any, Optional
-from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
-import json
+from typing import Any, Dict, List
 
 from .batch_api_client import BatchAPIClient, BatchRequest
-from .batch_config import BatchConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BriefingContext:
     """Context data for briefing generation"""
+
     portfolio_pulse: Dict[str, Any]
     system_health: Dict[str, Any]
     execution_history: Dict[str, Any]
@@ -61,9 +60,7 @@ ALTERNATIVE_APPROACHES:
 - Approach 3
 """
 
-    def process_batch(
-        self, contexts: List[BriefingContext]
-    ) -> Dict[str, Any]:
+    def process_batch(self, contexts: List[BriefingContext]) -> Dict[str, Any]:
         """
         Process multiple briefing contexts to get recommendations.
 
@@ -279,9 +276,7 @@ ADJUSTMENT_SUGGESTIONS:
 - Suggestion 2
 """
 
-    def process_batch(
-        self, contexts: List[BriefingContext]
-    ) -> Dict[str, Any]:
+    def process_batch(self, contexts: List[BriefingContext]) -> Dict[str, Any]:
         """
         Process multiple contexts for learning insights and decisions.
 
@@ -332,9 +327,7 @@ ADJUSTMENT_SUGGESTIONS:
             for result in results_list:
                 context_id = result.custom_id
                 try:
-                    processed = self._process_insight_result(
-                        context_id, result.result
-                    )
+                    processed = self._process_insight_result(context_id, result.result)
                     results_dict[context_id] = processed
                     completed += 1
                 except Exception as e:

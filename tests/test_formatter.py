@@ -3,15 +3,17 @@
 Tests for CortexFormatter
 """
 
-import pytest
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add converx directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from formatter import CortexFormatter
+
 from orchestrator import StrategistResponse, SystemHealth
 
 
@@ -25,7 +27,7 @@ def test_format_response_text():
             "priority_a_goals": 2,
             "goals_pending": 1,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
@@ -34,8 +36,8 @@ def test_format_response_text():
             project_scanner=True,
             goal_parser=True,
             recommendation_engine=True,
-            context_intelligence=True
-        )
+            context_intelligence=True,
+        ),
     )
 
     formatter = CortexFormatter()
@@ -55,7 +57,7 @@ def test_format_response_json():
             "priority_a_goals": 2,
             "goals_pending": 1,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
@@ -64,8 +66,8 @@ def test_format_response_json():
             project_scanner=True,
             goal_parser=True,
             recommendation_engine=True,
-            context_intelligence=True
-        )
+            context_intelligence=True,
+        ),
     )
 
     formatter = CortexFormatter()
@@ -98,7 +100,7 @@ def test_format_recommendation():
         estimated_impact="high",
         confidence=0.9,
         related_projects=["test-project"],
-        related_goals=["test-goal"]
+        related_goals=["test-goal"],
     )
 
     formatter = CortexFormatter()
@@ -118,7 +120,7 @@ def test_format_empty_state():
             "priority_a_goals": 0,
             "goals_pending": 0,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         },
         next_action=None,
         alternative_actions=[],
@@ -127,8 +129,8 @@ def test_format_empty_state():
             project_scanner=False,
             goal_parser=False,
             recommendation_engine=False,
-            context_intelligence=False
-        )
+            context_intelligence=False,
+        ),
     )
 
     formatter = CortexFormatter()
@@ -137,4 +139,3 @@ def test_format_empty_state():
     assert isinstance(output, str)
     # Should still produce valid output
     assert "CORTEX" in output
-

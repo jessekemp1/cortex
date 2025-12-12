@@ -189,4 +189,3 @@ The Converx MVP is **fully implemented and tested**. Ready for daily use to vali
 cd /Users/jesse.kemp/Dev
 python -m converx.cli next
 ```
-

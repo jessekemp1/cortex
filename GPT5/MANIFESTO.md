@@ -224,4 +224,3 @@ Continue through Phase 5 (virtual twin). Each phase delivers standalone value. S
 *"The best time to plant a tree was 20 years ago. The second best time is now."*
 
 **The best time to build decision intelligence was yesterday. The second best time is now.**
-

@@ -10,27 +10,27 @@ Orchestrates:
 """
 
 import sys
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path to import existing tools
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from ai_intelligence import ProjectScanner, ProjectActivity
+    from ai_intelligence import ProjectActivity, ProjectScanner
 except ImportError:
     ProjectScanner = None
     ProjectActivity = None
 
 try:
-    from goal_parser import GoalParser, Goal
+    from goal_parser import Goal, GoalParser
 except ImportError:
     GoalParser = None
     Goal = None
 
 try:
-    from recommendation_engine import RecommendationEngine, Recommendation
+    from recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
     RecommendationEngine = None
     Recommendation = None
@@ -45,6 +45,7 @@ except ImportError:
 @dataclass
 class StrategistResponse:
     """Formatted strategist response."""
+
     current_state: Dict[str, Any]
     next_action: Optional[Recommendation]
     alternative_actions: List[Recommendation]
@@ -62,14 +63,18 @@ class ConverxOrchestrator:
         # Initialize tools (gracefully handle missing tools)
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
-        self.context_intel = ContextIntelligence(root_dir) if ContextIntelligence else None
+        self.recommendation_engine = (
+            RecommendationEngine() if RecommendationEngine else None
+        )
+        self.context_intel = (
+            ContextIntelligence(root_dir) if ContextIntelligence else None
+        )
 
     def get_next_action(
         self,
         project_filter: Optional[str] = None,
         include_context: bool = False,
-        limit: int = 3
+        limit: int = 3,
     ) -> StrategistResponse:
         """
         Get next action with current state summary.
@@ -107,16 +112,19 @@ class ConverxOrchestrator:
             try:
                 recommendations = self.recommendation_engine.generate_recommendations(
                     project_activity=project_activity if project_activity else None,
-                    limit=limit + 1  # +1 for next action
+                    limit=limit + 1,  # +1 for next action
                 )
             except Exception as e:
-                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
+                print(
+                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
+                )
 
         # 4. Filter by project if specified
         if project_filter and recommendations:
             project_lower = project_filter.lower()
             recommendations = [
-                r for r in recommendations
+                r
+                for r in recommendations
                 if any(project_lower in proj.lower() for proj in r.related_projects)
             ]
 
@@ -136,19 +144,19 @@ class ConverxOrchestrator:
 
         # 7. Extract next action and alternatives
         next_action = recommendations[0] if recommendations else None
-        alternative_actions = recommendations[1:limit + 1] if len(recommendations) > 1 else []
+        alternative_actions = (
+            recommendations[1 : limit + 1] if len(recommendations) > 1 else []
+        )
 
         return StrategistResponse(
             current_state=current_state,
             next_action=next_action,
             alternative_actions=alternative_actions,
-            context_predictions=context_predictions
+            context_predictions=context_predictions,
         )
 
     def _build_current_state(
-        self,
-        project_activity: List[ProjectActivity],
-        goals: List[Goal]
+        self, project_activity: List[ProjectActivity], goals: List[Goal]
     ) -> Dict[str, Any]:
         """Build current state summary."""
         state = {
@@ -161,7 +169,7 @@ class ConverxOrchestrator:
             "priority_c_goals": 0,
             "goals_pending": 0,
             "goals_in_progress": 0,
-            "blockers": []
+            "blockers": [],
         }
 
         if project_activity:
@@ -174,10 +182,12 @@ class ConverxOrchestrator:
                     state["dormant_projects"] += 1
 
                 if project.blockers:
-                    state["blockers"].extend([
-                        {"project": project.name, "blocker": blocker}
-                        for blocker in project.blockers
-                    ])
+                    state["blockers"].extend(
+                        [
+                            {"project": project.name, "blocker": blocker}
+                            for blocker in project.blockers
+                        ]
+                    )
 
         if goals:
             for goal in goals:
@@ -194,4 +204,3 @@ class ConverxOrchestrator:
                     state["goals_in_progress"] += 1
 
         return state
-

@@ -78,4 +78,3 @@
 - [ ] **Test**: Run `cortex schedule "Research Flux Capacitor" --team`.
 - [ ] **Verify**: Check `agents/dynamic/` for the new file.
 - [ ] **Verify**: Monitor `local-orchestrator` logs to see it pick up the new agent.
-

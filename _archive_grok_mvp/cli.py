@@ -9,11 +9,11 @@ Usage:
 
 import argparse
 import sys
+from formatter import ConverxFormatter
 from pathlib import Path
 
-from orchestrator import ConverxOrchestrator
-from formatter import ConverxFormatter
 from feedback import FeedbackLogger
+from orchestrator import ConverxOrchestrator
 
 
 def cmd_next(args):
@@ -24,7 +24,7 @@ def cmd_next(args):
         response = orchestrator.get_next_action(
             project_filter=args.project,
             include_context=args.with_context,
-            limit=args.limit
+            limit=args.limit,
         )
 
         formatter = ConverxFormatter()
@@ -41,7 +41,9 @@ def cmd_status(args):
     orchestrator = ConverxOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
+        response = orchestrator.get_next_action(
+            limit=0
+        )  # Just get state, no recommendations
 
         state = response.current_state
         health = response.system_health
@@ -116,7 +118,7 @@ def cmd_status(args):
 def cmd_feedback(args):
     """Log feedback for a recommendation (Golden Spec: Verification Loop)."""
     logger = FeedbackLogger()
-    
+
     if args.stats:
         # Show feedback statistics
         stats = logger.get_stats()
@@ -127,11 +129,11 @@ def cmd_feedback(args):
         print(f"Total Entries: {stats['total_entries']}")
         print(f"Useful: {stats['useful_count']}")
         print(f"Not Useful: {stats['not_useful_count']}")
-        if stats['total_entries'] > 0:
+        if stats["total_entries"] > 0:
             print(f"Useful Rate: {stats['useful_rate']:.1%}")
         print(f"Log File: {stats['log_file']}")
         print("")
-        
+
         if args.stats == "recent":
             recent = logger.get_recent(limit=5)
             if recent:
@@ -149,54 +151,66 @@ def cmd_feedback(args):
         # Interactive feedback
         action_title = args.action_title or "Last Recommendation"
         useful = args.useful.lower() in ["yes", "y", "true", "1"]
-        
+
         logger.log_feedback(
             action_title=action_title,
             useful=useful,
             action_id=args.action_id,
             notes=args.notes,
-            actual_outcome=args.outcome
+            actual_outcome=args.outcome,
         )
-        
-        print(f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}")
+
+        print(
+            f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}"
+        )
 
 
 def cmd_health(args):
     """Show system health check (Golden Spec: Dependency Transparency)."""
     orchestrator = ConverxOrchestrator(root_dir=Path(args.root))
-    
+
     try:
         response = orchestrator.get_next_action(limit=0)
         health = response.system_health
-        
+
         print("╔══════════════════════════════════════════════════════╗")
         print("║              CONVERX - SYSTEM HEALTH                  ║")
         print("╚══════════════════════════════════════════════════════╝")
         print("")
-        
+
         integrations = [
             ("Project Scanner", health.project_scanner, "Scans git repos for activity"),
             ("Goal Parser", health.goal_parser, "Parses goals from ACTION_PLAN.md"),
-            ("Recommendation Engine", health.recommendation_engine, "Generates strategic recommendations"),
-            ("Context Intelligence", health.context_intelligence, "Predicts needed context")
+            (
+                "Recommendation Engine",
+                health.recommendation_engine,
+                "Generates strategic recommendations",
+            ),
+            (
+                "Context Intelligence",
+                health.context_intelligence,
+                "Predicts needed context",
+            ),
         ]
-        
+
         for name, active, description in integrations:
             status = "✅ Active" if active else "❌ Missing"
             print(f"{status:12} {name}")
             print(f"             {description}")
             print("")
-        
+
         print("──────────────────────────────────────────────────────")
-        overall = "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
+        overall = (
+            "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
+        )
         print(f"{overall}")
         print(f"Active: {health.active_count}/4 integrations")
         print("")
-        
+
         if not health.all_active:
             print("Note: System will work with reduced capability.")
             print("      Some features may be unavailable.")
-        
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -217,14 +231,14 @@ Examples:
   converx health                 # Show system health
   converx feedback --stats       # Show feedback statistics
   converx feedback --log "Note"  # Quick log entry
-        """
+        """,
     )
 
     parser.add_argument(
         "--root",
         type=str,
         default="/Users/jesse.kemp/Dev",
-        help="Root directory to scan (default: /Users/jesse.kemp/Dev)"
+        help="Root directory to scan (default: /Users/jesse.kemp/Dev)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
@@ -232,25 +246,17 @@ Examples:
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
     next_parser.add_argument(
-        "project",
-        nargs="?",
-        help="Filter by project name (optional)"
+        "project", nargs="?", help="Filter by project name (optional)"
     )
     next_parser.add_argument(
-        "--with-context",
-        action="store_true",
-        help="Include context predictions"
+        "--with-context", action="store_true", help="Include context predictions"
     )
-    next_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output JSON format"
-    )
+    next_parser.add_argument("--json", action="store_true", help="Output JSON format")
     next_parser.add_argument(
         "--limit",
         type=int,
         default=3,
-        help="Number of alternative actions to show (default: 3)"
+        help="Number of alternative actions to show (default: 3)",
     )
     next_parser.set_defaults(func=cmd_next)
 
@@ -263,44 +269,29 @@ Examples:
     health_parser.set_defaults(func=cmd_health)
 
     # Feedback command
-    feedback_parser = subparsers.add_parser("feedback", help="Log feedback for recommendations")
-    feedback_parser.add_argument(
-        "--action-title",
-        type=str,
-        help="Title of the action/recommendation"
+    feedback_parser = subparsers.add_parser(
+        "feedback", help="Log feedback for recommendations"
     )
     feedback_parser.add_argument(
-        "--action-id",
-        type=str,
-        help="ID of the action (if available)"
+        "--action-title", type=str, help="Title of the action/recommendation"
     )
     feedback_parser.add_argument(
-        "--useful",
-        type=str,
-        required=False,
-        help="Was it useful? (yes/no)"
+        "--action-id", type=str, help="ID of the action (if available)"
     )
     feedback_parser.add_argument(
-        "--notes",
-        type=str,
-        help="Optional notes"
+        "--useful", type=str, required=False, help="Was it useful? (yes/no)"
     )
-    feedback_parser.add_argument(
-        "--outcome",
-        type=str,
-        help="What actually happened?"
-    )
+    feedback_parser.add_argument("--notes", type=str, help="Optional notes")
+    feedback_parser.add_argument("--outcome", type=str, help="What actually happened?")
     feedback_parser.add_argument(
         "--stats",
         type=str,
         nargs="?",
         const="summary",
-        help="Show feedback statistics (use 'recent' for recent entries)"
+        help="Show feedback statistics (use 'recent' for recent entries)",
     )
     feedback_parser.add_argument(
-        "--log",
-        type=str,
-        help="Quick log entry (general note)"
+        "--log", type=str, help="Quick log entry (general note)"
     )
     feedback_parser.set_defaults(func=cmd_feedback)
 
@@ -315,4 +306,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

@@ -494,34 +494,34 @@ converx/
   cli.py                    # Entry point (Phase 0)
   orchestrator.py           # Core orchestration (Phase 0)
   formatter.py              # Output formatting (Phase 0)
-  
+
   strategy/                 # Phase 1-2
     model.py                # Mission goal, Tactical route, Operational waypoint, Scenario
     operational_status.py          # Operational status state and metaphors
     strategic_projection.py            # Strategic projection band calculation
     domains.py              # Multi-domain support
-  
+
   agents/                   # Phase 2-3
     researcher.py           # Web + repo search
     simulator.py            # Virtual twin simulations
     synthesizer.py          # Narrative output, coaching
-  
+
   twin/                     # Phase 5
     state.py                # State model (variables)
     transitions.py          # How actions change state
     simulation.py           # Forward simulation engine
-  
+
   knowledge/                # Phase 3
     base.py                 # Common interface
     personal_ai.py          # personal-ai-dataset connector
     alpha_arena.py          # Alpha Arena connector
     google_fit.py           # Health data connector
     github.py               # GitHub connector
-  
+
   memory/                   # Phase 1+
     store.py                # Strategy snapshots, decisions
     reflection.py           # Predicted vs actual analysis
-  
+
   playbooks/                # Phase 4
     base.py                 # Playbook interface
     executor.py             # Execution engine
@@ -581,7 +581,7 @@ NEXT ACTION
 ------------------------------------------------------------
 [HIGH PRIORITY] Complete Block 1.2: Sensor Data Preprocessing
 
-Why: Priority A goal from ACTION_PLAN.md. Blocks VortexV2 MVP 
+Why: Priority A goal from ACTION_PLAN.md. Blocks VortexV2 MVP
 completion (currently 60% complete).
 
 Effort: 4-6 hours
@@ -725,4 +725,3 @@ Before proceeding to next phase, validate current phase provides value:
 ---
 
 **This design captures**: strategist-first focus, Strategic Domain Assessment, tactical routes/waypoints, strategic projection bands, Vortex-inspired forecasting, and a virtual twin capable of running simulations to estimate outcome probabilities - while keeping the MVP core small, testable, and extensible.
-

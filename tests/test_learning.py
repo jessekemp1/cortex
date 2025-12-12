@@ -3,21 +3,22 @@
 Tests for Cortex Learning System
 """
 
-import pytest
+import sys
 import tempfile
 from pathlib import Path
 
-import sys
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from feedback import FeedbackLogger
 from learning import LearningSystem
-from feedback import FeedbackLogger, OutcomeEntry
 
 
 @pytest.fixture
 def temp_outcomes_file():
     """Create a temporary outcomes file."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
         temp_path = Path(f.name)
     yield temp_path
     # Cleanup
@@ -38,7 +39,7 @@ def learning_system(feedback_logger):
 def feedback_logger(temp_outcomes_file):
     """Create a feedback logger with temp file."""
     # Also need a temp feedback.json file
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
         temp_feedback = Path(f.name)
     logger = FeedbackLogger(log_file=temp_feedback, outcomes_file=temp_outcomes_file)
     yield logger
@@ -68,7 +69,7 @@ def test_recommendation_accuracy(feedback_logger, learning_system):
         priority="A",
         confidence=0.8,
         followed=True,
-        outcome="success"
+        outcome="success",
     )
 
     feedback_logger.log_outcome(
@@ -78,7 +79,7 @@ def test_recommendation_accuracy(feedback_logger, learning_system):
         priority="B",
         confidence=0.7,
         followed=True,
-        outcome="partial"
+        outcome="partial",
     )
 
     feedback_logger.log_outcome(
@@ -88,7 +89,7 @@ def test_recommendation_accuracy(feedback_logger, learning_system):
         priority="C",
         confidence=0.6,
         followed=True,
-        outcome="failed"
+        outcome="failed",
     )
 
     # 1 success + 0.5 partial = 1.5 / 3 = 0.5
@@ -107,7 +108,7 @@ def test_outcome_patterns(feedback_logger, learning_system):
             priority="A",
             confidence=0.8,
             followed=True,
-            outcome="success"
+            outcome="success",
         )
 
     feedback_logger.log_outcome(
@@ -117,7 +118,7 @@ def test_outcome_patterns(feedback_logger, learning_system):
         priority="B",
         confidence=0.7,
         followed=True,
-        outcome="partial"
+        outcome="partial",
     )
 
     patterns = learning_system.get_outcome_patterns()
@@ -128,7 +129,9 @@ def test_outcome_patterns(feedback_logger, learning_system):
     assert blocker_pattern["total"] == 3
     assert blocker_pattern["followed"] == 3
     assert blocker_pattern["success_rate"] == 1.0  # All successful
-    assert abs(blocker_pattern["avg_confidence"] - 0.8) < 0.001  # Allow floating point variance
+    assert (
+        abs(blocker_pattern["avg_confidence"] - 0.8) < 0.001
+    )  # Allow floating point variance
 
     # Check goal_progress pattern
     assert "goal_progress" in patterns
@@ -148,7 +151,7 @@ def test_confidence_calibration(feedback_logger, learning_system):
         priority="A",
         confidence=0.9,
         followed=True,
-        outcome="success"
+        outcome="success",
     )
 
     # Medium confidence, partial
@@ -159,7 +162,7 @@ def test_confidence_calibration(feedback_logger, learning_system):
         priority="B",
         confidence=0.6,
         followed=True,
-        outcome="partial"
+        outcome="partial",
     )
 
     # Low confidence, failed
@@ -170,7 +173,7 @@ def test_confidence_calibration(feedback_logger, learning_system):
         priority="C",
         confidence=0.3,
         followed=True,
-        outcome="failed"
+        outcome="failed",
     )
 
     calibration = learning_system.get_confidence_calibration()
@@ -188,8 +191,7 @@ def test_confidence_calibration(feedback_logger, learning_system):
 def test_adjust_confidence_no_history(learning_system):
     """Test confidence adjustment with no historical data."""
     adjusted, explanation = learning_system.adjust_confidence_based_on_history(
-        recommendation_type="unknown_type",
-        base_confidence=0.7
+        recommendation_type="unknown_type", base_confidence=0.7
     )
 
     assert adjusted == 0.7  # No change
@@ -207,12 +209,11 @@ def test_adjust_confidence_limited_data(feedback_logger, learning_system):
             priority="A",
             confidence=0.8,
             followed=True,
-            outcome="success"
+            outcome="success",
         )
 
     adjusted, explanation = learning_system.adjust_confidence_based_on_history(
-        recommendation_type="test_type",
-        base_confidence=0.7
+        recommendation_type="test_type", base_confidence=0.7
     )
 
     assert adjusted == 0.7  # No change with limited data
@@ -230,7 +231,7 @@ def test_adjust_confidence_with_history(feedback_logger, learning_system):
             priority="A",
             confidence=0.8,
             followed=True,
-            outcome="success"
+            outcome="success",
         )
 
     feedback_logger.log_outcome(
@@ -240,15 +241,14 @@ def test_adjust_confidence_with_history(feedback_logger, learning_system):
         priority="A",
         confidence=0.8,
         followed=True,
-        outcome="failed"
+        outcome="failed",
     )
 
     # Base confidence 0.6, historical success 0.8
     # Weight = min(0.4, 5/20) = 0.25
     # Adjusted = 0.6 * 0.75 + 0.8 * 0.25 = 0.45 + 0.2 = 0.65
     adjusted, explanation = learning_system.adjust_confidence_based_on_history(
-        recommendation_type="test_type",
-        base_confidence=0.6
+        recommendation_type="test_type", base_confidence=0.6
     )
 
     assert 0.64 < adjusted < 0.66  # Allow small floating point variance
@@ -266,7 +266,7 @@ def test_get_learning_metrics_comprehensive(feedback_logger, learning_system):
         priority="A",
         confidence=0.9,
         followed=True,
-        outcome="success"
+        outcome="success",
     )
 
     feedback_logger.log_outcome(
@@ -276,7 +276,7 @@ def test_get_learning_metrics_comprehensive(feedback_logger, learning_system):
         priority="B",
         confidence=0.7,
         followed=True,
-        outcome="partial"
+        outcome="partial",
     )
 
     feedback_logger.log_outcome(
@@ -286,7 +286,7 @@ def test_get_learning_metrics_comprehensive(feedback_logger, learning_system):
         priority="C",
         confidence=0.5,
         followed=True,
-        outcome="failed"
+        outcome="failed",
     )
 
     feedback_logger.log_outcome(
@@ -296,16 +296,16 @@ def test_get_learning_metrics_comprehensive(feedback_logger, learning_system):
         priority="B",
         confidence=0.6,
         followed=False,
-        outcome="unknown"
+        outcome="unknown",
     )
 
     metrics = learning_system.get_learning_metrics()
 
     assert metrics.total_outcomes == 4
     assert metrics.followed_count == 3
-    assert metrics.success_rate == 1/3  # 1 success out of 3 followed
-    assert metrics.partial_rate == 1/3  # 1 partial out of 3 followed
-    assert metrics.failed_rate == 1/3  # 1 failed out of 3 followed
+    assert metrics.success_rate == 1 / 3  # 1 success out of 3 followed
+    assert metrics.partial_rate == 1 / 3  # 1 partial out of 3 followed
+    assert metrics.failed_rate == 1 / 3  # 1 failed out of 3 followed
     assert metrics.recommendation_accuracy == 0.5  # (1 + 0.5) / 3
 
     assert len(metrics.confidence_calibration) == 3
