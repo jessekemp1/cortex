@@ -43,19 +43,27 @@ class AgentFactory:
         # In a real implementation, this might use an LLM to generate code.
         # For now, we use a template that prints the intent.
 
-        return f'''
+
+    return f'''
+import structlog
+logger = structlog.get_logger()
+
 def run(context):
     """
     Auto-generated agent script for: {intent}
     """
+    logger.info("dynamic_agent_start", intent="{intent}")
     print(f"[{intent}] Agent Team Executing...")
 
     # 1. Access Context
     last_run = context.get("last_run")
 
     # 2. Perform Work (Simulation)
+    # TODO: Connect to real tool execution here
     print(f"[{intent}] Analyzing workspace...")
-    print(f"[{intent}] Genetrating report...")
+    print(f"[{intent}] Generating report...")
+
+    logger.info("dynamic_agent_complete", intent="{intent}")
 
     return {{
         "status": "success",
