@@ -340,8 +340,10 @@ def cmd_schedule(args):
             yaml_content = AgentFactory.create_team_config(intent=intent)
 
             # Write to Drop Zone
-            # Locate orchestrator relative to cortex
-            drop_zone = cortex_dir / "execution" / "agents" / "dynamic"
+            # Locate local-orchestrator relative to cortex (assuming sibling directories in Dev)
+            # cortex_dir is /Users/jesse.kemp/Dev/cortex
+            dev_dir = cortex_dir.parent
+            drop_zone = dev_dir / "local-orchestrator" / "agents" / "dynamic"
             drop_zone.mkdir(parents=True, exist_ok=True)
 
             # Generate filename
