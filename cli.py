@@ -19,7 +19,7 @@ from formatter import CortexFormatter
 
 from briefing import format_briefing, format_briefing_json, generate_daily_briefing
 from feedback import FeedbackLogger
-from integration.local_orchestrator import CortexLocalOrchestratorIntegration
+
 from learning import LearningSystem
 from orchestrator import CortexOrchestrator
 
@@ -304,6 +304,9 @@ def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
     from orchestrator import CortexOrchestrator
+    # Import internal orchestrator components
+    from cortex.execution.engine import Orchestrator as ExecutionEngine
+    from cortex.execution.adapter import RecommendationToAgentAdapter
 
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
@@ -337,19 +340,9 @@ def cmd_schedule(args):
             yaml_content = AgentFactory.create_team_config(intent=intent)
 
             # Write to Drop Zone
-            # Locate local-orchestrator relative to root or cortex
-            # We assume standard structure: root/local-orchestrator
-            drop_zone = Path(args.root) / "local-orchestrator" / "agents" / "dynamic"
-            if not drop_zone.exists():
-                # Try relative to this file if root is weird
-                drop_zone = (
-                    cortex_dir.parent / "local-orchestrator" / "agents" / "dynamic"
-                )
-
-            if not drop_zone.exists():
-                print(f"Error: Drop zone not found at {drop_zone}")
-                print("Make sure local-orchestrator/agents/dynamic exists.")
-                sys.exit(1)
+            # Locate orchestrator relative to cortex
+            drop_zone = cortex_dir / "execution" / "agents" / "dynamic"
+            drop_zone.mkdir(parents=True, exist_ok=True)
 
             # Generate filename
             import re
@@ -359,7 +352,7 @@ def cmd_schedule(args):
 
             file_path.write_text(yaml_content)
             print(f"✨ Team Configuration written to: {file_path}")
-            print("   The Local Orchestrator should pick this up automatically.")
+            print("   The Orchestrator should pick this up automatically.")
 
         except Exception as e:
             print(f"Error provisioning team: {e}", file=sys.stderr)
@@ -382,18 +375,14 @@ def cmd_schedule(args):
 
         recommendation = response.next_action
 
-        # Initialize integration
-        integration = CortexLocalOrchestratorIntegration(root_dir=Path(args.root))
-
-        if not integration.is_available():
-            print("Error: local-orchestrator integration not available.")
-            print("Make sure local-orchestrator is installed and dependencies are met.")
-            sys.exit(1)
+        # Initialize internal engine
+        engine = ExecutionEngine()
+        adapter = RecommendationToAgentAdapter(engine)
 
         # Schedule the recommendation
         schedule = args.schedule or "0 8 * * *"  # Default: daily at 8 AM
 
-        success = integration.schedule_recommendation(recommendation, schedule)
+        success = adapter.register_recommendation(recommendation, schedule)
 
         if success:
             print(f"✓ Scheduled: {recommendation.action_title}")
@@ -411,6 +400,9 @@ def cmd_schedule(args):
 def cmd_execute(args):
     """Execute a recommendation immediately."""
     from orchestrator import CortexOrchestrator
+    # Import internal orchestrator components
+    from cortex.execution.engine import Orchestrator as ExecutionEngine
+    from cortex.execution.adapter import RecommendationToAgentAdapter
 
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
     feedback_logger = FeedbackLogger()
@@ -461,24 +453,23 @@ def cmd_execute(args):
             print(f"\nActions:\n{recommendation.description}")
         print("")
 
-        # Initialize integration
-        integration = CortexLocalOrchestratorIntegration(root_dir=Path(args.root))
+        # Initialize internal engine
+        engine = ExecutionEngine()
+        adapter = RecommendationToAgentAdapter(engine)
 
-        if not integration.is_available():
-            print("Error: local-orchestrator integration not available.")
-            print("Make sure local-orchestrator is installed and dependencies are met.")
-            sys.exit(1)
-
-        # Execute the recommendation
         print("Executing...")
-        result = integration.execute_recommendation(recommendation)
+        
+        # Convert to agent and execute
+        agent = adapter.to_agent(recommendation)
+        engine.register_agent(agent)
+        result = engine.trigger_agent(agent.agent_id, context={})
 
         # Display results
-        if result["success"]:
+        if result.success:
             print("✓ Execution completed successfully")
-            print(f"  Message: {result['message']}")
-            if result.get("data"):
-                print(f"  Details: {result['data']}")
+            print(f"  Message: {result.message}")
+            if result.data:
+                print(f"  Details: {result.data}")
 
             # Log outcome to feedback system
             if not args.no_feedback:
@@ -490,18 +481,17 @@ def cmd_execute(args):
                     confidence=recommendation.confidence,
                     followed=True,
                     outcome="success",
-                    notes=result.get("message"),
+                    notes=result.message,
                     context={
-                        "execution_time": result.get("execution_time"),
-                        "timestamp": result.get("timestamp"),
-                        "data": result.get("data"),
+                        "execution_time": result.execution_time,
+                        "timestamp": result.timestamp.isoformat() if hasattr(result.timestamp, "isoformat") else str(result.timestamp),
+                        "data": result.data,
                     },
                 )
                 print("\n✓ Outcome logged to feedback system")
         else:
             print("✗ Execution failed")
-            print(f"  Error: {result.get('error', 'Unknown error')}")
-            print(f"  Message: {result.get('message', 'No details available')}")
+            print(f"  Message: {result.message}")
 
             # Log failure to feedback system
             if not args.no_feedback:
@@ -513,8 +503,8 @@ def cmd_execute(args):
                     confidence=recommendation.confidence,
                     followed=True,
                     outcome="failed",
-                    notes=result.get("message"),
-                    context={"error": result.get("error")},
+                    notes=result.message,
+                    context={"error": result.message},
                 )
                 print("\n✓ Failure logged to feedback system")
             sys.exit(1)
@@ -574,7 +564,7 @@ def cmd_learn(args):
             print("────────────────")
             print("Which recommendation types work best?")
             print("")
-
+            
             # Sort by success rate
             sorted_patterns = sorted(
                 metrics.outcome_patterns.items(),
@@ -634,27 +624,110 @@ def cmd_batch_status(args):
     print("")
 
 
+def cmd_notify(args):
+    """Send notifications via Chief of Staff persona."""
+    from cortex.notify import Notifier
+    
+    try:
+        notifier = Notifier()
+        channels = args.channel or ["terminal"]
+        if "all" in channels:
+            channels = ["terminal", "email"]
+            
+        message = ""
+        title = "Cortex Update"
+        context = {}
+        
+        # Determine content based on type
+        if args.type == "morning":
+            title = "Morning Briefing"
+            print("Generating morning briefing...")
+            briefing_data = generate_daily_briefing(Path(args.root))
+            
+            # Get executive summary for terminal/short message
+            from briefing import get_executive_summary, format_briefing
+            summary = get_executive_summary(briefing_data)
+            
+            # Full report for email
+            full_report = format_briefing(briefing_data, use_color=False)
+            # Convert newlines to HTML breaks for basic email formatting
+            html_body = f"<pre>{full_report}</pre>"
+            context["html_body"] = html_body
+            
+            # Use summary as the main message text
+            message = summary
+            if args.message:
+                message = f"{args.message}\n\n{summary}"
+                
+        elif args.type == "evening":
+            title = "Evening Status"
+            # TODO: specialized evening report
+            print("Generating evening status...")
+            briefing_data = generate_daily_briefing(Path(args.root))
+            from briefing import get_executive_summary
+            summary = get_executive_summary(briefing_data)
+            message = f"End of day status. {summary}"
+            
+        else: # custom
+            if not args.message:
+                print("Error: --message required for custom notifications")
+                sys.exit(1)
+            message = args.message
+            title = args.title or "Cortex Notification"
+            
+        print(f"Sending notification via {', '.join(channels)}...")
+        print(f"Title: {title}")
+        print(f"Message: {message}")
+        
+        results = notifier.notify(title, message, channels, context)
+        
+        # Report results
+        for channel, success in results.items():
+            icon = "✅" if success else "❌"
+            print(f"{icon} {channel}: {'Sent' if success else 'Failed'}")
+            
+    except Exception as e:
+        print(f"Error sending notification: {e}", file=sys.stderr)
+        sys.exit(1)
+
 def cmd_dashboard(args):
     """Show Symbiosis Dashboard (Night Shift & Agents)."""
     from datetime import datetime
+    
+    # Import internal orchestrator components
+    from cortex.execution.batch_system import BatchManager
+    from cortex.execution.storage.history import ExecutionHistory
+    from cortex.execution import config as execution_config
 
-    from integration.local_orchestrator import CortexLocalOrchestratorIntegration
+    try:
+        # Initialize directly
+        db_path = execution_config.STORAGE_PATH
+        batch_manager = BatchManager(db_path=db_path)
+        history = ExecutionHistory(db_path=db_path)
+        
+        # Get stats
+        try:
+            # Check queue
+            pending_all = batch_manager.get_pending_items(limit=1000)
+            active_batches = batch_manager.get_active_batches()
+            
+            queue = {
+                "pending": len(pending_all),
+                "active_batches": len(active_batches),
+                "batches": active_batches
+            }
+        except Exception as e:
+            queue = {"pending": 0, "active_batches": 0, "batches": [], "error": str(e)}
 
-    # Initialize integration
-    integration = CortexLocalOrchestratorIntegration(root_dir=Path(args.root))
+        try:
+            recent = history.get_recent_executions(limit=10)
+        except Exception as e:
+            recent = []
+            print(f"Warning: Could not fetch history: {e}")
 
-    if not integration.is_available():
-        print("Error: Local Orchestrator not available.")
+    except Exception as e:
+        print(f"Error initializing dashboard components: {e}")
         sys.exit(1)
-
-    stats = integration.get_dashboard_stats()
-
-    if "error" in stats:
-        print(f"Error fetching stats: {stats['error']}")
-        sys.exit(1)
-
-    queue = stats.get("queue", {})
-    recent = stats.get("recent_activity", [])
 
     print("╔══════════════════════════════════════════════════════╗")
     print("║           SYMBIOSIS ENGINE STATUS                    ║")
@@ -673,7 +746,9 @@ def cmd_dashboard(args):
     if active > 0:
         print("\n  Active Batches:")
         for batch in queue.get("batches", []):
-            print(f"  • {batch.get('batch_id')} ({batch.get('status')})")
+            batch_id = batch.get("batch_id") or batch.get("id")
+            status = batch.get("status")
+            print(f"  • {batch_id} ({status})")
     print("")
 
     # 2. Agent Activity
@@ -704,8 +779,11 @@ def cmd_dashboard(args):
                 time_val = ts_str.strftime("%H:%M:%S")
             else:
                 try:
-                    # Truncate parsing for simplicity
-                    time_val = ts_str.split("T")[1].split(".")[0]
+                    # Truncate parsing for simplicity if it is a string
+                    if "T" in str(ts_str):
+                        time_val = str(ts_str).split("T")[1].split(".")[0]
+                    else:
+                        time_val = str(ts_str)
                 except:
                     time_val = str(ts_str)[:8]
 
@@ -790,7 +868,8 @@ Examples:
         "--useful", type=str, required=False, help="Was it useful? (yes/no)"
     )
     feedback_parser.add_argument("--notes", type=str, help="Optional notes")
-    feedback_parser.add_argument("--outcome", type=str, help="What actually happened?")
+    feedback_parser.add_argument(
+        "--outcome", type=str, help="What actually happened?")
     feedback_parser.add_argument(
         "--stats",
         type=str,
@@ -802,6 +881,28 @@ Examples:
         "--log", type=str, help="Quick log entry (general note)"
     )
     feedback_parser.set_defaults(func=cmd_feedback)
+
+    # Notify command
+    notify_parser = subparsers.add_parser("notify", help="Send notifications")
+    notify_parser.add_argument(
+        "--type", 
+        choices=["morning", "evening", "custom"], 
+        default="custom",
+        help="Type of notification"
+    )
+    notify_parser.add_argument(
+        "--channel", 
+        action="append", 
+        choices=["terminal", "email", "all"],
+        help="Notification channels (can specify multiple)"
+    )
+    notify_parser.add_argument(
+        "--message", type=str, help="Custom message content"
+    )
+    notify_parser.add_argument(
+        "--title", type=str, help="Custom notification title"
+    )
+    notify_parser.set_defaults(func=cmd_notify)
 
     # Check command (Golden Spec Validator)
     from golden_spec_validator import GoldenSpecValidator
