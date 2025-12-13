@@ -304,10 +304,6 @@ def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
     from orchestrator import CortexOrchestrator
-    # Import internal orchestrator components
-    from cortex.execution.engine import Orchestrator as ExecutionEngine
-    from cortex.execution.adapter import RecommendationToAgentAdapter
-
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     # Check if we are in "Team Provisioning" mode
@@ -350,7 +346,7 @@ def cmd_schedule(args):
             import re
 
             safe_name = re.sub(r"[^a-zA-Z0-9]", "_", intent.lower())[:50]
-            file_path = drop_zone / f"{safe_name}.yaml"
+            file_path = drop_zone / f"{safe_name}.json"
 
             file_path.write_text(yaml_content)
             print(f"✨ Team Configuration written to: {file_path}")

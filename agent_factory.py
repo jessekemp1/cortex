@@ -1,6 +1,6 @@
 import re
 
-import yaml
+import json
 
 
 class AgentFactory:
@@ -9,14 +9,14 @@ class AgentFactory:
     @staticmethod
     def create_team_config(intent: str, team_id: str = None) -> str:
         """
-        Generate a YAML configuration for an agent team based on intent.
+        Generate a JSON configuration for an agent team based on intent.
 
         Args:
             intent: The high-level goal (e.g. "Research Windfield")
             team_id: Optional ID for the team/agent
 
         Returns:
-            YAML string configuration
+            JSON string configuration
         """
         if not team_id:
             # Generate ID from intent
@@ -35,7 +35,7 @@ class AgentFactory:
             "script": AgentFactory._generate_script(intent),
         }
 
-        return yaml.dump(config, sort_keys=False)
+        return json.dumps(config, indent=2)
 
     @staticmethod
     def _generate_script(intent: str) -> str:
@@ -44,7 +44,7 @@ class AgentFactory:
         # For now, we use a template that prints the intent.
 
 
-    return f'''
+        return f'''
 import structlog
 logger = structlog.get_logger()
 
