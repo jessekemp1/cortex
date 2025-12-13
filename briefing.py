@@ -497,7 +497,49 @@ def format_briefing_json(briefing: BriefingData) -> str:
     return json.dumps(data, indent=2)
 
 
+
+def get_executive_summary(briefing: BriefingData) -> str:
+    """
+    Generate a concise, high-impact executive summary (Operator Persona).
+    
+    Format: "Morning, Jesse. [Active] Active Projects. [Blockers] Blockers. Top Priority: [Action]. [Pattern]."
+    """
+    parts = []
+    
+    # Greeting based on time
+    hour = datetime.now().hour
+    greeting = "Morning" if 5 <= hour < 12 else "Afternoon" if 12 <= hour < 17 else "Evening"
+    parts.append(f"{greeting}, Jesse.")
+    
+    # Pulse
+    active_count = len(briefing.active_projects)
+    parts.append(f"{active_count} Active Projects.")
+    
+    # Blockers
+    blocker_count = len(briefing.blockers)
+    if blocker_count > 0:
+        parts.append(f"{blocker_count} Blockers.")
+    else:
+        parts.append("Systems Nominal.")
+        
+    # Top Priority
+    if briefing.priority_actions:
+        top_action = briefing.priority_actions[0]
+        parts.append(f"Top Priority: {top_action['title']}.")
+    else:
+        parts.append("No immediate actions.")
+        
+    # Pattern
+    if briefing.patterns:
+        # Pick the most interesting pattern (usually the first one)
+        parts.append(f"Insight: {briefing.patterns[0]}.")
+        
+    return " ".join(parts)
+
+
 if __name__ == "__main__":
     # Test the briefing generator
     briefing = generate_daily_briefing()
     print(format_briefing(briefing))
+    print("\n--- EXECUTIVE SUMMARY ---\n")
+    print(get_executive_summary(briefing))

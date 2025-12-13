@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import re
+from collections import Counter
 
 
 @dataclass
@@ -28,427 +30,243 @@ class ProjectActivity:
     current_branch: str = ""
     last_commit_date: Optional[datetime] = None
     last_commit_msg: str = ""
-    cursorrules_score: float = 0.0
-    cursorrules_missing_patterns: List[str] = field(default_factory=list)
 
 
 class ProjectScanner:
-    """Scans git repositories for activity analysis."""
+    """Scan and analyze projects (git and non-git)."""
 
-    # Directories to skip when scanning
-    SKIP_DIRS = {
-        "node_modules",
-        "venv",
-        "env",
-        ".venv",
-        "__pycache__",
-        ".git",
-        ".idea",
-        ".vscode",
-        "build",
-        "dist",
-        ".next",
-        "target",
-        "vendor",
-        ".cache",
-        ".pytest_cache",
-    }
-
-    # Known project directories (whitelist for faster scanning)
-    KNOWN_PROJECTS = {
-        "VortexV2",
-        "alpha_arena",
-        "personal-ai-dataset",
-        "keto-tracker",
-        "financial-aggregator",
-        "ai-project-curator",
-        "Windfield",
-        "Vortex",
-        "cortex",
-        "local-orchestrator",
-        "youtube-summarizer",
-        "DJ-CoPilot",
-        "cursor-usage-optimizer",
-        "Databricks",
-    }
-
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
         self.root_dir = Path(root_dir)
 
-    def find_git_repos(self, max_depth: int = 2) -> List[Path]:
-        """Find git repositories under root directory."""
-        repos = []
+    def find_git_repos(self) -> List[Path]:
+        """Compatibility alias for find_projects."""
+        return self.find_projects()
 
-        # First check known projects for faster scanning
-        for project_name in self.KNOWN_PROJECTS:
-            project_path = self.root_dir / project_name
-            git_path = project_path / ".git"
-            if git_path.exists():
-                repos.append(project_path)
+    def find_projects(self, max_depth: int = 3) -> List[Path]:
+        """
+        Find project directories recursively.
+        
+        Identifies projects by:
+        1. .git directory
+        2. Project markers (pyproject.toml, package.json, etc.)
+        3. Known structure
+        """
+        projects = set()
+        scan_queue = [(self.root_dir, 0)]
+        
+        # Common dirs to ignore during scan
+        ignore_dirs = {
+            'venv', 'node_modules', '__pycache__', 'archive', 
+            'dist', 'build', 'egg-info', '.git', '.idea', '.vscode',
+            'databricks-docs-extractor', 'logs', 'reports', 'scripts' # Reduce noise
+        }
+        
+        # Project markers
+        markers = {
+            'pyproject.toml', 'package.json', 'setup.py', 
+            'requirements.txt', 'Makefile', 'Gemfile', 'composer.json',
+            'cargo.toml', 'go.mod', 'mix.exs'
+        }
 
-        # Also check subdirectories (e.g., Vortex/VortexV2)
-        for item in self.root_dir.iterdir():
-            if not item.is_dir() or item.name in self.SKIP_DIRS:
+        while scan_queue:
+            current_path, depth = scan_queue.pop(0)
+            
+            if depth > max_depth:
                 continue
-            if item.name.startswith("."):
+
+            try:
+                # Get all subdirectories
+                subdirs = [
+                    p for p in current_path.iterdir() 
+                    if p.is_dir() and not p.name.startswith('.') 
+                    and p.name not in ignore_dirs
+                ]
+            except PermissionError:
                 continue
 
-            # Check if it's a git repo
-            if (item / ".git").exists() and item not in repos:
-                repos.append(item)
+            for subdir in subdirs:
+                is_project = False
+                
+                # Crytiera 1: Has .git
+                if (subdir / '.git').exists():
+                    is_project = True
+                
+                # Criteria 2: Has project markers
+                elif any((subdir / m).exists() for m in markers):
+                    # Filter out dirs that just have requirements.txt but are inside another project
+                    # Simple heuristic: if parent is already a project, be stricter? 
+                    # For now, accept it to maximize awareness.
+                    is_project = True
+                
+                if is_project:
+                    projects.add(subdir)
+                    # Don't recurse into projects (assume monorepo sub-projects are handled if we want flat list)
+                    # But actually, lets verify if we should recurse. 
+                    # If we stop here, we can't find nested projects.
+                    # Best approach: Add to projects, but ALSO recurse if depth allows, 
+                    # to catch monorepo structures like Vortex/VortexV2
+                    scan_queue.append((subdir, depth + 1))
+                else:
+                    scan_queue.append((subdir, depth + 1))
+        
+        return sorted(list(projects), key=lambda x: x.name)
 
-            # Check one level deeper for nested projects
-            if max_depth > 1:
-                for subitem in item.iterdir():
-                    if not subitem.is_dir() or subitem.name in self.SKIP_DIRS:
-                        continue
-                    if (subitem / ".git").exists() and subitem not in repos:
-                        repos.append(subitem)
-
-        return repos
-
-    def analyze_project(self, repo_path: Path) -> ProjectActivity:
-        """Analyze a git repository for activity metrics."""
-        name = repo_path.name
-
-        # Get commit counts
-        commits_7d = self._count_commits(repo_path, days=7)
-        commits_30d = self._count_commits(repo_path, days=30)
-
-        # Determine status
-        if commits_7d >= 3:
-            status = "active"
-        elif commits_7d > 0 or commits_30d > 0:
-            status = "recent"
-        else:
-            status = "dormant"
-
-        # Get other metrics
-        files_changed_7d = self._count_files_changed(repo_path, days=7)
-        uncommitted_changes = self._count_uncommitted_changes(repo_path)
-        current_branch = self._get_current_branch(repo_path)
-        last_commit_date, last_commit_msg = self._get_last_commit_info(repo_path)
-
-        # Detect blockers
-        blockers = self._detect_blockers(repo_path, uncommitted_changes)
-
-        # Score CursorRules (0-100) and find gaps
-        cursorrules_score, missing_patterns = self._score_cursorrules(repo_path)
-
-        return ProjectActivity(
-            name=name,
-            path=repo_path,
-            status=status,
-            commits_7d=commits_7d,
-            commits_30d=commits_30d,
-            files_changed_7d=files_changed_7d,
-            uncommitted_changes=uncommitted_changes,
-            blockers=blockers,
-            current_branch=current_branch,
-            last_commit_date=last_commit_date,
-            last_commit_msg=last_commit_msg,
-            cursorrules_score=cursorrules_score,
-            cursorrules_missing_patterns=missing_patterns,
-        )
-
-    def _run_git_command(self, repo_path: Path, args: List[str]) -> str:
-        """Run a git command and return output."""
+    def get_git_output(self, repo_path: Path, command: List[str]) -> str:
+        """Run git command and return output."""
+        if not (repo_path / '.git').exists():
+            return ""
+            
         try:
             result = subprocess.run(
-                ["git"] + args,
+                ['git'] + command,
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=2
             )
             return result.stdout.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError):
             return ""
 
-    def _count_commits(self, repo_path: Path, days: int) -> int:
-        """Count commits in the last N days."""
-        since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        output = self._run_git_command(
-            repo_path, ["log", "--oneline", f"--since={since_date}"]
+    def analyze_project(self, repo_path: Path) -> ProjectActivity:
+        """Analyze a single project."""
+        project = ProjectActivity(
+            name=repo_path.name,
+            path=repo_path,
+            status="unknown",
+            commits_7d=0,
+            commits_30d=0,
+            files_changed_7d=0,
+            uncommitted_changes=0
         )
-        if not output:
-            return 0
-        return len(output.split("\n"))
+        
+        is_git = (repo_path / '.git').exists()
 
-    def _count_files_changed(self, repo_path: Path, days: int) -> int:
-        """Count unique files changed in the last N days."""
-        since_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        output = self._run_git_command(
-            repo_path,
-            ["log", "--name-only", "--pretty=format:", f"--since={since_date}"],
-        )
-        if not output:
-            return 0
-        files = set(f for f in output.split("\n") if f.strip())
-        return len(files)
+        if is_git:
+            # Get current branch
+            project.current_branch = self.get_git_output(repo_path, ['branch', '--show-current'])
 
-    def _count_uncommitted_changes(self, repo_path: Path) -> int:
-        """Count uncommitted changes (staged + unstaged)."""
-        output = self._run_git_command(repo_path, ["status", "--porcelain"])
-        if not output:
-            return 0
-        return len([l for l in output.split("\n") if l.strip()])
+            # Get last commit info
+            last_commit_info = self.get_git_output(
+                repo_path,
+                ['log', '-1', '--format=%ct|%s']
+            )
+            if last_commit_info:
+                try:
+                    timestamp, msg = last_commit_info.split('|', 1)
+                    project.last_commit_date = datetime.fromtimestamp(int(timestamp))
+                    project.last_commit_msg = msg
+                except (ValueError, OSError):
+                    pass
 
-    def _get_current_branch(self, repo_path: Path) -> str:
-        """Get current git branch."""
-        return self._run_git_command(repo_path, ["rev-parse", "--abbrev-ref", "HEAD"])
+            # Count commits in last 7 and 30 days
+            now = datetime.now()
+            seven_days_ago = now - timedelta(days=7)
+            thirty_days_ago = now - timedelta(days=30)
 
-    def _get_last_commit_info(self, repo_path: Path) -> tuple:
-        """Get last commit date and message."""
-        date_str = self._run_git_command(repo_path, ["log", "-1", "--format=%ci"])
-        msg = self._run_git_command(repo_path, ["log", "-1", "--format=%s"])
+            commits_7d = self.get_git_output(
+                repo_path,
+                ['log', '--since', seven_days_ago.isoformat(), '--oneline']
+            )
+            project.commits_7d = len(commits_7d.split('\n')) if commits_7d else 0
 
-        last_date = None
-        if date_str:
-            try:
-                # Parse git date format: 2024-01-15 10:30:00 -0500
-                last_date = datetime.strptime(date_str[:19], "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                pass
+            commits_30d = self.get_git_output(
+                repo_path,
+                ['log', '--since', thirty_days_ago.isoformat(), '--oneline']
+            )
+            project.commits_30d = len(commits_30d.split('\n')) if commits_30d else 0
 
-        return last_date, msg
+            # Count files changed in last 7 days
+            files_7d = self.get_git_output(
+                repo_path,
+                ['diff', '--name-only', f'@{{7.days.ago}}..HEAD']
+            )
+            project.files_changed_7d = len(files_7d.split('\n')) if files_7d else 0
 
-    def _detect_blockers(self, repo_path: Path, uncommitted_changes: int) -> List[str]:
-        """Detect potential blockers for a project."""
-        blockers = []
-
-        # Large uncommitted changes
-        if uncommitted_changes > 20:
-            blockers.append(f"Large uncommitted changes ({uncommitted_changes} files)")
-
-        # Missing .env file
-        if (repo_path / ".env.example").exists() and not (repo_path / ".env").exists():
-            blockers.append("Missing .env file (copy from .env.example)")
-
-        # Missing dependencies
-        if (repo_path / "requirements.txt").exists():
-            if not (repo_path / "venv").exists() and not (repo_path / ".venv").exists():
-                blockers.append("No virtualenv detected")
-
-        if (repo_path / "package.json").exists():
-            if not (repo_path / "node_modules").exists():
-                blockers.append("Missing node_modules (run npm install)")
-
-        # Merge conflicts
-        output = self._run_git_command(
-            repo_path, ["diff", "--name-only", "--diff-filter=U"]
-        )
-        if output:
-            blockers.append("Unresolved merge conflicts")
-
-        # Detached HEAD
-        branch = self._get_current_branch(repo_path)
-        if branch == "HEAD":
-            blockers.append("Detached HEAD state")
-
-        return blockers
-
-    def _score_cursorrules(self, project_path: Path) -> Tuple[float, List[str]]:
-        """
-        Score CursorRules coverage 0-100 and detect missing patterns.
-
-        Returns:
-            (score, missing_patterns)
-        """
-        score = 0.0
-        missing_patterns = []
-
-        # 1. Existence Check (Base 50 points)
-        # Check .cursorrules file (20 points)
-        if (project_path / ".cursorrules").exists():
-            score += 20
-
-        # Check .cursor/rules/ directory (30 points)
-        rules_dir = project_path / ".cursor" / "rules"
-        if rules_dir.exists():
-            score += 30
-
-        # 2. Technology Coverage (50 points)
-        # Detect tech stack
-        tech_stack = self._detect_tech_stack(project_path)
-        required_patterns = self._get_required_patterns(tech_stack)
-
-        if not required_patterns:
-            # If no specific tech detected, give full points for existence validation
-            score += 50
+            # Check for uncommitted changes
+            status = self.get_git_output(repo_path, ['status', '--porcelain'])
+            project.uncommitted_changes = len(status.split('\n')) if status else 0
+            
         else:
-            # Score based on coverage of REQUIRED patterns
-            points_per_pattern = 50.0 / len(required_patterns)
-
-            for pattern_name, pattern_file in required_patterns.items():
-                # Check if any file in rules dir matches the pattern file name
-                found = False
-
-                # Check specific rule file
-                if rules_dir.exists() and any(rules_dir.rglob(pattern_file)):
-                    found = True
-
-                # Fallback: Check for content in .cursorrules (simple keyword check)
-                if not found and (project_path / ".cursorrules").exists():
-                    content = (project_path / ".cursorrules").read_text().lower()
-                    if pattern_name in content:  # heuristic
-                        found = True
-
-                if found:
-                    score += points_per_pattern
-                else:
-                    missing_patterns.append(pattern_name)
-
-        return min(score, 100.0), missing_patterns
-
-    def _detect_tech_stack(self, project_path: Path) -> Dict[str, bool]:
-        """Detect technology stack from requirements.txt, package.json, etc."""
-        tech_stack = {
-            "fastapi": False,
-            "pytest": False,
-            "sqlalchemy": False,
-            "streamlit": False,
-            "react_native": False,
-            "django": False,
-            "nextjs": False,
-        }
-
-        # Check requirements.txt / pyproject.toml
-        req_file = project_path / "requirements.txt"
-        pyproject = project_path / "pyproject.toml"
-
-        content = ""
-        if req_file.exists():
-            content += req_file.read_text().lower()
-        if pyproject.exists():
-            content += pyproject.read_text().lower()
-
-        if content:
-            tech_stack["fastapi"] = "fastapi" in content
-            tech_stack["pytest"] = "pytest" in content
-            tech_stack["sqlalchemy"] = "sqlalchemy" in content
-            tech_stack["streamlit"] = "streamlit" in content
-            tech_stack["django"] = "django" in content
-
-        # Check package.json
-        pkg_file = project_path / "package.json"
-        if pkg_file.exists():
+            # Non-git fallback: Use file system stats through simple walk
+            # Limit file count to avoid hanging on huge dirs
+            mtime_7d = datetime.now().timestamp() - 7*24*3600
+            mtime_30d = datetime.now().timestamp() - 30*24*3600
+            
+            recent_files = 0
+            active_files = 0
+            
             try:
-                pkg = json.loads(pkg_file.read_text())
-                deps_dict = {
-                    **pkg.get("dependencies", {}),
-                    **pkg.get("devDependencies", {}),
-                }
-                # Check keys for package names
-                deps_keys = " ".join(deps_dict.keys()).lower()
-
-                tech_stack["react_native"] = (
-                    "react-native" in deps_keys or "expo" in deps_keys
-                )
-                tech_stack["nextjs"] = "next" in deps_keys
+                # Quick scan of top-level files + 1 level deep
+                # using rglob takes too long on node_modules, so manual strict walk
+                candidates = list(repo_path.glob('*')) + list(repo_path.glob('*/*'))
+                for p in candidates:
+                    if p.is_file() and not p.name.startswith('.'):
+                        try:
+                            mtime = p.stat().st_mtime
+                            if mtime > mtime_7d:
+                                active_files += 1
+                                if not project.last_commit_date or datetime.fromtimestamp(mtime) > project.last_commit_date:
+                                    project.last_commit_date = datetime.fromtimestamp(mtime)
+                                    project.last_commit_msg = f"Modified {p.name}"
+                            if mtime > mtime_30d:
+                                recent_files += 1
+                        except OSError:
+                            pass
             except Exception:
                 pass
-
-        return tech_stack
-
-    def _get_required_patterns(self, tech_stack: Dict[str, bool]) -> Dict[str, str]:
-        """Map tech stack to required CursorRules patterns."""
-        mapping = {
-            "fastapi": "python-fastapi.mdc",
-            "pytest": "pytest-testing.mdc",
-            "sqlalchemy": "sqlalchemy-database.mdc",
-            "streamlit": "streamlit-ui.mdc",
-            "react_native": "react-native-expo.mdc",
-            "django": "python-django.mdc",
-            "nextjs": "nextjs-react.mdc",
-        }
-
-        return {k: v for k, v in mapping.items() if tech_stack.get(k, False)}
+            
+            # Heuristic mapping
+            project.commits_7d = active_files # Treat file mods as commits equivalent for checking activity
+            project.commits_30d = recent_files
+            project.files_changed_7d = active_files
+            project.current_branch = "no-git"
 
 
-def main():
-    """CLI for testing project scanner."""
-    import argparse
-    import json
+        # Determine status
+        project.status = self._determine_status(project)
 
-    parser = argparse.ArgumentParser(description="Scan projects for activity")
-    parser.add_argument(
-        "--root", default="/Users/jesse.kemp/Dev", help="Root directory"
-    )
-    parser.add_argument("--json", action="store_true", help="JSON output")
-    parser.add_argument("--recommend", action="store_true", help="Show recommendations")
-    args = parser.parse_args()
+        # Detect blockers (simple heuristics)
+        project.blockers = self._detect_blockers(repo_path, project)
 
-    scanner = ProjectScanner(args.root)
-    repos = scanner.find_git_repos()
+        return project
 
-    projects = []
-    for repo in repos:
-        activity = scanner.analyze_project(repo)
-        projects.append(activity)
+    def _determine_status(self, project: ProjectActivity) -> str:
+        """Determine project status based on activity."""
+        # More aggressive active status: 1 commit/file mod in 7 days is usually "Active" enough for individuals
+        if project.commits_7d >= 1:
+            return "active"
+        elif project.commits_30d > 0:
+            return "recent"
+        elif project.last_commit_date and (datetime.now() - project.last_commit_date).days < 90:
+             return "dormant"
+        else:
+            return "inactive"
 
-    # Sort by activity (active first, then by commits)
-    projects.sort(
-        key=lambda p: (
-            0 if p.status == "active" else 1 if p.status == "recent" else 2,
-            -p.commits_7d,
-        )
-    )
+    def _detect_blockers(self, repo_path: Path, project: ProjectActivity) -> List[str]:
+        """Detect potential blockers."""
+        blockers = []
+        
+        is_git = (repo_path / '.git').exists()
 
-    if args.json:
-        output = []
-        for p in projects:
-            output.append(
-                {
-                    "name": p.name,
-                    "path": str(p.path),
-                    "status": p.status,
-                    "commits_7d": p.commits_7d,
-                    "commits_30d": p.commits_30d,
-                    "files_changed_7d": p.files_changed_7d,
-                    "uncommitted_changes": p.uncommitted_changes,
-                    "blockers": p.blockers,
-                    "current_branch": p.current_branch,
-                    "last_commit_date": (
-                        p.last_commit_date.isoformat() if p.last_commit_date else None
-                    ),
-                    "last_commit_msg": p.last_commit_msg,
-                }
+        if is_git:
+            # Check for TODO/FIXME in recent commits
+            recent_todos = self.get_git_output(
+                repo_path,
+                ['log', '-10', '--all', '--grep=TODO', '--grep=FIXME', '--grep=BLOCKED', '-i']
             )
-        print(json.dumps(output, indent=2))
-    else:
-        print(f"Found {len(projects)} projects\n")
+            if recent_todos:
+                blockers.append("TODO/FIXME comments in recent commits")
 
-        active = [p for p in projects if p.status == "active"]
-        recent = [p for p in projects if p.status == "recent"]
-        dormant = [p for p in projects if p.status == "dormant"]
+        # Check for .env.example without .env (common blocker)
+        if (repo_path / '.env.example').exists() and not (repo_path / '.env').exists():
+            blockers.append("Missing .env file")
 
-        if active:
-            print("ACTIVE (3+ commits in 7d):")
-            for p in active:
-                print(
-                    f"  {p.name}: {p.commits_7d} commits, {p.files_changed_7d} files changed"
-                )
+        # Check for requirements.txt without venv
+        if (repo_path / 'requirements.txt').exists():
+            # Check standard venv names
+            has_venv = any((repo_path / d).exists() for d in ['venv', '.venv', 'env', '.env'])
+            if not has_venv:
+                blockers.append("No virtualenv detected")
 
-        if recent:
-            print("\nRECENT (activity in 30d):")
-            for p in recent:
-                print(f"  {p.name}: {p.commits_7d}/{p.commits_30d} commits (7d/30d)")
-
-        if dormant:
-            print("\nDORMANT (no recent activity):")
-            for p in dormant[:5]:  # Limit dormant to 5
-                print(f"  {p.name}")
-            if len(dormant) > 5:
-                print(f"  ... and {len(dormant) - 5} more")
-
-        # Show blockers
-        all_blockers = [(p.name, b) for p in projects for b in p.blockers]
-        if all_blockers:
-            print("\nBLOCKERS:")
-            for name, blocker in all_blockers[:10]:
-                print(f"  {name}: {blocker}")
-
-
-if __name__ == "__main__":
-    main()
+        return blockers
