@@ -1,0 +1,289 @@
+# Cortex - Strategic AI Orchestrator
+
+## Project Overview
+
+Cortex is an intelligent AI orchestration system that provides:
+- **Project Intelligence** - Scans git repos for activity and status
+- **Strategic Recommendations** - AI-powered suggestions for next actions
+- **Learning System** - Adapts based on feedback and outcomes
+- **Context Intelligence** - Predicts relevant context for work
+- **Daily Briefings** - Automated status reports and priorities
+
+**Purpose**: Help developers stay organized and focused on high-priority work
+**Intelligence**: Learns from feedback to improve recommendations over time
+
+---
+
+## Technology Stack
+
+### Core
+- **Python 3.9+** - Programming language
+- **FastAPI** - API framework (optional)
+- **Anthropic SDK** - Claude API integration
+- **APScheduler** - Task scheduling
+
+### Libraries
+- **structlog** - Structured logging
+- **rich** - Terminal UI formatting
+- **python-dotenv** - Environment configuration
+- **pytz** - Timezone handling
+
+---
+
+## Architecture
+
+### Components
+
+1. **AI Intelligence** (`ai_intelligence.py`)
+   - ProjectScanner: Find and analyze git repos
+   - ProjectActivity: Track commits, changes, blockers
+
+2. **Recommendation Engine** (`recommendation_engine.py`)
+   - Generate strategic recommendations
+   - Prioritize based on urgency and impact
+   - Apply learning-based confidence adjustments
+
+3. **Context Intelligence** (`context_intelligence.py`)
+   - Predict relevant context for tasks
+   - Search knowledge base
+   - Find related documentation
+
+4. **Bridge** (`bridge.py`)
+   - Universal interface for AI agents
+   - Context retrieval
+   - Strategy injection
+
+5. **CLI** (`cli.py`)
+   - Command-line interface
+   - User interaction and output formatting
+
+---
+
+## Development Guidelines
+
+### Code Style
+
+#### Dataclasses for Models
+```python
+from dataclasses import dataclass, field
+from typing import List, Optional
+from datetime import datetime
+
+@dataclass
+class ProjectActivity:
+    """Project activity data from git analysis."""
+    name: str
+    path: Path
+    status: str
+    commits_7d: int
+    commits_30d: int
+    blockers: List[str] = field(default_factory=list)
+    last_commit_date: Optional[datetime] = None
+```
+
+#### Type Hints Required
+```python
+def analyze_project(self, repo_path: Path) -> ProjectActivity:
+    """Analyze a single project."""
+    # Implementation
+    pass
+```
+
+### Logging
+
+#### Structured Logging
+```python
+from app.utils.logger import logger
+
+logger.info("Scanning projects", root_dir=str(self.root_dir))
+logger.error("Failed to analyze project", project=project.name, error=str(e))
+logger.warning("Project has blockers", project=project.name, count=len(blockers))
+```
+
+### Git Operations
+
+#### Subprocess Pattern
+```python
+import subprocess
+
+def get_git_output(self, repo_path: Path, command: List[str]) -> str:
+    """Run git command and return output."""
+    try:
+        result = subprocess.run(
+            ['git'] + command,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        return result.stdout.strip()
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+        return ""
+```
+
+### Recommendation Generation
+
+#### Engine Pattern
+```python
+def generate_recommendations(
+    self,
+    project_activity: List[ProjectActivity],
+    goals: Optional[List[Goal]] = None,
+    limit: int = 5
+) -> List[Recommendation]:
+    """Generate prioritized recommendations."""
+    recommendations = []
+
+    # 1. Blocker resolution (highest priority)
+    recommendations.extend(self._generate_blocker_recommendations(project_activity))
+
+    # 2. Goal progress
+    if goals:
+        recommendations.extend(self._generate_goal_recommendations(goals, project_activity))
+
+    # Sort by priority score
+    recommendations.sort(key=lambda r: self._priority_score(r), reverse=True)
+
+    return recommendations[:limit]
+```
+
+---
+
+## Key Patterns
+
+### Project Scanning
+```python
+from ai_intelligence import ProjectScanner
+
+scanner = ProjectScanner("/Users/jesse.kemp/Dev")
+projects = scanner.find_projects()
+analyzed = [scanner.analyze_project(p) for p in projects]
+
+# Filter active projects
+active = [p for p in analyzed if p.status == "active"]
+```
+
+### Recommendation Engine
+```python
+from recommendation_engine import RecommendationEngine
+
+engine = RecommendationEngine()
+recommendations = engine.generate_recommendations(
+    project_activity=analyzed,
+    limit=5
+)
+
+for rec in recommendations:
+    print(f"{rec.priority}: {rec.title}")
+    print(f"  {rec.rationale}")
+```
+
+### Context Intelligence
+```python
+from context_intelligence import ContextIntelligence
+
+intel = ContextIntelligence()
+predictions = intel.predict_context(
+    current_project="cortex",
+    current_task="Add new feature",
+    limit=5
+)
+
+for pred in predictions:
+    print(f"{pred.title} ({pred.confidence:.0%})")
+```
+
+### Bridge Integration
+```python
+from bridge import CortexBridge
+
+bridge = CortexBridge()
+
+# Get context
+context = bridge.get_context("fastapi patterns", limit=3)
+
+# Inject recommendation
+bridge.inject_recommendation(
+    title="Implement caching",
+    rationale="Improve API performance",
+    priority="high"
+)
+```
+
+---
+
+## CLI Commands
+
+### Available Commands
+```bash
+# Get next action
+cortex next
+
+# Show current state
+cortex status
+
+# System health check
+cortex health
+
+# Generate daily briefing
+cortex briefing
+
+# Log feedback
+cortex feedback --outcome success
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+```bash
+# Optional: Anthropic API key for enhanced features
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Project root directory
+CORTEX_ROOT=/Users/jesse.kemp/Dev
+```
+
+---
+
+## Code Quality Checklist
+
+- [ ] Type hints on all public functions
+- [ ] Docstrings with Args, Returns, Raises
+- [ ] Dataclasses for structured data
+- [ ] Structured logging (not print statements)
+- [ ] Git operations with timeout
+- [ ] Error handling for subprocess calls
+- [ ] Path operations use Path objects
+- [ ] Recommendations have confidence scores
+- [ ] Priority scores calculated consistently
+
+---
+
+## Technology-Specific Rules
+
+See `.cursor/rules/`:
+
+### 📘 fastapi-cortex.mdc
+- API endpoint patterns
+- Request/response models
+- Error handling
+- Integration with scanner and engine
+
+---
+
+## Important Notes
+
+✅ **Dataclasses**: Use for all structured data
+✅ **Type Hints**: Required on all functions
+✅ **Logging**: Use structlog, not print
+✅ **Git**: Timeout all subprocess calls
+✅ **Paths**: Use Path objects, not strings
+✅ **Recommendations**: Include rationale and confidence
+✅ **Priority**: Calculate priority scores consistently
+✅ **Learning**: Track outcomes for improvement
+
+---
+
+*For detailed patterns, see files in `.cursor/rules/`*
