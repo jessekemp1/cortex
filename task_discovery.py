@@ -1,6 +1,8 @@
 """Task discovery from tasks.yaml files"""
 
+import json
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +17,77 @@ try:
     from discover_tasks import discover_tasks
 except ImportError:
     discover_tasks = None
+
+
+# Cache configuration
+CACHE_FILE = Path.home() / ".cache" / "cortex" / "task_discovery_cache.json"
+CACHE_TTL_SECONDS = 300  # 5 minutes
+
+
+def _load_cache_from_disk() -> Optional[List[Dict[str, Any]]]:
+    """Load task cache from disk if valid."""
+    if not CACHE_FILE.exists():
+        return None
+
+    try:
+        with open(CACHE_FILE, 'r') as f:
+            data = json.load(f)
+
+        cache_time = datetime.fromisoformat(data.get('timestamp', ''))
+        age_seconds = (datetime.now() - cache_time).total_seconds()
+
+        if age_seconds < CACHE_TTL_SECONDS:
+            return data.get('tasks', [])
+    except (json.JSONDecodeError, KeyError, ValueError, OSError):
+        pass
+
+    return None
+
+
+def _save_cache_to_disk(tasks: List[Dict[str, Any]]) -> None:
+    """Save task cache to disk."""
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        data = {
+            'timestamp': datetime.now().isoformat(),
+            'tasks': tasks
+        }
+
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(data, f)
+    except (OSError, TypeError):
+        # Ignore cache save failures
+        pass
+
+
+def _discover_tasks_uncached(root_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+    """Discover tasks without using cache (slow)."""
+    if discover_tasks:
+        # Use the discovery script if available
+        return discover_tasks(root_dir)
+
+    # Fallback: manual discovery
+    if root_dir is None:
+        root_dir = Path("/Users/jesse.kemp/Dev")
+
+    all_tasks = []
+    for tasks_file in root_dir.rglob("tasks.yaml"):
+        try:
+            with open(tasks_file, "r") as f:
+                data = yaml.safe_load(f)
+
+            project_name = tasks_file.parent.name
+            tasks = data.get("tasks", [])
+            for task in tasks:
+                task["project"] = project_name
+                task["project_path"] = str(tasks_file.parent)
+                task["source_file"] = str(tasks_file)
+                all_tasks.append(task)
+        except Exception as e:
+            print(f"Error reading {tasks_file}: {e}", file=sys.stderr)
+
+    return all_tasks
 
 
 def get_tasks_for_project(
@@ -60,38 +133,28 @@ def get_tasks_for_project(
     return []
 
 
-def get_all_tasks(root_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+def get_all_tasks(root_dir: Optional[Path] = None, use_cache: bool = True) -> List[Dict[str, Any]]:
     """
     Get all tasks from all projects.
 
     Args:
         root_dir: Root directory to search (defaults to /Users/jesse.kemp/Dev)
+        use_cache: Whether to use cached results (default: True)
 
     Returns:
         List of all task dictionaries
     """
-    if discover_tasks:
-        # Use the discovery script if available
-        return discover_tasks(root_dir)
-    else:
-        # Fallback: manual discovery
-        if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+    # Check cache first
+    if use_cache:
+        cached_tasks = _load_cache_from_disk()
+        if cached_tasks is not None:
+            return cached_tasks
 
-        all_tasks = []
-        for tasks_file in root_dir.rglob("tasks.yaml"):
-            try:
-                with open(tasks_file, "r") as f:
-                    data = yaml.safe_load(f)
+    # Cache miss or disabled - perform slow discovery
+    tasks = _discover_tasks_uncached(root_dir)
 
-                project_name = tasks_file.parent.name
-                tasks = data.get("tasks", [])
-                for task in tasks:
-                    task["project"] = project_name
-                    task["project_path"] = str(tasks_file.parent)
-                    task["source_file"] = str(tasks_file)
-                    all_tasks.append(task)
-            except Exception as e:
-                print(f"Error reading {tasks_file}: {e}", file=sys.stderr)
+    # Save to cache
+    if use_cache:
+        _save_cache_to_disk(tasks)
 
-        return all_tasks
+    return tasks
