@@ -79,7 +79,13 @@ class CortexBridge:
 
         # Intelligence enhancements
         self.unified_intel = UnifiedIntelligence(self.root_dir) if UnifiedIntelligence else None
-        self.spec_kb = SpecKnowledgeBase() if SpecKnowledgeBase else None
+
+        # SpecKnowledgeBase may fail during init if chromadb not available
+        try:
+            self.spec_kb = SpecKnowledgeBase() if SpecKnowledgeBase else None
+        except (ImportError, Exception):
+            self.spec_kb = None
+
         self.session_mgr = SessionManager(self.root_dir) if SessionManager else None
 
     # --- 1. Context Bridge ---
@@ -503,6 +509,25 @@ def main():
     index_parser.add_argument("--project", required=True, help="Project name")
     index_parser.add_argument("--domain", help="Domain tag")
 
+    # health - Project health analysis
+    health_parser = subparsers.add_parser("health", help="Project health analysis")
+    health_sub = health_parser.add_subparsers(dest="health_command", help="Health command")
+
+    # health summary
+    summary_parser = health_sub.add_parser("summary", help="Portfolio health summary")
+    summary_parser.add_argument("--days", type=int, default=7, help="Days to analyze")
+
+    # health project
+    project_health_parser = health_sub.add_parser("project", help="Detailed project health")
+    project_health_parser.add_argument("name", help="Project name")
+    project_health_parser.add_argument("--days", type=int, default=7, help="Days to analyze")
+
+    # health compare
+    compare_parser = health_sub.add_parser("compare", help="Compare two projects")
+    compare_parser.add_argument("project1", help="First project")
+    compare_parser.add_argument("project2", help="Second project")
+    compare_parser.add_argument("--days", type=int, default=7, help="Days to analyze")
+
     args = parser.parse_args()
     bridge = CortexBridge()
 
@@ -607,6 +632,29 @@ def main():
     elif args.command == "index-spec":
         result = bridge.index_spec(args.path, args.project, getattr(args, 'domain', None))
         print(json.dumps(result, indent=2, default=str))
+    elif args.command == "health":
+        import subprocess
+
+        # Delegate to data agent CLI
+        cortex_root = Path(__file__).parent
+
+        if args.health_command == "summary":
+            subprocess.run([
+                sys.executable, "-m", "agents.data_agent.cli",
+                "summary", str(getattr(args, 'days', 7))
+            ], cwd=cortex_root)
+        elif args.health_command == "project":
+            subprocess.run([
+                sys.executable, "-m", "agents.data_agent.cli",
+                "project", args.name, str(getattr(args, 'days', 7))
+            ], cwd=cortex_root)
+        elif args.health_command == "compare":
+            subprocess.run([
+                sys.executable, "-m", "agents.data_agent.cli",
+                "compare", args.project1, args.project2, str(getattr(args, 'days', 7))
+            ], cwd=cortex_root)
+        else:
+            health_parser.print_help()
     else:
         parser.print_help()
 
