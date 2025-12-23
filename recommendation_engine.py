@@ -35,11 +35,12 @@ class Recommendation:
 class RecommendationEngine:
     """Generates strategic recommendations based on project activity and goals."""
 
-    def __init__(self, root_dir: Optional[Path] = None, enable_learning: bool = True):
+    def __init__(self, root_dir: Optional[Path] = None, enable_learning: bool = True, enable_pattern_memory: bool = True):
         if root_dir is None:
             root_dir = Path("/Users/jesse.kemp/Dev")
         self.root_dir = root_dir
         self.enable_learning = enable_learning
+        self.enable_pattern_memory = enable_pattern_memory
 
         # Initialize learning system if enabled
         if enable_learning:
@@ -58,6 +59,17 @@ class RecommendationEngine:
             self.semantic_recommender = SemanticRecommender(self.root_dir)
         except ImportError:
             self.semantic_recommender = None
+
+        # Initialize Pattern Memory (Layer 2)
+        if enable_pattern_memory:
+            try:
+                from intelligence.memory.pattern_memory import PatternMemory
+
+                self.pattern_memory = PatternMemory(self.root_dir)
+            except ImportError:
+                self.pattern_memory = None
+        else:
+            self.pattern_memory = None
 
     def generate_recommendations(
         self,
@@ -113,6 +125,10 @@ class RecommendationEngine:
         if self.learning_system:
             recommendations = self._apply_learning_adjustments(recommendations)
 
+        # Enrich recommendations with pattern memory (Layer 2)
+        if self.pattern_memory:
+            recommendations = self._enrich_with_patterns(recommendations)
+
         # Sort by priority score (combines priority, impact, confidence)
         recommendations.sort(key=lambda r: self._priority_score(r), reverse=True)
 
@@ -147,6 +163,43 @@ class RecommendationEngine:
             # Append explanation to rationale if significantly adjusted
             if abs(adjusted_confidence - base_confidence) > 0.1:
                 rec.rationale += f" {explanation}"
+
+        return recommendations
+
+    def _enrich_with_patterns(
+        self, recommendations: List[Recommendation]
+    ) -> List[Recommendation]:
+        """
+        Enrich recommendations with similar patterns from pattern memory.
+
+        Args:
+            recommendations: List of recommendations to enrich
+
+        Returns:
+            List of recommendations with pattern-based context added
+        """
+        for rec in recommendations:
+            # Skip if no pattern memory available
+            if not self.pattern_memory:
+                continue
+
+            # Find similar work for this recommendation
+            similar_work = self.pattern_memory.find_similar_solutions(
+                task=rec.title + " " + rec.description,
+                current_project=rec.related_projects[0] if rec.related_projects else "",
+                limit=3,
+            )
+
+            # Add similar work to description
+            if similar_work and rec.description:
+                pattern_context = "\n\n**Similar work from pattern memory:**\n"
+                for work in similar_work[:2]:  # Limit to 2 most relevant
+                    pattern_context += f"- [{work.project}] {work.title}\n"
+                    if work.files_changed:
+                        files = ", ".join(work.files_changed[:2])
+                        pattern_context += f"  Files: {files}\n"
+
+                rec.description += pattern_context
 
         return recommendations
 
