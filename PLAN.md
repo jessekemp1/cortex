@@ -150,11 +150,14 @@ python bridge.py portfolio lessons   # Lessons learned
 
 | Metric | Current | Status |
 |--------|---------|--------|
-| **Specs Indexed** | 68 | ✅ Target: 70+ |
-| **Projects Tracked** | 32 | ✅ Including Vital |
-| **Intelligence Queries** | 5 types | ✅ All working |
-| **Session Bootstrap** | iTerm only | ✅ Active |
-| **System Prompt** | Created | ⏳ User activation needed |
+| **Specs Indexed** | 73 | ✅ Exceeded target of 70+ |
+| **Projects Tracked** | 6 | ✅ VortexV2, Databricks, cortex, DJ-CoPilot, Windfield, Vital |
+| **Patterns Tracked** | 23 | ✅ Cross-project patterns |
+| **Lessons Tracked** | 14 | ✅ Common issues & migrations |
+| **Intelligence Commands** | 6 | ✅ All working (<5s each) |
+| **Session Bootstrap** | iTerm only | ✅ Active & auto-loading |
+| **Custom Instructions** | Active | ✅ Native `.claude/instructions.md` |
+| **Query Performance** | 125ms - 4s | ✅ Well under 5s target |
 
 ---
 
