@@ -528,6 +528,10 @@ def main():
     compare_parser.add_argument("project2", help="Second project")
     compare_parser.add_argument("--days", type=int, default=7, help="Days to analyze")
 
+    # health trends
+    trends_parser = health_sub.add_parser("trends", help="Health trends for project")
+    trends_parser.add_argument("name", help="Project name")
+
     args = parser.parse_args()
     bridge = CortexBridge()
 
@@ -652,6 +656,11 @@ def main():
             subprocess.run([
                 sys.executable, "-m", "agents.data_agent.cli",
                 "compare", args.project1, args.project2, str(getattr(args, 'days', 7))
+            ], cwd=cortex_root)
+        elif args.health_command == "trends":
+            subprocess.run([
+                sys.executable, "-m", "agents.data_agent.cli",
+                "trends", args.name
             ], cwd=cortex_root)
         else:
             health_parser.print_help()

@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 
 from .git_analyzer import GitAnalyzer
+from .health_tracker import HealthTracker
 
 
 class ProjectAnalyzer:
@@ -27,6 +28,9 @@ class ProjectAnalyzer:
 
         # Auto-discover projects (directories with .git)
         self.projects = self._discover_projects()
+
+        # Initialize health tracker for caching
+        self.health_tracker = HealthTracker()
 
     def _discover_projects(self) -> Dict[str, Path]:
         """
@@ -279,6 +283,31 @@ class ProjectAnalyzer:
 
         return stale
 
+    def get_project_health_trends(self, project_name: str) -> Dict[str, Any]:
+        """
+        Get comprehensive health trends for a project with caching
+
+        Args:
+            project_name: Name of project to analyze
+
+        Returns:
+            Dict with history, insights, and recommendations
+        """
+        if project_name not in self.projects:
+            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+
+        project_path = self.projects[project_name]
+        return self.health_tracker.get_health_trends(project_name, project_path)
+
+    def get_portfolio_health_trends(self) -> Dict[str, Any]:
+        """
+        Get health trends for all projects in portfolio
+
+        Returns:
+            Portfolio-wide trend analysis with categorization
+        """
+        return self.health_tracker.get_portfolio_trends(self.projects)
+
 
 # CLI for testing
 if __name__ == "__main__":
@@ -292,6 +321,8 @@ if __name__ == "__main__":
         print("  compare <proj1> <proj2>  - Compare two projects")
         print("  trending [days]          - Show trending projects")
         print("  stale [days]             - Show stale projects")
+        print("  trends <name>            - Health trends for project")
+        print("  portfolio-trends         - Health trends for all projects")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -330,6 +361,19 @@ if __name__ == "__main__":
     elif command == "stale":
         days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
         result = analyzer.get_stale_projects(days)
+        print(json.dumps(result, indent=2, default=str))
+
+    elif command == "trends":
+        if len(sys.argv) < 3:
+            print("Error: project name required")
+            print("Available:", list(analyzer.projects.keys()))
+            sys.exit(1)
+        project_name = sys.argv[2]
+        result = analyzer.get_project_health_trends(project_name)
+        print(json.dumps(result, indent=2, default=str))
+
+    elif command == "portfolio-trends":
+        result = analyzer.get_portfolio_health_trends()
         print(json.dumps(result, indent=2, default=str))
 
     else:

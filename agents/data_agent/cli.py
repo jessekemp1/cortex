@@ -244,6 +244,68 @@ def display_comparison(proj1: str, proj2: str, days: int = 7):
     print()
 
 
+def display_project_trends(project_name: str):
+    """Display comprehensive health trends for a project"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        trends = analyzer.get_project_health_trends(project_name)
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+    print("="*60)
+    print(f"📈 {Colors.BOLD}{project_name} - Health Trends Analysis{Colors.END}")
+    print("="*60)
+    print()
+
+    # Overall trend
+    history = trends["history"]
+    overall_trend = history["overall_trend"]
+    trend_emoji = get_trend_emoji(overall_trend)
+    trend_color = Colors.GREEN if overall_trend == "improving" else (Colors.RED if overall_trend == "declining" else Colors.YELLOW)
+    print(f"{Colors.BOLD}Overall Trend:{Colors.END} {trend_color}{trend_emoji} {overall_trend.upper()}{Colors.END}")
+    print()
+
+    # Multi-period health scores
+    print(f"{Colors.BOLD}Health Score by Period:{Colors.END}")
+    print(f"{'Period':<12} {'Score':<12} {'Commits':<12} {'Trend':<15} {'Uncommitted'}")
+    print("-"*70)
+
+    periods = history["periods"]
+    for period_key in sorted(periods.keys(), key=lambda x: int(x[:-1])):
+        period = periods[period_key]
+        score = period["health_score"]
+        score_color = get_score_color(score)
+        trend_emoji = get_trend_emoji(period["trend"])
+
+        print(f"{period_key:<12} {score_color}{score}/100{Colors.END:<12} "
+              f"{period['commits']:<12} {trend_emoji} {period['trend']:<12} "
+              f"{period['uncommitted']}")
+
+    print()
+
+    # Insights
+    if trends["insights"]:
+        print(f"{Colors.BOLD}Insights:{Colors.END}")
+        for insight in trends["insights"]:
+            icon = "⚠️ " if insight["type"] == "warning" else "✅ " if insight["type"] == "success" else "ℹ️  "
+            color = Colors.YELLOW if insight["type"] == "warning" else Colors.GREEN if insight["type"] == "success" else Colors.BLUE
+            print(f"  {icon}{color}{insight['message']}{Colors.END}")
+        print()
+
+    # Recommendations
+    if trends["recommendations"]:
+        print(f"{Colors.BOLD}Recommendations:{Colors.END}")
+        for rec in trends["recommendations"]:
+            priority_color = Colors.RED if rec["priority"] == "high" else Colors.YELLOW
+            print(f"  {priority_color}[{rec['priority'].upper()}]{Colors.END} {rec['action']}")
+            print(f"    → {rec['details']}")
+        print()
+
+    print("="*60)
+
+
 def main():
     """Main CLI entry point"""
     if len(sys.argv) < 2:
@@ -254,6 +316,7 @@ def main():
         print("  summary [days]           - Portfolio summary (default: 7 days)")
         print("  project <name> [days]    - Detailed project analysis")
         print("  compare <proj1> <proj2>  - Compare two projects")
+        print("  trends <name>            - Health trends for project (multi-period)")
         print("\nExamples:")
         print("  python -m cortex.agents.data_agent.cli summary")
         print("  python -m cortex.agents.data_agent.cli summary 30")
@@ -286,6 +349,15 @@ def main():
         proj2 = sys.argv[3]
         days = int(sys.argv[4]) if len(sys.argv) > 4 else 7
         display_comparison(proj1, proj2, days)
+
+    elif command == "trends":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        display_project_trends(project_name)
 
     else:
         print(f"{Colors.RED}Unknown command: {command}{Colors.END}")
