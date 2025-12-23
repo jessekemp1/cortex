@@ -21,7 +21,7 @@ def test_system_health_all_active():
         context_intelligence=True,
     )
 
-    assert health.all_active == True
+    assert health.all_active
     assert health.active_count == 4
 
 
@@ -34,7 +34,7 @@ def test_system_health_partial():
         context_intelligence=False,
     )
 
-    assert health.all_active == False
+    assert not health.all_active
     assert health.active_count == 2
 
 
@@ -49,11 +49,11 @@ def test_system_health_to_dict():
 
     health_dict = health.to_dict()
 
-    assert health_dict["project_scanner"] == True
-    assert health_dict["goal_parser"] == True
-    assert health_dict["recommendation_engine"] == False
-    assert health_dict["context_intelligence"] == False
-    assert health_dict["all_active"] == False
+    assert health_dict["project_scanner"]
+    assert health_dict["goal_parser"]
+    assert not health_dict["recommendation_engine"]
+    assert not health_dict["context_intelligence"]
+    assert not health_dict["all_active"]
     assert health_dict["active_count"] == 2
     assert health_dict["total_integrations"] == 4
 

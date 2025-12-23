@@ -246,6 +246,89 @@ class GoalParser:
 
         return None
 
+    def parse_simple_goals(self, goals_md_path: Optional[Path] = None) -> List[Goal]:
+        """
+        Parse goals from GOALS.md (simple checkbox format).
+
+        Format:
+            ## High Priority
+            - [ ] Goal title
+            - [x] Completed goal
+
+        Args:
+            goals_md_path: Path to GOALS.md (defaults to /Users/jesse.kemp/Dev/GOALS.md)
+
+        Returns:
+            List of Goal objects
+        """
+        if goals_md_path is None:
+            goals_md_path = Path("/Users/jesse.kemp/Dev/GOALS.md")
+
+        if not goals_md_path.exists():
+            return []
+
+        content = goals_md_path.read_text()
+        goals = []
+        current_priority = "B"  # Default to medium priority
+
+        for line in content.split("\n"):
+            line = line.strip()
+
+            # Detect priority sections
+            if "high priority" in line.lower():
+                current_priority = "A"
+                continue
+            elif "medium priority" in line.lower():
+                current_priority = "B"
+                continue
+            elif "low priority" in line.lower():
+                current_priority = "C"
+                continue
+            elif line.lower().startswith("## completed"):
+                # Skip completed section
+                break
+
+            # Parse checkbox items: - [ ] or - [x]
+            match = re.match(r"^-\s*\[([ xX])\]\s*(.+)$", line)
+            if match:
+                completed = match.group(1).lower() == "x"
+                title = match.group(2).strip()
+
+                # Skip if empty title
+                if not title:
+                    continue
+
+                # Infer project from title
+                project = self._extract_project(title)
+
+                goals.append(
+                    Goal(
+                        title=title,
+                        priority=current_priority,
+                        status="completed" if completed else "pending",
+                        project=project,
+                    )
+                )
+
+        return goals
+
+    def parse_all_goals(self) -> List[Goal]:
+        """
+        Parse goals from both GOALS.md and ACTION_PLAN.md.
+
+        Tries GOALS.md first (simpler format), falls back to ACTION_PLAN.md.
+
+        Returns:
+            List of Goal objects from whichever file exists
+        """
+        # Try GOALS.md first
+        simple_goals = self.parse_simple_goals()
+        if simple_goals:
+            return simple_goals
+
+        # Fall back to ACTION_PLAN.md
+        return self.parse()
+
     def get_priority_a_goals(self) -> List[Goal]:
         """Get only Priority A goals."""
         return [g for g in self.parse() if g.priority == "A"]

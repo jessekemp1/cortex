@@ -259,7 +259,7 @@ class TestBatchAPIClient:
 
         # Execute
         requests = [BatchRequest("req1", {})]
-        batch_id = client.submit_batch(requests, "Test batch")
+        client.submit_batch(requests, "Test batch")
 
         # Verify metadata saved
         metadata_file = client.batch_dir / "batch_123_metadata.json"

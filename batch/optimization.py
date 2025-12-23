@@ -3,7 +3,7 @@ Batch Optimization Module
 Implements intelligence for maximizing token usage and efficient bin-packing of requests.
 """
 import math
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any
 import structlog
 
 logger = structlog.get_logger()

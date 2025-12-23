@@ -105,13 +105,7 @@ class RecommendationEngine:
         # 5. External recommendations (injected by Antigravity/Agents)
         recommendations.extend(self._generate_external_recommendations())
 
-        # 6. CursorRules recommendations
-        if project_activity:
-            recommendations.extend(
-                self._generate_cursorrules_recommendations(project_activity)
-            )
-
-        # 7. Semantic Strategy (ACTION_PLAN.md)
+        # 6. Semantic Strategy (ACTION_PLAN.md)
         if self.semantic_recommender:
             recommendations.extend(self._generate_semantic_recommendations())
 
@@ -415,62 +409,6 @@ class RecommendationEngine:
 
         return recommendations
 
-    def _generate_cursorrules_recommendations(
-        self, project_activity: List[Any]
-    ) -> List[Recommendation]:
-        """Generate recommendations for improving CursorRules."""
-        recommendations = []
-
-        for project in project_activity:
-            # Only recommend for active or recent projects
-            if getattr(project, "status", "dormant") == "dormant":
-                continue
-
-            score = getattr(project, "cursorrules_score", 0.0)
-
-            # If score is perfect, no recommendation needed
-            if score >= 100.0:
-                continue
-
-            # Prioritize based on activity and how low the score is
-            priority = "low"
-            if getattr(project, "status", "") == "active":
-                priority = "high" if score < 50 else "medium"
-            else:
-                priority = "medium" if score < 50 else "low"
-
-            rec_id = f"cursorrules_{project.name}"
-            # Generate actionable recommendation
-            missing = getattr(project, "cursorrules_missing_patterns", [])
-            if missing:
-                title = f"Add missing CursorRules: {', '.join(missing[:2])}"
-                rationale = f"Project uses {', '.join(missing)} but lacks specific AI rules. Adding these will improve code generation quality."
-            else:
-                title = f"Enhance CursorRules for {project.name}"
-                rationale = f"CursorRules score is {score:.0f}/100. Improving this helps AI agents write better code."
-
-            description = f"""Next steps:
-• Run: cortex rules enhance {project.name}
-• Review: .cursor/rules/ for new patterns
-• Current Score: {score:.0f} (Aim for 100)"""
-
-            recommendations.append(
-                Recommendation(
-                    id=rec_id,
-                    title=title,
-                    type="cursorrules_improvement",
-                    priority=priority,
-                    estimated_impact="high",  # AI improvements have high leverage
-                    confidence=0.9,
-                    rationale=rationale,
-                    related_projects=[project.name],
-                    description=description,
-                    estimated_effort="5-10min",
-                )
-            )
-
-        return recommendations
-
     def _generate_semantic_recommendations(self) -> List[Recommendation]:
         """Generate recommendations from Semantic Strategy (ACTION_PLAN.md)."""
         recommendations = []
@@ -594,10 +532,6 @@ class RecommendationEngine:
             "blocker_resolution": 2.0,
             "goal_progress": 1.5,
             "project_health": 1.0,
-            "blocker_resolution": 2.0,
-            "goal_progress": 1.5,
-            "project_health": 1.0,
-            "cursorrules_improvement": 1.2,
             "momentum": 0.8,
         }
         type_score = type_weights.get(rec.type, 1.0)

@@ -236,7 +236,7 @@ class CortexOrchestrator:
         goals = []
         if self.goal_parser:
             try:
-                goals = self.goal_parser.parse()
+                goals = self.goal_parser.parse_all_goals()
             except Exception as e:
                 print(f"Warning: Could not parse goals: {e}", file=sys.stderr)
 

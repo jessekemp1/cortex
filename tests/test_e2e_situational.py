@@ -129,7 +129,7 @@ def test_project_specific_filtering():
     # (Note: This is a soft check - if no recommendations exist, that's also valid)
     if "NEXT ACTION" in stdout and "No recommendations" not in stdout:
         # Check if output mentions vortexv2 (case-insensitive)
-        output_lower = stdout.lower()
+        stdout.lower()
         # Either in the recommendation itself or in related projects
         # This is a lenient check since filtering happens at orchestrator level
         pass  # Filtering is validated in unit tests

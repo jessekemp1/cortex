@@ -87,7 +87,7 @@ def test_schedule_recommendation():
 
     # Check it's in the list
     scheduled = integration.list_scheduled_actions()
-    test_agent = [a for a in scheduled if a.get("agent_id") == "cortex_e2e_test_action"]
+    [a for a in scheduled if a.get("agent_id") == "cortex_e2e_test_action"]
     # May or may not be there depending on orchestrator state, but structure should work
     assert isinstance(scheduled, list)
 

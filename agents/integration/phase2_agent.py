@@ -116,7 +116,7 @@ class Phase2Agent(BaseCoordinationAgent):
 
             # Try to create integration instance (may fail if local-orchestrator not available, that's OK)
             try:
-                integration = CortexLocalOrchestratorIntegration()
+                CortexLocalOrchestratorIntegration()
                 # Just verify the class exists, availability check is separate
                 return True
             except ImportError:

@@ -230,10 +230,13 @@ class BatchAPIClient:
 
         try:
             for result in self.client.beta.messages.batches.results(batch_id):
+                # Get status from result.result.type
+                status = result.result.type if hasattr(result.result, 'type') else 'unknown'
+
                 batch_result = BatchResult(
                     custom_id=result.custom_id,
                     result=result.result,
-                    status=result.status_code,  # "succeeded", "errored", etc.
+                    status=status,  # "succeeded", "errored", etc.
                 )
                 results.append(batch_result)
 

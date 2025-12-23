@@ -12,7 +12,7 @@ try:
         ContextPrediction,
         Recommendation,
         StrategistResponse,
-        SystemHealth,
+        SystemHealth,  # noqa: F401
     )
 except ImportError:
     from orchestrator import (

@@ -11,9 +11,15 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add cortex directory to path to support both module and direct execution
+# Add cortex directory and its parent to path to support both module and direct execution
 cortex_dir = Path(__file__).parent
 sys.path.insert(0, str(cortex_dir))
+sys.path.insert(0, str(cortex_dir.parent))
+
+# Fallback: Add user site-packages if dependencies are missing (e.g. structlog)
+site_packages = Path.home() / "Library/Python/3.9/lib/python/site-packages"
+if site_packages.exists() and str(site_packages) not in sys.path:
+    sys.path.append(str(site_packages))
 
 from formatter import CortexFormatter
 
@@ -693,13 +699,41 @@ def cmd_dashboard(args):
     from datetime import datetime
     
     # Import internal orchestrator components
-    from cortex.execution.batch_system import BatchManager
-    from cortex.execution.storage.history import ExecutionHistory
-    from cortex.execution import config as execution_config
+    # Import internal orchestrator components
+    # Assuming local-orchestrator is in path from main setup
+    try:
+        from batch_system import BatchManager
+        from history import ExecutionHistory
+        from config import STORAGE_PATH
+    except ImportError:
+        # Fallback: try adding local-orchestrator explicitly if not in path
+        import sys
+        dev_dir = Path(__file__).parent.parent.parent # .../Dev
+        lo_dir = dev_dir / "local-orchestrator"
+        if str(lo_dir) not in sys.path:
+            sys.path.insert(0, str(lo_dir))
+        
+        from batch_system import BatchManager
+        from storage.history import ExecutionHistory
+        # config might be module level in local-orchestrator
+        try:
+             from config import STORAGE_PATH
+        except ImportError:
+             # Define fallback or load from module
+             STORAGE_PATH = "symbiotic.db"
 
     try:
         # Initialize directly
-        db_path = execution_config.STORAGE_PATH
+        # Fix: Ensure db_path is absolute to local-orchestrator directory
+        # If STORAGE_PATH is just a filename, assume it is in local-orchestrator
+        if not Path(STORAGE_PATH).is_absolute():
+            # Find local-orchestrator dir
+            # We added it to sys.path earlier, or check relative
+             lo_dir = Path(__file__).parent.parent / "local-orchestrator"
+             db_path = str(lo_dir / STORAGE_PATH)
+        else:
+             db_path = STORAGE_PATH
+             
         batch_manager = BatchManager(db_path=db_path)
         history = ExecutionHistory(db_path=db_path)
         
@@ -767,7 +801,7 @@ def cmd_dashboard(args):
             status = run.get("status", "unknown")
             status_icon = (
                 "✅"
-                if status == "completed" or status == True
+                if status == "completed" or status
                 else "❌" if status == "failed" else "⏳"
             )
 
@@ -1068,6 +1102,98 @@ Examples:
         help="Skip logging outcome to feedback system",
     )
     execute_parser.set_defaults(func=cmd_execute)
+
+    # Goal, Task, Blocker, Progress commands
+    try:
+        from goal_commands import register_goal_commands
+        register_goal_commands(subparsers)
+    except Exception as e:
+        import sys as _sys
+        print(f"Goal command registration failed: {e}", file=_sys.stderr)
+
+    # Skills commands
+    import asyncio
+    
+    try:
+        from skills import registry
+        SKILLS_AVAILABLE = True
+    except ImportError:
+        registry = None
+        SKILLS_AVAILABLE = False
+
+    def cmd_skill_list(args):
+        """List all available skills."""
+        if not SKILLS_AVAILABLE:
+            print("Skills module not available.")
+            return
+        print(registry.list_skills())
+
+    def cmd_skill_run(args):
+        """Run a skill by name."""
+        if not SKILLS_AVAILABLE:
+            print("Skills module not available.")
+            return
+        async def run():
+            result = await registry.execute_skill(args.skill_name, **vars(args))
+            if result:
+                print("\n" + result.to_markdown())
+            else:
+                print(f"Error: Skill '{args.skill_name}' not found")
+                print("\nAvailable skills:")
+                for skill in registry.get_all():
+                    print(f"  - {skill.name}")
+                sys.exit(1)
+        asyncio.run(run())
+
+    def cmd_skill_info(args):
+        """Show detailed skill information."""
+        if not SKILLS_AVAILABLE:
+            print("Skills module not available.")
+            return
+        skill = registry.get(args.skill_name)
+        if skill:
+            print(skill.to_markdown())
+        else:
+            print(f"Error: Skill '{args.skill_name}' not found")
+            sys.exit(1)
+
+    def cmd_skill_schedule(args):
+        """Run all scheduled skills."""
+        if not SKILLS_AVAILABLE:
+            print("Skills module not available.")
+            return
+        async def run():
+            results = await registry.execute_scheduled()
+            print(f"\nExecuted {len(results)} scheduled skills")
+            for result in results:
+                print(f"  - {result.summary}")
+        asyncio.run(run())
+
+    # Skill subcommands
+    skill_parser = subparsers.add_parser('skill', help='Manage and execute skills')
+    skill_subparsers = skill_parser.add_subparsers(dest='skill_command', help='Skill commands')
+
+    # skill list
+    skill_list_parser = skill_subparsers.add_parser('list', help='List all skills')
+    skill_list_parser.set_defaults(func=cmd_skill_list)
+
+    # skill run
+    skill_run_parser = skill_subparsers.add_parser('run', help='Run a skill')
+    skill_run_parser.add_argument('skill_name', help='Name of skill to run')
+    skill_run_parser.add_argument('--scope', type=str, help='Validation scope (for forecasting skill)')
+    skill_run_parser.add_argument('--symbol', type=str, help='Symbol (for trading skill)')
+    skill_run_parser.add_argument('--days', type=int, help='Days (for trading skill)')
+    skill_run_parser.add_argument('--directory', type=str, help='Directory (for audio skill)')
+    skill_run_parser.set_defaults(func=cmd_skill_run)
+
+    # skill info
+    skill_info_parser = skill_subparsers.add_parser('info', help='Show skill information')
+    skill_info_parser.add_argument('skill_name', help='Name of skill')
+    skill_info_parser.set_defaults(func=cmd_skill_info)
+
+    # skill schedule
+    skill_schedule_parser = skill_subparsers.add_parser('schedule', help='Run scheduled skills')
+    skill_schedule_parser.set_defaults(func=cmd_skill_schedule)
 
     args = parser.parse_args()
 

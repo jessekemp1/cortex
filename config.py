@@ -44,7 +44,7 @@ def create_default_config():
 
     if not config_file.exists():
         try:
-            import yaml
+            import yaml  # noqa: F401
 
             config_file.write_text(
                 """# Cortex Configuration

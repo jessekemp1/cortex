@@ -41,7 +41,7 @@ def test_log_feedback():
             entries = json.load(f)
             assert len(entries) == 1
             assert entries[0]["action_title"] == "Test Action"
-            assert entries[0]["useful"] == True
+            assert entries[0]["useful"]
             assert entries[0]["notes"] == "This was helpful"
 
 
