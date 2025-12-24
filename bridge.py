@@ -388,6 +388,84 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    # --- Dependency Analysis Methods ---
+
+    def get_dependency_analysis(self, project: str) -> Dict[str, Any]:
+        """
+        Get dependency analysis for a project.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with dependency analysis
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> deps = bridge.get_dependency_analysis("cortex")
+            >>> print(deps["external_deps"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.get_dependency_analysis(project)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_dependency_health(self, project: str) -> Dict[str, Any]:
+        """
+        Get dependency health score for a project.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with health score and breakdown
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> health = bridge.get_dependency_health("cortex")
+            >>> print(f"Score: {health['total_score']}/100")
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.get_dependency_health(project)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def find_circular_dependencies(self, project: str) -> Dict[str, Any]:
+        """
+        Find circular dependencies in a project.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with circular dependency analysis
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> circular = bridge.find_circular_dependencies("cortex")
+            >>> if circular["has_cycles"]:
+            >>>     print(f"Found {circular['cycle_count']} cycles")
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.find_circular_dependencies(project)
+        except Exception as e:
+            return {"error": str(e)}
+
     # --- Intelligence Enhancement Methods ---
 
     def query_intelligence(

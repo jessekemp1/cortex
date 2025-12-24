@@ -308,6 +308,63 @@ class ProjectAnalyzer:
         """
         return self.health_tracker.get_portfolio_trends(self.projects)
 
+    def get_dependency_analysis(self, project_name: str) -> Dict[str, Any]:
+        """
+        Get dependency analysis for a project.
+
+        Args:
+            project_name: Name of project to analyze
+
+        Returns:
+            Dependency analysis dict
+        """
+        if project_name not in self.projects:
+            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+
+        from .dependency_mapper import DependencyMapper
+
+        project_path = self.projects[project_name]
+        mapper = DependencyMapper(project_path)
+        return mapper.get_cached_analysis()
+
+    def get_dependency_health(self, project_name: str) -> Dict[str, Any]:
+        """
+        Get dependency health score for a project.
+
+        Args:
+            project_name: Name of project to analyze
+
+        Returns:
+            Health score dict
+        """
+        if project_name not in self.projects:
+            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+
+        from .dependency_mapper import DependencyMapper
+
+        project_path = self.projects[project_name]
+        mapper = DependencyMapper(project_path)
+        return mapper.calculate_dependency_health()
+
+    def find_circular_dependencies(self, project_name: str) -> Dict[str, Any]:
+        """
+        Find circular dependencies in a project.
+
+        Args:
+            project_name: Name of project to analyze
+
+        Returns:
+            Circular dependency analysis dict
+        """
+        if project_name not in self.projects:
+            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+
+        from .dependency_mapper import DependencyMapper
+
+        project_path = self.projects[project_name]
+        mapper = DependencyMapper(project_path)
+        return mapper.find_circular_dependencies()
+
 
 # CLI for testing
 if __name__ == "__main__":

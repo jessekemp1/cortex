@@ -306,6 +306,131 @@ def display_project_trends(project_name: str):
     print("="*60)
 
 
+def display_dependency_analysis(project_name: str):
+    """Display dependency analysis for a project"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        analysis = analyzer.get_dependency_analysis(project_name)
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+    print("="*60)
+    print(f"📦 {Colors.BOLD}{project_name} - Dependency Analysis{Colors.END}")
+    print("="*60)
+    print()
+
+    print(f"{Colors.BOLD}Summary:{Colors.END}")
+    print(f"  Files Analyzed: {analysis['files_analyzed']}")
+    print(f"  Files with Errors: {analysis['files_with_errors']}")
+    print()
+
+    # Import types
+    import_types = analysis.get("imports_by_type", {})
+    if import_types:
+        print(f"{Colors.BOLD}Import Types:{Colors.END}")
+        for imp_type, count in sorted(import_types.items(), key=lambda x: x[1], reverse=True):
+            print(f"  {imp_type:15} {count:>4}")
+        print()
+
+    # External dependencies
+    external = analysis.get("external_deps", [])
+    if external:
+        print(f"{Colors.BOLD}External Dependencies ({len(external)}):{Colors.END}")
+        for dep in sorted(external)[:10]:
+            print(f"  • {dep}")
+        if len(external) > 10:
+            print(f"  ... and {len(external) - 10} more")
+        print()
+
+    print("="*60)
+
+
+def display_dependency_health(project_name: str):
+    """Display dependency health score"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        health = analyzer.get_dependency_health(project_name)
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+    print("="*60)
+    print(f"💊 {Colors.BOLD}{project_name} - Dependency Health{Colors.END}")
+    print("="*60)
+    print()
+
+    # Health score
+    score = health["total_score"]
+    score_color = get_score_color(score)
+    assessment_emoji = get_assessment_emoji(health["assessment"])
+
+    print(f"{Colors.BOLD}Health Score: {score_color}{score}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}")
+    print()
+
+    # Breakdown
+    print(f"{Colors.BOLD}Score Breakdown:{Colors.END}")
+    breakdown = health["breakdown"]
+    for component, points in breakdown.items():
+        component_name = component.replace("_", " ").title()
+        print(f"  {component_name:20} {points}/25")
+    print()
+
+    # Concerns
+    if health.get("concerns"):
+        print(f"{Colors.BOLD}{Colors.YELLOW}⚠️  Concerns:{Colors.END}")
+        for concern in health["concerns"]:
+            print(f"  • {concern}")
+        print()
+
+    # Recommendations
+    if health.get("recommendations"):
+        print(f"{Colors.BOLD}Recommendations:{Colors.END}")
+        for rec in health["recommendations"]:
+            priority_color = Colors.RED if rec["priority"] == "high" else Colors.YELLOW
+            print(f"  {priority_color}[{rec['priority'].upper()}]{Colors.END} {rec['action']}")
+            print(f"    → {rec['details']}")
+        print()
+
+    print("="*60)
+
+
+def display_circular_dependencies(project_name: str):
+    """Display circular dependency analysis"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        circular = analyzer.find_circular_dependencies(project_name)
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+    print("="*60)
+    print(f"🔄 {Colors.BOLD}{project_name} - Circular Dependencies{Colors.END}")
+    print("="*60)
+    print()
+
+    if circular["has_cycles"]:
+        severity = circular["severity"]
+        severity_color = Colors.RED if severity == "major" else Colors.YELLOW
+
+        print(f"{Colors.BOLD}Status:{Colors.END} {severity_color}Found {circular['cycle_count']} circular dependencies ({severity}){Colors.END}")
+        print()
+
+        print(f"{Colors.BOLD}Cycles:{Colors.END}")
+        for i, cycle in enumerate(circular["cycles"], 1):
+            print(f"\n  Cycle {i}:")
+            for module in cycle:
+                print(f"    → {module}")
+    else:
+        print(f"{Colors.GREEN}✅ No circular dependencies found{Colors.END}")
+
+    print()
+    print("="*60)
+
+
 def main():
     """Main CLI entry point"""
     if len(sys.argv) < 2:
@@ -317,10 +442,15 @@ def main():
         print("  project <name> [days]    - Detailed project analysis")
         print("  compare <proj1> <proj2>  - Compare two projects")
         print("  trends <name>            - Health trends for project (multi-period)")
+        print("  deps <name>              - Dependency analysis for project")
+        print("  deps-health <name>       - Dependency health score")
+        print("  deps-circular <name>     - Find circular dependencies")
         print("\nExamples:")
         print("  python -m cortex.agents.data_agent.cli summary")
         print("  python -m cortex.agents.data_agent.cli summary 30")
         print("  python -m cortex.agents.data_agent.cli project Dev 7")
+        print("  python -m cortex.agents.data_agent.cli deps cortex")
+        print("  python -m cortex.agents.data_agent.cli deps-health cortex")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -358,6 +488,33 @@ def main():
             sys.exit(1)
         project_name = sys.argv[2]
         display_project_trends(project_name)
+
+    elif command == "deps":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        display_dependency_analysis(project_name)
+
+    elif command == "deps-health":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        display_dependency_health(project_name)
+
+    elif command == "deps-circular":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        display_circular_dependencies(project_name)
 
     else:
         print(f"{Colors.RED}Unknown command: {command}{Colors.END}")
