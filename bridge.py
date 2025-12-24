@@ -800,6 +800,90 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    # --- 7. Layer 1: Project Analysis Bridge ---
+
+    def get_project_profile(self, project: str) -> Dict[str, Any]:
+        """
+        Get project profile with tech stack and coverage.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Project profile data
+        """
+        try:
+            from recommendation_engine import RecommendationEngine
+
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                return {"error": f"Project not found: {project}"}
+
+            engine = RecommendationEngine(project_path=project_path, enable_learning=True)
+            profile = engine.get_project_profile()
+
+            if not profile:
+                return {"error": "Project profiler not available"}
+
+            return {
+                "success": True,
+                "project": profile.project_name,
+                "tech_stack": {
+                    "languages": list(profile.tech_stack.languages),
+                    "frameworks": list(profile.tech_stack.frameworks),
+                    "databases": list(profile.tech_stack.databases),
+                    "tools": list(profile.tech_stack.tools)
+                },
+                "test_coverage": {
+                    "test_files": profile.test_coverage.test_files,
+                    "source_files": profile.test_coverage.source_files,
+                    "estimated_coverage": profile.test_coverage.estimated_coverage,
+                    "is_low": profile.test_coverage.is_low
+                },
+                "critical_files": [
+                    {"path": cf.path, "reason": cf.reason}
+                    for cf in profile.critical_files[:5]
+                ],
+                "warnings": profile.warnings
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- 8. Layer 2: Pattern Memory Bridge ---
+
+    def find_similar_work(self, project: str, task: str, limit: int = 5) -> Dict[str, Any]:
+        """
+        Find similar work from other projects.
+
+        Args:
+            project: Current project name
+            task: Task description
+            limit: Maximum results
+
+        Returns:
+            Similar work from other projects
+        """
+        try:
+            from recommendation_engine import RecommendationEngine
+
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                project_path = self.root_dir
+
+            engine = RecommendationEngine(project_path=project_path, enable_patterns=True)
+            similar = engine.find_similar_work(task=task, limit=limit)
+
+            return {
+                "success": True,
+                "task": task,
+                "similar_work": similar,
+                "count": len(similar)
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
 
 def main():
     """CLI Interface for the Bridge (fallback if MCP not used)."""
@@ -918,6 +1002,16 @@ def main():
 
     # plan progress
     plan_sub.add_parser("progress", help="Show active plan progress")
+
+    # profile - Project profiling (Layer 1)
+    profile_parser = subparsers.add_parser("profile", help="Analyze project structure and tech stack")
+    profile_parser.add_argument("project", help="Project name")
+
+    # patterns - Pattern search (Layer 2)
+    patterns_parser = subparsers.add_parser("patterns", help="Find similar work from other projects")
+    patterns_parser.add_argument("project", help="Current project name")
+    patterns_parser.add_argument("task", help="Task description")
+    patterns_parser.add_argument("--limit", type=int, default=5, help="Maximum results")
 
     args = parser.parse_args()
     bridge = CortexBridge()
@@ -1075,6 +1169,12 @@ def main():
             print(json.dumps(result, indent=2))
         else:
             plan_parser.print_help()
+    elif args.command == "profile":
+        result = bridge.get_project_profile(args.project)
+        print(json.dumps(result, indent=2))
+    elif args.command == "patterns":
+        result = bridge.find_similar_work(args.project, args.task, limit=getattr(args, 'limit', 5))
+        print(json.dumps(result, indent=2))
     else:
         parser.print_help()
 
