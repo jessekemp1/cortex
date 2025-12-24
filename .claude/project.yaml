@@ -1,0 +1,201 @@
+name: cortex
+domain: infrastructure
+status: production
+priority: high
+description: >
+  Strategic AI orchestrator and central intelligence hub for the AI-first workspace.
+  Provides project discovery, metadata consumption, daily briefings, strategic
+  recommendations, and universal AI agent bridge. Serves as the command center
+  for developer productivity across all projects.
+
+tech_stack:
+  primary:
+    - Python 3.9+
+    - Anthropic Claude API
+    - APScheduler
+    - structlog
+    - rich (terminal UI)
+  secondary:
+    - FastAPI
+    - uvicorn
+    - python-dotenv
+    - pytz
+    - openai
+    - PyYAML
+
+entry_points:
+  cli: python cli.py <command>
+  briefing: python cli.py briefing
+  projects: python cli.py projects
+  project_info: python cli.py project-info <project_name>
+  sync_portfolio: python cli.py sync-portfolio
+  next_action: python cli.py next [project]
+  status: python cli.py status
+
+key_directories:
+  - cli.py                    # Main CLI entry point with argparse
+  - project_metadata.py       # ProjectMetadataReader for .claude/project.yaml
+  - briefing.py               # Daily briefing generation system
+  - ai_intelligence.py        # Project activity scanning and analysis
+  - recommendation_engine.py  # Strategic recommendation generation
+  - context_intelligence.py   # Context prediction and injection
+  - bridge.py                 # Universal AI agent interface (CortexBridge)
+  - orchestrator.py           # Main orchestration logic (CortexOrchestrator)
+  - portfolio_memory.py       # Portfolio index and project tracking
+  - session_manager.py        # Session context management
+  - learning.py               # Learning system for adaptation
+  - feedback.py               # Feedback logging and analysis
+  - .claude/                  # Project metadata, hooks, agents
+  - .claude/hooks/            # Shell hooks for context injection
+  - .claude/agents/           # Agent configurations
+  - batch/                    # Batch API integration
+  - intelligence/             # Intelligence layer modules
+  - integration/              # External system integrations
+  - skills/                   # Skill definitions
+  - tests/                    # Test suite
+
+related_projects:
+  - name: local-orchestrator
+    relationship: "Task execution and scheduling engine; executes Cortex recommendations as automated agents"
+  - name: VortexV2
+    relationship: "Weather forecasting (monitored production project)"
+  - name: dj-copilot
+    relationship: "Audio processing (monitored production project)"
+  - name: windfield
+    relationship: "Weather forecasting (monitored production project)"
+
+common_tasks:
+  - name: "List all AI-first projects"
+    complexity: low
+    estimated_time: "5 seconds"
+    steps:
+      - "Run: python cli.py projects"
+      - "Projects are auto-discovered from .claude/project.yaml files"
+      - "Results grouped by domain and status"
+
+  - name: "Get project information"
+    complexity: low
+    estimated_time: "5 seconds"
+    steps:
+      - "Run: python cli.py project-info <project_name>"
+      - "Shows: description, tech stack, entry points, common tasks, AI hints"
+      - "Example: python cli.py project-info VortexV2"
+
+  - name: "Filter projects by domain"
+    complexity: low
+    estimated_time: "5 seconds"
+    steps:
+      - "Run: python cli.py projects --domain <domain>"
+      - "Example: python cli.py projects --domain weather"
+      - "Example: python cli.py projects --domain infrastructure"
+
+  - name: "Filter projects by status"
+    complexity: low
+    estimated_time: "5 seconds"
+    steps:
+      - "Run: python cli.py projects --status <status>"
+      - "Example: python cli.py projects --status production"
+      - "Example: python cli.py projects --status development"
+
+  - name: "Sync portfolio index"
+    complexity: low
+    estimated_time: "10 seconds"
+    steps:
+      - "Run: python cli.py sync-portfolio"
+      - "Scans workspace for .claude/project.yaml files"
+      - "Updates ~/.claude/portfolio/project_index.json"
+      - "Merges with existing portfolio entries"
+
+  - name: "Generate daily briefing"
+    complexity: medium
+    estimated_time: "30 seconds"
+    dependencies:
+      - "Requires access to project git histories"
+      - "Requires Anthropic API key (optional for AI enhancements)"
+    steps:
+      - "Run: python cli.py briefing"
+      - "Scans all projects for activity (commits, changes)"
+      - "Analyzes goals from ACTION_PLAN.md files"
+      - "Generates strategic recommendations"
+      - "Identifies blockers and waiting items"
+
+  - name: "Get next recommended action"
+    complexity: medium
+    estimated_time: "15 seconds"
+    steps:
+      - "Run: python cli.py next"
+      - "For specific project: python cli.py next <project>"
+      - "With context: python cli.py next --with-context"
+      - "Returns prioritized recommendations with confidence scores"
+
+  - name: "Check system status"
+    complexity: low
+    estimated_time: "10 seconds"
+    steps:
+      - "Run: python cli.py status"
+      - "Shows: active projects, goals, blockers, health metrics"
+
+  - name: "Use CortexBridge in code"
+    complexity: medium
+    estimated_time: "5 minutes"
+    steps:
+      - "Import: from cortex.bridge import CortexBridge"
+      - "Initialize: bridge = CortexBridge()"
+      - "Get context: bridge.get_context(query='how to train models')"
+      - "Get recommendations: bridge.get_recommendations(project='vortexv2')"
+      - "Trigger actions: bridge.trigger_action(action_name='run_tests')"
+
+  - name: "Add new AI-first project"
+    complexity: medium
+    estimated_time: "2-4 hours"
+    manual_steps_required: true
+    steps:
+      - "Create .claude/ directory in project root"
+      - "Create .claude/project.yaml with metadata (see dj-copilot for template)"
+      - "Create ARCHITECTURE.md documenting system design"
+      - "Create DEPENDENCIES.md documenting dependencies"
+      - "Organize tests into tests/unit/ and tests/integration/"
+      - "Run: python cli.py sync-portfolio to index new project"
+      - "Verify: python cli.py projects shows new project"
+      - "Verify: python cli.py project-info <project_name> displays metadata"
+
+ai_hints:
+  - "ProjectMetadataReader in project_metadata.py reads all .claude/project.yaml files in workspace"
+  - "CLI commands use argparse with subparsers - see cli.py for full command structure"
+  - "CortexBridge in bridge.py provides unified interface for all AI agent interactions"
+  - "Skills are auto-discovered from skills/ directory - each skill is a separate module"
+  - "Context injection hook: .claude/hooks/project_context.py runs on session start"
+  - "Portfolio sync reads .claude/project.yaml files and merges with ~/.claude/portfolio/project_index.json"
+  - "Batch API integration in batch/ directory uses Anthropic Batch API for cost-effective processing"
+  - "Intelligence layer (intelligence/) provides unified query interface across all data sources"
+  - "Session manager (session_manager.py) tracks active sessions and injects context automatically"
+  - "Learning system (learning.py) adapts recommendations based on local-orchestrator execution history"
+  - "All structured output uses rich library for beautiful terminal formatting"
+  - "When adding new CLI commands, follow pattern in cli.py: def cmd_<name>(args) + subparser setup"
+
+known_issues:
+  - "Batch API requires ANTHROPIC_API_KEY environment variable"
+  - "Some intelligence features require chromadb (optional dependency)"
+  - "SpecKnowledgeBase may fail gracefully if chromadb not installed"
+  - "Portfolio sync only discovers projects with .claude/project.yaml (by design)"
+  - "Context injection hook requires .claude/hooks/ directory to exist"
+  - "Learning system requires local-orchestrator execution history to function"
+
+environment:
+  required:
+    - ANTHROPIC_API_KEY  # For AI-powered features (briefing, recommendations)
+  optional:
+    - OPENAI_API_KEY     # For OpenAI-powered features (if used)
+    - CORTEX_ROOT        # Override default workspace root (default: ~/Dev)
+
+current_milestone: "V1 Infrastructure Complete - 4+ projects migrated to AI-first workspace"
+current_goal: "Enable rich project metadata consumption across all AI agents and tools"
+next_milestone: "V2 Intelligence Layer - Advanced semantic search and cross-project recommendations"
+
+notes:
+  - "Cortex is infrastructure, not a user-facing application"
+  - "Primary consumers: Claude Code, Cursor, custom scripts"
+  - "All CLI commands designed for <2 second response time"
+  - "Project discovery is automatic - no manual registration required"
+  - "Works with both migrated (.claude/project.yaml) and legacy projects"
+  - "Portfolio index format backward compatible with pre-migration projects"
