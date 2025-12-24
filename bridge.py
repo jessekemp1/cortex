@@ -601,6 +601,205 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    # --- 6. Planning Bridge ---
+
+    def create_plan(
+        self,
+        project: str,
+        title: str = None,
+        auto_generate: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Create an execution plan from recommendations.
+
+        Args:
+            project: Project name
+            title: Plan title (auto-generated if None)
+            auto_generate: Auto-generate recommendations
+
+        Returns:
+            Plan summary
+        """
+        try:
+            from recommendation_engine import RecommendationEngine
+            from intelligence.planning import PlanPriority
+
+            # Initialize recommendation engine for the project
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                project_path = self.root_dir  # Fallback to root
+
+            engine = RecommendationEngine(project_path=project_path)
+
+            # Create plan
+            plan = engine.create_plan(
+                title=title,
+                priority=PlanPriority.MEDIUM,
+                auto_generate=auto_generate
+            )
+
+            return {
+                "success": True,
+                "plan_id": plan.id,
+                "title": plan.title,
+                "steps": len(plan.steps),
+                "estimated_time": plan.estimated_total_time,
+                "message": f"Plan created: {plan.id}"
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def list_plans(self, status: str = None) -> Dict[str, Any]:
+        """
+        List all plans.
+
+        Args:
+            status: Optional status filter
+
+        Returns:
+            List of plans
+        """
+        try:
+            from intelligence.planning import PlanExecutor, PlanStatus
+
+            executor = PlanExecutor()
+
+            status_filter = None
+            if status:
+                status_filter = PlanStatus(status)
+
+            plans = executor.list_plans(status_filter=status_filter)
+
+            return {
+                "success": True,
+                "plans": plans,
+                "count": len(plans)
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_plan(self, plan_id: str, format: str = "json") -> Dict[str, Any]:
+        """
+        Get plan details.
+
+        Args:
+            plan_id: Plan identifier
+            format: Output format (json or markdown)
+
+        Returns:
+            Plan details
+        """
+        try:
+            from intelligence.planning import PlanExecutor
+
+            executor = PlanExecutor()
+            plan = executor.load_plan(plan_id)
+
+            if format == "markdown":
+                return {
+                    "success": True,
+                    "markdown": plan.to_markdown()
+                }
+            else:
+                return {
+                    "success": True,
+                    "plan": plan.to_dict()
+                }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def start_plan(self, plan_id: str) -> Dict[str, Any]:
+        """
+        Start executing a plan.
+
+        Args:
+            plan_id: Plan identifier
+
+        Returns:
+            Success status
+        """
+        try:
+            from intelligence.planning import PlanExecutor
+
+            executor = PlanExecutor()
+            plan = executor.load_plan(plan_id)
+            executor.start_plan(plan)
+
+            next_step = executor.get_next_step()
+
+            return {
+                "success": True,
+                "plan_id": plan.id,
+                "status": plan.status.value,
+                "next_step": {
+                    "id": next_step.id,
+                    "title": next_step.title,
+                    "description": next_step.description
+                } if next_step else None
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def complete_step(self, step_id: str, notes: str = "") -> Dict[str, Any]:
+        """
+        Complete a plan step.
+
+        Args:
+            step_id: Step identifier
+            notes: Completion notes
+
+        Returns:
+            Success status with next step
+        """
+        try:
+            from intelligence.planning import PlanExecutor
+
+            executor = PlanExecutor()
+            executor.complete_step(step_id, notes)
+
+            progress = executor.get_progress()
+            next_step = executor.get_next_step()
+
+            return {
+                "success": True,
+                "step_id": step_id,
+                "progress": progress,
+                "next_step": {
+                    "id": next_step.id,
+                    "title": next_step.title,
+                    "description": next_step.description
+                } if next_step else None,
+                "completed": progress.get('completion_pct') == 100
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_plan_progress(self) -> Dict[str, Any]:
+        """
+        Get active plan progress.
+
+        Returns:
+            Progress details
+        """
+        try:
+            from intelligence.planning import PlanExecutor
+
+            executor = PlanExecutor()
+            progress = executor.get_progress()
+
+            return {
+                "success": True,
+                "progress": progress
+            }
+
+        except Exception as e:
+            return {"error": str(e)}
+
 
 def main():
     """CLI Interface for the Bridge (fallback if MCP not used)."""
@@ -689,6 +888,36 @@ def main():
     # health trends
     trends_parser = health_sub.add_parser("trends", help="Health trends for project")
     trends_parser.add_argument("name", help="Project name")
+
+    # plan - Planning and execution
+    plan_parser = subparsers.add_parser("plan", help="Plan creation and execution")
+    plan_sub = plan_parser.add_subparsers(dest="plan_command", help="Plan command")
+
+    # plan create
+    create_plan_parser = plan_sub.add_parser("create", help="Create a plan from recommendations")
+    create_plan_parser.add_argument("project", help="Project name")
+    create_plan_parser.add_argument("--title", help="Plan title")
+
+    # plan list
+    list_plans_parser = plan_sub.add_parser("list", help="List all plans")
+    list_plans_parser.add_argument("--status", choices=["draft", "active", "completed", "cancelled"], help="Filter by status")
+
+    # plan show
+    show_plan_parser = plan_sub.add_parser("show", help="Show plan details")
+    show_plan_parser.add_argument("plan_id", help="Plan ID")
+    show_plan_parser.add_argument("--format", choices=["json", "markdown"], default="markdown", help="Output format")
+
+    # plan start
+    start_plan_parser = plan_sub.add_parser("start", help="Start plan execution")
+    start_plan_parser.add_argument("plan_id", help="Plan ID")
+
+    # plan complete
+    complete_step_parser = plan_sub.add_parser("complete", help="Complete a step")
+    complete_step_parser.add_argument("step_id", help="Step ID")
+    complete_step_parser.add_argument("--notes", default="", help="Completion notes")
+
+    # plan progress
+    plan_sub.add_parser("progress", help="Show active plan progress")
 
     args = parser.parse_args()
     bridge = CortexBridge()
@@ -822,6 +1051,30 @@ def main():
             ], cwd=cortex_root)
         else:
             health_parser.print_help()
+    elif args.command == "plan":
+        if args.plan_command == "create":
+            result = bridge.create_plan(args.project, title=getattr(args, 'title', None))
+            print(json.dumps(result, indent=2))
+        elif args.plan_command == "list":
+            result = bridge.list_plans(status=getattr(args, 'status', None))
+            print(json.dumps(result, indent=2))
+        elif args.plan_command == "show":
+            result = bridge.get_plan(args.plan_id, format=getattr(args, 'format', 'json'))
+            if getattr(args, 'format', 'json') == "markdown":
+                print(result.get('markdown', 'No plan found'))
+            else:
+                print(json.dumps(result, indent=2))
+        elif args.plan_command == "start":
+            result = bridge.start_plan(args.plan_id)
+            print(json.dumps(result, indent=2))
+        elif args.plan_command == "complete":
+            result = bridge.complete_step(args.step_id, notes=getattr(args, 'notes', ''))
+            print(json.dumps(result, indent=2))
+        elif args.plan_command == "progress":
+            result = bridge.get_plan_progress()
+            print(json.dumps(result, indent=2))
+        else:
+            plan_parser.print_help()
     else:
         parser.print_help()
 
