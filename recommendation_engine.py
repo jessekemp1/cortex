@@ -24,6 +24,9 @@ from intelligence.recommendations.file_selector import FileSelector
 from intelligence.recommendations.smart_generator import SmartRecommendationGenerator
 from intelligence.recommendations.alert_adapter import adapt_alerts
 
+# Layer 5: Planning
+from intelligence.planning import Planner, PlanExecutor, Plan, PlanPriority
+
 
 @dataclass
 class Task:
@@ -91,6 +94,10 @@ class RecommendationEngine:
         self.smart_generator = SmartRecommendationGenerator(
             file_selector=self.file_selector
         )
+
+        # Layer 5: Planning
+        self.planner = Planner()
+        self.plan_executor = PlanExecutor()
 
         # Optional integrations
         self.learning_system = None
@@ -318,3 +325,92 @@ class RecommendationEngine:
         score *= (0.5 + confidence)
 
         return score
+
+    # ===== Layer 5: Planning Methods =====
+
+    def create_plan(
+        self,
+        recommendations: List[Recommendation] = None,
+        title: str = None,
+        description: str = None,
+        priority: PlanPriority = PlanPriority.MEDIUM,
+        auto_generate: bool = False
+    ) -> Plan:
+        """
+        Create an execution plan from recommendations.
+
+        Args:
+            recommendations: List of recommendations (auto-generated if None and auto_generate=True)
+            title: Plan title (auto-generated if None)
+            description: Plan description (auto-generated if None)
+            priority: Plan priority
+            auto_generate: Auto-generate recommendations if None provided
+
+        Returns:
+            Plan object
+        """
+        if recommendations is None and auto_generate:
+            # Auto-generate recommendations
+            recommendations = self.generate_recommendations(limit=5)
+
+        if not recommendations:
+            raise ValueError("No recommendations provided and auto_generate=False")
+
+        # Create plan using planner
+        plan = self.planner.create_plan_from_recommendations(
+            recommendations=recommendations,
+            title=title,
+            description=description,
+            priority=priority
+        )
+
+        # Save the plan
+        self.plan_executor.save_plan(plan)
+
+        return plan
+
+    def start_plan(self, plan: Plan):
+        """
+        Start executing a plan.
+
+        Args:
+            plan: Plan to start
+        """
+        self.plan_executor.start_plan(plan)
+
+    def get_active_plan(self) -> Optional[Plan]:
+        """
+        Get the currently active plan.
+
+        Returns:
+            Active plan or None
+        """
+        return self.plan_executor.active_plan
+
+    def get_next_step(self):
+        """
+        Get the next step to execute in the active plan.
+
+        Returns:
+            Next PlanStep or None
+        """
+        return self.plan_executor.get_next_step()
+
+    def complete_step(self, step_id: str, notes: str = ""):
+        """
+        Mark a step as completed in the active plan.
+
+        Args:
+            step_id: Step identifier
+            notes: Optional completion notes
+        """
+        self.plan_executor.complete_step(step_id, notes)
+
+    def get_plan_progress(self) -> Dict[str, Any]:
+        """
+        Get progress of the active plan.
+
+        Returns:
+            Progress dictionary
+        """
+        return self.plan_executor.get_progress()

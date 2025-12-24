@@ -130,6 +130,58 @@ def cmd_status(args):
         sys.exit(1)
 
 
+def cmd_context(args):
+    """Preview context injection output."""
+    import time
+
+    try:
+        from intelligence.context_injector import ContextInjector
+
+        # Get root directory
+        root_dir = Path(args.root)
+        injector = ContextInjector(root_dir)
+
+        # Get current working directory and optional task
+        cwd = Path.cwd()
+        task = args.task or ""
+
+        # Time the injection
+        start = time.time()
+        context = injector.inject(cwd, task)
+        elapsed = (time.time() - start) * 1000
+
+        # Display results
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║          CORTEX - CONTEXT PREVIEW                    ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+        print("<cortex_context>")
+        print(context)
+        print("</cortex_context>")
+        print("")
+        print(f"Length: {len(context)} chars (target: 200-400)")
+        print(f"Time: {elapsed:.1f}ms (limit: 500ms)")
+
+        # Status indicators
+        if len(context) < 200:
+            print("⚠️  Context shorter than target (200 chars)")
+        elif len(context) > 400:
+            print("⚠️  Context longer than target (400 chars)")
+        else:
+            print("✅ Context length within target range")
+
+        if elapsed > 500:
+            print("⚠️  Injection time exceeded budget (500ms)")
+        else:
+            print("✅ Injection time within budget")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_feedback(args):
     """Log feedback for a recommendation (Golden Spec: Verification Loop)."""
     logger = FeedbackLogger()
@@ -1216,6 +1268,13 @@ Examples:
     # Health command
     health_parser = subparsers.add_parser("health", help="Show system health check")
     health_parser.set_defaults(func=cmd_health)
+
+    # Context command
+    context_parser = subparsers.add_parser("context", help="Preview context injection")
+    context_parser.add_argument(
+        "--task", type=str, help="Optional task description to test pattern matching"
+    )
+    context_parser.set_defaults(func=cmd_context)
 
     # Feedback command
     feedback_parser = subparsers.add_parser(
