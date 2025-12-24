@@ -19,7 +19,11 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from batch.batch_scheduler import BatchScheduler, create_batch_plan_from_cortex_plan
+# Import batch_scheduler directly to avoid __init__ dependency issues
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / "batch"))
+from batch_scheduler import BatchScheduler, create_batch_plan_from_cortex_plan
 
 
 def schedule_task(args):
