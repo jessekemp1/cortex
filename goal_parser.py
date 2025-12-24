@@ -19,10 +19,40 @@ class Goal:
     priority: str  # "A", "B", "C"
     status: str  # "pending", "in_progress", "completed"
     project: Optional[str] = None
+    id: Optional[str] = None  # Auto-generated from title if not provided
     description: str = ""
     actions: List[str] = field(default_factory=list)
     success_criteria: str = ""
     blockers: List[str] = field(default_factory=list)
+
+    # Additional fields for compatibility with scripts/recommendation_engine.py
+    urgency: str = "medium"  # "high", "medium", "low"
+    impact: str = "medium"  # "high", "medium", "low"
+    commercial_value: int = 3  # 1-5
+    estimated_effort: str = "unknown"
+    completion_percentage: int = 0
+    tool_routing: str = ""
+
+    def __post_init__(self):
+        """Generate ID from title if not provided."""
+        if self.id is None:
+            # Create ID from title: lowercase, replace spaces with underscores, limit length
+            import re
+            self.id = re.sub(r'[^a-z0-9_]', '', self.title.lower().replace(' ', '_'))[:50]
+
+        # Infer urgency from priority
+        if self.urgency == "medium" and self.priority:
+            if self.priority == "A":
+                self.urgency = "high"
+            elif self.priority == "C":
+                self.urgency = "low"
+
+        # Infer impact from priority
+        if self.impact == "medium" and self.priority:
+            if self.priority == "A":
+                self.impact = "high"
+            elif self.priority == "C":
+                self.impact = "low"
 
 
 class GoalParser:
@@ -340,6 +370,26 @@ class GoalParser:
     def get_blocked_goals(self) -> List[Goal]:
         """Get goals that have blockers."""
         return [g for g in self.parse() if g.blockers]
+
+    def get_next_goals(self, limit: int = 5) -> List[Goal]:
+        """Get next goals to work on based on priority and status."""
+        all_goals = self.parse_all_goals()
+
+        # Filter to pending or in_progress
+        active_goals = [
+            g for g in all_goals
+            if g.status in ['pending', 'in_progress']
+        ]
+
+        # Sort by priority (A > B > C)
+        priority_order = {'A': 0, 'B': 1, 'C': 2}
+
+        sorted_goals = sorted(
+            active_goals,
+            key=lambda g: priority_order.get(g.priority, 99)
+        )
+
+        return sorted_goals[:limit]
 
 
 def main():

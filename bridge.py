@@ -288,23 +288,103 @@ class CortexBridge:
         except Exception as e:
             return [{"error": str(e)}]
 
-    def get_portfolio_stats(self) -> Dict[str, Any]:
+    def get_portfolio_stats(self, include_health: bool = True) -> Dict[str, Any]:
         """
         Get portfolio statistics.
 
+        Args:
+            include_health: Include health summary (default: True)
+
         Returns:
-            Dict with stats about projects, patterns, lessons
+            Dict with stats about projects, patterns, lessons, and health
 
         Example:
             >>> bridge = CortexBridge()
             >>> stats = bridge.get_portfolio_stats()
             >>> print(stats["total_projects"])
+            >>> print(stats["health"]["healthy_count"])
         """
         if not self.portfolio:
             return {"error": "Portfolio memory not available"}
 
         try:
-            return self.portfolio.get_stats()
+            return self.portfolio.get_stats(include_health=include_health)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_project_health(
+        self,
+        project: str,
+        days: int = 7,
+        force_refresh: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Get health score for a specific project.
+
+        Args:
+            project: Project name
+            days: Days to analyze (default: 7)
+            force_refresh: Force cache refresh
+
+        Returns:
+            Dict with health score, assessment, recommendations
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> health = bridge.get_project_health("cortex")
+            >>> print(health["health_score"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            return self.portfolio.get_project_health(project, days, force_refresh)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_portfolio_health_summary(self, days: int = 7) -> Dict[str, Any]:
+        """
+        Get health summary for all projects.
+
+        Args:
+            days: Days to analyze (default: 7)
+
+        Returns:
+            Dict with health scores for all projects
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> summary = bridge.get_portfolio_health_summary()
+            >>> print(summary["aggregate"]["healthy_projects"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            return self.portfolio.get_portfolio_health_summary(days)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_project_health_trends(self, project: str) -> Dict[str, Any]:
+        """
+        Get comprehensive health trends for a project.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with trends, insights, recommendations
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> trends = bridge.get_project_health_trends("cortex")
+            >>> print(trends["insights"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            return self.portfolio.get_project_health_trends(project)
         except Exception as e:
             return {"error": str(e)}
 

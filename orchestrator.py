@@ -54,14 +54,14 @@ except ImportError:
         GoalParser = None
         Goal = None
 
+# IMPORTANT: Use scripts/recommendation_engine (legacy) instead of cortex/recommendation_engine (Layer 4)
+# The Layer 4 version has incompatible interfaces and is still under development
+# TODO: Complete Layer 4 integration or create adapter layer
 try:
-    from recommendation_engine import Recommendation, RecommendationEngine
+    from scripts.recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
-    try:
-        from scripts.recommendation_engine import Recommendation, RecommendationEngine
-    except ImportError:
-        RecommendationEngine = None
-        Recommendation = None
+    RecommendationEngine = None
+    Recommendation = None
 
 try:
     from context_intelligence import ContextIntelligence, ContextPrediction
@@ -264,8 +264,10 @@ class CortexOrchestrator:
         recommendations = []
         if self.recommendation_engine:
             try:
+                # Using scripts/recommendation_engine (legacy) which has compatible interface
                 recommendations = self.recommendation_engine.generate_recommendations(
                     project_activity=project_activity if project_activity else None,
+                    automation_opps=None,
                     limit=limit + 1,  # +1 for next action
                 )
 

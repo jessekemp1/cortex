@@ -89,9 +89,9 @@ class UnifiedIntelligence:
             sources_queried.append(source)
 
         # 5. Generate warnings and recommendations
-        warnings = self._generate_warnings(project, lessons)
+        warnings = self._generate_warnings(project, lessons, project_context)
         recommendations = self._generate_recommendations(
-            query_type, applicable_patterns, similar_work
+            query_type, applicable_patterns, similar_work, project_context
         )
 
         query_time_ms = (time.time() - start_time) * 1000
@@ -154,8 +154,8 @@ class UnifiedIntelligence:
             lessons_data = portfolio.get_lessons_learned(project=project)
             lessons = [self._dict_to_lesson(l) for l in lessons_data]
 
-            # Get project context
-            ctx_data = portfolio.get_project_context(project)
+            # Get project context (includes health data by default)
+            ctx_data = portfolio.get_project_context(project, include_health=True)
             project_context = self._dict_to_project_context(ctx_data) if ctx_data else None
 
             return patterns, lessons, project_context, "portfolio_memory"
@@ -194,9 +194,9 @@ class UnifiedIntelligence:
             return [], None
 
     def _generate_warnings(
-        self, project: str, lessons: List[Lesson]
+        self, project: str, lessons: List[Lesson], project_context: Optional[ProjectContext] = None
     ) -> List[Warning]:
-        """Generate warnings based on lessons learned."""
+        """Generate warnings based on lessons learned and health data."""
         warnings = []
 
         # Group lessons by category to find high-frequency issues
@@ -223,13 +223,53 @@ class UnifiedIntelligence:
                     past_examples=[l.lesson for l in category_lesson_list[:3]]
                 ))
 
+        # Add health-based warnings if available
+        if project_context:
+            health_data = getattr(project_context, 'health_data', None)
+            if health_data:
+                health_score = health_data.get('score', 0)
+                assessment = health_data.get('assessment', 'unknown')
+                uncommitted = health_data.get('uncommitted_files', 0)
+
+                # Warning for low health score
+                if health_score < 50:
+                    warnings.append(Warning(
+                        type="health",
+                        severity="high",
+                        message=f"Project health critically low: {health_score}/100 ({assessment})",
+                        occurrences=1,
+                        prevention="Review recent commits, clean up uncommitted work, increase activity",
+                        past_examples=[]
+                    ))
+                elif health_score < 70:
+                    warnings.append(Warning(
+                        type="health",
+                        severity="medium",
+                        message=f"Project health declining: {health_score}/100 ({assessment})",
+                        occurrences=1,
+                        prevention="Monitor project activity and commit patterns",
+                        past_examples=[]
+                    ))
+
+                # Warning for high uncommitted changes
+                if uncommitted > 20:
+                    warnings.append(Warning(
+                        type="uncommitted_work",
+                        severity="medium",
+                        message=f"High uncommitted changes: {uncommitted} files",
+                        occurrences=1,
+                        prevention="Commit or clean up uncommitted work to improve project health",
+                        past_examples=[]
+                    ))
+
         return warnings
 
     def _generate_recommendations(
         self,
         query_type: IntelligenceQueryType,
         patterns: List[Pattern],
-        similar_work: List[SimilarWork]
+        similar_work: List[SimilarWork],
+        project_context: Optional[ProjectContext] = None
     ) -> List[Recommendation]:
         """Generate strategic recommendations."""
         recommendations = []
@@ -257,6 +297,47 @@ class UnifiedIntelligence:
                 rationale=f"High similarity score: {top_similar.similarity_score:.2f}",
                 related_patterns=top_similar.key_patterns
             ))
+
+        # Add health-based recommendations
+        if project_context:
+            health_data = getattr(project_context, 'health_data', None)
+            if health_data:
+                health_score = health_data.get('score', 0)
+                uncommitted = health_data.get('uncommitted_files', 0)
+                commits_7d = health_data.get('commits_7d', 0)
+
+                # Recommendation for low activity
+                if commits_7d < 3:
+                    recommendations.append(Recommendation(
+                        type="health",
+                        priority="medium",
+                        title="Increase project activity",
+                        description=f"Only {commits_7d} commits in last 7 days",
+                        rationale="Low commit activity negatively impacts project health score",
+                        related_patterns=[]
+                    ))
+
+                # Recommendation for uncommitted work
+                if uncommitted > 10:
+                    recommendations.append(Recommendation(
+                        type="health",
+                        priority="high" if uncommitted > 20 else "medium",
+                        title="Review uncommitted work",
+                        description=f"{uncommitted} uncommitted files detected",
+                        rationale="High uncommitted changes reduce project maintainability and health score",
+                        related_patterns=[]
+                    ))
+
+                # Recommendation for declining health
+                if health_score < 60:
+                    recommendations.append(Recommendation(
+                        type="health",
+                        priority="high",
+                        title="Improve project health",
+                        description=f"Current health score: {health_score}/100",
+                        rationale="Low health score indicates potential maintainability issues",
+                        related_patterns=[]
+                    ))
 
         return recommendations
 
@@ -341,7 +422,7 @@ class UnifiedIntelligence:
 
     def _dict_to_project_context(self, data: Dict[str, Any]) -> ProjectContext:
         """Convert dict to ProjectContext dataclass."""
-        # PortfolioMemory returns: {project, path, priority, activity_7d, tech_stack, patterns, common_issues, related_projects}
+        # PortfolioMemory returns: {project, path, priority, activity_7d, tech_stack, patterns, common_issues, related_projects, health}
         if "error" in data:
             # Project not found
             return None
@@ -349,6 +430,9 @@ class UnifiedIntelligence:
         # Extract pattern names from pattern context objects
         patterns_list = data.get("patterns", [])
         pattern_names = [p.get("pattern", "") for p in patterns_list] if patterns_list else []
+
+        # Extract health data if available
+        health_data = data.get("health", None)
 
         return ProjectContext(
             name=data.get("project", ""),
@@ -358,5 +442,6 @@ class UnifiedIntelligence:
             patterns_used=pattern_names,
             related_projects=data.get("related_projects", []),
             lessons_count=len(data.get("common_issues", [])),
-            last_updated=datetime.now().isoformat()
+            last_updated=datetime.now().isoformat(),
+            health_data=health_data
         )

@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # Add cortex directory and its parent to path to support both module and direct execution
@@ -694,6 +695,336 @@ def cmd_notify(args):
         print(f"Error sending notification: {e}", file=sys.stderr)
         sys.exit(1)
 
+def cmd_alerts(args):
+    """Show active alerts from Layer 3 Warning System."""
+    from intelligence.monitoring.alert_generator import AlertGenerator
+    from intelligence.monitoring.trend_analyzer import TrendAnalyzer
+    from intelligence.monitoring.metric_tracker import MetricTracker
+
+    try:
+        # Initialize components
+        tracker = MetricTracker()
+        analyzer = TrendAnalyzer(tracker)
+        alert_gen = AlertGenerator(analyzer)
+
+        # Get all alerts
+        # Since AlertGenerator needs a project, we'll scan for projects with metrics
+        all_alerts = []
+
+        # If project specified, just get alerts for that project
+        if args.project:
+            alerts = alert_gen.generate_alerts(args.project, days=7)
+            all_alerts.extend(alerts)
+        else:
+            # For now, just show message that project is required
+            print("Note: Specify --project to see alerts for a specific project")
+            print("Example: cortex alerts --project cortex")
+            return
+
+        # Filter by severity if specified
+        if args.severity:
+            all_alerts = [a for a in all_alerts if a.severity.value == args.severity]
+
+        if not all_alerts:
+            print("✓ No alerts found")
+            return
+
+        # Display alerts grouped by severity
+        by_severity = {'critical': [], 'warning': [], 'info': []}
+        for alert in all_alerts:
+            by_severity[alert.severity.value].append(alert)
+
+        for severity in ['critical', 'warning', 'info']:
+            alerts_list = by_severity[severity]
+            if not alerts_list:
+                continue
+
+            print(f"\n{severity.upper()} ({len(alerts_list)} alerts)")
+            print("─" * 60)
+
+            for alert in alerts_list:
+                print(f"  [{alert.project}] {alert.metric_type}")
+                print(f"    {alert.message}")
+                print(f"    {alert.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                print()
+
+        print(f"\nTotal: {len(all_alerts)} active alerts")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_metrics(args):
+    """Show metrics for a project."""
+    from intelligence.monitoring.metric_tracker import MetricTracker
+    from datetime import timedelta
+
+    try:
+        tracker = MetricTracker()
+
+        # Determine project
+        project = args.project or "cortex"  # Default to cortex for now
+
+        # Get metrics
+        since = datetime.now() - timedelta(days=args.days)
+
+        # Get all metrics for the project
+        all_metrics = []
+        for metric_type in ['coverage', 'violations', 'commits', 'file_changes']:
+            try:
+                metrics = tracker.get_metrics(project, metric_type, days=args.days)
+                all_metrics.extend(metrics)
+            except:
+                pass  # Skip if metric type not found
+
+        if not all_metrics:
+            print(f"No metrics found for project '{project}'")
+            return
+
+        print(f"\nMetrics for: {project}")
+        print(f"Period: Last {args.days} days\n")
+
+        # Group by metric type
+        by_type = {}
+        for metric in all_metrics:
+            mtype = metric.metric_type.value
+            if mtype not in by_type:
+                by_type[mtype] = []
+            by_type[mtype].append(metric)
+
+        # Display each metric type
+        for metric_type, metrics in by_type.items():
+            print(f"{metric_type.upper()}")
+            print("─" * 60)
+
+            if metrics:
+                latest = metrics[-1]
+                print(f"  Current: {latest.metric_value:.2f}")
+                print(f"  Updated: {latest.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+
+                values = [m.metric_value for m in metrics]
+                print(f"  Min: {min(values):.2f} | Max: {max(values):.2f} | Avg: {sum(values)/len(values):.2f}")
+            print()
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_track(args):
+    """Track metrics for a project."""
+    from intelligence.monitoring.metric_tracker import MetricTracker, MetricType
+    from pathlib import Path
+
+    try:
+        tracker = MetricTracker()
+
+        # Determine project
+        project = args.project or "cortex"
+        project_path = Path(f"/Users/jesse.kemp/Dev/{project}")
+
+        if not project_path.exists():
+            print(f"Error: Project path does not exist: {project_path}")
+            sys.exit(1)
+
+        print(f"Tracking metrics for: {project}")
+
+        # Track basic metrics
+        metrics_tracked = []
+
+        # For now, just track a simple metric (we can expand this later)
+        # Track coverage metric as an example
+        try:
+            # Simple coverage calculation: count Python files vs test files
+            py_files = list(project_path.rglob("*.py"))
+            test_files = [f for f in py_files if "test_" in f.name or f.name.startswith("test")]
+
+            if py_files:
+                coverage_estimate = len(test_files) / len(py_files)
+                tracker.track_coverage(project, coverage_estimate * 100, {"files": len(py_files), "tests": len(test_files)})
+                metrics_tracked.append(('Test Coverage Estimate', coverage_estimate))
+        except Exception as e:
+            print(f"  Warning: Could not track coverage: {e}")
+
+        print("✓ Tracking complete")
+        print("\nMetrics updated:")
+
+        for metric_name, value in metrics_tracked:
+            print(f"  {metric_name}: {value:.1%}")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_projects(args):
+    """List projects with AI metadata from .claude/project.yaml files."""
+    from project_metadata import ProjectMetadataReader
+
+    reader = ProjectMetadataReader()
+    projects = reader.scan_workspace()
+
+    if args.domain:
+        projects = [p for p in projects if p.domain == args.domain]
+    if args.status:
+        projects = [p for p in projects if p.status == args.status]
+
+    if not projects:
+        print("No projects with .claude/project.yaml found")
+        if args.domain or args.status:
+            print(f"Filters applied: domain={args.domain}, status={args.status}")
+        return
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print(f"║     AI-FIRST WORKSPACE PROJECTS: {len(projects):<3}              ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("")
+
+    # Group by domain
+    by_domain = {}
+    for p in projects:
+        by_domain.setdefault(p.domain, []).append(p)
+
+    for domain, domain_projects in sorted(by_domain.items()):
+        print(f"📁 {domain.upper()}")
+        print("────────────────")
+        for p in domain_projects:
+            status_icon = "🟢" if p.status == "production" else "🟡" if p.status == "development" else "⚪"
+            print(f"  {status_icon} {p.name}")
+            print(f"     Status: {p.status} | Priority: {p.priority}")
+            if p.tech_stack.get("primary"):
+                tech = ", ".join(p.tech_stack["primary"][:3])
+                print(f"     Tech: {tech}")
+            print(f"     Path: {p.path}")
+        print("")
+
+
+def cmd_project_info(args):
+    """Show detailed info for a project."""
+    from project_metadata import ProjectMetadataReader
+
+    reader = ProjectMetadataReader()
+    projects = {p.name: p for p in reader.scan_workspace()}
+
+    if args.project_name not in projects:
+        print(f"Project '{args.project_name}' not found or has no .claude/project.yaml")
+        print("\nAvailable projects:")
+        for name in sorted(projects.keys()):
+            print(f"  - {name}")
+        return
+
+    p = projects[args.project_name]
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print(f"║  PROJECT: {p.name:<43}║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("")
+
+    print(f"Domain: {p.domain}")
+    print(f"Status: {p.status}")
+    print(f"Priority: {p.priority}")
+    print(f"Path: {p.path}")
+
+    if p.description:
+        print(f"\nDescription:")
+        # Wrap long descriptions
+        desc = p.description[:300]
+        if len(p.description) > 300:
+            desc += "..."
+        print(f"  {desc}")
+
+    if p.entry_points:
+        print(f"\nEntry Points:")
+        for ep, path in p.entry_points.items():
+            print(f"  {ep}: {path}")
+
+    if p.tech_stack:
+        print(f"\nTech Stack:")
+        if p.tech_stack.get("primary"):
+            print(f"  Primary: {', '.join(p.tech_stack['primary'])}")
+        if p.tech_stack.get("secondary"):
+            print(f"  Secondary: {', '.join(p.tech_stack['secondary'])}")
+
+    if p.common_tasks:
+        print(f"\nCommon Tasks ({len(p.common_tasks)}):")
+        for task in p.common_tasks:
+            print(f"  - {task.name} ({task.complexity})")
+            if args.verbose:
+                for step in task.steps:
+                    print(f"    • {step}")
+
+    if p.ai_hints:
+        print(f"\nAI Hints ({len(p.ai_hints)}):")
+        for hint in p.ai_hints[:5 if not args.verbose else None]:
+            print(f"  - {hint}")
+        if len(p.ai_hints) > 5 and not args.verbose:
+            print(f"  ... and {len(p.ai_hints) - 5} more (use --verbose)")
+
+    if p.known_issues:
+        print(f"\nKnown Issues ({len(p.known_issues)}):")
+        for issue in p.known_issues[:3 if not args.verbose else None]:
+            print(f"  - {issue}")
+        if len(p.known_issues) > 3 and not args.verbose:
+            print(f"  ... and {len(p.known_issues) - 3} more (use --verbose)")
+
+    if p.related_projects:
+        print(f"\nRelated Projects ({len(p.related_projects)}):")
+        for rel in p.related_projects:
+            rel_name = rel.get("name", "unknown")
+            rel_type = rel.get("relationship", "related")
+            print(f"  - {rel_name} ({rel_type})")
+
+    print("")
+
+
+def cmd_sync_portfolio(args):
+    """Sync project.yaml files to portfolio index."""
+    from project_metadata import ProjectMetadataReader
+    import json
+    from datetime import datetime
+
+    reader = ProjectMetadataReader()
+    projects = reader.scan_workspace()
+
+    portfolio_path = Path.home() / ".claude" / "portfolio" / "project_index.json"
+
+    # Load existing
+    existing = {}
+    if portfolio_path.exists():
+        with open(portfolio_path) as f:
+            existing = json.load(f)
+
+    # Update from project.yaml files
+    synced_count = 0
+    for p in projects:
+        existing[p.name] = {
+            "path": str(p.path),
+            "domain": p.domain,
+            "status": p.status,
+            "priority": p.priority,
+            "tech_stack": p.tech_stack.get("primary", []),
+            "description": p.description[:200] if p.description else "",
+            "synced_at": datetime.now().isoformat(),
+            "source": "project.yaml"
+        }
+        synced_count += 1
+
+    # Save
+    portfolio_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(portfolio_path, "w") as f:
+        json.dump(existing, f, indent=2)
+
+    print(f"✓ Synced {synced_count} projects to {portfolio_path}")
+    print(f"  Total projects in index: {len(existing)}")
+
+
 def cmd_dashboard(args):
     """Show Symbiosis Dashboard (Night Shift & Agents)."""
     from datetime import datetime
@@ -1194,6 +1525,40 @@ Examples:
     # skill schedule
     skill_schedule_parser = skill_subparsers.add_parser('schedule', help='Run scheduled skills')
     skill_schedule_parser.set_defaults(func=cmd_skill_schedule)
+
+    # Projects command
+    projects_parser = subparsers.add_parser('projects', help='List AI-first workspace projects')
+    projects_parser.add_argument('--domain', type=str, help='Filter by domain')
+    projects_parser.add_argument('--status', type=str, help='Filter by status')
+    projects_parser.set_defaults(func=cmd_projects)
+
+    # Project-info command
+    project_info_parser = subparsers.add_parser('project-info', help='Show detailed project information')
+    project_info_parser.add_argument('project_name', help='Name of the project')
+    project_info_parser.add_argument('--verbose', '-v', action='store_true', help='Show all details')
+    project_info_parser.set_defaults(func=cmd_project_info)
+
+    # Sync-portfolio command
+    sync_portfolio_parser = subparsers.add_parser('sync-portfolio', help='Sync project.yaml to portfolio index')
+    sync_portfolio_parser.set_defaults(func=cmd_sync_portfolio)
+
+    # Layer 3: Alerts command
+    alerts_parser = subparsers.add_parser('alerts', help='Show active alerts from Layer 3 Warning System')
+    alerts_parser.add_argument('--severity', choices=['critical', 'warning', 'info'], help='Filter by severity')
+    alerts_parser.add_argument('--project', help='Filter by project')
+    alerts_parser.set_defaults(func=cmd_alerts)
+
+    # Layer 3: Metrics command
+    metrics_parser = subparsers.add_parser('metrics', help='Show metrics for a project')
+    metrics_parser.add_argument('project', nargs='?', help='Project name (optional, uses current)')
+    metrics_parser.add_argument('--days', type=int, default=7, help='Days of history (default: 7)')
+    metrics_parser.set_defaults(func=cmd_metrics)
+
+    # Layer 3: Track command
+    track_parser = subparsers.add_parser('track', help='Track metrics for a project')
+    track_parser.add_argument('--project', help='Project to track (default: current)')
+    track_parser.add_argument('--force', action='store_true', help='Force tracking even if recent')
+    track_parser.set_defaults(func=cmd_track)
 
     args = parser.parse_args()
 

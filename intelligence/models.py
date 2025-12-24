@@ -82,6 +82,7 @@ class ProjectContext:
     related_projects: List[str]
     lessons_count: int
     last_updated: str
+    health_data: Optional[Dict[str, Any]] = None
 
 
 @dataclass
