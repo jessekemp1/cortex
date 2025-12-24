@@ -1,0 +1,61 @@
+#!/bin/bash
+# Cortex Calibration - Quick Commands
+# Usage: cal {start|done|list|stats|analyze}
+
+CORTEX_DIR="$HOME/Dev/cortex"
+
+case "$1" in
+  auto)
+    # NEW: Auto-start with smart defaults
+    python3 "$CORTEX_DIR/auto_calibration.py"
+    ;;
+  auto-done)
+    # NEW: Auto-complete from git commit
+    python3 "$CORTEX_DIR/auto_calibration.py" complete
+    ;;
+  start)
+    python3 "$CORTEX_DIR/start_calibration.py"
+    ;;
+  done)
+    # Support quick completion: cal done 25
+    if [ -n "$2" ]; then
+      echo -e "$2\nsuccess\nCompleted" | python3 "$CORTEX_DIR/complete_task.py"
+    else
+      python3 "$CORTEX_DIR/complete_task.py"
+    fi
+    ;;
+  list)
+    python3 "$CORTEX_DIR/start_calibration.py" --list-pending
+    ;;
+  stats)
+    python3 "$CORTEX_DIR/start_calibration.py" --stats
+    ;;
+  analyze)
+    python3 "$CORTEX_DIR/start_calibration.py" --analyze
+    ;;
+  *)
+    echo "Cortex Calibration Tracker"
+    echo ""
+    echo "Usage: cal {auto|done|list|stats|analyze|start}"
+    echo ""
+    echo "🤖 AUTOMATED (Recommended):"
+    echo "  auto        - Auto-start with smart defaults (0 prompts!)"
+    echo "  auto-done   - Auto-complete from git commit"
+    echo "  done <min>  - Quick complete (e.g., cal done 25)"
+    echo ""
+    echo "📝 MANUAL (Full control):"
+    echo "  start       - Manual task prediction (8 prompts)"
+    echo "  done        - Manual task completion (3 prompts)"
+    echo ""
+    echo "📊 MONITORING:"
+    echo "  list        - List pending predictions"
+    echo "  stats       - Show calibration statistics"
+    echo "  analyze     - Show detailed analysis"
+    echo ""
+    echo "Examples:"
+    echo "  cal auto         # Auto-detect everything (FAST!)"
+    echo "  cal done 30      # Complete in 30 minutes"
+    echo "  cal auto-done    # Complete from git commit"
+    echo "  cal stats        # Check progress"
+    ;;
+esac
