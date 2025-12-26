@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
-from batch_api_client import BatchAPIClient
+from batch_api_client import BatchAPIClient, BatchRequest
 
 
 @dataclass
@@ -270,12 +270,19 @@ class BatchScheduler:
                 now >= task.submit_after):
 
                 try:
-                    # Submit to Batch API
-                    batch_id = self.batch_client.create_batch(
+                    # Create batch request with proper message format
+                    batch_request = BatchRequest(
                         custom_id=task.id,
-                        model="claude-opus-4-5-20251101",  # Latest Opus
-                        prompt=task.prompt,
-                        max_tokens=task.estimated_output_tokens
+                        params={
+                            "messages": [{"role": "user", "content": task.prompt}],
+                            "max_tokens": task.estimated_output_tokens
+                        }
+                    )
+
+                    # Submit to Batch API
+                    batch_id = self.batch_client.submit_batch(
+                        requests=[batch_request],
+                        description=f"Batch task: {task.title}"
                     )
 
                     task.batch_id = batch_id
@@ -308,28 +315,41 @@ class BatchScheduler:
                     # Check batch status
                     status_data = self.batch_client.get_batch_status(task.batch_id)
 
-                    if status_data.get("status") == "completed":
+                    if status_data.get("status") == "ended":
                         # Retrieve results
-                        results = self.batch_client.retrieve_results(task.batch_id)
+                        results = self.batch_client._retrieve_batch_results(task.batch_id)
 
-                        # Extract result text
+                        # Extract result text from first (and only) result
                         if results and len(results) > 0:
-                            result_data = results[0]
-                            task.result = result_data.get("result", {}).get("content", [{}])[0].get("text", "")
-                            task.actual_input_tokens = result_data.get("usage", {}).get("input_tokens", 0)
-                            task.actual_output_tokens = result_data.get("usage", {}).get("output_tokens", 0)
+                            batch_result = results[0]
 
-                        task.status = "completed"
+                            if batch_result.status == "succeeded":
+                                # Extract message content
+                                result_msg = batch_result.result.get("message", {})
+                                content_blocks = result_msg.get("content", [])
+                                if content_blocks:
+                                    task.result = content_blocks[0].get("text", "")
+
+                                # Extract usage
+                                usage = result_msg.get("usage", {})
+                                task.actual_input_tokens = usage.get("input_tokens", 0)
+                                task.actual_output_tokens = usage.get("output_tokens", 0)
+
+                                task.status = "completed"
+                            else:
+                                # Request errored or expired
+                                error_info = batch_result.result.get("error", {})
+                                task.status = "failed"
+                                task.result = f"Batch request {batch_result.status}: {error_info.get('message', 'Unknown error')}"
+                        else:
+                            task.status = "failed"
+                            task.result = "No results returned from batch"
+
                         task.completed_at = datetime.now()
                         completed.append(task)
 
-                    elif status_data.get("status") == "failed":
-                        task.status = "failed"
-                        task.result = f"Batch processing failed: {status_data.get('error', 'Unknown error')}"
-                        completed.append(task)
-
                 except Exception as e:
-                    # Don't mark as failed yet, might be temporary
+                    # Don't mark as failed yet, might be temporary network issue
                     pass
 
         if completed:
