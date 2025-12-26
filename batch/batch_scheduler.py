@@ -217,7 +217,9 @@ class BatchScheduler:
         """
         # Estimate tokens
         estimated_input = self.budget.estimate_tokens(prompt)
-        estimated_output = min(8000, estimated_input // 2)  # Rough estimate
+        # For analysis/planning tasks, use generous output limit
+        # Most analysis tasks need 2000-4000 tokens
+        estimated_output = 4000
 
         # Calculate scheduling times
         now = datetime.now()
