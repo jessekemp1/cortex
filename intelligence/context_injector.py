@@ -15,10 +15,23 @@ Target: 200-400 chars, under 500ms injection time
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from intelligence.analysis.project_profiler import ProjectProfiler
 from intelligence.memory.pattern_memory import PatternMemory
+
+# Import for domain expert warnings
+try:
+    from intelligence.domains.base_expert import DomainInsight
+except ImportError:
+    # Fallback if import fails
+    DomainInsight = None
+
+# Import for process monitoring
+try:
+    from intelligence.process_monitor import ProcessMonitor
+except ImportError:
+    ProcessMonitor = None
 
 
 @dataclass
@@ -31,9 +44,10 @@ class InjectionContext:
     warnings: List[str] = field(default_factory=list)
     pattern_hint: Optional[str] = None
     domain_insight: Optional[str] = None
+    process_context: Optional[str] = None  # "CPU:45% avail | Alert: High memory"
 
     def to_string(self, max_chars: int = 400) -> str:
-        """Format to context string."""
+        """Format to context string with all available intelligence."""
         lines = []
 
         # Line 1: Project with tech stack
@@ -44,23 +58,60 @@ class InjectionContext:
             line1 += f", {self.coverage}"
         lines.append(line1)
 
-        # Line 2: Warnings (most important)
+        # Prioritize: Warnings > Patterns > Domain Insights
+        
+        # Warnings (most important - show up to 2)
         if self.warnings:
-            # Take first warning only to save space
-            warning = self.warnings[0]
-            lines.append(f"Warning: {warning}")
+            for warning in self.warnings[:2]:
+                # Remove emoji prefix if present (to save space)
+                warning_text = warning.replace("⚠️ ", "").strip()
+                lines.append(f"Warning: {warning_text}")
+                # Check if we're approaching char limit
+                current_length = len("\n".join(lines))
+                if current_length > max_chars * 0.7:  # Use 70% of budget for warnings
+                    break
 
-        # Line 3: Pattern hint
+        # Pattern hint (if space available)
         if self.pattern_hint:
-            lines.append(f"Pattern: {self.pattern_hint}")
+            current_length = len("\n".join(lines))
+            remaining = max_chars - current_length - 20  # Reserve 20 chars for newline and "Pattern: "
+            if remaining > 20:  # Only add if we have reasonable space
+                pattern_line = f"Pattern: {self.pattern_hint}"
+                if len(pattern_line) <= remaining:
+                    lines.append(pattern_line)
+                else:
+                    # Truncate pattern hint to fit
+                    truncated = self.pattern_hint[:remaining - 13] + "..."
+                    lines.append(f"Pattern: {truncated}")
 
-        # Line 4: Domain insight
+        # Domain insight (if space available)
         if self.domain_insight:
-            lines.append(self.domain_insight)
+            current_length = len("\n".join(lines))
+            remaining = max_chars - current_length - 5  # Reserve 5 chars for newline
+            if remaining > 10:  # Only add if we have reasonable space
+                if len(self.domain_insight) <= remaining:
+                    lines.append(self.domain_insight)
+                else:
+                    # Truncate domain insight to fit
+                    truncated = self.domain_insight[:remaining - 3] + "..."
+                    lines.append(truncated)
+
+        # Process context (if space available)
+        if self.process_context:
+            current_length = len("\n".join(lines))
+            remaining = max_chars - current_length - 15  # Reserve 15 chars for "Resource: " prefix
+            if remaining > 20:  # Only add if we have reasonable space
+                process_line = f"Resource: {self.process_context}"
+                if len(process_line) <= remaining:
+                    lines.append(process_line)
+                else:
+                    # Truncate to fit
+                    truncated = self.process_context[:remaining - 15] + "..."
+                    lines.append(f"Resource: {truncated}")
 
         result = "\n".join(lines)
 
-        # Truncate if needed
+        # Final truncation if still over limit
         if len(result) > max_chars:
             result = result[: max_chars - 3] + "..."
 
@@ -72,6 +123,7 @@ class ContextInjector:
 
     MAX_TIME_MS = 500
     MAX_CHARS = 400
+    PROFILE_CACHE_TTL = 300  # 5 minutes in seconds
 
     def __init__(self, root_dir: Path):
         self.root_dir = Path(root_dir)
@@ -79,6 +131,10 @@ class ContextInjector:
         # Lazy initialization for performance
         self._pattern_memory: Optional[PatternMemory] = None
         self._domain_experts: Dict[str, "BaseDomainExpert"] = {}
+        self._process_monitor: Optional["ProcessMonitor"] = None
+
+        # Profile cache: (project_root, quick_mode) -> (profile, timestamp)
+        self._profile_cache: Dict[Tuple[Path, bool], Tuple[any, float]] = {}
 
     def inject(self, cwd: Path, task: str = "") -> str:
         """
@@ -119,12 +175,18 @@ class ContextInjector:
         elapsed = (time.time() - start) * 1000
         remaining = self.MAX_TIME_MS - elapsed
 
-        # 3. Get domain insight if we have time (under 150ms)
-        if remaining > 100:
-            try:
-                self._add_domain_insight(context, cwd, task, project_name)
-            except Exception:
-                pass  # Graceful degradation
+        # 3. Get domain insight (always try - they're fast and cached)
+        # Domain insights are typically <50ms due to caching, so we try even if over budget
+        try:
+            self._add_domain_insight(context, cwd, task, project_name)
+        except Exception:
+            pass  # Graceful degradation
+
+        # 4. Get process context (fast, <50ms)
+        try:
+            self._add_process_context(context)
+        except Exception:
+            pass  # Graceful degradation
 
         return context.to_string(self.MAX_CHARS)
 
@@ -149,12 +211,34 @@ class ContextInjector:
         return cwd.name
 
     def _add_profile(self, context: InjectionContext, cwd: Path, quick: bool = True):
-        """Add project profile to context."""
+        """Add project profile to context (with caching)."""
         # Find project root
         project_root = self._find_project_root(cwd)
+        
+        # Check cache
+        cache_key = (project_root, quick)
+        current_time = time.time()
+        
+        if cache_key in self._profile_cache:
+            profile, cache_time = self._profile_cache[cache_key]
+            age = current_time - cache_time
+            if age < self.PROFILE_CACHE_TTL:
+                # Use cached profile
+                self._apply_profile_to_context(context, profile)
+                return
+        
+        # Cache miss - generate profile
         profiler = ProjectProfiler(project_root)
         profile = profiler.profile(quick=quick)
-
+        
+        # Cache the profile
+        self._profile_cache[cache_key] = (profile, current_time)
+        
+        # Apply to context
+        self._apply_profile_to_context(context, profile)
+    
+    def _apply_profile_to_context(self, context: InjectionContext, profile):
+        """Apply profile data to context."""
         # Add to context
         context.tech_stack = profile.tech_stack.to_compact_str()
 
@@ -165,33 +249,65 @@ class ContextInjector:
 
         # Add warnings (max 2)
         if profile.warnings:
-            context.warnings = profile.warnings[:2]
+            context.warnings.extend(profile.warnings[:2])
 
     def _add_patterns(self, context: InjectionContext, task: str, project: str):
         """Add pattern hints to context."""
+        if not task:
+            # No task provided, skip pattern search
+            return
+            
         if self._pattern_memory is None:
             self._pattern_memory = PatternMemory(self.root_dir)
 
-        similar = self._pattern_memory.find_similar_solutions(
-            task=task, current_project=project, limit=1
-        )
+        # Check if pattern memory has patterns loaded
+        if not self._pattern_memory.searcher:
+            # No patterns available, skip
+            return
 
-        if similar:
-            top = similar[0]
-            hint = f"Similar to {top.project}: {top.title[:40]}"
-            if len(hint) > 60:
-                hint = hint[:57] + "..."
-            context.pattern_hint = hint
+        try:
+            similar = self._pattern_memory.find_similar_solutions(
+                task=task, current_project=project, limit=1
+            )
+
+            if similar and len(similar) > 0:
+                top = similar[0]
+                # Format pattern hint more compactly
+                hint = f"Similar to {top.project}: {top.title[:50]}"
+                if len(hint) > 70:
+                    hint = hint[:67] + "..."
+                context.pattern_hint = hint
+        except Exception:
+            # Graceful degradation - if pattern search fails, continue without it
+            pass
 
     def _add_domain_insight(
         self, context: InjectionContext, cwd: Path, task: str, project: str
     ):
-        """Add domain expert insight."""
+        """Add domain expert insight and warnings."""
         expert = self._get_domain_expert(project)
         if expert:
+            # Get quick insight for domain-specific hints
             insight = expert.get_quick_insight(cwd, task)
             if insight:
                 context.domain_insight = insight
+            
+            # Get warnings (e.g., GRIB data freshness)
+            try:
+                warnings = expert.get_warnings(cwd)
+                if warnings:
+                    # Add domain warnings to context warnings list
+                    for warning in warnings:
+                        if isinstance(warning, DomainInsight):
+                            # Format as compact string
+                            warning_str = warning.to_compact_str(max_length=80)
+                            if warning_str:
+                                context.warnings.append(warning_str)
+                        elif isinstance(warning, str):
+                            context.warnings.append(warning)
+            except Exception:
+                # Graceful degradation - if warnings fail, continue without them
+                pass
 
     def _get_domain_expert(self, project: str) -> Optional["BaseDomainExpert"]:
         """Get domain expert for project."""
@@ -209,6 +325,25 @@ class ContextInjector:
             pass
 
         return None
+
+    def _add_process_context(self, context: InjectionContext):
+        """Add process monitoring context."""
+        if ProcessMonitor is None:
+            # Process monitoring not available
+            return
+
+        # Lazy initialize process monitor
+        if self._process_monitor is None:
+            self._process_monitor = ProcessMonitor()
+
+        # Get compact context for injection
+        try:
+            process_ctx = self._process_monitor.get_context_for_injection()
+            if process_ctx:
+                context.process_context = process_ctx
+        except Exception:
+            # Graceful degradation
+            pass
 
     def _find_project_root(self, cwd: Path) -> Path:
         """Find project root directory (has .git or pyproject.toml)."""
