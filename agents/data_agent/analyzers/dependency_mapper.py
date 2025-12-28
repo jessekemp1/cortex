@@ -654,6 +654,318 @@ class DependencyMapper:
 
         return "\n".join(lines)
 
+    def export_to_dot(
+        self,
+        include_stdlib: bool = False,
+        include_external: bool = True,
+        max_nodes: int = 100
+    ) -> str:
+        """
+        Export dependency graph to DOT format (Graphviz).
+
+        Args:
+            include_stdlib: Whether to include standard library imports
+            include_external: Whether to include external dependencies
+            max_nodes: Maximum number of nodes to include (for large graphs)
+
+        Returns:
+            DOT format string
+        """
+        graph = self._build_import_graph()
+        analysis = self.get_cached_analysis()
+        circular = self.find_circular_dependencies()
+        cycles = {tuple(cycle) for cycle in circular.get("cycles", [])}
+
+        lines = ["digraph dependencies {"]
+        lines.append("  rankdir=LR;")
+        lines.append("  node [shape=box, style=rounded];")
+        lines.append("")
+
+        # Collect nodes and classify them
+        all_nodes = set()
+        node_types = {}  # node -> type: 'stdlib', 'external', 'internal', 'cross_project'
+        nodes_in_cycles = set()
+
+        for cycle in cycles:
+            nodes_in_cycles.update(cycle)
+
+        for source, targets in graph.items():
+            all_nodes.add(source)
+            for target in targets:
+                all_nodes.add(target)
+
+        # Limit nodes if needed
+        if len(all_nodes) > max_nodes:
+            # Prioritize internal nodes and nodes in cycles
+            priority_nodes = {n for n in all_nodes if n in nodes_in_cycles}
+            priority_nodes.update({n for n in all_nodes if not self._is_stdlib(n.split(".")[0])})
+            all_nodes = set(list(priority_nodes)[:max_nodes])
+
+        # Classify nodes
+        for node in all_nodes:
+            top_level = node.split(".")[0]
+            if self._is_stdlib(top_level):
+                if include_stdlib:
+                    node_types[node] = "stdlib"
+                else:
+                    continue
+            elif top_level in analysis.get("external_deps", []):
+                if include_external:
+                    node_types[node] = "external"
+                else:
+                    continue
+            else:
+                # Internal or cross-project
+                if any(node.startswith(proj) for proj in analysis.get("cross_project", {}).keys()):
+                    node_types[node] = "cross_project"
+                else:
+                    node_types[node] = "internal"
+
+        # Add nodes with colors
+        for node, node_type in node_types.items():
+            if node not in all_nodes:
+                continue
+
+            # Color based on type
+            if node_type == "stdlib":
+                color = "lightblue"
+            elif node_type == "external":
+                color = "lightgreen"
+            elif node_type == "cross_project":
+                color = "orange"
+            else:
+                color = "white"
+
+            # Highlight cycles
+            if node in nodes_in_cycles:
+                color = "red"
+                style = "filled,rounded"
+            else:
+                style = "rounded"
+
+            # Escape node name for DOT
+            node_id = node.replace(".", "_").replace("-", "_")
+            label = node.split(".")[-1]  # Show last part of module name
+
+            lines.append(f'  {node_id} [label="{label}", fillcolor={color}, style={style}];')
+
+        lines.append("")
+
+        # Add edges
+        for source, targets in graph.items():
+            if source not in all_nodes:
+                continue
+
+            source_id = source.replace(".", "_").replace("-", "_")
+            for target in targets:
+                if target not in all_nodes:
+                    continue
+
+                target_id = target.replace(".", "_").replace("-", "_")
+
+                # Highlight cycle edges
+                is_cycle_edge = False
+                for cycle in cycles:
+                    cycle_set = set(cycle)
+                    if source in cycle_set and target in cycle_set:
+                        is_cycle_edge = True
+                        break
+
+                if is_cycle_edge:
+                    lines.append(f'  {source_id} -> {target_id} [color=red, penwidth=2];')
+                else:
+                    lines.append(f'  {source_id} -> {target_id};')
+
+        lines.append("}")
+        return "\n".join(lines)
+
+    def export_to_mermaid(
+        self,
+        include_stdlib: bool = False,
+        include_external: bool = True,
+        max_nodes: int = 50
+    ) -> str:
+        """
+        Export dependency graph to Mermaid flowchart format.
+
+        Args:
+            include_stdlib: Whether to include standard library imports
+            include_external: Whether to include external dependencies
+            max_nodes: Maximum number of nodes to include (for large graphs)
+
+        Returns:
+            Mermaid flowchart string
+        """
+        graph = self._build_import_graph()
+        analysis = self.get_cached_analysis()
+        circular = self.find_circular_dependencies()
+        cycles = {tuple(cycle) for cycle in circular.get("cycles", [])}
+
+        lines = ["flowchart TD"]
+        lines.append("")
+
+        # Collect nodes
+        all_nodes = set()
+        nodes_in_cycles = set()
+
+        for cycle in cycles:
+            nodes_in_cycles.update(cycle)
+
+        for source, targets in graph.items():
+            all_nodes.add(source)
+            for target in targets:
+                all_nodes.add(target)
+
+        # Limit nodes if needed
+        if len(all_nodes) > max_nodes:
+            priority_nodes = {n for n in all_nodes if n in nodes_in_cycles}
+            priority_nodes.update({n for n in all_nodes if not self._is_stdlib(n.split(".")[0])})
+            all_nodes = set(list(priority_nodes)[:max_nodes])
+
+        # Classify and add nodes
+        node_ids = {}  # node -> mermaid_id
+        node_counter = 0
+
+        for node in sorted(all_nodes):
+            top_level = node.split(".")[0]
+            if self._is_stdlib(top_level):
+                if not include_stdlib:
+                    continue
+                node_type = "stdlib"
+            elif top_level in analysis.get("external_deps", []):
+                if not include_external:
+                    continue
+                node_type = "external"
+            else:
+                if any(node.startswith(proj) for proj in analysis.get("cross_project", {}).keys()):
+                    node_type = "cross_project"
+                else:
+                    node_type = "internal"
+
+            # Create safe ID for Mermaid
+            node_id = f"node{node_counter}"
+            node_ids[node] = node_id
+            node_counter += 1
+
+            # Create label (last part of module name)
+            label = node.split(".")[-1]
+
+            # Style based on type and cycle status
+            if node in nodes_in_cycles:
+                style = "fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px"
+            elif node_type == "stdlib":
+                style = "fill:#74c0fc,stroke:#339af0"
+            elif node_type == "external":
+                style = "fill:#51cf66,stroke:#37b24d"
+            elif node_type == "cross_project":
+                style = "fill:#ffd43b,stroke:#f59f00"
+            else:
+                style = "fill:#e9ecef,stroke:#495057"
+
+            lines.append(f'    {node_id}["{label}"]')
+            lines.append(f'    style {node_id} {style}')
+
+        lines.append("")
+
+        # Add edges
+        for source, targets in graph.items():
+            if source not in node_ids:
+                continue
+
+            source_id = node_ids[source]
+            for target in targets:
+                if target not in node_ids:
+                    continue
+
+                target_id = node_ids[target]
+
+                # Check if this is a cycle edge
+                is_cycle_edge = False
+                for cycle in cycles:
+                    cycle_set = set(cycle)
+                    if source in cycle_set and target in cycle_set:
+                        is_cycle_edge = True
+                        break
+
+                if is_cycle_edge:
+                    lines.append(f'    {source_id} -->|cycle| {target_id}')
+                else:
+                    lines.append(f'    {source_id} --> {target_id}')
+
+        return "\n".join(lines)
+
+    def get_package_dependencies(self) -> Dict[str, Any]:
+        """
+        Get declared dependencies from package manager files.
+
+        Returns:
+            Dict with package file parsing results
+        """
+        try:
+            from .package_parser import PackageParser
+            parser = PackageParser(self.project_path)
+            return parser.get_all_declared_dependencies()
+        except ImportError:
+            return {
+                "all_packages": [],
+                "by_file": {},
+                "errors": ["PackageParser not available"]
+            }
+
+    def compare_declared_vs_actual(self) -> Dict[str, Any]:
+        """
+        Compare declared dependencies (from package files) vs actual imports.
+
+        Returns:
+            Dict with:
+            - declared: Set[str] (packages in package files)
+            - actual: Set[str] (packages actually imported)
+            - unused_declared: Set[str] (declared but not imported)
+            - undeclared: Set[str] (imported but not declared)
+            - matches: Set[str] (both declared and imported)
+        """
+        # Get declared dependencies
+        package_data = self.get_package_dependencies()
+        declared = set(package_data.get("all_packages", []))
+
+        # Get actual imports from analysis
+        analysis = self.get_cached_analysis()
+        actual_imports = set()
+
+        # Extract top-level package names from external dependencies
+        for ext_dep in analysis.get("external_deps", []):
+            # External deps are already top-level (e.g., "requests", "fastapi")
+            actual_imports.add(ext_dep.lower())
+
+        # Also check file dependencies for any we might have missed
+        for file_data in analysis.get("file_dependencies", {}).values():
+            for imp in file_data.get("imports", []):
+                if not imp["is_relative"] and imp["module"]:
+                    module = imp["module"]
+                    if not self._is_stdlib(module):
+                        top_level = module.split(".")[0].lower()
+                        actual_imports.add(top_level)
+
+        # Compare
+        matches = declared & actual_imports
+        unused_declared = declared - actual_imports
+        undeclared = actual_imports - declared
+
+        return {
+            "declared": sorted(declared),
+            "actual": sorted(actual_imports),
+            "matches": sorted(matches),
+            "unused_declared": sorted(unused_declared),
+            "undeclared": sorted(undeclared),
+            "declared_count": len(declared),
+            "actual_count": len(actual_imports),
+            "match_count": len(matches),
+            "unused_count": len(unused_declared),
+            "undeclared_count": len(undeclared),
+            "package_files": list(package_data.get("by_file", {}).keys()),
+            "timestamp": datetime.now().isoformat()
+        }
+
 
 # CLI for standalone testing
 if __name__ == "__main__":

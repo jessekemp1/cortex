@@ -7,6 +7,7 @@ Provides beautiful terminal output for project health metrics
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 import json
 
 from .analyzers.project_analyzer import ProjectAnalyzer
@@ -431,6 +432,180 @@ def display_circular_dependencies(project_name: str):
     print("="*60)
 
 
+def display_package_comparison(project_name: str):
+    """Display comparison of declared vs actual dependencies"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        project_path = analyzer.projects.get(project_name)
+        if not project_path:
+            print(f"{Colors.RED}Error: Project '{project_name}' not found{Colors.END}")
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            return
+
+        from .analyzers.dependency_mapper import DependencyMapper
+        mapper = DependencyMapper(project_path)
+        comparison = mapper.compare_declared_vs_actual()
+
+        print("="*60)
+        print(f"📦 {Colors.BOLD}{project_name} - Declared vs Actual Dependencies{Colors.END}")
+        print("="*60)
+        print()
+
+        # Summary
+        print(f"{Colors.BOLD}Summary:{Colors.END}")
+        print(f"  Declared: {comparison['declared_count']}")
+        print(f"  Actually Used: {comparison['actual_count']}")
+        print(f"  Matches: {Colors.GREEN}{comparison['match_count']}{Colors.END}")
+        print(f"  Unused Declared: {Colors.YELLOW}{comparison['unused_count']}{Colors.END}")
+        print(f"  Undeclared: {Colors.RED}{comparison['undeclared_count']}{Colors.END}")
+        print()
+
+        # Package files found
+        if comparison.get("package_files"):
+            print(f"{Colors.BOLD}Package Files Found:{Colors.END}")
+            for file in comparison["package_files"]:
+                print(f"  • {file}")
+            print()
+
+        # Unused declared dependencies
+        if comparison["unused_declared"]:
+            print(f"{Colors.BOLD}{Colors.YELLOW}⚠️  Unused Declared Dependencies ({len(comparison['unused_declared'])}):{Colors.END}")
+            for pkg in sorted(comparison["unused_declared"])[:10]:
+                print(f"  • {pkg}")
+            if len(comparison["unused_declared"]) > 10:
+                print(f"  ... and {len(comparison['unused_declared']) - 10} more")
+            print()
+
+        # Undeclared dependencies
+        if comparison["undeclared"]:
+            print(f"{Colors.BOLD}{Colors.RED}⚠️  Undeclared Dependencies ({len(comparison['undeclared'])}):{Colors.END}")
+            for pkg in sorted(comparison["undeclared"])[:10]:
+                print(f"  • {pkg}")
+            if len(comparison["undeclared"]) > 10:
+                print(f"  ... and {len(comparison['undeclared']) - 10} more")
+            print()
+
+        print("="*60)
+
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+
+def display_portfolio_dependencies(project_filter: Optional[str] = None):
+    """Display portfolio-wide dependency analysis"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        portfolio = analyzer.analyze_portfolio_dependencies(project_filter=project_filter)
+
+        print("="*60)
+        if project_filter:
+            print(f"🔗 {Colors.BOLD}Portfolio Dependencies - {project_filter} Focus{Colors.END}")
+        else:
+            print(f"🔗 {Colors.BOLD}Portfolio Dependencies - All Projects{Colors.END}")
+        print("="*60)
+        print()
+
+        # Projects analyzed
+        print(f"{Colors.BOLD}Projects Analyzed ({len(portfolio['projects_analyzed'])}):{Colors.END}")
+        for proj in portfolio["projects_analyzed"]:
+            deps = portfolio["project_dependencies"].get(proj, {})
+            ext_count = deps.get("external_count", 0)
+            print(f"  • {proj} ({ext_count} external deps)")
+        print()
+
+        # Cross-project dependencies
+        if portfolio["cross_project_graph"]:
+            print(f"{Colors.BOLD}Cross-Project Dependencies:{Colors.END}")
+            for proj, deps in portfolio["cross_project_graph"].items():
+                print(f"  {proj} → {', '.join(deps)}")
+            print()
+
+        # Coupling analysis
+        if portfolio["coupling_analysis"]:
+            print(f"{Colors.BOLD}Coupling Analysis:{Colors.END}")
+            print(f"{'Project':<20} {'Outgoing':<12} {'Incoming':<12} {'Bidirectional':<15}")
+            print("-" * 60)
+            for proj, coupling in sorted(portfolio["coupling_analysis"].items()):
+                outgoing = coupling["outgoing"]
+                incoming = coupling["incoming"]
+                bidirectional = coupling["bidirectional"]
+
+                # Color based on coupling level
+                if outgoing + incoming > 3:
+                    color = Colors.RED
+                elif outgoing + incoming > 1:
+                    color = Colors.YELLOW
+                else:
+                    color = Colors.GREEN
+
+                print(f"{proj:<20} {color}{outgoing:<12}{Colors.END} {incoming:<12} {bidirectional:<15}")
+            print()
+
+        # Shared dependencies
+        if portfolio["shared_dependencies"]:
+            print(f"{Colors.BOLD}Shared Dependencies ({len(portfolio['shared_dependencies'])}):{Colors.END}")
+            for dep, projects in list(portfolio["shared_dependencies"].items())[:10]:
+                print(f"  • {dep} (used by: {', '.join(projects)})")
+            if len(portfolio["shared_dependencies"]) > 10:
+                print(f"  ... and {len(portfolio['shared_dependencies']) - 10} more")
+            print()
+
+        # Recommendations
+        if portfolio["recommendations"]:
+            print(f"{Colors.BOLD}Recommendations:{Colors.END}")
+            for rec in portfolio["recommendations"]:
+                priority_color = Colors.RED if rec["priority"] == "high" else Colors.YELLOW
+                print(f"  {priority_color}[{rec['priority'].upper()}]{Colors.END} {rec['action']}")
+                print(f"    → {rec['details']}")
+            print()
+
+        print("="*60)
+
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+
+def display_dependency_graph(project_name: str, format: str = "ascii"):
+    """Display dependency graph in specified format"""
+    analyzer = ProjectAnalyzer()
+
+    try:
+        project_path = analyzer.projects.get(project_name)
+        if not project_path:
+            print(f"{Colors.RED}Error: Project '{project_name}' not found{Colors.END}")
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            return
+
+        from .analyzers.dependency_mapper import DependencyMapper
+        mapper = DependencyMapper(project_path)
+
+        if format == "dot":
+            graph = mapper.export_to_dot()
+            print(graph)
+        elif format == "mermaid":
+            graph = mapper.export_to_mermaid()
+            print(graph)
+        elif format == "ascii":
+            tree = mapper.generate_ascii_tree()
+            print("="*60)
+            print(f"🌳 {Colors.BOLD}{project_name} - Dependency Tree{Colors.END}")
+            print("="*60)
+            print()
+            print(tree)
+            print()
+            print("="*60)
+        else:
+            print(f"{Colors.RED}Error: Unknown format '{format}'. Use: ascii, dot, or mermaid{Colors.END}")
+
+    except Exception as e:
+        print(f"{Colors.RED}Error: {e}{Colors.END}")
+        return
+
+
 def main():
     """Main CLI entry point"""
     if len(sys.argv) < 2:
@@ -445,6 +620,10 @@ def main():
         print("  deps <name>              - Dependency analysis for project")
         print("  deps-health <name>       - Dependency health score")
         print("  deps-circular <name>     - Find circular dependencies")
+        print("  deps-graph <name> [format] - Dependency graph (ascii|dot|mermaid)")
+        print("  deps-package <name>        - Show package file dependencies")
+        print("  deps-compare <name>        - Compare declared vs actual dependencies")
+        print("  deps-portfolio [project]   - Portfolio-wide dependency analysis")
         print("\nExamples:")
         print("  python -m cortex.agents.data_agent.cli summary")
         print("  python -m cortex.agents.data_agent.cli summary 30")
@@ -515,6 +694,70 @@ def main():
             sys.exit(1)
         project_name = sys.argv[2]
         display_circular_dependencies(project_name)
+
+    elif command == "deps-graph":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        format_type = sys.argv[3] if len(sys.argv) > 3 else "ascii"
+        display_dependency_graph(project_name, format_type)
+
+    elif command == "deps-package":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        from .analyzers.project_analyzer import ProjectAnalyzer
+        from .analyzers.package_parser import PackageParser
+        analyzer = ProjectAnalyzer()
+        project_path = analyzer.projects.get(project_name)
+        if project_path:
+            parser = PackageParser(project_path)
+            result = parser.get_all_declared_dependencies()
+            print("="*60)
+            print(f"📦 {Colors.BOLD}{project_name} - Package Files{Colors.END}")
+            print("="*60)
+            print()
+            if result["by_file"]:
+                for file_type, file_data in result["by_file"].items():
+                    print(f"{Colors.BOLD}{file_type}:{Colors.END}")
+                    if file_data.get("packages"):
+                        print(f"  Packages ({len(file_data['packages'])}):")
+                        for pkg in file_data["packages"][:10]:
+                            name = pkg.get("name", "?")
+                            version = pkg.get("version_spec", "")
+                            print(f"    • {name} {version}")
+                        if len(file_data["packages"]) > 10:
+                            print(f"    ... and {len(file_data['packages']) - 10} more")
+                    if file_data.get("dev_packages"):
+                        print(f"  Dev Packages ({len(file_data['dev_packages'])}):")
+                        for pkg in file_data["dev_packages"][:5]:
+                            name = pkg.get("name", "?")
+                            print(f"    • {name}")
+                    print()
+            else:
+                print("  No package files found")
+            print("="*60)
+        else:
+            print(f"{Colors.RED}Error: Project '{project_name}' not found{Colors.END}")
+
+    elif command == "deps-compare":
+        if len(sys.argv) < 3:
+            print(f"{Colors.RED}Error: project name required{Colors.END}")
+            analyzer = ProjectAnalyzer()
+            print(f"Available: {', '.join(analyzer.projects.keys())}")
+            sys.exit(1)
+        project_name = sys.argv[2]
+        display_package_comparison(project_name)
+
+    elif command == "deps-portfolio":
+        project_filter = sys.argv[2] if len(sys.argv) > 2 else None
+        display_portfolio_dependencies(project_filter)
 
     else:
         print(f"{Colors.RED}Unknown command: {command}{Colors.END}")

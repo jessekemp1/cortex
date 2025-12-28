@@ -301,6 +301,30 @@ Remember, the system can already:
 
 ---
 
-**Last Updated:** 2025-12-23
+---
+
+## External Integration Items
+
+### Cursor Extension Integration (AIO)
+**Status:** Planned  
+**Location:** `cortex/FUTURE/CURSOR_EXTENSION_INTEGRATION.md`  
+**Effort:** 14-21 hours  
+**Priority:** Medium
+
+Integrate Cursor usage tracking into AIO via extension, enabling unified usage monitoring across Claude Code and Cursor. Design complete, ready for implementation when prioritized.
+
+**Key Components:**
+- Cursor extension (TypeScript/VS Code API)
+- AIO unified tracker integration
+- CLI updates for combined usage
+
+**References:**
+- `aio/CURSOR_EXTENSION_DESIGN.md`
+- `aio/EXTENSION_IMPLEMENTATION_GUIDE.md`
+- `aio/EXTENSION_IMPACT_GUARANTEE.md`
+
+---
+
+**Last Updated:** 2025-12-24
 **Status:** All core work complete ✅
 **Next:** Optional enhancements based on usage
