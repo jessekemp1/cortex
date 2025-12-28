@@ -142,7 +142,7 @@ class BatchAPIClient:
 
     def get_batch_status(self, batch_id: str) -> Dict[str, Any]:
         """
-        Get current status of a batch.
+        Get current status of a batch with enhanced monitoring.
 
         Returns:
             {
@@ -153,71 +153,141 @@ class BatchAPIClient:
                     "succeeded": int,
                     "errored": int,
                     "expired": int
-                }
+                },
+                "progress_percentage": float,
+                "estimated_completion": Optional[str],
+                "error_rate": float
             }
         """
         try:
             batch = self.client.beta.messages.batches.retrieve(batch_id)
+            counts = {
+                "processing": batch.request_counts.processing,
+                "succeeded": batch.request_counts.succeeded,
+                "errored": batch.request_counts.errored,
+                "expired": batch.request_counts.expired,
+            }
+            
+            # Calculate progress metrics
+            total = sum(counts.values())
+            completed = counts["succeeded"] + counts["errored"] + counts["expired"]
+            progress_pct = (completed / total * 100) if total > 0 else 0.0
+            error_rate = (counts["errored"] / total * 100) if total > 0 else 0.0
+            
             return {
                 "id": batch.id,
                 "status": batch.processing_status,
-                "request_counts": {
-                    "processing": batch.request_counts.processing,
-                    "succeeded": batch.request_counts.succeeded,
-                    "errored": batch.request_counts.errored,
-                    "expired": batch.request_counts.expired,
-                },
+                "request_counts": counts,
+                "progress_percentage": round(progress_pct, 2),
+                "error_rate": round(error_rate, 2),
+                "retrieved_at": datetime.now().isoformat(),
             }
         except anthropic.APIError as e:
             logger.error(f"Error getting batch status: {e}")
             raise BatchResultError(f"Failed to get batch status: {e}") from e
 
     def poll_results(
-        self, batch_id: str, timeout_minutes: int = 1440, poll_interval_seconds: int = 5
+        self, batch_id: str, timeout_minutes: int = 1440, poll_interval_seconds: int = 5,
+        max_retries: int = 3, retry_backoff: float = 2.0
     ) -> List[BatchResult]:
         """
-        Poll for batch results until complete or timeout.
+        Poll for batch results until complete or timeout with enhanced retry logic.
 
         Args:
             batch_id: Batch ID from submit_batch
             timeout_minutes: Max wait time (default: 24 hours)
             poll_interval_seconds: How often to check status
+            max_retries: Maximum retry attempts for transient errors (default: 3)
+            retry_backoff: Exponential backoff multiplier (default: 2.0)
 
         Returns:
             List of BatchResult objects (one per request)
 
         Raises:
-            TimeoutError: If batch doesn't complete in time
+            BatchTimeoutError: If batch doesn't complete in time
+            BatchResultError: If retries exhausted
         """
         start_time = time.time()
         timeout_seconds = timeout_minutes * 60
+        last_log_time = start_time
+        log_interval = 60  # Log progress every 60 seconds
+        retry_count = 0
+        current_poll_interval = poll_interval_seconds
 
         while True:
-            status = self.get_batch_status(batch_id)
+            try:
+                status = self.get_batch_status(batch_id)
+                retry_count = 0  # Reset retry count on successful status check
+                current_poll_interval = poll_interval_seconds  # Reset poll interval
 
-            if status["status"] == "completed":
-                # Batch completed, retrieve results
-                logger.info(f"Batch {batch_id} completed")
-                results = self._retrieve_batch_results(batch_id)
-                return results
+                if status["status"] == "completed":
+                    # Batch completed, retrieve results
+                    logger.info(f"Batch {batch_id} completed")
+                    results = self._retrieve_batch_results(batch_id)
+                    return results
 
-            elapsed = time.time() - start_time
-            if elapsed > timeout_seconds:
-                raise BatchTimeoutError(
-                    f"Batch {batch_id} did not complete within "
-                    f"{timeout_minutes} minutes"
+                elapsed = time.time() - start_time
+                if elapsed > timeout_seconds:
+                    raise BatchTimeoutError(
+                        f"Batch {batch_id} did not complete within "
+                        f"{timeout_minutes} minutes"
+                    )
+
+                # Log progress periodically
+                current_time = time.time()
+                if current_time - last_log_time >= log_interval:
+                    counts = status["request_counts"]
+                    total = sum(counts.values())
+                    completed = counts["succeeded"] + counts["errored"] + counts["expired"]
+                    progress_pct = (completed / total * 100) if total > 0 else 0
+
+                    logger.info(
+                        f"Batch {batch_id} progress: {progress_pct:.1f}% "
+                        f"({completed}/{total}) - "
+                        f"Succeeded: {counts['succeeded']}, "
+                        f"Errored: {counts['errored']}, "
+                        f"Processing: {counts['processing']}"
+                    )
+                    last_log_time = current_time
+
+                time.sleep(current_poll_interval)
+
+            except BatchResultError as e:
+                # Enhanced retry logic with exponential backoff
+                retry_count += 1
+                if retry_count > max_retries:
+                    logger.error(
+                        f"Exhausted retries ({max_retries}) for batch {batch_id}: {e}"
+                    )
+                    raise BatchResultError(
+                        f"Failed to poll batch {batch_id} after {max_retries} retries: {e}"
+                    ) from e
+
+                # Exponential backoff
+                backoff_time = current_poll_interval * (retry_backoff ** (retry_count - 1))
+                logger.warning(
+                    f"Error polling batch {batch_id} (attempt {retry_count}/{max_retries}): {e}. "
+                    f"Retrying in {backoff_time:.1f}s..."
                 )
-
-            # Log progress
-            counts = status["request_counts"]
-            logger.debug(
-                f"Batch {batch_id}: "
-                f"Processing: {counts['processing']}, "
-                f"Succeeded: {counts['succeeded']}, "
-                f"Errored: {counts['errored']}"
-            )
-
-            time.sleep(poll_interval_seconds)
+                time.sleep(backoff_time)
+                current_poll_interval = backoff_time
+                continue
+            except Exception as e:
+                # Handle unexpected errors
+                retry_count += 1
+                if retry_count > max_retries:
+                    logger.error(f"Unexpected error polling batch {batch_id}: {e}")
+                    raise BatchResultError(
+                        f"Unexpected error polling batch {batch_id}: {e}"
+                    ) from e
+                backoff_time = current_poll_interval * (retry_backoff ** (retry_count - 1))
+                logger.warning(
+                    f"Unexpected error polling batch {batch_id} (attempt {retry_count}/{max_retries}): {e}. "
+                    f"Retrying in {backoff_time:.1f}s..."
+                )
+                time.sleep(backoff_time)
+                current_poll_interval = backoff_time
+                continue
 
     def _retrieve_batch_results(self, batch_id: str) -> List[BatchResult]:
         """

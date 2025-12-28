@@ -16,6 +16,9 @@ from typing import List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from batch.batch_api_client import BatchRequest
+from batch.model_policy import AnthropicBatchModels
+
+MODELS = AnthropicBatchModels()
 
 
 def create_layer3_requests() -> List[BatchRequest]:
@@ -31,7 +34,7 @@ def create_layer3_requests() -> List[BatchRequest]:
     requests.append(BatchRequest(
         custom_id="layer3_metric_tracker",
         params={
-            "model": "claude-opus-4-5-20251101",
+            "model": MODELS.strong,
             "max_tokens": 16000,
             "temperature": 0.3,
             "messages": [{
@@ -88,7 +91,7 @@ Include comprehensive docstrings and error handling.
     requests.append(BatchRequest(
         custom_id="layer3_trend_analyzer",
         params={
-            "model": "claude-opus-4-5-20251101",
+            "model": MODELS.strong,
             "max_tokens": 16000,
             "temperature": 0.3,
             "messages": [{
@@ -142,7 +145,7 @@ Include Trend and Anomaly dataclasses, statistical functions, and comprehensive 
     requests.append(BatchRequest(
         custom_id="layer3_alert_generator",
         params={
-            "model": "claude-opus-4-5-20251101",
+            "model": MODELS.strong,
             "max_tokens": 16000,
             "temperature": 0.3,
             "messages": [{
@@ -198,7 +201,7 @@ Include Alert dataclass, alert rules, and formatting methods.
     requests.append(BatchRequest(
         custom_id="layer3_inject_integration",
         params={
-            "model": "claude-sonnet-4-5-20250929",
+            "model": MODELS.integration,
             "max_tokens": 8000,
             "temperature": 0.2,
             "messages": [{
@@ -297,7 +300,7 @@ def create_layer4_requests() -> List[BatchRequest]:
     requests.append(BatchRequest(
         custom_id="layer4_file_selector",
         params={
-            "model": "claude-opus-4-5-20251101",
+            "model": MODELS.strong,
             "max_tokens": 16000,
             "temperature": 0.3,
             "messages": [{
@@ -351,7 +354,7 @@ Include FileInfo dataclass, selection algorithms with scoring, and integration w
     requests.append(BatchRequest(
         custom_id="layer4_smart_generator",
         params={
-            "model": "claude-opus-4-5-20251101",
+            "model": MODELS.strong,
             "max_tokens": 16000,
             "temperature": 0.3,
             "messages": [{
@@ -411,7 +414,7 @@ Include all methods, comprehensive intelligence gathering, and step generation l
     requests.append(BatchRequest(
         custom_id="layer4_engine_integration",
         params={
-            "model": "claude-sonnet-4-5-20250929",
+            "model": MODELS.integration,
             "max_tokens": 8000,
             "temperature": 0.2,
             "messages": [{
@@ -489,7 +492,7 @@ Show the modified code for:
     requests.append(BatchRequest(
         custom_id="layer3_4_cli_docs",
         params={
-            "model": "claude-sonnet-4-5-20250929",
+            "model": MODELS.integration,
             "max_tokens": 8000,
             "temperature": 0.2,
             "messages": [{

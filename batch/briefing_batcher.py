@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List
 
+from pathlib import Path
+from typing import Optional
+
 from .batch_api_client import BatchAPIClient, BatchRequest
+from .model_policy import AnthropicBatchModels
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +37,19 @@ class BriefingContext:
 class RecommendationBatcher:
     """Batch recommendation generation for multiple briefing contexts"""
 
-    def __init__(self):
-        """Initialize recommendation batcher"""
+    def __init__(self, root_dir: Optional[Path] = None):
+        """Initialize recommendation batcher with optional session manager integration"""
         self.client = BatchAPIClient()
+        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        
+        # Try to initialize session manager for context
+        try:
+            from cortex.intelligence.session_manager import SessionManager
+            self.session_mgr = SessionManager(self.root_dir)
+        except Exception:
+            self.session_mgr = None
+            logger.warning("SessionManager not available - briefings won't include session context")
+        
         self.system_prompt = """You are a strategic advisor analyzing a developer's current state.
 Provide clear, actionable recommendations based on:
 1. Current portfolio/project status
@@ -139,30 +153,55 @@ ALTERNATIVE_APPROACHES:
     def _build_recommendation_requests(
         self, contexts: List[BriefingContext]
     ) -> List[BatchRequest]:
-        """Convert briefing contexts to batch requests"""
+        """Convert briefing contexts to batch requests with session context integration"""
         requests = []
+        models = AnthropicBatchModels()
+
+        # Get session context if available
+        session_context = None
+        if self.session_mgr:
+            try:
+                session_context = self.session_mgr.load_session_context()
+            except Exception as e:
+                logger.debug(f"Could not load session context: {e}")
 
         for context in contexts:
-            prompt = f"""Analyze this morning briefing state and provide strategic recommendations:
-
-PORTFOLIO STATE:
-{json.dumps(context.portfolio_pulse, indent=2)}
-
-SYSTEM HEALTH:
-{json.dumps(context.system_health, indent=2)}
-
-RECENT EXECUTION HISTORY:
-{json.dumps(context.execution_history, indent=2)}
-
-GOALS:
-{json.dumps(context.goals_context, indent=2)}
-
-Provide clear, prioritized recommendations for today's focus."""
+            # Build base prompt
+            prompt_parts = [
+                "Analyze this briefing state and provide strategic recommendations:",
+                "",
+                "PORTFOLIO STATE:",
+                json.dumps(context.portfolio_pulse, indent=2),
+                "",
+                "SYSTEM HEALTH:",
+                json.dumps(context.system_health, indent=2),
+                "",
+                "RECENT EXECUTION HISTORY:",
+                json.dumps(context.execution_history, indent=2),
+                "",
+                "GOALS:",
+                json.dumps(context.goals_context, indent=2),
+            ]
+            
+            # Add session context if available
+            if session_context:
+                prompt_parts.extend([
+                    "",
+                    "CURRENT SESSION CONTEXT:",
+                    f"Project: {session_context.project}",
+                    f"Working Directory: {session_context.working_directory}",
+                    f"Current Focus: {session_context.current_focus}",
+                    f"Active Goals: {', '.join(session_context.active_goals[:3])}",
+                ])
+            
+            prompt_parts.append("\nProvide clear, prioritized recommendations for today's focus.")
+            prompt = "\n".join(prompt_parts)
 
             request = BatchRequest(
                 custom_id=context.context_id,
                 params={
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": models.default,
+                    "model": models.default,
                     "max_tokens": 2000,
                     "messages": [{"role": "user", "content": prompt}],
                     "system": self.system_prompt,
