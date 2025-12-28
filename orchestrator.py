@@ -511,10 +511,11 @@ class CortexOrchestrator:
 
         # Check for requirements.txt without venv
         if (project_path / "requirements.txt").exists():
-            if (
-                not (project_path / "venv").exists()
-                and not (project_path / "env").exists()
-            ):
+            # Check standard venv names
+            has_venv = any(
+                (project_path / d).exists() for d in ["venv", ".venv", "env", ".env"]
+            )
+            if not has_venv:
                 blockers.append("No virtualenv detected")
 
         return blockers

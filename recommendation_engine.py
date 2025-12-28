@@ -13,11 +13,18 @@ This is the top-level API for the Cortex Intelligence Stack.
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from datetime import datetime
 
 # Layer 3: Warning System
 from intelligence.monitoring.metric_tracker import MetricTracker
 from intelligence.monitoring.trend_analyzer import TrendAnalyzer
 from intelligence.monitoring.alert_generator import AlertGenerator
+
+# Layer 3.5: Process Monitor
+try:
+    from intelligence.process_monitor import ProcessMonitor
+except ImportError:
+    ProcessMonitor = None
 
 # Layer 4: Smart Recommendations
 from intelligence.recommendations.file_selector import FileSelector
@@ -89,6 +96,14 @@ class RecommendationEngine:
         self.trend_analyzer = TrendAnalyzer(self.metric_tracker)
         self.alert_generator = AlertGenerator(self.trend_analyzer)
 
+        # Layer 3.5: Process Monitor
+        self.process_monitor = None
+        if ProcessMonitor:
+            try:
+                self.process_monitor = ProcessMonitor()
+            except Exception:
+                pass
+
         # Layer 4: Smart Recommendations components
         self.file_selector = FileSelector(self.project_path)
         self.smart_generator = SmartRecommendationGenerator(
@@ -116,6 +131,20 @@ class RecommendationEngine:
                 self.project_profiler = ProjectProfiler(self.project_path)
             except ImportError:
                 pass
+
+        # Priority Calculator for smart recommendations
+        try:
+            from cortex.agents.data_agent.analyzers.priority_calculator import PriorityCalculator
+            self.priority_calculator = PriorityCalculator()
+        except ImportError:
+            self.priority_calculator = None
+
+        # Portfolio Memory for cross-project intelligence
+        try:
+            from cortex.portfolio_memory import PortfolioMemory
+            self.portfolio_memory = PortfolioMemory()
+        except ImportError:
+            self.portfolio_memory = None
 
     def generate_recommendations(
         self,
@@ -145,11 +174,27 @@ class RecommendationEngine:
         # Get current project name
         project_name = self.project_path.name
 
-        # Enrich context with alerts from Layer 3
-        alerts = self.alert_generator.generate_alerts(project_name, days=7)
-        if alerts:
-            # Adapt alerts to Layer 4 format
-            adapted_alerts = adapt_alerts(alerts)
+        # Collect alerts from both Layer 3 sources
+        all_alerts = []
+
+        # Layer 3: Metric-based alerts
+        metric_alerts = self.alert_generator.generate_alerts(project_name, days=7)
+        if metric_alerts:
+            all_alerts.extend(metric_alerts)
+
+        # Layer 3.5: Process Monitor alerts
+        if self.process_monitor:
+            try:
+                # Get alerts from process monitor (last 24 hours)
+                process_alerts_data = self.process_monitor.alert_generator.generate_alerts(hours=24)
+                if process_alerts_data:
+                    all_alerts.extend(process_alerts_data)
+            except Exception:
+                pass  # Silently ignore if process monitor fails
+
+        # Adapt all alerts to Layer 4 format
+        if all_alerts:
+            adapted_alerts = adapt_alerts(all_alerts)
             context["alerts"] = [
                 {
                     "id": a.id,
@@ -160,8 +205,7 @@ class RecommendationEngine:
                 for a in adapted_alerts
             ]
 
-        # 1. Alert-driven recommendations (from Layer 3)
-        if alerts:
+            # 1. Alert-driven recommendations (from all Layer 3 sources)
             alert_recs = self.smart_generator.generate_alert_recommendations(
                 alerts=adapted_alerts,
                 context=context
@@ -206,7 +250,7 @@ class RecommendationEngine:
         recommendations.extend(momentum_recs)
 
         # Apply learning adjustments (Layer 3)
-        if self.learning_system:
+        if hasattr(self, 'learning_system') and self.learning_system:
             recommendations = self._apply_learning_adjustments(recommendations)
 
         # Enrich with patterns (Layer 2)
@@ -219,24 +263,60 @@ class RecommendationEngine:
             context=context
         )
 
-        # Sort by priority score
-        recommendations.sort(key=lambda r: self._priority_score(r), reverse=True)
+        # Build context for priority calculation
+        priority_context = self._build_priority_context(project_name, context)
+
+        # Convert recommendations to dict format for priority calculation
+        rec_dicts = [self._recommendation_to_dict(r) for r in recommendations]
+
+        # Calculate priorities using PriorityCalculator
+        if self.priority_calculator:
+            rec_dicts = self.priority_calculator.rank_recommendations(rec_dicts, priority_context)
+            # Update recommendations with calculated priorities
+            for i, rec_dict in enumerate(rec_dicts):
+                if i < len(recommendations):
+                    recommendations[i].priority = int(rec_dict.get("calculated_priority", 0.5) * 100)
+                    if not hasattr(recommendations[i], 'metadata') or recommendations[i].metadata is None:
+                        recommendations[i].metadata = {}
+                    recommendations[i].metadata["calculated_priority"] = rec_dict.get("calculated_priority", 0.5)
+            # Re-sort recommendations by calculated priority
+            recommendations.sort(key=lambda r: r.metadata.get("calculated_priority", 0.0) if r.metadata else 0.0, reverse=True)
+        else:
+            # Fallback to original priority scoring
+            recommendations.sort(key=lambda r: self._priority_score(r), reverse=True)
 
         return recommendations[:limit]
 
     def get_active_alerts(self, project: Optional[str] = None, days: int = 7):
         """
-        Get active alerts for a project.
+        Get active alerts for a project from all sources.
 
         Args:
             project: Project name (defaults to current directory name)
             days: Number of days to analyze
 
         Returns:
-            List of active alerts
+            List of active alerts from Layer 3 and Process Monitor
         """
         project_name = project or self.project_path.name
-        return self.alert_generator.generate_alerts(project_name, days=days)
+        all_alerts = []
+
+        # Layer 3: Metric-based alerts
+        metric_alerts = self.alert_generator.generate_alerts(project_name, days=days)
+        if metric_alerts:
+            all_alerts.extend(metric_alerts)
+
+        # Layer 3.5: Process Monitor alerts
+        if self.process_monitor:
+            try:
+                hours = days * 24
+                process_alerts = self.process_monitor.alert_generator.generate_alerts(hours=hours)
+                if process_alerts:
+                    all_alerts.extend(process_alerts)
+            except Exception:
+                pass
+
+        return all_alerts
 
     def get_project_health(self, project: Optional[str] = None, days: int = 7) -> Dict[str, Any]:
         """
@@ -313,7 +393,92 @@ class RecommendationEngine:
         return recommendations
 
     def _enrich_with_patterns(self, recommendations):
-        """Enrich recommendations with pattern-based insights from similar work."""
+        """
+        Enrich recommendations with pattern-based insights from similar work.
+        
+        Enhanced to use portfolio memory for cross-project pattern matching.
+        Includes portfolio intelligence for better recommendations.
+        """
+        # Try portfolio memory first (more comprehensive)
+        if self.portfolio_memory:
+            try:
+                project_name = self.project_path.name
+                patterns = self.portfolio_memory.get_cross_project_patterns()
+                
+                # Get project context for better matching
+                project_context = self.portfolio_memory.get_project_context(
+                    project_name,
+                    include_health=True
+                )
+                
+                for rec in recommendations:
+                    rec_type = getattr(rec, 'type', '')
+                    rec_title = getattr(rec, 'title', '')
+                    rec_description = getattr(rec, 'description', '')
+                    
+                    # Find matching patterns using multiple criteria
+                    matching_patterns = []
+                    for p in patterns:
+                        pattern_text = p.get("pattern", "").lower()
+                        # Match by type
+                        if rec_type and rec_type.lower() in pattern_text:
+                            matching_patterns.append(p)
+                        # Match by title keywords
+                        elif rec_title:
+                            title_words = rec_title.lower().split()
+                            if any(word in pattern_text for word in title_words if len(word) > 3):
+                                matching_patterns.append(p)
+                        # Match by description keywords
+                        elif rec_description:
+                            desc_words = rec_description.lower().split()
+                            if any(word in pattern_text for word in desc_words if len(word) > 3):
+                                matching_patterns.append(p)
+                    
+                    if matching_patterns:
+                        # Use most successful pattern
+                        best_pattern = max(
+                            matching_patterns,
+                            key=lambda p: p.get("success_rate", 0.0)
+                        )
+                        
+                        # Enhance recommendation with pattern insights
+                        if not hasattr(rec, 'metadata') or rec.metadata is None:
+                            rec.metadata = {}
+                        
+                        rec.metadata["pattern"] = best_pattern.get("pattern", "")
+                        rec.metadata["pattern_success_rate"] = best_pattern.get("success_rate", 0.0)
+                        rec.metadata["pattern_project"] = best_pattern.get("project", "")
+                        
+                        # Add rationale if not present
+                        if not hasattr(rec, 'rationale'):
+                            rec.rationale = ""
+                        if rec.metadata["pattern"]:
+                            rec.rationale += f" Based on successful pattern from {rec.metadata['pattern_project']}: {rec.metadata['pattern']}"
+                        
+                        # Boost priority if pattern is highly successful
+                        if rec.metadata["pattern_success_rate"] > 0.8:
+                            if hasattr(rec, 'priority_score'):
+                                rec.priority_score *= 1.3
+                            rec.metadata["estimated_impact"] = "high"
+                    
+                    # Add cross-project insights if available
+                    if project_context:
+                        cross_project_insights = project_context.get("cross_project_insights", [])
+                        if cross_project_insights and not hasattr(rec, 'metadata') or rec.metadata is None:
+                            rec.metadata = {}
+                        if cross_project_insights:
+                            rec.metadata["cross_project_insights"] = cross_project_insights[:3]  # Top 3
+                
+                return recommendations
+            except Exception as e:
+                # Log error but continue with fallback
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Portfolio memory enrichment failed: {e}")
+        
+        # Fallback to pattern_memory if portfolio not available
+        
+        # Fallback to pattern_memory
         if not self.pattern_memory:
             return recommendations
 
@@ -356,16 +521,46 @@ class RecommendationEngine:
 
     def _priority_score(self, recommendation) -> float:
         """
-        Calculate priority score for a recommendation.
+        Calculate enhanced priority score for a recommendation.
 
         Args:
             recommendation: Recommendation object
 
         Returns:
             Priority score (higher = more important)
+
+        Factors considered:
+        - Base priority (urgency, importance)
+        - Dependencies (blocking other work)
+        - Pattern success rate (if pattern-based)
+        - Portfolio intelligence (cross-project insights)
+        - Project health impact
         """
         # Base score from recommendation priority
         score = getattr(recommendation, 'priority_score', 0.5)
+        
+        # Enhance with portfolio intelligence
+        try:
+            from cortex.portfolio_memory import PortfolioMemory
+            portfolio = PortfolioMemory()
+            
+            # Get project context
+            project_name = getattr(recommendation, 'project', None) or self.project_path.name
+            project_context = portfolio.get_project_context(project_name, include_health=True)
+            
+            # Boost if project health is low
+            if project_context and project_context.get("health_score", 100) < 50:
+                score *= 1.3
+            
+            # Boost if recommendation addresses critical warnings
+            warnings = portfolio.get_warnings(project=project_name, severity="critical")
+            if warnings and hasattr(recommendation, 'type'):
+                rec_type = getattr(recommendation, 'type', '')
+                if any(w.get("metric") in rec_type for w in warnings):
+                    score *= 1.5
+            
+        except Exception:
+            pass  # Fallback if portfolio not available
 
         # Boost based on recommendation type
         type_boost = {
@@ -606,3 +801,239 @@ class RecommendationEngine:
             ]
         except Exception:
             return []
+
+    def _build_priority_context(
+        self,
+        project_name: str,
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Build context dictionary for priority calculation.
+        
+        Args:
+            project_name: Name of the project
+            context: Existing context dictionary
+            
+        Returns:
+            Context dictionary with warnings, patterns, health score, etc.
+        """
+        priority_context = context.copy() if context else {}
+        
+        # Add warnings from portfolio memory
+        if self.portfolio_memory:
+            try:
+                warnings = self.portfolio_memory.get_warnings(project=project_name)
+                priority_context["warnings"] = warnings
+            except Exception:
+                priority_context["warnings"] = []
+        
+        # Add project health score
+        if self.portfolio_memory:
+            try:
+                project_context = self.portfolio_memory.get_project_context(
+                    project_name,
+                    include_health=True
+                )
+                if project_context:
+                    priority_context["health_score"] = project_context.get("health_score", 100)
+                    priority_context["cross_project_insights"] = project_context.get(
+                        "cross_project_insights", []
+                    )
+            except Exception:
+                priority_context["health_score"] = 100
+        
+        # Add patterns from portfolio memory
+        if self.portfolio_memory:
+            try:
+                patterns = self.portfolio_memory.get_cross_project_patterns()
+                priority_context["patterns"] = patterns
+            except Exception:
+                priority_context["patterns"] = []
+        
+        return priority_context
+
+    def _recommendation_to_dict(self, recommendation: Recommendation) -> Dict[str, Any]:
+        """
+        Convert Recommendation dataclass to dictionary for priority calculation.
+        
+        Args:
+            recommendation: Recommendation object
+            
+        Returns:
+            Dictionary representation of recommendation
+        """
+        rec_dict = {
+            "type": getattr(recommendation, "type", "unknown"),
+            "title": getattr(recommendation, "title", ""),
+            "description": getattr(recommendation, "description", ""),
+            "priority": getattr(recommendation, "priority", 50),
+            "confidence": getattr(recommendation, "confidence", 0.5),
+            "files": getattr(recommendation, "files", []),
+            "steps": getattr(recommendation, "steps", []),
+            "metadata": getattr(recommendation, "metadata", {}),
+        }
+        
+        # Extract additional fields from metadata
+        if rec_dict["metadata"]:
+            rec_dict.update({
+                "pattern": rec_dict["metadata"].get("pattern", ""),
+                "estimated_impact": rec_dict["metadata"].get("estimated_impact", "medium"),
+                "time_sensitive": rec_dict["metadata"].get("time_sensitive", False),
+                "blocks_others": rec_dict["metadata"].get("blocks_others", False),
+                "dependencies": rec_dict["metadata"].get("dependencies", []),
+                "dependencies_met": rec_dict["metadata"].get("dependencies_met", False),
+            })
+        
+        return rec_dict
+
+    def get_scheduling_recommendations(
+        self,
+        tasks: List[Task] = None,
+        recommendations: List[Recommendation] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get capacity-aware scheduling recommendations for tasks.
+
+        Args:
+            tasks: List of tasks to schedule
+            recommendations: List of recommendations to schedule
+
+        Returns:
+            List of scheduling recommendations
+        """
+        if not self.process_monitor or not hasattr(self.process_monitor, 'scheduler'):
+            return []
+
+        scheduler = self.process_monitor.scheduler
+        scheduling_recs = []
+
+        # Schedule tasks
+        if tasks:
+            for task in tasks:
+                # Detect task type from title
+                task_type = scheduler.detect_task_type_from_description(task.title)
+
+                # Determine priority from task status
+                if task.status == "blocked":
+                    priority = "high"
+                elif task.status == "in_progress":
+                    priority = "immediate"
+                else:
+                    priority = "normal"
+
+                from intelligence.process_monitor import SchedulingPriority
+                scheduled = scheduler.schedule_task(
+                    task_id=task.id,
+                    task_type=task_type,
+                    priority=SchedulingPriority(priority),
+                )
+
+                scheduling_recs.append({
+                    'task_id': task.id,
+                    'task_title': task.title,
+                    'task_type': task_type.value,
+                    'can_run_now': scheduled.can_run_now,
+                    'recommended_start': scheduled.recommended_start_time.isoformat(),
+                    'reason': scheduled.scheduling_reason,
+                    'capacity_available': scheduled.capacity_forecast.resource_availability if scheduled.capacity_forecast else 0,
+                })
+
+        # Schedule recommendations
+        if recommendations:
+            for rec in recommendations:
+                # Detect task type from recommendation type and title
+                task_type = scheduler.detect_task_type_from_description(
+                    f"{rec.type} {rec.title}"
+                )
+
+                from intelligence.process_monitor import SchedulingPriority
+                scheduled = scheduler.schedule_task(
+                    task_id=rec.title,
+                    task_type=task_type,
+                    priority=SchedulingPriority("normal"),
+                )
+
+                scheduling_recs.append({
+                    'recommendation_title': rec.title,
+                    'recommendation_type': rec.type,
+                    'task_type': task_type.value,
+                    'can_run_now': scheduled.can_run_now,
+                    'recommended_start': scheduled.recommended_start_time.isoformat(),
+                    'reason': scheduled.scheduling_reason,
+                    'capacity_available': scheduled.capacity_forecast.resource_availability if scheduled.capacity_forecast else 0,
+                })
+
+        return scheduling_recs
+
+    def get_recommendation_dashboard(
+        self,
+        project: Optional[str] = None,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Get recommendation dashboard with prioritized recommendations and context.
+        
+        Args:
+            project: Project name (defaults to current directory name)
+            limit: Maximum recommendations to return
+            
+        Returns:
+            Dashboard dictionary with recommendations, health, alerts, and patterns
+        """
+        project_name = project or self.project_path.name
+        
+        # Generate recommendations
+        recommendations = self.generate_recommendations(limit=limit)
+        
+        # Get project health
+        health = self.get_project_health(project=project_name)
+        
+        # Get active alerts
+        alerts = self.get_active_alerts(project=project_name)
+        
+        # Get relevant patterns
+        patterns = []
+        if self.pattern_memory:
+            try:
+                patterns = self.get_relevant_patterns(
+                    context=f"project: {project_name}",
+                    limit=5
+                )
+            except Exception:
+                pass
+        
+        # Convert recommendations to dict format
+        rec_dicts = []
+        for rec in recommendations:
+            rec_dict = {
+                "type": rec.type,
+                "title": rec.title,
+                "description": rec.description,
+                "priority": rec.priority,
+                "confidence": rec.confidence,
+                "calculated_priority": rec.metadata.get("calculated_priority", 0.5) if rec.metadata else 0.5,
+                "files": rec.files or [],
+                "steps": rec.steps or [],
+                "rationale": rec.metadata.get("rationale", "") if rec.metadata else "",
+                "pattern": rec.metadata.get("pattern", "") if rec.metadata else "",
+                "pattern_success_rate": rec.metadata.get("pattern_success_rate", 0.0) if rec.metadata else 0.0,
+            }
+            rec_dicts.append(rec_dict)
+        
+        return {
+            "project": project_name,
+            "timestamp": datetime.now().isoformat(),
+            "health": health,
+            "alerts": {
+                "total": len(alerts),
+                "critical": sum(1 for a in alerts if getattr(a, "severity", None) and getattr(a.severity, "value", "") == "critical"),
+                "warning": sum(1 for a in alerts if getattr(a, "severity", None) and getattr(a.severity, "value", "") == "warning"),
+            },
+            "recommendations": rec_dicts,
+            "patterns": patterns[:5],
+            "summary": {
+                "total_recommendations": len(rec_dicts),
+                "high_priority": sum(1 for r in rec_dicts if r.get("calculated_priority", 0) > 0.7),
+                "pattern_based": sum(1 for r in rec_dicts if r.get("pattern", "")),
+            }
+        }

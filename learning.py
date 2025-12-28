@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from cortex.batch import BatchConfig, BatchFallback, LearningBatcher, LearningContext
+from batch import BatchConfig, BatchFallback, LearningBatcher, LearningContext
 from feedback import FeedbackLogger
 
 

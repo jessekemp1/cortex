@@ -36,6 +36,11 @@ except ImportError:
     RecommendationEngine = None
     Recommendation = None
 
+try:
+    from intelligence.process_monitor import ProcessMonitor
+except ImportError:
+    ProcessMonitor = None
+
 
 @dataclass
 class BriefingData:
@@ -58,6 +63,10 @@ class BriefingData:
 
     # Metadata
     generated_at: datetime
+
+    # Optional fields
+    resource_status: Optional[Dict[str, Any]] = None
+    batch_queue_status: Optional[Dict[str, Any]] = None
     period: str = "24h"
 
 
@@ -115,7 +124,28 @@ class BriefingGenerator:
                     f"Warning: Could not generate recommendations: {e}", file=sys.stderr
                 )
 
-        # 4. Build briefing sections
+        # 4. Get resource status
+        resource_status = None
+        batch_queue_status = None
+        if ProcessMonitor:
+            try:
+                monitor = ProcessMonitor()
+                resource_status = monitor.get_status()
+
+                # Get batch queue statistics and task details
+                from intelligence.process_monitor import TaskState
+                batch_queue_status = monitor.batch_queue.get_queue_stats()
+
+                # Add detailed task lists
+                batch_queue_status['running_tasks'] = monitor.batch_queue.get_running_tasks()
+                batch_queue_status['scheduled_tasks'] = monitor.batch_queue.get_scheduled_tasks()[:5]  # Next 5
+                batch_queue_status['pending_tasks'] = monitor.batch_queue.get_pending_tasks()[:5]  # First 5
+                batch_queue_status['recent_completed'] = monitor.batch_queue.get_task_history(limit=3, state=TaskState.COMPLETED)
+                batch_queue_status['recent_failed'] = monitor.batch_queue.get_task_history(limit=3, state=TaskState.FAILED)
+            except Exception as e:
+                print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
+
+        # 5. Build briefing sections
         briefing = BriefingData(
             active_projects=self._get_active_projects(project_activity),
             recent_commits_24h=self._count_recent_commits(project_activity, hours=24),
@@ -124,6 +154,8 @@ class BriefingGenerator:
             priority_actions=self._get_priority_actions(recommendations, goals),
             patterns=self._detect_patterns(project_activity),
             waiting_on=self._get_waiting_on(goals, project_activity),
+            resource_status=resource_status,
+            batch_queue_status=batch_queue_status,
             generated_at=datetime.now(),
         )
 
@@ -409,6 +441,161 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         lines.append(f"  {GREEN}Blockers: None{RESET}")
 
     lines.append("")
+
+    # Resource Pulse
+    if briefing.resource_status:
+        lines.append(f"{BOLD}⚡ RESOURCE PULSE{RESET}")
+        rs = briefing.resource_status
+
+        # CPU and Memory
+        cpu_color = RED if rs['cpu_available'] < 30 else YELLOW if rs['cpu_available'] < 60 else GREEN
+        mem_color = RED if rs['memory_usage_percent'] > 80 else YELLOW if rs['memory_usage_percent'] > 60 else GREEN
+
+        lines.append(f"  CPU: {cpu_color}{rs['cpu_available']:.0f}% available{RESET} | Memory: {mem_color}{rs['memory_usage_percent']:.0f}% used{RESET}")
+        lines.append(f"  Processes: {rs['process_count']}")
+
+        # AI Tools & Services
+        if rs.get('ai_tool_cpu', 0) > 0 or rs.get('dev_service_cpu', 0) > 0:
+            lines.append(f"  AI Tools: {rs.get('ai_tool_cpu', 0):.1f}% CPU | Dev Services: {rs.get('dev_service_cpu', 0):.1f}% CPU")
+
+        # Alerts and Waste
+        alerts_color = RED if rs.get('critical_alerts', 0) > 0 else YELLOW if rs.get('alerts_count', 0) > 5 else ""
+        waste_color = YELLOW if rs.get('waste_items', 0) > 10 else ""
+
+        if rs.get('alerts_count', 0) > 0:
+            lines.append(f"  Alerts: {alerts_color}{rs.get('alerts_count', 0)} ({rs.get('critical_alerts', 0)} critical){RESET}")
+
+        if rs.get('waste_items', 0) > 0:
+            lines.append(f"  Resource Waste: {waste_color}{rs.get('waste_items', 0)} items detected{RESET}")
+
+        # Optimization opportunities
+        if rs.get('optimization_opportunities', 0) > 0:
+            lines.append(f"  💡 {rs.get('optimization_opportunities', 0)} optimization opportunities")
+
+        lines.append("")
+
+    # Batch Queue Status
+    if briefing.batch_queue_status:
+        bq = briefing.batch_queue_status
+
+        # Only show if there are tasks in the queue
+        total_tasks = (
+            bq.get('pending_count', 0) +
+            bq.get('scheduled_count', 0) +
+            bq.get('running_count', 0)
+        )
+
+        if total_tasks > 0 or bq.get('completed_count', 0) > 0 or bq.get('failed_count', 0) > 0:
+            lines.append(f"{BOLD}📋 BATCH QUEUE{RESET}")
+
+            # Show running tasks with details
+            running_tasks = bq.get('running_tasks', [])
+            if running_tasks:
+                lines.append(f"  {YELLOW}▶️  Running Now:{RESET}")
+                for task in running_tasks[:3]:  # Show up to 3
+                    desc = task.description[:50] + "..." if len(task.description) > 50 else task.description
+                    elapsed = ""
+                    if task.started_at:
+                        from datetime import datetime
+                        elapsed_sec = (datetime.now() - task.started_at).total_seconds()
+                        if elapsed_sec < 60:
+                            elapsed = f" ({elapsed_sec:.0f}s elapsed)"
+                        else:
+                            elapsed = f" ({elapsed_sec/60:.1f}m elapsed)"
+                    lines.append(f"     • {desc}{elapsed}")
+                if len(running_tasks) > 3:
+                    lines.append(f"     ... and {len(running_tasks) - 3} more")
+                lines.append("")
+
+            # Show scheduled tasks with times
+            scheduled_tasks = bq.get('scheduled_tasks', [])
+            if scheduled_tasks:
+                lines.append(f"  📅 Scheduled:")
+                for task in scheduled_tasks[:3]:  # Show up to 3
+                    desc = task.description[:45] + "..." if len(task.description) > 45 else task.description
+                    when = ""
+                    if task.scheduled_time:
+                        from datetime import datetime
+                        now = datetime.now()
+                        time_until = (task.scheduled_time - now).total_seconds()
+
+                        if time_until < 0:
+                            when = " (ready now)"
+                        elif time_until < 60:
+                            when = f" (in {time_until:.0f}s)"
+                        elif time_until < 3600:
+                            when = f" (in {time_until/60:.0f}m)"
+                        elif time_until < 86400:
+                            when = f" (at {task.scheduled_time.strftime('%H:%M')})"
+                        else:
+                            when = f" ({task.scheduled_time.strftime('%b %d %H:%M')})"
+
+                    priority_marker = ""
+                    if task.priority == "immediate":
+                        priority_marker = f" {RED}[!]{RESET}"
+                    elif task.priority == "high":
+                        priority_marker = f" {YELLOW}[H]{RESET}"
+
+                    lines.append(f"     • {desc}{when}{priority_marker}")
+
+                if len(scheduled_tasks) > 3:
+                    lines.append(f"     ... and {len(scheduled_tasks) - 3} more")
+                lines.append("")
+
+            # Show pending tasks
+            pending_tasks = bq.get('pending_tasks', [])
+            if pending_tasks:
+                lines.append(f"  ⏳ Pending (not yet scheduled):")
+                for task in pending_tasks[:3]:  # Show up to 3
+                    desc = task.description[:50] + "..." if len(task.description) > 50 else task.description
+                    lines.append(f"     • {desc}")
+                if len(pending_tasks) > 3:
+                    lines.append(f"     ... and {len(pending_tasks) - 3} more")
+                lines.append("")
+
+            # Show recent completions with details
+            recent_completed = bq.get('recent_completed', [])
+            if recent_completed:
+                lines.append(f"  {GREEN}✅ Recently Completed:{RESET}")
+                for task in recent_completed:
+                    desc = task.description[:45] + "..." if len(task.description) > 45 else task.description
+                    duration = ""
+                    if task.actual_duration_seconds is not None:
+                        if task.actual_duration_seconds < 1:
+                            duration = f" ({task.actual_duration_seconds*1000:.0f}ms)"
+                        elif task.actual_duration_seconds < 60:
+                            duration = f" ({task.actual_duration_seconds:.1f}s)"
+                        else:
+                            duration = f" ({task.actual_duration_seconds/60:.1f}m)"
+                    lines.append(f"     • {desc}{duration}")
+                lines.append("")
+
+            # Show recent failures with error details
+            recent_failed = bq.get('recent_failed', [])
+            if recent_failed:
+                lines.append(f"  {RED}❌ Recently Failed:{RESET}")
+                for task in recent_failed:
+                    desc = task.description[:45] + "..." if len(task.description) > 45 else task.description
+                    lines.append(f"     • {desc}")
+                    if task.error_message:
+                        error = task.error_message[:60] + "..." if len(task.error_message) > 60 else task.error_message
+                        lines.append(f"       Error: {error}")
+                lines.append(f"  💡 View details: {BLUE}cortex batch list --state failed{RESET}")
+                lines.append("")
+
+            # Show overall stats summary
+            if bq.get('completed_count', 0) > 0 or bq.get('failed_count', 0) > 0:
+                completed = bq.get('completed_count', 0)
+                failed = bq.get('failed_count', 0)
+                total = completed + failed
+
+                if total > 0:
+                    success_rate = bq.get('success_rate', 0)
+                    success_color = GREEN if success_rate >= 0.9 else YELLOW if success_rate >= 0.7 else RED
+                    lines.append(f"  Overall: {completed} completed, {failed} failed ({success_color}{success_rate:.0%} success{RESET})")
+                    lines.append("")
+
+            lines.append("")
 
     # Priority Actions
     lines.append(f"{BOLD}PRIORITY ACTIONS{RESET}")
