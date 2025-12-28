@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from .batch_api_client import BatchAPIClient, BatchRequest
+from .model_policy import AnthropicBatchModels
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,7 @@ ADJUSTMENT_SUGGESTIONS:
     ) -> List[BatchRequest]:
         """Convert learning contexts to batch requests"""
         requests = []
+        models = AnthropicBatchModels()
 
         for context in contexts:
             prompt = f"""Analyze this execution learning context and provide insights:
@@ -174,7 +176,7 @@ Provide learning insights, pattern discoveries, and confidence assessment based 
             request = BatchRequest(
                 custom_id=context.context_id,
                 params={
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": models.default,
                     "max_tokens": 1500,
                     "messages": [{"role": "user", "content": prompt}],
                     "system": self.system_prompt,
