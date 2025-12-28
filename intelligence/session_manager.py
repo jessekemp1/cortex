@@ -61,6 +61,15 @@ class SessionManager:
             # Extract goals and focus from commits and files
             active_goals = self._extract_goals(project_path)
             current_focus = self._determine_focus(recent_work, project_path)
+            
+            # Extract keywords from commit messages and current focus
+            keywords = self._extract_keywords_from_commits(project_path)
+            if current_focus:
+                # Add keywords from focus
+                focus_keywords = self._extract_keywords_from_text(current_focus)
+                keywords.extend(focus_keywords)
+            # Deduplicate and limit
+            keywords = list(dict.fromkeys(keywords))[:10]  # Preserve order, limit to 10
 
             context = SessionContext(
                 project=project,
@@ -70,6 +79,13 @@ class SessionManager:
                 current_focus=current_focus,
                 last_updated=datetime.now().isoformat()
             )
+            
+            # Store keywords in context metadata (extend recent_work with keywords)
+            # Note: SessionContext model doesn't have keywords field, so we'll store in recent_work metadata
+            if keywords and recent_work:
+                # Add keywords to the most recent work item as metadata
+                if recent_work and len(recent_work) > 0:
+                    recent_work[0]["keywords"] = keywords
 
             # Cache for next time
             self.cache_file.write_text(json.dumps({
@@ -141,15 +157,53 @@ class SessionManager:
         if plan_file.exists():
             try:
                 content = plan_file.read_text()
-                # Look for goal-like patterns
-                for line in content.split("\n"):
-                    if any(marker in line.lower() for marker in ["goal:", "priority", "- [ ]", "TODO"]):
-                        # Extract the goal text
-                        goal = line.strip().lstrip("-*#").strip()
+                lines = content.split("\n")
+
+                # Track which section we're in
+                in_goal_section = False
+                current_section = ""
+
+                for line in lines:
+                    stripped = line.strip()
+
+                    # Track section headers to know context
+                    if stripped.startswith('#'):
+                        current_section = stripped.lower()
+                        # Enable goal extraction in relevant sections
+                        in_goal_section = any(keyword in current_section for keyword in [
+                            'future work', 'next steps', 'todo', 'priority', 'remaining', 'pending'
+                        ])
+                        continue
+
+                    # Only extract goals from relevant sections
+                    if not in_goal_section:
+                        continue
+
+                    # Look for actual task items
+                    if any(marker in line.lower() for marker in ["- [ ]", "todo:"]):
+                        goal = stripped.lstrip("-*").strip()
+                        goal = goal.replace("[ ]", "").replace("[x]", "").strip()
                         if goal and len(goal) < 100:
                             goals.append(goal)
                             if len(goals) >= 5:
                                 break
+                    # Look for numbered items (1., 2., etc.)
+                    elif stripped and stripped[0].isdigit() and '.' in stripped[:4]:
+                        parts = stripped.split('.', 1)
+                        if len(parts) > 1:
+                            goal = parts[1].strip()
+                            # Remove markdown formatting like **text**
+                            goal = goal.replace('**', '').strip()
+                            # Remove time estimates in parentheses
+                            if '(' in goal and goal.endswith(')'):
+                                goal = goal[:goal.rindex('(')].strip()
+                            # Skip if this looks like a sub-item (starts with -)
+                            if goal.startswith('-'):
+                                continue
+                            if goal and len(goal) < 100:
+                                goals.append(goal)
+                                if len(goals) >= 5:
+                                    break
             except Exception:
                 pass
 
@@ -158,6 +212,24 @@ class SessionManager:
             goals = ["Continue development", "Address recent changes"]
 
         return goals[:5]
+    
+    def _extract_keywords_from_commits(self, project_path: Path, limit: int = 10) -> List[str]:
+        """Extract keywords from recent commit messages."""
+        try:
+            from cortex.context_intelligence import ContextIntelligence
+            context_intel = ContextIntelligence(root_dir=self.root_dir)
+            return context_intel.extract_keywords_from_commits(project_path, limit=limit)
+        except Exception:
+            return []
+    
+    def _extract_keywords_from_text(self, text: str) -> List[str]:
+        """Extract keywords from text."""
+        try:
+            from cortex.context_intelligence import ContextIntelligence
+            context_intel = ContextIntelligence(root_dir=self.root_dir)
+            return context_intel.extract_keywords_from_task(text)
+        except Exception:
+            return []
 
     def _determine_focus(self, recent_work: List[Dict[str, Any]], project_path: Path) -> str:
         """Determine current focus from recent commits and files."""

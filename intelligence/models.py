@@ -25,6 +25,8 @@ class SimilarWork:
     key_patterns: List[str]
     lessons_learned: List[str]
     reference_path: str
+    confidence_score: float = 0.0  # Confidence in this result (0.0-1.0)
+    relevance_score: float = 0.0  # Overall relevance score for ranking
 
 
 @dataclass
@@ -34,6 +36,8 @@ class Pattern:
     description: str
     projects: List[str]
     reference: str
+    confidence_score: float = 0.0  # Confidence in pattern applicability
+    relevance_score: float = 0.0  # Relevance score for ranking
 
 
 @dataclass
@@ -69,6 +73,8 @@ class Recommendation:
     description: str
     rationale: str
     related_patterns: List[str]
+    confidence_score: float = 0.0  # Confidence in recommendation
+    relevance_score: float = 0.0  # Relevance score for ranking
 
 
 @dataclass
@@ -122,6 +128,7 @@ class IntelligenceResult:
     reasoning: Optional[str] = None
     query_time_ms: float = 0.0
     sources_queried: List[str] = field(default_factory=list)
+    overall_confidence: float = 0.0  # Overall confidence in results (0.0-1.0)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""

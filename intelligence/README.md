@@ -7,26 +7,37 @@ The Cortex Intelligence System provides layered, progressive intelligence for de
 ## Architecture
 
 ```
-Layer 1: Deep Project Analysis (✅ IMPLEMENTED)
+Layer 1: Deep Project Analysis (✅ COMPLETE)
 ├── Tech stack detection (languages, frameworks, databases)
 ├── Test coverage estimation
 ├── Critical file identification
 └── Quality tooling detection (linters, formatters)
 
-Layer 2: Pattern Memory (🔜 PLANNED)
+Layer 2: Pattern Memory (✅ COMPLETE)
 ├── Index successful solutions from git history
 ├── Cross-project pattern recognition
 └── "We solved this before in project X"
 
-Layer 3: Warning System (🔜 PLANNED)
+Layer 3: Warning System (✅ COMPLETE)
 ├── Monitor metrics and track trends
 ├── Alert on degradation
 └── Proactive issue detection
 
-Layer 4: Smart Recommendations (🔜 PLANNED)
+Layer 3.5: Process Monitor (✅ COMPLETE)
+├── OS process monitoring with psutil
+├── AI tool & dev service tracking
+├── Waste detection & capacity forecasting
+└── Real-time resource intelligence
+
+Layer 4: Smart Recommendations (✅ COMPLETE)
 ├── Use layers 1-3 for context
 ├── Generate specific, actionable recommendations
 └── Replace generic "continue momentum"
+
+Layer 5: Planning & Context Injection (✅ COMPLETE)
+├── Context synthesis for Claude Code
+├── Execution planning and tracking
+└── Sub-500ms context delivery
 ```
 
 ## Layer 1: Deep Project Analysis
@@ -170,22 +181,41 @@ The profiler generates warnings for:
 
 Warnings are prioritized and shown in context injection (most important first).
 
-## Next Steps (Layer 2-4)
+## Current Status
 
-### Layer 2: Pattern Memory (Week 2)
-- Index successful patterns from git commit messages
+All 5 layers are now **COMPLETE** and operational:
+
+### Layer 2: Pattern Memory ✅
+- Indexes successful patterns from git commit messages
 - Keyword-based similarity search
 - Cross-project pattern reuse
+- **Location**: `intelligence/memory/`
 
-### Layer 3: Warning System (Week 2-3)
-- Monitor test coverage trends
-- Track lint violation counts
-- Alert on metric degradation
+### Layer 3: Warning System ✅
+- Monitors test coverage trends
+- Tracks lint violation counts
+- Alerts on metric degradation
+- **Location**: `intelligence/monitoring/`
 
-### Layer 4: Smart Recommendations (Week 3)
-- Use all layers to generate specific recommendations
-- Replace generic "continue momentum" with actionable steps
-- Provide context-aware suggestions
+### Layer 3.5: Process Monitor ✅
+- Real-time process monitoring with psutil
+- Tracks CPU, memory, AI tools, dev services
+- Detects resource waste and anomalies
+- Provides capacity forecasting
+- **Location**: `intelligence/process_monitor/`
+- **CLI**: `cortex process status|waste|optimize|insights`
+
+### Layer 4: Smart Recommendations ✅
+- Uses all layers for context-aware recommendations
+- Generates specific, actionable steps
+- Alert-driven and goal-driven recommendations
+- **Location**: `intelligence/recommendations/`
+
+### Layer 5: Planning & Context Injection ✅
+- Synthesizes intelligence for Claude Code
+- Sub-500ms context delivery
+- Execution planning and tracking
+- **Location**: `intelligence/planning/`, `intelligence/context_injector.py`
 
 ## Files
 
