@@ -10,9 +10,12 @@ Reads from ~/.claude/portfolio/project_index.json to provide:
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioMemory:
@@ -218,6 +221,125 @@ class PortfolioMemory:
         
         return lessons
     
+    def store_deep_analysis(
+        self,
+        project: str,
+        tech_stack: Dict[str, Any],
+        architecture: Dict[str, Any],
+        code_quality: Dict[str, Any]
+    ) -> bool:
+        """
+        Store deep analysis results in portfolio memory.
+        
+        Args:
+            project: Project name
+            tech_stack: Tech stack analysis results
+            architecture: Architecture analysis results
+            code_quality: Code quality analysis results
+            
+        Returns:
+            True if stored successfully
+        """
+        try:
+            projects = self.portfolio_data.get("projects", {})
+            if project not in projects:
+                projects[project] = {}
+            
+            # Store analysis results
+            projects[project]["deep_analysis"] = {
+                "tech_stack": tech_stack,
+                "architecture": architecture,
+                "code_quality": code_quality,
+                "analyzed_at": datetime.now().isoformat(),
+            }
+            
+            # Update tech stack in project data
+            if tech_stack.get("languages"):
+                projects[project]["tech_stack"] = tech_stack.get("languages", [])
+            
+            # Save updated portfolio
+            self.portfolio_data["projects"] = projects
+            self.portfolio_data["meta"]["last_updated"] = datetime.now().isoformat()
+            
+            # Save to file
+            self.index_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.index_file, 'w') as f:
+                json.dump(self.portfolio_data, f, indent=2)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to store deep analysis for {project}: {e}")
+            return False
+
+    def store_warnings(self, project: str, warnings: List[Dict[str, Any]]) -> bool:
+        """
+        Store warnings in portfolio memory.
+        
+        Args:
+            project: Project name
+            warnings: List of warning dictionaries
+            
+        Returns:
+            True if stored successfully
+        """
+        try:
+            projects = self.portfolio_data.get("projects", {})
+            if project not in projects:
+                projects[project] = {}
+            
+            # Store warnings
+            projects[project]["warnings"] = warnings
+            projects[project]["warnings_updated_at"] = datetime.now().isoformat()
+            
+            # Save updated portfolio
+            self.portfolio_data["projects"] = projects
+            self.portfolio_data["meta"]["last_updated"] = datetime.now().isoformat()
+            
+            # Save to file
+            self.index_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.index_file, 'w') as f:
+                json.dump(self.portfolio_data, f, indent=2)
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to store warnings for {project}: {e}")
+            return False
+
+    def get_warnings(self, project: Optional[str] = None, severity: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get warnings for project(s).
+        
+        Args:
+            project: Optional project filter
+            severity: Optional severity filter (critical, high, medium, low)
+            
+        Returns:
+            List of warnings
+        """
+        projects = self.portfolio_data.get("projects", {})
+        all_warnings = []
+        
+        for project_name, project_data in projects.items():
+            if project and project_name != project:
+                continue
+            
+            warnings = project_data.get("warnings", [])
+            for warning in warnings:
+                if severity and warning.get("severity") != severity:
+                    continue
+                all_warnings.append(warning)
+        
+        # Sort by severity and creation time
+        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        all_warnings.sort(
+            key=lambda w: (
+                severity_order.get(w.get("severity", "low"), 3),
+                w.get("created_at", "")
+            )
+        )
+        
+        return all_warnings
+
     def get_project_context(self, project: str, include_health: bool = True) -> Dict[str, Any]:
         """
         Get detailed context for a specific project

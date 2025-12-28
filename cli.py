@@ -9,7 +9,6 @@ Usage:
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Add cortex directory and its parent to path to support both module and direct execution
@@ -127,58 +126,6 @@ def cmd_status(args):
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-def cmd_context(args):
-    """Preview context injection output."""
-    import time
-
-    try:
-        from intelligence.context_injector import ContextInjector
-
-        # Get root directory
-        root_dir = Path(args.root)
-        injector = ContextInjector(root_dir)
-
-        # Get current working directory and optional task
-        cwd = Path.cwd()
-        task = args.task or ""
-
-        # Time the injection
-        start = time.time()
-        context = injector.inject(cwd, task)
-        elapsed = (time.time() - start) * 1000
-
-        # Display results
-        print("╔══════════════════════════════════════════════════════╗")
-        print("║          CORTEX - CONTEXT PREVIEW                    ║")
-        print("╚══════════════════════════════════════════════════════╝")
-        print("")
-        print("<cortex_context>")
-        print(context)
-        print("</cortex_context>")
-        print("")
-        print(f"Length: {len(context)} chars (target: 200-400)")
-        print(f"Time: {elapsed:.1f}ms (limit: 500ms)")
-
-        # Status indicators
-        if len(context) < 200:
-            print("⚠️  Context shorter than target (200 chars)")
-        elif len(context) > 400:
-            print("⚠️  Context longer than target (400 chars)")
-        else:
-            print("✅ Context length within target range")
-
-        if elapsed > 500:
-            print("⚠️  Injection time exceeded budget (500ms)")
-        else:
-            print("✅ Injection time within budget")
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 
@@ -747,336 +694,6 @@ def cmd_notify(args):
         print(f"Error sending notification: {e}", file=sys.stderr)
         sys.exit(1)
 
-def cmd_alerts(args):
-    """Show active alerts from Layer 3 Warning System."""
-    from intelligence.monitoring.alert_generator import AlertGenerator
-    from intelligence.monitoring.trend_analyzer import TrendAnalyzer
-    from intelligence.monitoring.metric_tracker import MetricTracker
-
-    try:
-        # Initialize components
-        tracker = MetricTracker()
-        analyzer = TrendAnalyzer(tracker)
-        alert_gen = AlertGenerator(analyzer)
-
-        # Get all alerts
-        # Since AlertGenerator needs a project, we'll scan for projects with metrics
-        all_alerts = []
-
-        # If project specified, just get alerts for that project
-        if args.project:
-            alerts = alert_gen.generate_alerts(args.project, days=7)
-            all_alerts.extend(alerts)
-        else:
-            # For now, just show message that project is required
-            print("Note: Specify --project to see alerts for a specific project")
-            print("Example: cortex alerts --project cortex")
-            return
-
-        # Filter by severity if specified
-        if args.severity:
-            all_alerts = [a for a in all_alerts if a.severity.value == args.severity]
-
-        if not all_alerts:
-            print("✓ No alerts found")
-            return
-
-        # Display alerts grouped by severity
-        by_severity = {'critical': [], 'warning': [], 'info': []}
-        for alert in all_alerts:
-            by_severity[alert.severity.value].append(alert)
-
-        for severity in ['critical', 'warning', 'info']:
-            alerts_list = by_severity[severity]
-            if not alerts_list:
-                continue
-
-            print(f"\n{severity.upper()} ({len(alerts_list)} alerts)")
-            print("─" * 60)
-
-            for alert in alerts_list:
-                print(f"  [{alert.project}] {alert.metric_type}")
-                print(f"    {alert.message}")
-                print(f"    {alert.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
-                print()
-
-        print(f"\nTotal: {len(all_alerts)} active alerts")
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-
-def cmd_metrics(args):
-    """Show metrics for a project."""
-    from intelligence.monitoring.metric_tracker import MetricTracker
-    from datetime import timedelta
-
-    try:
-        tracker = MetricTracker()
-
-        # Determine project
-        project = args.project or "cortex"  # Default to cortex for now
-
-        # Get metrics
-        since = datetime.now() - timedelta(days=args.days)
-
-        # Get all metrics for the project
-        all_metrics = []
-        for metric_type in ['coverage', 'violations', 'commits', 'file_changes']:
-            try:
-                metrics = tracker.get_metrics(project, metric_type, days=args.days)
-                all_metrics.extend(metrics)
-            except:
-                pass  # Skip if metric type not found
-
-        if not all_metrics:
-            print(f"No metrics found for project '{project}'")
-            return
-
-        print(f"\nMetrics for: {project}")
-        print(f"Period: Last {args.days} days\n")
-
-        # Group by metric type
-        by_type = {}
-        for metric in all_metrics:
-            mtype = metric.metric_type.value
-            if mtype not in by_type:
-                by_type[mtype] = []
-            by_type[mtype].append(metric)
-
-        # Display each metric type
-        for metric_type, metrics in by_type.items():
-            print(f"{metric_type.upper()}")
-            print("─" * 60)
-
-            if metrics:
-                latest = metrics[-1]
-                print(f"  Current: {latest.metric_value:.2f}")
-                print(f"  Updated: {latest.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-
-                values = [m.metric_value for m in metrics]
-                print(f"  Min: {min(values):.2f} | Max: {max(values):.2f} | Avg: {sum(values)/len(values):.2f}")
-            print()
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-
-def cmd_track(args):
-    """Track metrics for a project."""
-    from intelligence.monitoring.metric_tracker import MetricTracker, MetricType
-    from pathlib import Path
-
-    try:
-        tracker = MetricTracker()
-
-        # Determine project
-        project = args.project or "cortex"
-        project_path = Path(f"/Users/jesse.kemp/Dev/{project}")
-
-        if not project_path.exists():
-            print(f"Error: Project path does not exist: {project_path}")
-            sys.exit(1)
-
-        print(f"Tracking metrics for: {project}")
-
-        # Track basic metrics
-        metrics_tracked = []
-
-        # For now, just track a simple metric (we can expand this later)
-        # Track coverage metric as an example
-        try:
-            # Simple coverage calculation: count Python files vs test files
-            py_files = list(project_path.rglob("*.py"))
-            test_files = [f for f in py_files if "test_" in f.name or f.name.startswith("test")]
-
-            if py_files:
-                coverage_estimate = len(test_files) / len(py_files)
-                tracker.track_coverage(project, coverage_estimate * 100, {"files": len(py_files), "tests": len(test_files)})
-                metrics_tracked.append(('Test Coverage Estimate', coverage_estimate))
-        except Exception as e:
-            print(f"  Warning: Could not track coverage: {e}")
-
-        print("✓ Tracking complete")
-        print("\nMetrics updated:")
-
-        for metric_name, value in metrics_tracked:
-            print(f"  {metric_name}: {value:.1%}")
-
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
-
-def cmd_projects(args):
-    """List projects with AI metadata from .claude/project.yaml files."""
-    from project_metadata import ProjectMetadataReader
-
-    reader = ProjectMetadataReader()
-    projects = reader.scan_workspace()
-
-    if args.domain:
-        projects = [p for p in projects if p.domain == args.domain]
-    if args.status:
-        projects = [p for p in projects if p.status == args.status]
-
-    if not projects:
-        print("No projects with .claude/project.yaml found")
-        if args.domain or args.status:
-            print(f"Filters applied: domain={args.domain}, status={args.status}")
-        return
-
-    print("╔══════════════════════════════════════════════════════╗")
-    print(f"║     AI-FIRST WORKSPACE PROJECTS: {len(projects):<3}              ║")
-    print("╚══════════════════════════════════════════════════════╝")
-    print("")
-
-    # Group by domain
-    by_domain = {}
-    for p in projects:
-        by_domain.setdefault(p.domain, []).append(p)
-
-    for domain, domain_projects in sorted(by_domain.items()):
-        print(f"📁 {domain.upper()}")
-        print("────────────────")
-        for p in domain_projects:
-            status_icon = "🟢" if p.status == "production" else "🟡" if p.status == "development" else "⚪"
-            print(f"  {status_icon} {p.name}")
-            print(f"     Status: {p.status} | Priority: {p.priority}")
-            if p.tech_stack.get("primary"):
-                tech = ", ".join(p.tech_stack["primary"][:3])
-                print(f"     Tech: {tech}")
-            print(f"     Path: {p.path}")
-        print("")
-
-
-def cmd_project_info(args):
-    """Show detailed info for a project."""
-    from project_metadata import ProjectMetadataReader
-
-    reader = ProjectMetadataReader()
-    projects = {p.name: p for p in reader.scan_workspace()}
-
-    if args.project_name not in projects:
-        print(f"Project '{args.project_name}' not found or has no .claude/project.yaml")
-        print("\nAvailable projects:")
-        for name in sorted(projects.keys()):
-            print(f"  - {name}")
-        return
-
-    p = projects[args.project_name]
-
-    print("╔══════════════════════════════════════════════════════╗")
-    print(f"║  PROJECT: {p.name:<43}║")
-    print("╚══════════════════════════════════════════════════════╝")
-    print("")
-
-    print(f"Domain: {p.domain}")
-    print(f"Status: {p.status}")
-    print(f"Priority: {p.priority}")
-    print(f"Path: {p.path}")
-
-    if p.description:
-        print(f"\nDescription:")
-        # Wrap long descriptions
-        desc = p.description[:300]
-        if len(p.description) > 300:
-            desc += "..."
-        print(f"  {desc}")
-
-    if p.entry_points:
-        print(f"\nEntry Points:")
-        for ep, path in p.entry_points.items():
-            print(f"  {ep}: {path}")
-
-    if p.tech_stack:
-        print(f"\nTech Stack:")
-        if p.tech_stack.get("primary"):
-            print(f"  Primary: {', '.join(p.tech_stack['primary'])}")
-        if p.tech_stack.get("secondary"):
-            print(f"  Secondary: {', '.join(p.tech_stack['secondary'])}")
-
-    if p.common_tasks:
-        print(f"\nCommon Tasks ({len(p.common_tasks)}):")
-        for task in p.common_tasks:
-            print(f"  - {task.name} ({task.complexity})")
-            if args.verbose:
-                for step in task.steps:
-                    print(f"    • {step}")
-
-    if p.ai_hints:
-        print(f"\nAI Hints ({len(p.ai_hints)}):")
-        for hint in p.ai_hints[:5 if not args.verbose else None]:
-            print(f"  - {hint}")
-        if len(p.ai_hints) > 5 and not args.verbose:
-            print(f"  ... and {len(p.ai_hints) - 5} more (use --verbose)")
-
-    if p.known_issues:
-        print(f"\nKnown Issues ({len(p.known_issues)}):")
-        for issue in p.known_issues[:3 if not args.verbose else None]:
-            print(f"  - {issue}")
-        if len(p.known_issues) > 3 and not args.verbose:
-            print(f"  ... and {len(p.known_issues) - 3} more (use --verbose)")
-
-    if p.related_projects:
-        print(f"\nRelated Projects ({len(p.related_projects)}):")
-        for rel in p.related_projects:
-            rel_name = rel.get("name", "unknown")
-            rel_type = rel.get("relationship", "related")
-            print(f"  - {rel_name} ({rel_type})")
-
-    print("")
-
-
-def cmd_sync_portfolio(args):
-    """Sync project.yaml files to portfolio index."""
-    from project_metadata import ProjectMetadataReader
-    import json
-    from datetime import datetime
-
-    reader = ProjectMetadataReader()
-    projects = reader.scan_workspace()
-
-    portfolio_path = Path.home() / ".claude" / "portfolio" / "project_index.json"
-
-    # Load existing
-    existing = {}
-    if portfolio_path.exists():
-        with open(portfolio_path) as f:
-            existing = json.load(f)
-
-    # Update from project.yaml files
-    synced_count = 0
-    for p in projects:
-        existing[p.name] = {
-            "path": str(p.path),
-            "domain": p.domain,
-            "status": p.status,
-            "priority": p.priority,
-            "tech_stack": p.tech_stack.get("primary", []),
-            "description": p.description[:200] if p.description else "",
-            "synced_at": datetime.now().isoformat(),
-            "source": "project.yaml"
-        }
-        synced_count += 1
-
-    # Save
-    portfolio_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(portfolio_path, "w") as f:
-        json.dump(existing, f, indent=2)
-
-    print(f"✓ Synced {synced_count} projects to {portfolio_path}")
-    print(f"  Total projects in index: {len(existing)}")
-
-
 def cmd_dashboard(args):
     """Show Symbiosis Dashboard (Night Shift & Agents)."""
     from datetime import datetime
@@ -1269,13 +886,6 @@ Examples:
     health_parser = subparsers.add_parser("health", help="Show system health check")
     health_parser.set_defaults(func=cmd_health)
 
-    # Context command
-    context_parser = subparsers.add_parser("context", help="Preview context injection")
-    context_parser.add_argument(
-        "--task", type=str, help="Optional task description to test pattern matching"
-    )
-    context_parser.set_defaults(func=cmd_context)
-
     # Feedback command
     feedback_parser = subparsers.add_parser(
         "feedback", help="Log feedback for recommendations"
@@ -1427,11 +1037,11 @@ Examples:
     )
     learn_parser.set_defaults(func=cmd_learn)
 
-    # Batch status command
-    batch_status_parser = subparsers.add_parser(
-        "batch-status", help="Show batch API configuration"
+    # Batch API status command
+    batch_api_status_parser = subparsers.add_parser(
+        "batch-api-status", help="Show batch API configuration"
     )
-    batch_status_parser.set_defaults(func=cmd_batch_status)
+    batch_api_status_parser.set_defaults(func=cmd_batch_status)
 
     # Dashboard command (Symbiosis Engine)
     dashboard_parser = subparsers.add_parser(
@@ -1585,39 +1195,570 @@ Examples:
     skill_schedule_parser = skill_subparsers.add_parser('schedule', help='Run scheduled skills')
     skill_schedule_parser.set_defaults(func=cmd_skill_schedule)
 
-    # Projects command
-    projects_parser = subparsers.add_parser('projects', help='List AI-first workspace projects')
-    projects_parser.add_argument('--domain', type=str, help='Filter by domain')
-    projects_parser.add_argument('--status', type=str, help='Filter by status')
-    projects_parser.set_defaults(func=cmd_projects)
+    # Process monitoring commands
+    try:
+        from intelligence.process_monitor import ProcessMonitor
+        PROCESS_MONITOR_AVAILABLE = True
+    except ImportError:
+        PROCESS_MONITOR_AVAILABLE = False
 
-    # Project-info command
-    project_info_parser = subparsers.add_parser('project-info', help='Show detailed project information')
-    project_info_parser.add_argument('project_name', help='Name of the project')
-    project_info_parser.add_argument('--verbose', '-v', action='store_true', help='Show all details')
-    project_info_parser.set_defaults(func=cmd_project_info)
+    def cmd_process_status(args):
+        """Show current process status."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Process monitoring not available. Run: pip install psutil")
+            return
 
-    # Sync-portfolio command
-    sync_portfolio_parser = subparsers.add_parser('sync-portfolio', help='Sync project.yaml to portfolio index')
-    sync_portfolio_parser.set_defaults(func=cmd_sync_portfolio)
+        monitor = ProcessMonitor()
+        status = monitor.get_status()
 
-    # Layer 3: Alerts command
-    alerts_parser = subparsers.add_parser('alerts', help='Show active alerts from Layer 3 Warning System')
-    alerts_parser.add_argument('--severity', choices=['critical', 'warning', 'info'], help='Filter by severity')
-    alerts_parser.add_argument('--project', help='Filter by project')
-    alerts_parser.set_defaults(func=cmd_alerts)
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║          CORTEX - PROCESS MONITOR STATUS             ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+        print("💻 SYSTEM RESOURCES")
+        print("────────────────")
+        print(f"CPU Usage:     {status['cpu_percent']:.1f}% ({status['cpu_available']:.1f}% available)")
+        print(f"Memory Usage:  {status['memory_usage_percent']:.1f}% ({status['memory_available_mb']:.0f} MB available)")
+        print(f"Processes:     {status['process_count']}")
+        print("")
+        print("🤖 AI TOOLS & SERVICES")
+        print("────────────────")
+        print(f"AI Tool CPU:   {status['ai_tool_cpu']:.1f}%")
+        print(f"Dev Service CPU: {status['dev_service_cpu']:.1f}%")
+        print("")
+        print("⚠️  ALERTS")
+        print("────────────────")
+        print(f"Total Alerts:   {status['alerts_count']}")
+        print(f"Critical:       {status['critical_alerts']}")
+        print("")
+        print("♻️  OPTIMIZATION")
+        print("────────────────")
+        print(f"Waste Items:    {status['waste_items']}")
+        print(f"Optimizations:  {status['optimization_opportunities']}")
 
-    # Layer 3: Metrics command
-    metrics_parser = subparsers.add_parser('metrics', help='Show metrics for a project')
-    metrics_parser.add_argument('project', nargs='?', help='Project name (optional, uses current)')
-    metrics_parser.add_argument('--days', type=int, default=7, help='Days of history (default: 7)')
-    metrics_parser.set_defaults(func=cmd_metrics)
+    def cmd_process_waste(args):
+        """Show detected resource waste."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Process monitoring not available. Run: pip install psutil")
+            return
 
-    # Layer 3: Track command
-    track_parser = subparsers.add_parser('track', help='Track metrics for a project')
-    track_parser.add_argument('--project', help='Project to track (default: current)')
-    track_parser.add_argument('--force', action='store_true', help='Force tracking even if recent')
-    track_parser.set_defaults(func=cmd_track)
+        monitor = ProcessMonitor()
+        waste_summary = monitor.optimizer.get_waste_summary()
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║         CORTEX - RESOURCE WASTE DETECTION            ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if waste_summary['total_waste_items'] == 0:
+            print("✅ No resource waste detected!")
+            return
+
+        print(f"Total Waste Items: {waste_summary['total_waste_items']}")
+        print(f"Auto-actionable:   {waste_summary['auto_actionable']}")
+        print(f"Manual Review:     {waste_summary['manual_review']}")
+        print("")
+
+        # Group by type
+        for waste_type, count in waste_summary['by_type'].items():
+            print(f"  {waste_type}: {count}")
+        print("")
+
+        # Show details
+        print("DETAILS")
+        print("────────────────")
+        for item in waste_summary['items'][:10]:  # Show top 10
+            auto_marker = "🤖" if item['auto_actionable'] else "👁️"
+            print(f"{auto_marker} {item['process_name']}")
+            print(f"   Type: {item['waste_type']}")
+            print(f"   Cost: {item['resource_cost']}")
+            print(f"   Recommendation: {item['recommendation']}")
+            print("")
+
+    def cmd_process_optimize(args):
+        """Show optimization suggestions."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Process monitoring not available. Run: pip install psutil")
+            return
+
+        monitor = ProcessMonitor()
+        optimizations = monitor.optimizer.suggest_optimizations()
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║       CORTEX - OPTIMIZATION SUGGESTIONS              ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if not optimizations:
+            print("✅ No optimization opportunities found!")
+            return
+
+        for i, opt in enumerate(optimizations, 1):
+            priority_icons = {
+                "CRITICAL": "🔴",
+                "HIGH": "🟠",
+                "MEDIUM": "🟡",
+                "LOW": "🟢",
+            }
+            icon = priority_icons.get(opt.priority, "⚪")
+
+            print(f"{icon} [{opt.priority}] {opt.title}")
+            print(f"   {opt.description}")
+            print(f"   Savings: {opt.estimated_savings}")
+            if opt.action_command:
+                print(f"   Command: {opt.action_command}")
+            print("")
+
+    def cmd_process_insights(args):
+        """Show utilization insights and patterns."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Process monitoring not available. Run: pip install psutil")
+            return
+
+        monitor = ProcessMonitor()
+        insights = monitor.get_insights(days=args.days)
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║        CORTEX - UTILIZATION INSIGHTS                 ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        # Utilization patterns
+        util = insights['utilization']
+        print("📊 UTILIZATION PATTERNS")
+        print("────────────────")
+        print(f"Peak Hours:     {', '.join(f'{h:02d}:00' for h in util['peak_hours'])}")
+        print(f"Idle Hours:     {', '.join(f'{h:02d}:00' for h in util['idle_hours'])}")
+        print(f"Capacity Headroom: {util['capacity_headroom']:.1f}%")
+        print("")
+
+        # AI tools
+        if insights['ai_tools']:
+            print("🤖 AI TOOL USAGE")
+            print("────────────────")
+            for tool in insights['ai_tools']:
+                print(f"{tool['tool_name']}:")
+                print(f"  Usage: {tool['usage_hours']:.1f}h | Idle: {tool['idle_hours']:.1f}h")
+                print(f"  Avg CPU: {tool['avg_cpu']:.1f}% | Avg Memory: {tool['avg_memory']:.0f} MB")
+            print("")
+
+        # Dev patterns
+        dev = insights['dev_patterns']
+        print("💻 DEVELOPMENT PATTERNS")
+        print("────────────────")
+        print(f"Active Coding Hours: {', '.join(f'{h:02d}:00' for h in dev['active_coding_hours'][:5])}")
+        print(f"Build Frequency:     {dev['build_frequency']:.1f} builds/day")
+
+    # === Batch Command Functions ===
+    def cmd_batch_add(args):
+        """Add a task to the batch queue."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        task = monitor.batch_queue.add_task(
+            command=args.command,
+            task_type=args.task_type,
+            description=args.description or args.command,
+            priority=args.priority,
+            estimated_duration_minutes=args.duration
+        )
+
+        print(f"✅ Task added to queue")
+        print(f"Task ID: {task.task_id}")
+        print(f"Command: {task.command}")
+        print(f"Type: {task.task_type}")
+        print(f"Priority: {task.priority}")
+        print(f"State: {task.state.value}")
+
+    def cmd_batch_list(args):
+        """List batch tasks."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor, TaskState
+        monitor = ProcessMonitor()
+
+        state_filter = TaskState(args.state) if args.state else None
+        tasks = monitor.batch_queue.get_task_history(
+            limit=args.limit,
+            state=state_filter
+        )
+
+        if not tasks:
+            print("No tasks found")
+            return
+
+        print(f"{'='*70}")
+        print(f"BATCH TASKS ({len(tasks)} shown)")
+        print(f"{'='*70}")
+        print()
+
+        for task in tasks:
+            state_icon = {
+                'pending': '⏳',
+                'scheduled': '📅',
+                'running': '▶️ ',
+                'completed': '✅',
+                'failed': '❌',
+                'cancelled': '🚫'
+            }.get(task.state.value, '•')
+
+            print(f"{state_icon} {task.description}")
+            print(f"   ID: {task.task_id}")
+            print(f"   Type: {task.task_type} | Priority: {task.priority}")
+            print(f"   State: {task.state.value}")
+
+            if task.scheduled_time:
+                print(f"   Scheduled: {task.scheduled_time.strftime('%Y-%m-%d %H:%M')}")
+
+            if task.completed_at:
+                duration = task.actual_duration_seconds or 0
+                print(f"   Duration: {duration:.1f}s | Exit code: {task.exit_code}")
+
+            if task.error_message:
+                print(f"   Error: {task.error_message}")
+
+            print()
+
+    def cmd_batch_queue_status(args):
+        """Show batch queue status."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        stats = monitor.batch_queue.get_queue_stats()
+
+        print(f"{'='*70}")
+        print("BATCH QUEUE STATUS")
+        print(f"{'='*70}")
+        print()
+
+        # Task counts by state
+        print("📊 TASK COUNTS")
+        print("────────────────")
+        print(f"Pending:    {stats.get('pending_count', 0)}")
+        print(f"Scheduled:  {stats.get('scheduled_count', 0)}")
+        print(f"Running:    {stats.get('running_count', 0)}")
+        print(f"Completed:  {stats.get('completed_count', 0)}")
+        print(f"Failed:     {stats.get('failed_count', 0)}")
+        print(f"Cancelled:  {stats.get('cancelled_count', 0)}")
+        print()
+
+        # Success rate
+        success_rate = stats.get('success_rate', 0)
+        print(f"✅ SUCCESS RATE: {success_rate:.1%}")
+        print()
+
+        # Average durations
+        if stats.get('avg_duration_by_type'):
+            print("⏱️  AVERAGE DURATION BY TYPE")
+            print("────────────────")
+            for task_type, avg_duration in stats['avg_duration_by_type'].items():
+                print(f"{task_type:20} {avg_duration:.1f}s")
+            print()
+
+        # Executor status
+        executor_status = monitor.batch_executor.get_status()
+        print("🔄 EXECUTOR STATUS")
+        print("────────────────")
+        print(f"Running tasks:     {executor_status['running_tasks']}/{executor_status['max_concurrent']}")
+        print(f"Shutdown:          {'Yes' if executor_status['shutdown'] else 'No'}")
+
+    def cmd_batch_schedule(args):
+        """Schedule pending tasks."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        print("Scheduling pending tasks...")
+        results = monitor.batch_executor.schedule_pending_tasks()
+
+        print(f"Total pending: {results['total_pending']}")
+        print(f"Scheduled: {results['scheduled']}")
+        print()
+
+        if results['scheduled'] > 0:
+            print("Scheduled tasks:")
+            for task_info in results['tasks']:
+                print(f"✅ {task_info['description']}")
+                print(f"   Time: {task_info['scheduled_time']}")
+                print(f"   Reason: {task_info['reason']}")
+                print()
+
+    def cmd_batch_run(args):
+        """Execute scheduled tasks."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        print("Processing scheduled tasks...")
+        results = monitor.batch_executor.process_scheduled_tasks()
+
+        print(f"Total ready: {results['total_ready']}")
+        print(f"Executed: {results['executed']}")
+        print(f"Deferred: {results['deferred']}")
+        print()
+
+        if results['tasks']:
+            for task_info in results['tasks']:
+                if task_info['status'] == 'executing':
+                    print(f"▶️  {task_info['description']}")
+                    print(f"   Status: Executing")
+                else:
+                    print(f"⏸️  {task_info['description']}")
+                    print(f"   Status: Deferred")
+                    print(f"   Reason: {task_info['reason']}")
+                print()
+
+    def cmd_batch_cancel(args):
+        """Cancel a task."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        success = monitor.batch_queue.cancel_task(args.task_id)
+
+        if success:
+            print(f"✅ Task {args.task_id} cancelled")
+        else:
+            print(f"❌ Failed to cancel task {args.task_id}")
+            print("   (Task may not exist or already completed)")
+
+    def cmd_batch_logs(args):
+        """Show task execution logs."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import ProcessMonitor
+        monitor = ProcessMonitor()
+
+        task = monitor.batch_queue.get_task(args.task_id)
+
+        if not task:
+            print(f"Task {args.task_id} not found")
+            sys.exit(1)
+
+        print(f"{'='*70}")
+        print(f"TASK: {task.description}")
+        print(f"{'='*70}")
+        print()
+
+        print(f"Task ID:     {task.task_id}")
+        print(f"Command:     {task.command}")
+        print(f"Type:        {task.task_type}")
+        print(f"Priority:    {task.priority}")
+        print(f"State:       {task.state.value}")
+        print()
+
+        print(f"Created:     {task.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        if task.scheduled_time:
+            print(f"Scheduled:   {task.scheduled_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if task.started_at:
+            print(f"Started:     {task.started_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        if task.completed_at:
+            print(f"Completed:   {task.completed_at.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Duration:    {task.actual_duration_seconds:.1f}s")
+        print()
+
+        if task.exit_code is not None:
+            print(f"Exit Code:   {task.exit_code}")
+            print()
+
+        if task.stdout:
+            print("STDOUT:")
+            print("───────")
+            print(task.stdout)
+            print()
+
+        if task.stderr:
+            print("STDERR:")
+            print("───────")
+            print(task.stderr)
+            print()
+
+        if task.error_message:
+            print(f"Error: {task.error_message}")
+            print()
+
+        if task.retry_count > 0:
+            print(f"Retries: {task.retry_count}/{task.max_retries}")
+
+    def cmd_batch_daemon_start(args):
+        """Start the batch scheduler daemon."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import BatchDaemon, ProcessMonitor
+
+        monitor = ProcessMonitor()
+        daemon = BatchDaemon(
+            queue=monitor.batch_queue,
+            executor=monitor.batch_executor,
+            process_monitor=monitor
+        )
+
+        result = daemon.start(
+            interval_seconds=args.interval,
+            foreground=not args.background
+        )
+
+        if result['success']:
+            if args.background:
+                print(f"✓ Daemon started in background")
+                print(f"  PID: {result['pid']}")
+                print(f"  Interval: {result['interval']}s")
+                print(f"  Log file: {result['log_file']}")
+            else:
+                # Foreground mode - execution continues in daemon.start()
+                pass
+        else:
+            print(f"✗ Failed to start daemon: {result['error']}")
+            sys.exit(1)
+
+    def cmd_batch_daemon_stop(args):
+        """Stop the batch scheduler daemon."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import BatchDaemon
+
+        daemon = BatchDaemon()
+        result = daemon.stop()
+
+        if result['success']:
+            print(f"✓ Daemon stopped")
+            print(f"  PID: {result['pid']}")
+            if result.get('forced'):
+                print(f"  (force killed)")
+        else:
+            print(f"✗ {result['error']}")
+            sys.exit(1)
+
+    def cmd_batch_daemon_status(args):
+        """Show daemon status."""
+        if not PROCESS_MONITOR_AVAILABLE:
+            print("Error: Process Monitor not available")
+            sys.exit(1)
+
+        from intelligence.process_monitor import BatchDaemon
+
+        daemon = BatchDaemon()
+        status = daemon.status()
+
+        if status['running']:
+            print(f"✓ Daemon is running")
+            print(f"  PID: {status['pid']}")
+            print(f"  Uptime: {status['uptime']}")
+            print(f"  Started: {status['started_at']}")
+            if 'cpu_percent' in status:
+                print(f"  CPU: {status['cpu_percent']:.1f}%")
+            if 'memory_mb' in status:
+                print(f"  Memory: {status['memory_mb']:.1f} MB")
+            print(f"  Log file: {status['log_file']}")
+        else:
+            print(f"✗ Daemon is not running")
+            if 'pid' in status:
+                print(f"  (stale PID: {status['pid']})")
+
+    # Process subcommands
+    process_parser = subparsers.add_parser('process', help='Process monitoring and optimization')
+    process_subparsers = process_parser.add_subparsers(dest='process_command', help='Process commands')
+
+    # process status
+    process_status_parser = process_subparsers.add_parser('status', help='Show current process status')
+    process_status_parser.set_defaults(func=cmd_process_status)
+
+    # process waste
+    process_waste_parser = process_subparsers.add_parser('waste', help='Show detected resource waste')
+    process_waste_parser.set_defaults(func=cmd_process_waste)
+
+    # process optimize
+    process_optimize_parser = process_subparsers.add_parser('optimize', help='Show optimization suggestions')
+    process_optimize_parser.set_defaults(func=cmd_process_optimize)
+
+    # process insights
+    process_insights_parser = process_subparsers.add_parser('insights', help='Show utilization insights')
+    process_insights_parser.add_argument('--days', type=int, default=7, help='Number of days to analyze (default: 7)')
+    process_insights_parser.set_defaults(func=cmd_process_insights)
+
+    # === Batch Scheduling Commands ===
+    batch_parser = subparsers.add_parser('batch', help='Batch task scheduling and execution')
+    batch_subparsers = batch_parser.add_subparsers(dest='batch_command', help='Batch commands')
+
+    # batch add
+    batch_add_parser = batch_subparsers.add_parser('add', help='Add a task to the batch queue')
+    batch_add_parser.add_argument('command', help='Command to execute')
+    batch_add_parser.add_argument('--type', dest='task_type', default='general', help='Task type (test, build, deploy, etc.)')
+    batch_add_parser.add_argument('--description', default='', help='Task description')
+    batch_add_parser.add_argument('--priority', default='normal', choices=['immediate', 'high', 'normal', 'low'], help='Task priority')
+    batch_add_parser.add_argument('--duration', type=float, default=10.0, help='Estimated duration in minutes')
+    batch_add_parser.set_defaults(func=cmd_batch_add)
+
+    # batch list
+    batch_list_parser = batch_subparsers.add_parser('list', help='List batch tasks')
+    batch_list_parser.add_argument('--state', choices=['pending', 'scheduled', 'running', 'completed', 'failed', 'cancelled'], help='Filter by state')
+    batch_list_parser.add_argument('--limit', type=int, default=20, help='Maximum tasks to show')
+    batch_list_parser.set_defaults(func=cmd_batch_list)
+
+    # batch status
+    batch_status_parser = batch_subparsers.add_parser('status', help='Show batch queue status')
+    batch_status_parser.set_defaults(func=cmd_batch_queue_status)
+
+    # batch schedule
+    batch_schedule_parser = batch_subparsers.add_parser('schedule', help='Schedule pending tasks')
+    batch_schedule_parser.set_defaults(func=cmd_batch_schedule)
+
+    # batch run
+    batch_run_parser = batch_subparsers.add_parser('run', help='Execute scheduled tasks')
+    batch_run_parser.set_defaults(func=cmd_batch_run)
+
+    # batch cancel
+    batch_cancel_parser = batch_subparsers.add_parser('cancel', help='Cancel a task')
+    batch_cancel_parser.add_argument('task_id', help='Task ID to cancel')
+    batch_cancel_parser.set_defaults(func=cmd_batch_cancel)
+
+    # batch logs
+    batch_logs_parser = batch_subparsers.add_parser('logs', help='Show task execution logs')
+    batch_logs_parser.add_argument('task_id', help='Task ID')
+    batch_logs_parser.set_defaults(func=cmd_batch_logs)
+
+    # batch daemon - nested subparser
+    batch_daemon_parser = batch_subparsers.add_parser('daemon', help='Daemon management')
+    daemon_subparsers = batch_daemon_parser.add_subparsers(dest='daemon_command', help='Daemon commands')
+
+    # daemon start
+    daemon_start_parser = daemon_subparsers.add_parser('start', help='Start the batch scheduler daemon')
+    daemon_start_parser.add_argument('--interval', type=int, default=60, help='Task check interval in seconds (default: 60)')
+    daemon_start_parser.add_argument('--background', action='store_true', help='Run in background (default: foreground)')
+    daemon_start_parser.set_defaults(func=cmd_batch_daemon_start)
+
+    # daemon stop
+    daemon_stop_parser = daemon_subparsers.add_parser('stop', help='Stop the batch scheduler daemon')
+    daemon_stop_parser.set_defaults(func=cmd_batch_daemon_stop)
+
+    # daemon status
+    daemon_status_parser = daemon_subparsers.add_parser('status', help='Show daemon status')
+    daemon_status_parser.set_defaults(func=cmd_batch_daemon_status)
 
     args = parser.parse_args()
 

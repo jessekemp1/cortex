@@ -5,12 +5,11 @@ AI Intelligence - Project Scanner for Cortex
 Scans git repositories to detect project activity, status, and blockers.
 """
 
-import json
 import subprocess
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 
 @dataclass
@@ -33,76 +32,8 @@ class ProjectActivity:
 class ProjectScanner:
     """Scan and analyze projects (git and non-git)."""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev", cache_ttl_seconds: int = 300):
+    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
         self.root_dir = Path(root_dir)
-        self.cache_ttl_seconds = cache_ttl_seconds
-        self.cache_file = Path.home() / ".cache" / "cortex" / "project_scan_cache.json"
-        self._project_list_cache: Optional[Tuple[datetime, List[Path]]] = None
-        self._analysis_cache: Dict[Path, Tuple[datetime, ProjectActivity]] = {}
-        self._load_cache_from_disk()
-
-    def _load_cache_from_disk(self) -> None:
-        """Load cache from disk if available and not stale."""
-        if not self.cache_file.exists():
-            return
-
-        try:
-            with open(self.cache_file, 'r') as f:
-                data = json.load(f)
-
-            cache_time = datetime.fromisoformat(data.get('timestamp', ''))
-            age_seconds = (datetime.now() - cache_time).total_seconds()
-
-            if age_seconds < self.cache_ttl_seconds:
-                # Load project list
-                if 'project_list' in data:
-                    paths = [Path(p) for p in data['project_list']]
-                    self._project_list_cache = (cache_time, paths)
-
-                # Load analysis cache
-                if 'analyses' in data:
-                    for path_str, analysis_data in data['analyses'].items():
-                        path = Path(path_str)
-                        # Reconstruct ProjectActivity from dict
-                        analysis_data['path'] = Path(analysis_data['path'])
-                        if analysis_data.get('last_commit_date'):
-                            analysis_data['last_commit_date'] = datetime.fromisoformat(
-                                analysis_data['last_commit_date']
-                            )
-                        project = ProjectActivity(**analysis_data)
-                        self._analysis_cache[path] = (cache_time, project)
-        except (json.JSONDecodeError, KeyError, ValueError, OSError):
-            # Ignore corrupted/invalid cache
-            pass
-
-    def _save_cache_to_disk(self) -> None:
-        """Save current cache to disk."""
-        try:
-            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-
-            data = {
-                'timestamp': datetime.now().isoformat(),
-                'project_list': [],
-                'analyses': {}
-            }
-
-            if self._project_list_cache:
-                _, paths = self._project_list_cache
-                data['project_list'] = [str(p) for p in paths]
-
-            for path, (_, analysis) in self._analysis_cache.items():
-                analysis_dict = asdict(analysis)
-                # Convert Path and datetime to strings
-                analysis_dict['path'] = str(analysis_dict['path'])
-                if analysis_dict.get('last_commit_date'):
-                    analysis_dict['last_commit_date'] = analysis_dict['last_commit_date'].isoformat()
-                data['analyses'][str(path)] = analysis_dict
-
-            with open(self.cache_file, 'w') as f:
-                json.dump(data, f)
-        except (OSError, TypeError):
-            # Ignore cache save failures
-            pass
 
     def find_git_repos(self) -> List[Path]:
         """Compatibility alias for find_projects."""
@@ -111,22 +42,12 @@ class ProjectScanner:
     def find_projects(self, max_depth: int = 3) -> List[Path]:
         """
         Find project directories recursively.
-
+        
         Identifies projects by:
         1. .git directory
         2. Project markers (pyproject.toml, package.json, etc.)
         3. Known structure
-
-        Results are cached for cache_ttl_seconds (default 300s/5 minutes).
         """
-        # Check cache
-        if self._project_list_cache is not None:
-            cache_time, cached_projects = self._project_list_cache
-            age_seconds = (datetime.now() - cache_time).total_seconds()
-            if age_seconds < self.cache_ttl_seconds:
-                return cached_projects
-
-        # Cache miss or stale - perform scan
         projects = set()
         scan_queue = [(self.root_dir, 0)]
         
@@ -184,14 +105,8 @@ class ProjectScanner:
                     scan_queue.append((subdir, depth + 1))
                 else:
                     scan_queue.append((subdir, depth + 1))
-
-        result = sorted(projects, key=lambda x: x.name)
-
-        # Cache result
-        self._project_list_cache = (datetime.now(), result)
-        self._save_cache_to_disk()
-
-        return result
+        
+        return sorted(projects, key=lambda x: x.name)
 
     def get_git_output(self, repo_path: Path, command: List[str]) -> str:
         """Run git command and return output."""
@@ -211,19 +126,7 @@ class ProjectScanner:
             return ""
 
     def analyze_project(self, repo_path: Path) -> ProjectActivity:
-        """
-        Analyze a single project.
-
-        Results are cached for cache_ttl_seconds (default 300s/5 minutes).
-        """
-        # Check cache
-        if repo_path in self._analysis_cache:
-            cache_time, cached_analysis = self._analysis_cache[repo_path]
-            age_seconds = (datetime.now() - cache_time).total_seconds()
-            if age_seconds < self.cache_ttl_seconds:
-                return cached_analysis
-
-        # Cache miss or stale - perform analysis
+        """Analyze a single project."""
         project = ProjectActivity(
             name=repo_path.name,
             path=repo_path,
@@ -233,7 +136,7 @@ class ProjectScanner:
             files_changed_7d=0,
             uncommitted_changes=0
         )
-
+        
         is_git = (repo_path / '.git').exists()
 
         if is_git:
@@ -322,10 +225,6 @@ class ProjectScanner:
 
         # Detect blockers (simple heuristics)
         project.blockers = self._detect_blockers(repo_path, project)
-
-        # Cache result
-        self._analysis_cache[repo_path] = (datetime.now(), project)
-        self._save_cache_to_disk()
 
         return project
 

@@ -263,6 +263,22 @@ class CortexBridge:
         except Exception as e:
             return [{"error": str(e)}]
 
+    def get_portfolio_patterns(self, pattern_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get cross-project patterns (alias for get_patterns for API compatibility).
+
+        Args:
+            pattern_type: Optional pattern category filter
+
+        Returns:
+            List of pattern dictionaries
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> patterns = bridge.get_portfolio_patterns(pattern_type="async_fastapi")
+        """
+        return self.get_patterns(pattern_type=pattern_type)
+
     def get_lessons(
         self, project: Optional[str] = None, pattern: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -466,28 +482,178 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    def export_dependency_graph(
+        self,
+        project: str,
+        format: str = "ascii",
+        include_stdlib: bool = False,
+        include_external: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Export dependency graph in specified format.
+
+        Args:
+            project: Project name
+            format: Output format ("ascii", "dot", or "mermaid")
+            include_stdlib: Whether to include standard library imports (for dot/mermaid)
+            include_external: Whether to include external dependencies (for dot/mermaid)
+
+        Returns:
+            Dict with graph data in requested format
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> graph = bridge.export_dependency_graph("cortex", format="mermaid")
+            >>> print(graph["graph"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.dependency_mapper import DependencyMapper
+
+            analyzer = ProjectAnalyzer()
+            project_path = analyzer.projects.get(project)
+            if not project_path:
+                return {"error": f"Project '{project}' not found"}
+
+            mapper = DependencyMapper(project_path)
+
+            if format == "dot":
+                graph = mapper.export_to_dot(
+                    include_stdlib=include_stdlib,
+                    include_external=include_external
+                )
+            elif format == "mermaid":
+                graph = mapper.export_to_mermaid(
+                    include_stdlib=include_stdlib,
+                    include_external=include_external
+                )
+            elif format == "ascii":
+                graph = mapper.generate_ascii_tree()
+            else:
+                return {"error": f"Unknown format '{format}'. Use: ascii, dot, or mermaid"}
+
+            return {
+                "success": True,
+                "project": project,
+                "format": format,
+                "graph": graph
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_package_dependencies(self, project: str) -> Dict[str, Any]:
+        """
+        Get declared dependencies from package manager files.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with package file parsing results
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> packages = bridge.get_package_dependencies("cortex")
+            >>> print(packages["all_packages"])
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.get_package_dependencies(project)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def compare_package_dependencies(self, project: str) -> Dict[str, Any]:
+        """
+        Compare declared vs actual dependencies.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with comparison results (declared, actual, unused, undeclared)
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> comparison = bridge.compare_package_dependencies("cortex")
+            >>> print(f"Undeclared: {comparison['undeclared_count']}")
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.compare_package_dependencies(project)
+        except Exception as e:
+            return {"error": str(e)}
+
+    def analyze_portfolio_dependencies(
+        self,
+        project_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze dependencies across entire portfolio.
+
+        Args:
+            project_filter: Optional project name to focus analysis on
+
+        Returns:
+            Dict with portfolio-wide dependency analysis
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> portfolio = bridge.analyze_portfolio_dependencies()
+            >>> print(f"Projects analyzed: {len(portfolio['projects_analyzed'])}")
+        """
+        if not self.portfolio:
+            return {"error": "Portfolio memory not available"}
+
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer()
+            return analyzer.analyze_portfolio_dependencies(project_filter=project_filter)
+        except Exception as e:
+            return {"error": str(e)}
+
     # --- Intelligence Enhancement Methods ---
 
     def query_intelligence(
         self,
         request: str,
         project: str,
-        query_type: str = "spec"
+        query_type: str = "spec",
+        use_cache: bool = True,
+        parallel: bool = True
     ) -> Dict[str, Any]:
         """
-        Query unified intelligence API.
+        Query unified intelligence API with enhanced features.
 
         Args:
             request: User request (e.g., "enhance golden spec method")
             project: Project name (e.g., "cortex")
             query_type: Type of query ("spec", "impl", "analysis", "research")
+            use_cache: Whether to use query result cache (default: True)
+            parallel: Whether to query sources in parallel (default: True)
 
         Returns:
-            Dict representation of IntelligenceResult
+            Dict representation of IntelligenceResult with enhanced features:
+            - Ranked results by relevance
+            - Confidence scores for all components
+            - Detailed reasoning for results
+            - Overall confidence score
 
         Example:
             >>> bridge = CortexBridge()
             >>> result = bridge.query_intelligence("enhance golden spec", "cortex")
+            >>> print(result["overall_confidence"])  # 0.85
+            >>> print(result["reasoning"])  # Detailed reasoning
         """
         if not self.unified_intel:
             return {"error": "Unified Intelligence not available"}
@@ -500,7 +666,9 @@ class CortexBridge:
             result = self.unified_intel.query(
                 user_request=request,
                 project=project,
-                query_type=query_type_enum
+                query_type=query_type_enum,
+                use_cache=use_cache,
+                parallel=parallel
             )
             return result.to_dict()
         except Exception as e:
@@ -537,26 +705,113 @@ class CortexBridge:
         except Exception as e:
             return [{"error": str(e)}]
 
-    def get_session_context(self) -> Dict[str, Any]:
+    def search_specs(
+        self,
+        query: str,
+        project: Optional[str] = None,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
         """
-        Get current session context.
+        Search indexed specifications (alias for find_similar_work for API compatibility).
+
+        Args:
+            query: Search query string
+            project: Optional project filter
+            limit: Maximum results
 
         Returns:
-            SessionContext dict
+            List of matching specs with similarity scores
 
         Example:
             >>> bridge = CortexBridge()
-            >>> context = bridge.get_session_context()
+            >>> results = bridge.search_specs("API rate limiting", project="cortex", limit=5)
+        """
+        if not self.spec_kb:
+            return [{"error": "Spec Knowledge Base not available"}]
+
+        try:
+            # Try intelligence version first (ChromaDB-based)
+            if hasattr(self.spec_kb, 'find_similar'):
+                from dataclasses import asdict
+                similar = self.spec_kb.find_similar(query, k=limit, project_filter=project)
+                # Transform SimilarWork dataclass to expected format
+                results = []
+                for s in similar:
+                    result = asdict(s)
+                    # Map 'title' to 'spec_name' for API compatibility
+                    if "spec_name" not in result:
+                        if "title" in result:
+                            result["spec_name"] = result["title"]
+                        elif "name" in result:
+                            result["spec_name"] = result["name"]
+                    # Ensure similarity_score is present
+                    if "similarity" not in result and "similarity_score" in result:
+                        result["similarity"] = result["similarity_score"]
+                    results.append(result)
+                return results
+            # Fallback to simple hash-based version
+            elif hasattr(self.spec_kb, 'search'):
+                results = self.spec_kb.search(query, project=project, limit=limit)
+                # Simple version already returns dicts with spec_name
+                return results
+            else:
+                return [{"error": "Spec KB has no search method"}]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def get_session_context(self, format: str = "structured") -> Dict[str, Any]:
+        """
+        Get current session context.
+
+        Args:
+            format: Output format ('terminal' or 'structured', default: 'structured')
+
+        Returns:
+            SessionContext dict or formatted string
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> context = bridge.get_session_context(format='structured')
         """
         if not self.session_mgr:
             return {"error": "Session Manager not available"}
 
         try:
+            # Load SessionContext dataclass
             from dataclasses import asdict
-            context = self.session_mgr.load_session_context()
-            if context:
-                return asdict(context)
-            return {"error": "No session context available"}
+            session_ctx = self.session_mgr.load_session_context()
+            
+            if not session_ctx:
+                return {"error": "No session context available"}
+            
+            if format == "terminal":
+                # Format for terminal display
+                context_dict = asdict(session_ctx)
+                # Build terminal-friendly format
+                lines = [
+                    f"Project: {context_dict.get('project', 'unknown')}",
+                    f"Focus: {context_dict.get('current_focus', 'unknown')}",
+                    f"Goals: {', '.join(context_dict.get('active_goals', []))}"
+                ]
+                return {"context": "\n".join(lines), "format": "terminal"}
+            else:
+                # Return structured dict with expected keys
+                context_dict = asdict(session_ctx)
+                # Map to expected format: project, git, goals
+                result = {
+                    "project": {
+                        "name": context_dict.get("project", "unknown"),
+                        "path": context_dict.get("working_directory", "")
+                    },
+                    "git": {
+                        "recent_commits": context_dict.get("recent_work", [])
+                    },
+                    "goals": context_dict.get("active_goals", []),
+                    "focus": context_dict.get("current_focus", "unknown"),
+                    "working_directory": context_dict.get("working_directory", ""),
+                    "last_updated": context_dict.get("last_updated", "")
+                }
+                return result
         except Exception as e:
             return {"error": str(e)}
 
@@ -598,6 +853,107 @@ class CortexBridge:
                 "spec_id": spec_id,
                 "message": f"Spec indexed: {spec_path}"
             }
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- Batch API Methods ---
+
+    def submit_research_batch(
+        self,
+        research_items: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Submit a batch of research discovery requests.
+
+        Args:
+            research_items: List of research request dicts, each with:
+                - id: Unique identifier
+                - topic: Research topic
+                - context: Additional context
+                - priority: "high", "medium", "low"
+
+        Returns:
+            Dict with batch_id, submitted_count, completed_count, and results
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> items = [{"id": "1", "topic": "AI safety", "context": "...", "priority": "high"}]
+            >>> result = bridge.submit_research_batch(items)
+        """
+        try:
+            from cortex.batch.research_batcher import ResearchBatcher
+            batcher = ResearchBatcher()
+            return batcher.process_batch(research_items)
+        except ImportError as e:
+            return {"error": f"ResearchBatcher not available: {e}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def submit_briefing_batch(
+        self,
+        contexts: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Submit a batch of briefing generation requests.
+
+        Args:
+            contexts: List of briefing context dicts, each with:
+                - portfolio_pulse: Portfolio state dict
+                - system_health: System health dict
+                - execution_history: Execution history dict
+                - goals_context: Goals context dict
+                - context_id: Unique identifier
+
+        Returns:
+            Dict with batch_id, submitted_count, completed_count, and results
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> contexts = [{"context_id": "briefing_001", ...}]
+            >>> result = bridge.submit_briefing_batch(contexts)
+        """
+        try:
+            from cortex.batch.briefing_batcher import BriefingContext, RecommendationBatcher
+            batcher = RecommendationBatcher(root_dir=self.root_dir)
+            
+            # Convert dicts to BriefingContext objects
+            briefing_contexts = [
+                BriefingContext(
+                    portfolio_pulse=ctx.get("portfolio_pulse", {}),
+                    system_health=ctx.get("system_health", {}),
+                    execution_history=ctx.get("execution_history", {}),
+                    goals_context=ctx.get("goals_context", {}),
+                    context_id=ctx.get("context_id", f"briefing_{i}")
+                )
+                for i, ctx in enumerate(contexts)
+            ]
+            
+            return batcher.process_batch(briefing_contexts)
+        except ImportError as e:
+            return {"error": f"BriefingBatcher not available: {e}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_batch_status(self, batch_id: str) -> Dict[str, Any]:
+        """
+        Get status of a batch operation.
+
+        Args:
+            batch_id: Batch ID from submit_research_batch or submit_briefing_batch
+
+        Returns:
+            Dict with batch status, progress, and request counts
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> status = bridge.get_batch_status("batch_123")
+        """
+        try:
+            from cortex.batch.batch_api_client import BatchAPIClient
+            client = BatchAPIClient()
+            return client.get_batch_status(batch_id)
+        except ImportError as e:
+            return {"error": f"BatchAPIClient not available: {e}"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -802,6 +1158,273 @@ class CortexBridge:
 
     # --- 7. Layer 1: Project Analysis Bridge ---
 
+    def get_warnings(self, project: Optional[str] = None, severity: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get warnings for project(s).
+
+        Args:
+            project: Optional project name filter
+            severity: Optional severity filter (critical, high, medium, low)
+
+        Returns:
+            Dict with warnings and summary
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> warnings = bridge.get_warnings(project="cortex", severity="high")
+        """
+        try:
+            if not self.portfolio:
+                return {"error": "Portfolio memory not available"}
+
+            warnings = self.portfolio.get_warnings(project=project, severity=severity)
+            
+            # Categorize warnings
+            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            generator = WarningGenerator()
+            categorized = generator.categorize_warnings(warnings)
+            
+            return {
+                "success": True,
+                "total_warnings": len(warnings),
+                "by_severity": {
+                    "critical": len(categorized["critical"]),
+                    "high": len(categorized["high"]),
+                    "medium": len(categorized["medium"]),
+                    "low": len(categorized["low"]),
+                },
+                "warnings": warnings,
+                "categorized": categorized,
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def generate_warnings(self, project: str) -> Dict[str, Any]:
+        """
+        Generate warnings for a project based on trends and health.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with generated warnings
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> warnings = bridge.generate_warnings("cortex")
+        """
+        try:
+            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                return {"error": f"Project not found: {project}"}
+
+            # Get health data
+            health_tracker = HealthTracker()
+            health_data = health_tracker.get_project_health(project_path)
+
+            # Generate trends (simplified - would need historical data)
+            trends = []  # Would be populated from historical metrics
+
+            # Generate warnings
+            generator = WarningGenerator()
+            warnings = generator.generate_warnings(project, trends, health_data)
+
+            # Store warnings
+            if self.portfolio:
+                self.portfolio.store_warnings(project, warnings)
+
+            return {
+                "success": True,
+                "project": project,
+                "warnings_generated": len(warnings),
+                "warnings": warnings,
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_project_warnings(self, project_name: str, days: int = 7) -> List[Dict[str, Any]]:
+        """
+        Get active warnings for a project based on trends and health indicators.
+
+        Args:
+            project_name: The name of the project.
+            days: The number of days to look back for trends.
+
+        Returns:
+            A list of warning dictionaries.
+        """
+        try:
+            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.intelligence.monitoring.metric_tracker import MetricTracker
+            from cortex.intelligence.monitoring.trend_analyzer import TrendAnalyzer
+
+            metric_tracker = MetricTracker()
+            trend_analyzer = TrendAnalyzer(metric_tracker)
+            warning_generator = WarningGenerator()
+            
+            # Get trends from TrendAnalyzer
+            all_trends = trend_analyzer.get_all_trends(project_name, days)
+            
+            # Convert Trend objects to dict format for WarningGenerator
+            trends = []
+            for metric_type, trend in all_trends.items():
+                if trend.alert_level.value != "none":
+                    trends.append({
+                        "metric": metric_type,
+                        "direction": "decreasing" if trend.direction.value == "degrading" else ("increasing" if trend.direction.value == "improving" else "stable"),
+                        "current_value": trend.end_value,
+                        "velocity": trend.rate,
+                        "is_concerning": trend.alert_level.value in ["warning", "critical"],
+                        "severity": "critical" if trend.alert_level.value == "critical" else ("high" if trend.alert_level.value == "warning" else "medium"),
+                    })
+            
+            # Get health data if available
+            health_data = None
+            try:
+                from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+                project_path = self.root_dir / project_name
+                if project_path.exists():
+                    health_tracker = HealthTracker()
+                    health_data = health_tracker.get_project_health(project_path)
+            except Exception:
+                pass
+            
+            # Generate warnings
+            warnings = warning_generator.generate_warnings(project_name, trends, health_data)
+            
+            return warnings
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def get_warning_dashboard(self, project_name: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+        """
+        Get a dashboard of warnings, optionally filtered by project.
+
+        Args:
+            project_name: Optional project name to filter warnings.
+            days: The number of days to look back for warnings.
+
+        Returns:
+            A dictionary representing the warning dashboard.
+        """
+        try:
+            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.intelligence.monitoring.metric_tracker import MetricTracker
+            from cortex.intelligence.monitoring.trend_analyzer import TrendAnalyzer
+
+            metric_tracker = MetricTracker()
+            trend_analyzer = TrendAnalyzer(metric_tracker)
+            warning_generator = WarningGenerator()
+            
+            # Get all projects or just the specified one
+            if project_name:
+                projects = [project_name]
+            else:
+                # Get all tracked projects from metric tracker
+                # This is a simplified approach - in practice, you'd query the metric tracker for all projects
+                projects = [project_name] if project_name else []
+                # If no project specified and we can't get all projects, return empty dashboard
+                if not projects:
+                    return {
+                        "total_warnings": 0,
+                        "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+                        "by_type": {},
+                        "by_project": {},
+                        "warnings": [],
+                    }
+            
+            all_warnings = []
+            by_project = {}
+            
+            for proj in projects:
+                # Get trends for this project
+                all_trends = trend_analyzer.get_all_trends(proj, days)
+                
+                # Convert Trend objects to dict format
+                trends = []
+                for metric_type, trend in all_trends.items():
+                    if trend.alert_level.value != "none":
+                        trends.append({
+                            "metric": metric_type,
+                            "direction": "decreasing" if trend.direction.value == "degrading" else ("increasing" if trend.direction.value == "improving" else "stable"),
+                            "current_value": trend.end_value,
+                            "velocity": trend.rate,
+                            "is_concerning": trend.alert_level.value in ["warning", "critical"],
+                            "severity": "critical" if trend.alert_level.value == "critical" else ("high" if trend.alert_level.value == "warning" else "medium"),
+                        })
+                
+                # Get health data if available
+                health_data = None
+                try:
+                    from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+                    project_path = self.root_dir / proj
+                    if project_path.exists():
+                        health_tracker = HealthTracker()
+                        health_data = health_tracker.get_project_health(project_path)
+                except Exception:
+                    pass
+                
+                # Generate warnings for this project
+                project_warnings = warning_generator.generate_warnings(proj, trends, health_data)
+                all_warnings.extend(project_warnings)
+                by_project[proj] = project_warnings
+            
+            # Categorize all warnings
+            categorized = warning_generator.categorize_warnings(all_warnings)
+            
+            return {
+                "total_warnings": len(all_warnings),
+                "by_severity": {
+                    "critical": len(categorized["critical"]),
+                    "high": len(categorized["high"]),
+                    "medium": len(categorized["medium"]),
+                    "low": len(categorized["low"]),
+                },
+                "by_type": {k: len(v) for k, v in categorized["by_type"].items()},
+                "by_project": {k: len(v) for k, v in by_project.items()},
+                "warnings": all_warnings,
+                "categorized": categorized,
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+    def perform_deep_analysis(self, project: str) -> Dict[str, Any]:
+        """
+        Perform deep project analysis including tech stack, architecture, and code quality.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with comprehensive analysis results
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> analysis = bridge.perform_deep_analysis("cortex")
+        """
+        return self.analyze_project_deep(project)
+
+    def analyze_project_deep(self, project_name: str, quick: bool = False) -> Dict[str, Any]:
+        """
+        Perform a deep analysis of a project, including tech stack, architecture, and code quality.
+
+        Args:
+            project_name: The name of the project to analyze.
+            quick: If True, skip expensive operations (critical files, git log).
+
+        Returns:
+            A dictionary containing the project's deep analysis profile.
+        """
+        try:
+            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            analyzer = ProjectAnalyzer(self.root_dir)
+            return analyzer.analyze_project_deep(project_name, quick)
+        except Exception as e:
+            return {"error": str(e)}
+
     def get_project_profile(self, project: str) -> Dict[str, Any]:
         """
         Get project profile with tech stack and coverage.
@@ -852,9 +1475,9 @@ class CortexBridge:
 
     # --- 8. Layer 2: Pattern Memory Bridge ---
 
-    def find_similar_work(self, project: str, task: str, limit: int = 5) -> Dict[str, Any]:
+    def find_similar_work_by_task(self, project: str, task: str, limit: int = 5) -> Dict[str, Any]:
         """
-        Find similar work from other projects.
+        Find similar work from other projects by task description.
 
         Args:
             project: Current project name
@@ -881,6 +1504,116 @@ class CortexBridge:
                 "count": len(similar)
             }
 
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- 9. Smart Recommendations Bridge ---
+
+    def get_smart_recommendations(
+        self,
+        project: str,
+        limit: int = 10,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Get smart, prioritized recommendations for a project.
+        
+        Args:
+            project: Project name
+            limit: Maximum recommendations to return
+            context: Optional context dictionary
+            
+        Returns:
+            Dictionary with prioritized recommendations
+        """
+        try:
+            from recommendation_engine import RecommendationEngine
+            
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                project_path = self.root_dir
+            
+            engine = RecommendationEngine(
+                project_path=project_path,
+                enable_learning=True,
+                enable_patterns=True
+            )
+            
+            recommendations = engine.generate_recommendations(
+                context=context,
+                limit=limit
+            )
+            
+            # Convert to dict format
+            rec_dicts = []
+            for rec in recommendations:
+                rec_dict = {
+                    "type": rec.type,
+                    "title": rec.title,
+                    "description": rec.description,
+                    "priority": rec.priority,
+                    "confidence": rec.confidence,
+                    "calculated_priority": rec.metadata.get("calculated_priority", 0.5) if rec.metadata else 0.5,
+                    "files": rec.files or [],
+                    "steps": rec.steps or [],
+                    "rationale": rec.metadata.get("rationale", "") if rec.metadata else "",
+                    "pattern": rec.metadata.get("pattern", "") if rec.metadata else "",
+                    "pattern_success_rate": rec.metadata.get("pattern_success_rate", 0.0) if rec.metadata else 0.0,
+                }
+                rec_dicts.append(rec_dict)
+            
+            return {
+                "success": True,
+                "project": project,
+                "recommendations": rec_dicts,
+                "count": len(rec_dicts),
+                "summary": {
+                    "high_priority": sum(1 for r in rec_dicts if r.get("calculated_priority", 0) > 0.7),
+                    "pattern_based": sum(1 for r in rec_dicts if r.get("pattern", "")),
+                }
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_recommendation_dashboard(
+        self,
+        project: str,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Get recommendation dashboard with prioritized recommendations, health, and context.
+        
+        Args:
+            project: Project name
+            limit: Maximum recommendations to return
+            
+        Returns:
+            Dashboard dictionary with recommendations, health, alerts, and patterns
+        """
+        try:
+            from recommendation_engine import RecommendationEngine
+            
+            project_path = self.root_dir / project
+            if not project_path.exists():
+                project_path = self.root_dir
+            
+            engine = RecommendationEngine(
+                project_path=project_path,
+                enable_learning=True,
+                enable_patterns=True
+            )
+            
+            dashboard = engine.get_recommendation_dashboard(
+                project=project,
+                limit=limit
+            )
+            
+            return {
+                "success": True,
+                **dashboard
+            }
+            
         except Exception as e:
             return {"error": str(e)}
 
@@ -1013,6 +1746,36 @@ def main():
     patterns_parser.add_argument("task", help="Task description")
     patterns_parser.add_argument("--limit", type=int, default=5, help="Maximum results")
 
+    # batch
+    batch_parser = subparsers.add_parser("batch", help="Batch API operations")
+    batch_sub = batch_parser.add_subparsers(dest="batch_command", help="Batch subcommand")
+    
+    # batch research
+    batch_research_parser = batch_sub.add_parser("research", help="Submit research batch")
+    batch_research_parser.add_argument("--file", required=True, help="JSON file with research items")
+    
+    # batch briefing
+    batch_briefing_parser = batch_sub.add_parser("briefing", help="Submit briefing batch")
+    batch_briefing_parser.add_argument("--file", required=True, help="JSON file with briefing contexts")
+    
+    # batch status
+    batch_status_parser = batch_sub.add_parser("status", help="Get batch status")
+    batch_status_parser.add_argument("batch_id", help="Batch ID to check")
+
+    # recommendations - Smart recommendations
+    rec_parser = subparsers.add_parser("recommendations", help="Get smart recommendations")
+    rec_sub = rec_parser.add_subparsers(dest="rec_command", help="Recommendation command")
+    
+    # recommendations get
+    rec_get_parser = rec_sub.add_parser("get", help="Get prioritized recommendations")
+    rec_get_parser.add_argument("project", help="Project name")
+    rec_get_parser.add_argument("--limit", type=int, default=10, help="Maximum recommendations")
+    
+    # recommendations dashboard
+    rec_dashboard_parser = rec_sub.add_parser("dashboard", help="Get recommendation dashboard")
+    rec_dashboard_parser.add_argument("project", help="Project name")
+    rec_dashboard_parser.add_argument("--limit", type=int, default=10, help="Maximum recommendations")
+
     args = parser.parse_args()
     bridge = CortexBridge()
 
@@ -1098,16 +1861,29 @@ def main():
                 sys.exit(0)
 
             print("\n🧠 Cortex Session Intelligence\n")
-            print(f"📂 Project: {result.get('project', 'Unknown')}")
-            print(f"🎯 Focus: {result.get('current_focus', 'No active focus')}")
 
-            if result.get('active_goals'):
-                goals = result['active_goals'][:3]  # Show max 3 goals
-                print(f"✅ Goals: {', '.join(goals)}")
+            # Handle nested project structure
+            project_info = result.get('project', {})
+            if isinstance(project_info, dict):
+                project_name = project_info.get('name', 'Unknown')
+            else:
+                project_name = project_info
+            print(f"📂 Project: {project_name}")
 
-            if result.get('recent_work'):
-                print(f"\n📝 Recent Work:")
-                for work in result.get('recent_work', [])[:3]:  # Show max 3 items
+            print(f"🎯 Focus: {result.get('focus', result.get('current_focus', 'No active focus'))}")
+
+            # Handle goals (could be in 'goals' or 'active_goals')
+            goals = result.get('goals', result.get('active_goals', []))
+            if goals:
+                goals_display = goals[:3]  # Show max 3 goals
+                print(f"✅ Goals: {', '.join(goals_display)}")
+
+            # Handle recent work (could be in git.recent_commits or recent_work)
+            git_info = result.get('git', {})
+            recent_commits = git_info.get('recent_commits', result.get('recent_work', []))
+            if recent_commits:
+                print("\n📝 Recent Work:")
+                for work in recent_commits[:3]:  # Show max 3 items
                     print(f"   • {work.get('summary', work.get('commit', 'Unknown'))}")
 
             print()  # Empty line for spacing
@@ -1175,6 +1951,39 @@ def main():
     elif args.command == "patterns":
         result = bridge.find_similar_work(args.project, args.task, limit=getattr(args, 'limit', 5))
         print(json.dumps(result, indent=2))
+    elif args.command == "recommendations":
+        if args.rec_command == "get":
+            result = bridge.get_smart_recommendations(
+                args.project,
+                limit=getattr(args, 'limit', 10)
+            )
+            print(json.dumps(result, indent=2))
+        elif args.rec_command == "dashboard":
+            result = bridge.get_recommendation_dashboard(
+                args.project,
+                limit=getattr(args, 'limit', 10)
+            )
+            print(json.dumps(result, indent=2))
+        else:
+            rec_parser.print_help()
+    elif args.command == "batch":
+        if args.batch_command == "research":
+            # Load research items from JSON file
+            with open(args.file, 'r') as f:
+                research_items = json.load(f)
+            result = bridge.submit_research_batch(research_items)
+            print(json.dumps(result, indent=2))
+        elif args.batch_command == "briefing":
+            # Load briefing contexts from JSON file
+            with open(args.file, 'r') as f:
+                contexts = json.load(f)
+            result = bridge.submit_briefing_batch(contexts)
+            print(json.dumps(result, indent=2))
+        elif args.batch_command == "status":
+            result = bridge.get_batch_status(args.batch_id)
+            print(json.dumps(result, indent=2))
+        else:
+            batch_parser.print_help()
     else:
         parser.print_help()
 

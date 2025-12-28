@@ -16,7 +16,7 @@ import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -65,20 +65,26 @@ class ContextIntelligence:
         current_task: Optional[str] = None,
         keywords: Optional[List[str]] = None,
         limit: int = 5,
+        include_cross_project: bool = True,
     ) -> List[ContextPrediction]:
         """
-        Predict relevant context for current work.
+        Predict relevant context for current work with enhanced accuracy.
 
         Args:
             current_project: Current project name
             current_task: Current task description
             keywords: Additional keywords to search
             limit: Maximum predictions to return
+            include_cross_project: Whether to include cross-project context discovery
 
         Returns:
-            List of ContextPrediction objects
+            List of ContextPrediction objects with improved relevance scoring
         """
         predictions = []
+
+        # Extract keywords from task if not provided
+        if current_task and not keywords:
+            keywords = self._extract_keywords(current_task, max_keywords=10)
 
         # 1. Search knowledge base if available
         if self.kb_available:
@@ -99,8 +105,15 @@ class ContextIntelligence:
         recent_results = self._find_recent_context(current_project)
         predictions.extend(recent_results)
 
-        # 4. Find CursorRules Context (Explicit or Implicit)
-        if (keywords and "cursorrules" in keywords) or (
+        # 4. Cross-project context discovery
+        if include_cross_project and keywords:
+            cross_project_results = self._find_cross_project_context(
+                current_project, keywords
+            )
+            predictions.extend(cross_project_results)
+
+        # 5. Find CursorRules Context (Explicit or Implicit)
+        if (keywords and "cursorrules" in [k.lower() for k in keywords]) or (
             current_task and "rules" in current_task.lower()
         ):
             predictions.extend(self._find_cursorrules_context(current_project))
@@ -108,6 +121,17 @@ class ContextIntelligence:
         # Sort by relevance and deduplicate
         predictions.sort(key=lambda p: p.confidence, reverse=True)
         predictions = self._deduplicate(predictions)
+
+        # Enhance predictions with keyword matching (improved algorithm)
+        predictions = self._enhance_predictions_with_keywords(
+            predictions, current_task, keywords
+        )
+
+        # Fuse context from multiple sources (enhanced deduplication)
+        predictions = self._fuse_context(predictions)
+
+        # Re-sort after enhancement
+        predictions.sort(key=lambda p: p.confidence, reverse=True)
 
         return predictions[:limit]
 
@@ -366,6 +390,88 @@ class ContextIntelligence:
 
         return predictions
 
+    def _find_cross_project_context(
+        self,
+        current_project: Optional[str],
+        keywords: List[str]
+    ) -> List[ContextPrediction]:
+        """
+        Find relevant context from other projects based on keywords.
+        
+        Args:
+            current_project: Current project name (to exclude)
+            keywords: Keywords to search for
+            
+        Returns:
+            List of context predictions from other projects
+        """
+        predictions = []
+        
+        if not keywords:
+            return predictions
+        
+        # Search other projects for relevant documentation
+        for item in self.root_dir.iterdir():
+            if not item.is_dir() or item.name == current_project:
+                continue
+            
+            # Check if project has relevant documentation
+            for doc_pattern in self.DOC_PATTERNS:
+                if doc_pattern.endswith("/"):
+                    doc_dir = item / doc_pattern.rstrip("/")
+                    if doc_dir.exists():
+                        # Search doc files for keywords
+                        for doc_file in doc_dir.glob("*.md"):
+                            try:
+                                content = doc_file.read_text().lower()
+                                # Check if any keywords appear in content
+                                keyword_matches = sum(
+                                    1 for kw in keywords if kw.lower() in content
+                                )
+                                if keyword_matches > 0:
+                                    # Calculate relevance based on keyword matches
+                                    relevance = min(keyword_matches / len(keywords), 1.0)
+                                    predictions.append(
+                                        ContextPrediction(
+                                            title=f"{item.name}/{doc_file.name}",
+                                            context_type="cross_project_docs",
+                                            confidence=0.5 + (relevance * 0.3),  # 0.5-0.8 range
+                                            description=f"Documentation from {item.name} project",
+                                            rationale=f"Contains {keyword_matches} matching keywords",
+                                            command=f"cat {doc_file}",
+                                            file_path=str(doc_file),
+                                            keywords=keywords[:5],
+                                        )
+                                    )
+                            except Exception:
+                                pass
+                else:
+                    doc_file = item / doc_pattern
+                    if doc_file.exists():
+                        try:
+                            content = doc_file.read_text().lower()
+                            keyword_matches = sum(
+                                1 for kw in keywords if kw.lower() in content
+                            )
+                            if keyword_matches > 0:
+                                relevance = min(keyword_matches / len(keywords), 1.0)
+                                predictions.append(
+                                    ContextPrediction(
+                                        title=f"{item.name}/{doc_file.name}",
+                                        context_type="cross_project_docs",
+                                        confidence=0.5 + (relevance * 0.3),
+                                        description=f"Documentation from {item.name} project",
+                                        rationale=f"Contains {keyword_matches} matching keywords",
+                                        command=f"cat {doc_file}",
+                                        file_path=str(doc_file),
+                                        keywords=keywords[:5],
+                                    )
+                                )
+                        except Exception:
+                            pass
+        
+        return predictions[:5]  # Limit cross-project results
+
     def _find_project_path(self, project: str) -> Optional[Path]:
         """Find project directory path."""
         # Direct match
@@ -387,9 +493,62 @@ class ContextIntelligence:
 
         return None
 
-    def _extract_keywords(self, text: str) -> List[str]:
-        """Extract keywords from text."""
-        # Simple keyword extraction
+    def extract_keywords_from_commits(
+        self, project_path: Path, limit: int = 10
+    ) -> List[str]:
+        """
+        Extract keywords from recent commit messages.
+
+        Args:
+            project_path: Path to project directory
+            limit: Number of recent commits to analyze
+
+        Returns:
+            List of extracted keywords
+        """
+        keywords = []
+        try:
+            result = subprocess.run(
+                ["git", "log", f"-{limit}", "--format=%s %b"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+
+            if result.returncode == 0 and result.stdout:
+                commit_messages = result.stdout.strip()
+                keywords = self._extract_keywords(commit_messages)
+        except Exception:
+            pass
+
+        return keywords[:limit]
+
+    def extract_keywords_from_task(self, task_description: str) -> List[str]:
+        """
+        Extract keywords from a task description.
+
+        Args:
+            task_description: Task description text
+
+        Returns:
+            List of extracted keywords
+        """
+        return self._extract_keywords(task_description)
+
+    def _extract_keywords(self, text: str, min_length: int = 3, max_keywords: int = 20) -> List[str]:
+        """
+        Extract keywords from text with enhanced filtering and scoring.
+        
+        Args:
+            text: Text to extract keywords from
+            min_length: Minimum keyword length
+            max_keywords: Maximum number of keywords to return
+            
+        Returns:
+            List of extracted keywords, sorted by relevance
+        """
+        # Simple keyword extraction with enhanced filtering
         stop_words = {
             "the",
             "a",
@@ -487,17 +646,25 @@ class ContextIntelligence:
             "those",
         }
 
-        # Tokenize and filter
+        # Tokenize and filter with frequency scoring
         words = text.lower().split()
-        keywords = []
-
+        keyword_counts = {}
+        
         for word in words:
             # Clean word
             clean = "".join(c for c in word if c.isalnum() or c == "-")
-            if clean and len(clean) > 2 and clean not in stop_words:
-                keywords.append(clean)
-
-        return keywords[:10]
+            if clean and len(clean) >= min_length and clean not in stop_words:
+                keyword_counts[clean] = keyword_counts.get(clean, 0) + 1
+        
+        # Sort by frequency (more frequent = more relevant)
+        sorted_keywords = sorted(
+            keyword_counts.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        # Return top keywords
+        return [kw for kw, _ in sorted_keywords[:max_keywords]]
 
     def _deduplicate(
         self, predictions: List[ContextPrediction]
@@ -513,6 +680,134 @@ class ContextIntelligence:
                 unique.append(pred)
 
         return unique
+
+    def _enhance_predictions_with_keywords(
+        self,
+        predictions: List[ContextPrediction],
+        current_task: Optional[str],
+        keywords: Optional[List[str]]
+    ) -> List[ContextPrediction]:
+        """
+        Enhance predictions with keyword-based relevance scoring and cross-project matching.
+        
+        Args:
+            predictions: List of context predictions
+            current_task: Current task description
+            keywords: Additional keywords
+            
+        Returns:
+            Enhanced predictions with improved confidence scores
+        """
+        if not current_task and not keywords:
+            return predictions
+
+        # Extract keywords from task with enhanced extraction
+        task_keywords = set()
+        if current_task:
+            task_keywords.update(self._extract_keywords(current_task, max_keywords=15))
+        if keywords:
+            task_keywords.update(keywords)
+
+        # Boost confidence for predictions matching keywords
+        for pred in predictions:
+            pred_keywords = set(kw.lower() for kw in pred.keywords)
+            task_keywords_lower = set(kw.lower() for kw in task_keywords)
+            
+            # Calculate overlap
+            overlap = len(task_keywords_lower & pred_keywords)
+            
+            if overlap > 0:
+                # Enhanced boost calculation based on overlap ratio
+                overlap_ratio = overlap / max(len(task_keywords_lower), 1)
+                
+                # Stronger boost for higher overlap
+                if overlap_ratio >= 0.5:
+                    boost = 0.25  # High overlap
+                elif overlap_ratio >= 0.3:
+                    boost = 0.15  # Medium overlap
+                else:
+                    boost = 0.1   # Low overlap
+                
+                # Additional boost if keywords appear in title or description
+                title_lower = pred.title.lower()
+                desc_lower = pred.description.lower()
+                title_matches = sum(1 for kw in task_keywords_lower if kw in title_lower)
+                desc_matches = sum(1 for kw in task_keywords_lower if kw in desc_lower)
+                
+                if title_matches > 0:
+                    boost += 0.1  # Keywords in title are very relevant
+                if desc_matches > 0:
+                    boost += 0.05  # Keywords in description add relevance
+                
+                pred.confidence = max(0.0, min(pred.confidence + boost, 1.0))
+
+        return predictions
+
+    def _fuse_context(
+        self, predictions: List[ContextPrediction]
+    ) -> List[ContextPrediction]:
+        """
+        Fuse context from multiple sources with enhanced deduplication and prioritization.
+
+        Args:
+            predictions: List of context predictions
+
+        Returns:
+            Fused and prioritized list of predictions with duplicates removed
+        """
+        if not predictions:
+            return []
+
+        # Group by context type
+        by_type: Dict[str, List[ContextPrediction]] = {}
+        for pred in predictions:
+            if pred.context_type not in by_type:
+                by_type[pred.context_type] = []
+            by_type[pred.context_type].append(pred)
+
+        # Prioritize: knowledge_base > project_docs > recent_activity > cursorrules
+        priority_order = [
+            "knowledge_base",
+            "project_docs",
+            "recent_activity",
+            "cursorrules",
+            "cursorrules_gap"
+        ]
+
+        fused = []
+        seen_titles = set()
+        seen_file_paths = set()
+
+        # Add predictions in priority order with enhanced deduplication
+        for ctx_type in priority_order:
+            if ctx_type in by_type:
+                # Sort by confidence within each type
+                type_predictions = sorted(
+                    by_type[ctx_type],
+                    key=lambda p: p.confidence,
+                    reverse=True
+                )
+                
+                for pred in type_predictions:
+                    # Deduplicate by title
+                    title_key = pred.title.lower()
+                    if title_key in seen_titles:
+                        continue
+                    
+                    # Also deduplicate by file path if available
+                    if pred.file_path:
+                        file_key = str(pred.file_path).lower()
+                        if file_key in seen_file_paths:
+                            continue
+                        seen_file_paths.add(file_key)
+                    
+                    seen_titles.add(title_key)
+                    fused.append(pred)
+
+        # Final sort by confidence (highest first)
+        fused.sort(key=lambda p: p.confidence, reverse=True)
+
+        return fused
 
     def get_context_for_recommendation(
         self, recommendation: Any

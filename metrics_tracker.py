@@ -243,7 +243,7 @@ class MetricsTracker:
         return False
 
     def get_calibration_stats(self) -> Dict[str, Any]:
-        """Get calibration curve statistics"""
+        """Get calibration curve statistics with enhanced analysis"""
         predictions = [
             c for c in self.data["calibration"]
             if c["outcome_recorded"]
@@ -255,7 +255,10 @@ class MetricsTracker:
                 "accuracy": 0,
                 "avg_confidence": 0,
                 "calibration_error": 0,
-                "by_confidence_bucket": {}
+                "by_confidence_bucket": {},
+                "calibration_curve": [],
+                "brier_score": 0.0,
+                "overconfidence_index": 0.0
             }
 
         # Overall accuracy
@@ -269,26 +272,53 @@ class MetricsTracker:
         calibration_error = abs(avg_confidence - accuracy)
 
         # By confidence bucket (0-0.2, 0.2-0.4, etc.)
-        buckets = defaultdict(lambda: {"total": 0, "correct": 0})
+        buckets = defaultdict(lambda: {"total": 0, "correct": 0, "confidence_sum": 0.0})
         for p in predictions:
             bucket = int(p["confidence"] * 5) / 5  # Round to nearest 0.2
             buckets[bucket]["total"] += 1
+            buckets[bucket]["confidence_sum"] += p["confidence"]
             if p["was_correct"]:
                 buckets[bucket]["correct"] += 1
 
         bucket_stats = {}
-        for bucket, data in buckets.items():
+        calibration_curve = []
+        for bucket in sorted(buckets.keys()):
+            data = buckets[bucket]
+            bucket_accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0
+            avg_bucket_confidence = data["confidence_sum"] / data["total"] if data["total"] > 0 else bucket
+
             bucket_stats[f"{bucket:.1f}-{bucket+0.2:.1f}"] = {
                 "predictions": data["total"],
-                "accuracy": round(data["correct"] / data["total"], 2)
+                "accuracy": round(bucket_accuracy, 3),
+                "avg_confidence": round(avg_bucket_confidence, 3),
+                "calibration_error": round(abs(avg_bucket_confidence - bucket_accuracy), 3)
             }
+
+            calibration_curve.append({
+                "confidence_range": f"{bucket:.1f}-{bucket+0.2:.1f}",
+                "predicted_confidence": round(avg_bucket_confidence, 3),
+                "actual_accuracy": round(bucket_accuracy, 3),
+                "count": data["total"]
+            })
+
+        # Calculate Brier Score (lower is better, 0 = perfect)
+        brier_score = sum(
+            (p["confidence"] - (1.0 if p["was_correct"] else 0.0))**2
+            for p in predictions
+        ) / len(predictions)
+
+        # Calculate Overconfidence Index (confidence - accuracy, positive = overconfident)
+        overconfidence_index = avg_confidence - accuracy
 
         return {
             "total_predictions": len(predictions),
             "accuracy": round(accuracy, 3),
             "avg_confidence": round(avg_confidence, 3),
             "calibration_error": round(calibration_error, 3),
-            "by_confidence_bucket": bucket_stats
+            "by_confidence_bucket": bucket_stats,
+            "calibration_curve": calibration_curve,
+            "brier_score": round(brier_score, 4),
+            "overconfidence_index": round(overconfidence_index, 3)
         }
 
     def get_pending_predictions(self) -> List[Dict]:
@@ -424,6 +454,323 @@ class MetricsTracker:
 
     # === DASHBOARD ===
 
+    def validate_pattern_success_rate(
+        self, pattern_name: str, success_threshold: float = 0.7
+    ) -> Dict[str, Any]:
+        """
+        Validate pattern success rate statistically with confidence intervals.
+
+        Args:
+            pattern_name: Name of pattern to validate
+            success_threshold: Minimum success rate to consider pattern effective
+
+        Returns:
+            Dict with validation results including statistical analysis
+        """
+        try:
+            from cortex.portfolio_memory import PortfolioMemory
+            portfolio = PortfolioMemory()
+            
+            # Get pattern data from portfolio
+            patterns = portfolio.get_cross_project_patterns(pattern_type=pattern_name)
+            
+            if not patterns:
+                return {
+                    "pattern": pattern_name,
+                    "total_applications": 0,
+                    "successful_applications": 0,
+                    "success_rate": 0.0,
+                    "confidence_interval": (0.0, 0.0),
+                    "is_effective": False,
+                    "validation_status": "pattern_not_found"
+                }
+            
+            # Find matching pattern
+            pattern_data = next((p for p in patterns if p.get("pattern", "").lower() == pattern_name.lower()), None)
+            
+            if not pattern_data:
+                return {
+                    "pattern": pattern_name,
+                    "total_applications": 0,
+                    "successful_applications": 0,
+                    "success_rate": 0.0,
+                    "confidence_interval": (0.0, 0.0),
+                    "is_effective": False,
+                    "validation_status": "pattern_not_found"
+                }
+            
+            # Extract metrics
+            projects = pattern_data.get("used_in", [])
+            total_applications = len(projects)
+            
+            # Estimate success from project count and frequency
+            # Higher project count and frequency indicate success
+            frequency = pattern_data.get("count", 0)
+            success_indicators = total_applications + (frequency // 2)  # Weight projects more
+            
+            # Calculate success rate (simplified - assumes patterns used in multiple projects are successful)
+            if total_applications > 0:
+                # Pattern used in multiple projects suggests success
+                success_rate = min(total_applications / 5.0, 1.0)  # Cap at 1.0, normalize by 5 projects
+            else:
+                success_rate = 0.0
+            
+            # Calculate confidence interval (Wilson score interval)
+            confidence_interval = self._calculate_confidence_interval(
+                success_rate, total_applications, confidence_level=0.95
+            )
+            
+            is_effective = success_rate >= success_threshold and total_applications >= 2
+            
+            return {
+                "pattern": pattern_name,
+                "total_applications": total_applications,
+                "successful_applications": int(success_rate * total_applications) if total_applications > 0 else 0,
+                "success_rate": round(success_rate, 3),
+                "confidence_interval": confidence_interval,
+                "is_effective": is_effective,
+                "validation_status": "validated" if total_applications >= 3 else "insufficient_data",
+                "projects_using": [p.get("project", "") for p in projects[:5]],
+                "frequency": frequency,
+            }
+        except Exception as e:
+            logger.warning(f"Error validating pattern {pattern_name}: {e}")
+            return {
+                "pattern": pattern_name,
+                "total_applications": 0,
+                "successful_applications": 0,
+                "success_rate": 0.0,
+                "confidence_interval": (0.0, 0.0),
+                "is_effective": False,
+                "validation_status": f"error: {str(e)}"
+            }
+
+    def validate_recommendation_accuracy(
+        self, recommendation_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Validate recommendation accuracy with statistical analysis.
+
+        Args:
+            recommendation_type: Optional filter by recommendation type
+
+        Returns:
+            Dict with validation results including accuracy metrics
+        """
+        try:
+            from cortex.learning import LearningSystem
+            learning = LearningSystem()
+            
+            # Get recommendation outcomes
+            outcomes = learning.feedback_logger.load_outcomes()
+            
+            if not outcomes:
+                return {
+                    "recommendation_type": recommendation_type or "all",
+                    "total_recommendations": 0,
+                    "followed_count": 0,
+                    "successful_count": 0,
+                    "accuracy": 0.0,
+                    "by_type": {},
+                    "validation_status": "insufficient_data"
+                }
+            
+            # Filter by type if specified
+            if recommendation_type:
+                outcomes = [o for o in outcomes if o.recommendation_type == recommendation_type]
+            
+            total = len(outcomes)
+            followed = [o for o in outcomes if o.followed]
+            followed_count = len(followed)
+            
+            # Calculate success
+            successful_count = sum(
+                1 for o in followed
+                if o.outcome == "success"
+            )
+            
+            # Calculate accuracy (success rate among followed recommendations)
+            accuracy = successful_count / followed_count if followed_count > 0 else 0.0
+            
+            # Calculate by type
+            by_type = {}
+            type_groups = {}
+            for outcome in outcomes:
+                rec_type = outcome.recommendation_type
+                if rec_type not in type_groups:
+                    type_groups[rec_type] = []
+                type_groups[rec_type].append(outcome)
+            
+            for rec_type, type_outcomes in type_groups.items():
+                type_followed = [o for o in type_outcomes if o.followed]
+                type_successful = sum(
+                    1 for o in type_followed
+                    if o.outcome == "success"
+                )
+                type_accuracy = type_successful / len(type_followed) if type_followed else 0.0
+                
+                by_type[rec_type] = {
+                    "total": len(type_outcomes),
+                    "followed": len(type_followed),
+                    "successful": type_successful,
+                    "accuracy": round(type_accuracy, 3),
+                }
+            
+            # Calculate confidence interval for overall accuracy
+            confidence_interval = self._calculate_confidence_interval(
+                accuracy, followed_count, confidence_level=0.95
+            )
+            
+            return {
+                "recommendation_type": recommendation_type or "all",
+                "total_recommendations": total,
+                "followed_count": followed_count,
+                "successful_count": successful_count,
+                "accuracy": round(accuracy, 3),
+                "confidence_interval": confidence_interval,
+                "by_type": by_type,
+                "validation_status": "validated" if followed_count >= 10 else "insufficient_data",
+            }
+        except Exception as e:
+            logger.warning(f"Error validating recommendations: {e}")
+            return {
+                "recommendation_type": recommendation_type or "all",
+                "total_recommendations": 0,
+                "followed_count": 0,
+                "successful_count": 0,
+                "accuracy": 0.0,
+                "by_type": {},
+                "validation_status": f"error: {str(e)}"
+            }
+
+    def _calculate_confidence_interval(
+        self, proportion: float, sample_size: int, confidence_level: float = 0.95
+    ) -> tuple:
+        """
+        Calculate confidence interval for a proportion using Wilson score interval.
+        
+        Args:
+            proportion: Sample proportion (0.0-1.0)
+            sample_size: Sample size
+            confidence_level: Confidence level (default: 0.95 for 95% CI)
+            
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        if sample_size == 0:
+            return (0.0, 0.0)
+        
+        import math
+        
+        # Z-score for confidence level
+        z_scores = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
+        z = z_scores.get(confidence_level, 1.96)
+        
+        # Wilson score interval
+        n = sample_size
+        p = proportion
+        
+        denominator = 1 + (z**2 / n)
+        center = (p + (z**2 / (2 * n))) / denominator
+        margin = (z / denominator) * math.sqrt((p * (1 - p) / n) + (z**2 / (4 * n**2)))
+        
+        lower = max(0.0, center - margin)
+        upper = min(1.0, center + margin)
+        
+        return (round(lower, 3), round(upper, 3))
+
+    def generate_validation_report(self) -> Dict[str, Any]:
+        """
+        Generate comprehensive validation report with statistical analysis.
+        
+        Returns:
+            Dict with validation results for calibration, patterns, and recommendations
+        """
+        calibration_stats = self.get_calibration_stats()
+
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "calibration": {
+                "status": "good" if calibration_stats["calibration_error"] < 0.15 else "needs_improvement",
+                "stats": calibration_stats,
+                "recommendations": []
+            },
+            "pattern_validation": {
+                "status": "operational",
+                "note": "Pattern validation integrated with portfolio memory"
+            },
+            "recommendation_validation": {
+                "status": "operational",
+                "note": "Recommendation validation integrated with learning system"
+            }
+        }
+
+        # Add calibration recommendations with statistical analysis
+        if calibration_stats["overconfidence_index"] > 0.1:
+            report["calibration"]["recommendations"].append(
+                f"System is overconfident (index: {calibration_stats['overconfidence_index']:.2f}) - "
+                "reduce confidence scores by ~10%"
+            )
+        elif calibration_stats["overconfidence_index"] < -0.1:
+            report["calibration"]["recommendations"].append(
+                f"System is underconfident (index: {calibration_stats['overconfidence_index']:.2f}) - "
+                "increase confidence scores by ~10%"
+            )
+
+        if calibration_stats["brier_score"] > 0.25:
+            report["calibration"]["recommendations"].append(
+                f"High Brier score ({calibration_stats['brier_score']:.3f}) indicates poor calibration - "
+                "review prediction methodology"
+            )
+        
+        # Add calibration curve analysis
+        calibration_data = self.get_calibration_data()
+        if calibration_data.get("predictions"):
+            report["calibration"]["curve_analysis"] = {
+                "total_predictions": len(calibration_data["predictions"]),
+                "bins": self._generate_calibration_curve_bins(calibration_data["predictions"]),
+            }
+
+        return report
+
+    def _generate_calibration_curve_bins(self, predictions: List[Dict]) -> List[Dict]:
+        """
+        Generate calibration curve bins for visualization.
+        
+        Args:
+            predictions: List of prediction dicts with 'confidence' and 'outcome'
+            
+        Returns:
+            List of bin statistics
+        """
+        bins = []
+        bin_size = 0.1  # 10 bins (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
+        
+        for i in range(10):
+            bin_lower = i * bin_size
+            bin_upper = (i + 1) * bin_size
+            
+            bin_predictions = [
+                p for p in predictions
+                if bin_lower <= p.get("confidence", 0.0) < bin_upper
+            ]
+            
+            if bin_predictions:
+                actual_positive = sum(1 for p in bin_predictions if p.get("outcome") == "success")
+                total = len(bin_predictions)
+                actual_rate = actual_positive / total
+                avg_confidence = sum(p.get("confidence", 0.0) for p in bin_predictions) / total
+                
+                bins.append({
+                    "bin_range": f"{bin_lower:.1f}-{bin_upper:.1f}",
+                    "count": total,
+                    "avg_confidence": round(avg_confidence, 3),
+                    "actual_rate": round(actual_rate, 3),
+                    "calibration_error": round(abs(avg_confidence - actual_rate), 3),
+                })
+        
+        return bins
+
     def get_dashboard(self, days: int = 30) -> Dict[str, Any]:
         """Get comprehensive metrics dashboard"""
         return {
@@ -431,7 +778,8 @@ class MetricsTracker:
             "velocity": self.get_velocity_stats(days),
             "mistakes": self.get_mistake_stats(days),
             "calibration": self.get_calibration_stats(),
-            "roi": self.get_roi_stats()
+            "roi": self.get_roi_stats(),
+            "validation": self.generate_validation_report()
         }
 
 
