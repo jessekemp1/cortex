@@ -82,9 +82,16 @@ class GitSynchronizer:
         success, stdout, _ = self._run_git(["status", "--porcelain"])
         if not success:
             return False, 0
-        # Ignore untracked (??) and submodule changes (lowercase first char like 'm')
-        lines = [l for l in stdout.split("\n")
-                 if l.strip() and not l.startswith("??") and not l[0].islower()]
+        # Ignore untracked (??) and submodule changes (lowercase in first 2 chars like ' m')
+        def is_real_change(line):
+            if not line.strip() or line.startswith("??"):
+                return False
+            # Submodule status uses lowercase (m = modified content)
+            status = line[:2]
+            if any(c.islower() for c in status):
+                return False
+            return True
+        lines = [l for l in stdout.split("\n") if is_real_change(l)]
         return len(lines) > 0, len(lines)
 
     def _get_ahead_behind(self, branch: str = None) -> Tuple[int, int]:
