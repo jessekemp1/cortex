@@ -325,6 +325,55 @@ Integrate Cursor usage tracking into AIO via extension, enabling unified usage m
 
 ---
 
-**Last Updated:** 2025-12-24
+## 🔧 VortexV2 Maintenance Items (Added 2025-12-30)
+
+### P2 Priority Items
+
+#### 15. Git Branch Cleanup
+**Effort:** 30 min - 1 hour
+**Context:** 100+ uncommitted files on `feat/dev-stack-and-cortex-git` branch
+**Actions:**
+- Review uncommitted changes
+- Organize into logical commits or PR
+- Consider squashing related changes
+- Clean up stale branches
+
+**Value:** Medium - Keeps repo clean and manageable
+
+#### 16. Fix Deprecation Warnings in Auth Middleware
+**Effort:** 15-30 min
+**Files:** `Vortex/VortexV2/app/middleware/auth.py`
+**Issue:** Using deprecated `datetime.datetime.utcnow()`
+**Fix:** Replace with `datetime.datetime.now(datetime.UTC)`
+
+Lines to fix:
+- Line 400: `now = datetime.utcnow().timestamp()`
+- Line 549: `int(datetime.utcnow().timestamp()) + retry_after`
+
+**Value:** Low-Medium - Eliminates test warnings, future-proofs code
+
+---
+
+## 📊 Batch Results Summary (2025-12-30)
+
+9/9 batch tasks completed successfully. Key insights:
+
+| Task | Key Finding |
+|------|-------------|
+| `vortex_test_coverage` | Identified gaps in GRIB edge cases, network timeouts, memory overflow tests |
+| `vortex_performance_audit` | GRIB loading can be parallelized with ThreadPoolExecutor, use chunking |
+| `vortex_api_hardening` | Input validation middleware needed, rate limiting recommendations |
+| `alpha_backtest_review` | Backtesting framework analysis complete |
+| `alpha_risk_metrics` | Risk metrics implementation guide |
+| `cortex_layer5_design` | Layer 5 architecture design |
+| `cortex_embeddings_strategy` | Embeddings strategy for knowledge base |
+| `aio_predictive_model` | Usage prediction model design |
+| `vital_crash_analysis` | Mobile app crash analysis |
+
+Full results: `~/.cortex/batches/msgbatch_01G1DkxR6ivXpg1D5SgxZvnY/individual/`
+
+---
+
+**Last Updated:** 2025-12-30
 **Status:** All core work complete ✅
 **Next:** Optional enhancements based on usage

@@ -74,6 +74,7 @@ class BriefingData:
     resource_status: Optional[Dict[str, Any]] = None
     batch_queue_status: Optional[Dict[str, Any]] = None
     git_status: Optional[Dict[str, Any]] = None
+    work_progress: Optional[Dict[str, Any]] = None  # Work absorber status
     period: str = "24h"
 
 
@@ -165,7 +166,36 @@ class BriefingGenerator:
             except Exception as e:
                 print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
 
-        # 6. Build briefing sections
+        # 6. Get work absorber status
+        work_progress = None
+        try:
+            from work_absorber import WorkAbsorber
+            absorber = WorkAbsorber()
+
+            # Get recent work summary
+            recent_items = absorber.get_recent_work(days=1)
+            all_items = absorber.get_recent_work(days=7)
+            drift_summary = absorber.get_drift_summary()
+
+            # Build work progress summary
+            work_progress = {
+                "items_24h": len(recent_items),
+                "items_7d": len(all_items),
+                "correlated_24h": sum(1 for i in recent_items if i.plan_step_id),
+                "orphaned_24h": sum(1 for i in recent_items if not i.plan_step_id),
+                "drifts_total": drift_summary.get("total", 0),
+                "drifts_by_type": dict(drift_summary.get("by_type", {})),
+                "recent_work": [
+                    {"title": i.title, "project": i.project, "scope": i.scope}
+                    for i in recent_items[:5]
+                ],
+            }
+        except ImportError:
+            pass  # Work absorber not available
+        except Exception as e:
+            print(f"Warning: Could not get work progress: {e}", file=sys.stderr)
+
+        # 7. Build briefing sections
         briefing = BriefingData(
             active_projects=self._get_active_projects(project_activity),
             recent_commits_24h=self._count_recent_commits(project_activity, hours=24),
@@ -177,6 +207,7 @@ class BriefingGenerator:
             resource_status=resource_status,
             batch_queue_status=batch_queue_status,
             git_status=git_status,
+            work_progress=work_progress,
             generated_at=datetime.now(),
         )
 
@@ -466,6 +497,41 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     # Git & GitHub Status
     if briefing.git_status and briefing.git_status.get("formatted"):
         lines.append(briefing.git_status["formatted"])
+        lines.append("")
+
+    # Work Progress (from Work Absorber)
+    if briefing.work_progress:
+        wp = briefing.work_progress
+        lines.append(f"{BOLD}WORK PROGRESS{RESET}")
+
+        items_24h = wp.get("items_24h", 0)
+        items_7d = wp.get("items_7d", 0)
+        correlated = wp.get("correlated_24h", 0)
+        orphaned = wp.get("orphaned_24h", 0)
+
+        lines.append(f"  Work items: {items_24h} in 24h, {items_7d} in 7d")
+
+        if items_24h > 0:
+            if correlated > 0:
+                lines.append(f"  {GREEN}Planned work: {correlated} items{RESET}")
+            if orphaned > 0:
+                lines.append(f"  {YELLOW}Unplanned work: {orphaned} items{RESET}")
+
+        # Show drifts
+        drifts = wp.get("drifts_total", 0)
+        if drifts > 0:
+            drift_types = wp.get("drifts_by_type", {})
+            drift_summary = ", ".join(f"{k}: {v}" for k, v in list(drift_types.items())[:3])
+            lines.append(f"  {YELLOW}Plan drift: {drifts} ({drift_summary}){RESET}")
+
+        # Recent work
+        recent = wp.get("recent_work", [])
+        if recent:
+            lines.append("  Recent:")
+            for item in recent[:3]:
+                scope_badge = f"[{item.get('scope', 'misc')}]" if item.get('scope') else ""
+                lines.append(f"    - {item['title'][:45]} {scope_badge}")
+
         lines.append("")
 
     # Resource Pulse

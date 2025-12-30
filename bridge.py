@@ -1156,6 +1156,234 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    # --- 6.5. Work Absorber Bridge ---
+
+    def absorb_work(
+        self,
+        project: Optional[str] = None,
+        since: Optional[str] = None,
+        full: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Run work absorption cycle to detect and track progress.
+
+        Args:
+            project: Specific project to absorb (None = all)
+            since: Start date ISO string (None = incremental)
+            full: Force full rescan instead of incremental
+
+        Returns:
+            Absorption report with statistics
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> report = bridge.absorb_work(project="cortex")
+        """
+        try:
+            from work_absorber import WorkAbsorber
+            from datetime import datetime
+
+            absorber = WorkAbsorber()
+
+            since_dt = None
+            if since:
+                since_dt = datetime.fromisoformat(since)
+
+            projects = [project] if project else None
+
+            report = absorber.absorb(
+                projects=projects,
+                since=since_dt,
+                incremental=not full,
+            )
+
+            return {
+                "success": True,
+                "signals_detected": report.signals_detected,
+                "signals_absorbed": report.signals_absorbed,
+                "work_items_created": report.work_items_created,
+                "work_items_updated": report.work_items_updated,
+                "correlations_made": report.correlations_made,
+                "drifts_detected": report.drifts_detected,
+                "duration_seconds": report.duration_seconds,
+                "by_project": report.by_project,
+                "errors": report.errors,
+            }
+
+        except ImportError:
+            return {"error": "Work absorber not available"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_work_items(
+        self,
+        project: Optional[str] = None,
+        status: Optional[str] = None,
+        days: int = 7,
+        limit: int = 50,
+    ) -> Dict[str, Any]:
+        """
+        Get absorbed work items.
+
+        Args:
+            project: Filter by project
+            status: Filter by status (detected, absorbed, correlated, orphaned)
+            days: Days to look back
+            limit: Maximum items to return
+
+        Returns:
+            List of work items
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> items = bridge.get_work_items(project="cortex", status="orphaned")
+        """
+        try:
+            from work_absorber import WorkAbsorber, WorkStatus
+
+            absorber = WorkAbsorber()
+
+            if status == "orphaned":
+                items = absorber.get_unplanned_work()
+            else:
+                items = absorber.get_recent_work(days=days, project=project)
+                if status:
+                    status_enum = WorkStatus(status)
+                    items = [i for i in items if i.status == status_enum]
+
+            return {
+                "success": True,
+                "count": len(items),
+                "items": [
+                    {
+                        "id": i.id,
+                        "project": i.project,
+                        "title": i.title,
+                        "description": i.description[:200] if i.description else "",
+                        "status": i.status.value,
+                        "plan_step_id": i.plan_step_id,
+                        "correlation_confidence": i.correlation_confidence,
+                        "files_touched": len(i.files_touched),
+                        "scope": i.scope,
+                        "first_seen": i.first_seen.isoformat(),
+                        "last_activity": i.last_activity.isoformat(),
+                    }
+                    for i in items[:limit]
+                ],
+            }
+
+        except ImportError:
+            return {"error": "Work absorber not available"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_plan_drift(self, project: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get plan drift analysis.
+
+        Args:
+            project: Optional project filter
+
+        Returns:
+            Drift summary with unresolved drifts
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> drift = bridge.get_plan_drift(project="cortex")
+        """
+        try:
+            from work_absorber import WorkAbsorber
+
+            absorber = WorkAbsorber()
+            summary = absorber.get_drift_summary(project=project)
+
+            return {
+                "success": True,
+                "total": summary["total"],
+                "by_type": dict(summary["by_type"]),
+                "by_severity": dict(summary["by_severity"]),
+                "drifts": [
+                    {
+                        "id": d.id,
+                        "project": d.project,
+                        "drift_type": d.drift_type.value,
+                        "severity": d.severity,
+                        "description": d.description,
+                        "suggested_action": d.suggested_action,
+                        "detected_at": d.detected_at.isoformat(),
+                    }
+                    for d in summary["drifts"][:20]
+                ],
+            }
+
+        except ImportError:
+            return {"error": "Work absorber not available"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def sync_plans(self, project: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
+        """
+        Sync absorbed work progress back to plans.
+
+        Args:
+            project: Specific project to sync (None = all)
+            dry_run: If True, don't write changes
+
+        Returns:
+            Sync result summary
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> result = bridge.sync_plans(dry_run=True)
+        """
+        try:
+            from work_absorber.plan_sync import PlanProgressSync
+
+            sync = PlanProgressSync()
+
+            if project:
+                result = sync.sync_project(project, dry_run=dry_run)
+            else:
+                result = sync.sync_all(dry_run=dry_run)
+
+            return {
+                "success": True,
+                "dry_run": dry_run,
+                **result,
+            }
+
+        except ImportError:
+            return {"error": "Plan sync not available"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_work_status(self) -> Dict[str, Any]:
+        """
+        Get overall work absorber status.
+
+        Returns:
+            Status including last absorption, totals, and stats
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> status = bridge.get_work_status()
+        """
+        try:
+            from work_absorber import WorkAbsorber
+
+            absorber = WorkAbsorber()
+            status = absorber.get_status()
+
+            return {
+                "success": True,
+                **status,
+            }
+
+        except ImportError:
+            return {"error": "Work absorber not available"}
+        except Exception as e:
+            return {"error": str(e)}
+
     # --- 7. Layer 1: Project Analysis Bridge ---
 
     def get_warnings(self, project: Optional[str] = None, severity: Optional[str] = None) -> Dict[str, Any]:
