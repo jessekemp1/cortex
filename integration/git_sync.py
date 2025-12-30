@@ -82,7 +82,9 @@ class GitSynchronizer:
         success, stdout, _ = self._run_git(["status", "--porcelain"])
         if not success:
             return False, 0
-        lines = [l for l in stdout.split("\n") if l.strip() and not l.startswith("??")]
+        # Ignore untracked (??) and submodule changes (lowercase first char like 'm')
+        lines = [l for l in stdout.split("\n")
+                 if l.strip() and not l.startswith("??") and not l[0].islower()]
         return len(lines) > 0, len(lines)
 
     def _get_ahead_behind(self, branch: str = None) -> Tuple[int, int]:
