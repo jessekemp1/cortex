@@ -1867,6 +1867,241 @@ Examples:
     daemon_status_parser = daemon_subparsers.add_parser('status', help='Show daemon status')
     daemon_status_parser.set_defaults(func=cmd_batch_daemon_status)
 
+    # === Work Absorber Commands ===
+    def cmd_work_absorb(args):
+        """Run work absorption cycle."""
+        from work_absorber import WorkAbsorber
+        from datetime import datetime, timedelta
+
+        absorber = WorkAbsorber()
+
+        # Parse since date if provided
+        since = None
+        if args.since:
+            try:
+                since = datetime.fromisoformat(args.since)
+            except ValueError:
+                # Try days ago format
+                try:
+                    days = int(args.since.rstrip('d'))
+                    since = datetime.now() - timedelta(days=days)
+                except ValueError:
+                    print(f"Invalid date format: {args.since}")
+                    sys.exit(1)
+
+        projects = [args.project] if args.project else None
+
+        print("Starting work absorption...")
+        report = absorber.absorb(
+            projects=projects,
+            since=since,
+            incremental=not args.full,
+        )
+
+        print(f"\n✓ Absorption complete ({report.duration_seconds:.1f}s)")
+        print(f"  Signals detected: {report.signals_detected}")
+        print(f"  Signals absorbed: {report.signals_absorbed}")
+        print(f"  Work items: {report.work_items_created} new, {report.work_items_updated} updated")
+        print(f"  Plan correlations: {report.correlations_made}")
+        print(f"  Drifts detected: {report.drifts_detected}")
+
+        if report.by_project:
+            print("\nBy project:")
+            for project, stats in sorted(report.by_project.items()):
+                print(f"  {project}: {stats.get('signals', 0)} signals, {stats.get('work_items', 0)} items")
+
+        if report.errors:
+            print(f"\n⚠ Errors ({len(report.errors)}):")
+            for error in report.errors[:5]:
+                print(f"  - {error}")
+
+    def cmd_work_status(args):
+        """Show work absorber status."""
+        from work_absorber import WorkAbsorber
+
+        absorber = WorkAbsorber()
+        status = absorber.get_status()
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║            WORK ABSORBER - STATUS                    ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print()
+
+        storage = status.get("storage", {})
+        print(f"Total signals: {storage.get('total_signals', 0)}")
+        print(f"Total work items: {storage.get('total_work_items', 0)}")
+        print(f"Unresolved drifts: {storage.get('unresolved_drifts', 0)}")
+
+        last = status.get("last_absorption")
+        if last:
+            print(f"\nLast absorption: {last.get('time', 'Unknown')}")
+            print(f"  Signals: {last.get('signals', 0)}")
+            print(f"  Work items: {last.get('items', 0)}")
+            print(f"  Drifts: {last.get('drifts', 0)}")
+        else:
+            print("\nNo absorption run yet")
+
+        by_project = storage.get("by_project", {})
+        if by_project:
+            print("\nBy project:")
+            for project, count in sorted(by_project.items(), key=lambda x: -x[1]):
+                print(f"  {project}: {count} work items")
+
+    def cmd_work_items(args):
+        """List work items."""
+        from work_absorber import WorkAbsorber, WorkStatus
+
+        absorber = WorkAbsorber()
+
+        if args.status == "orphaned":
+            items = absorber.get_unplanned_work()
+        else:
+            items = absorber.get_recent_work(days=args.days, project=args.project)
+            if args.status:
+                status = WorkStatus(args.status)
+                items = [i for i in items if i.status == status]
+
+        if not items:
+            print("No work items found")
+            return
+
+        print(f"Work items ({len(items)}):\n")
+
+        for item in items[:args.limit]:
+            icon = "✓" if item.status.value == "correlated" else "○"
+            print(f"{icon} [{item.project}] {item.title}")
+            print(f"  Status: {item.status.value} | Signals: {item.signal_count} | Files: {len(item.files_touched)}")
+            if item.plan_step_id:
+                print(f"  Plan: {item.plan_step_id} ({item.correlation_confidence:.0%} confidence)")
+            if item.scope:
+                print(f"  Scope: {item.scope}")
+            print(f"  Time: {item.first_seen.strftime('%Y-%m-%d %H:%M')} - {item.last_activity.strftime('%Y-%m-%d %H:%M')}")
+            print()
+
+    def cmd_work_drift(args):
+        """Show or resolve plan drift."""
+        from work_absorber import WorkAbsorber
+
+        absorber = WorkAbsorber()
+
+        if args.resolve:
+            notes = args.notes or ""
+            absorber.storage.resolve_drift(args.resolve, notes)
+            print(f"✓ Drift {args.resolve} resolved")
+            return
+
+        summary = absorber.get_drift_summary(project=args.project)
+
+        if summary["total"] == 0:
+            print("No unresolved drifts detected")
+            return
+
+        print(f"Plan Drift ({summary['total']} unresolved):\n")
+
+        # By type
+        by_type = summary["by_type"]
+        if by_type:
+            print("By type:")
+            for drift_type, count in sorted(by_type.items()):
+                print(f"  {drift_type}: {count}")
+            print()
+
+        # By severity
+        by_severity = summary["by_severity"]
+        if by_severity:
+            print("By severity:")
+            for severity, count in sorted(by_severity.items()):
+                print(f"  {severity}: {count}")
+            print()
+
+        # Show drifts
+        print("Drifts:")
+        for drift in summary["drifts"]:
+            severity_icon = {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(drift.severity, "○")
+            print(f"\n{severity_icon} [{drift.drift_type.value}] {drift.description}")
+            print(f"  Project: {drift.project} | ID: {drift.id}")
+            print(f"  Suggested: {drift.suggested_action}")
+
+    def cmd_work_report(args):
+        """Generate work absorption report."""
+        from work_absorber import WorkAbsorber
+        from datetime import datetime, timedelta
+
+        absorber = WorkAbsorber()
+        since = datetime.now() - timedelta(days=args.days)
+
+        items = absorber.get_recent_work(days=args.days)
+        drifts = absorber.storage.get_unresolved_drifts()
+
+        print(f"╔══════════════════════════════════════════════════════╗")
+        print(f"║      WORK ABSORPTION REPORT ({args.days} days)              ║")
+        print(f"╚══════════════════════════════════════════════════════╝")
+        print()
+
+        # Summary
+        print(f"Work items: {len(items)}")
+        correlated = sum(1 for i in items if i.plan_step_id)
+        orphaned = sum(1 for i in items if not i.plan_step_id)
+        print(f"  Correlated to plans: {correlated}")
+        print(f"  Unplanned work: {orphaned}")
+
+        print(f"\nDrifts: {len(drifts)} unresolved")
+        print()
+
+        # By project
+        by_project = {}
+        for item in items:
+            by_project.setdefault(item.project, []).append(item)
+
+        print("By project:")
+        for project in sorted(by_project.keys()):
+            project_items = by_project[project]
+            print(f"\n  {project}: {len(project_items)} work items")
+            for item in project_items[:5]:
+                status = "✓" if item.plan_step_id else "○"
+                print(f"    {status} {item.title[:50]}")
+
+        # Recent highlights
+        if items:
+            print("\nRecent highlights:")
+            for item in items[:5]:
+                print(f"  - {item.title} ({item.project})")
+
+    # Work absorber subparsers
+    work_parser = subparsers.add_parser('work', help='Work absorber - track progress across projects')
+    work_subparsers = work_parser.add_subparsers(dest='work_command', help='Work commands')
+
+    # work absorb
+    work_absorb_parser = work_subparsers.add_parser('absorb', help='Run absorption cycle')
+    work_absorb_parser.add_argument('--project', '-p', help='Specific project to absorb')
+    work_absorb_parser.add_argument('--since', '-s', help='Start date (YYYY-MM-DD or Nd for N days ago)')
+    work_absorb_parser.add_argument('--full', action='store_true', help='Full rescan (ignore checkpoints)')
+    work_absorb_parser.set_defaults(func=cmd_work_absorb)
+
+    # work status
+    work_status_parser = work_subparsers.add_parser('status', help='Show absorber status')
+    work_status_parser.set_defaults(func=cmd_work_status)
+
+    # work items
+    work_items_parser = work_subparsers.add_parser('items', help='List work items')
+    work_items_parser.add_argument('--project', '-p', help='Filter by project')
+    work_items_parser.add_argument('--status', '-s', choices=['detected', 'absorbed', 'correlated', 'orphaned'], help='Filter by status')
+    work_items_parser.add_argument('--days', '-d', type=int, default=7, help='Days to look back (default: 7)')
+    work_items_parser.add_argument('--limit', '-l', type=int, default=20, help='Max items to show (default: 20)')
+    work_items_parser.set_defaults(func=cmd_work_items)
+
+    # work drift
+    work_drift_parser = work_subparsers.add_parser('drift', help='Show plan drift')
+    work_drift_parser.add_argument('--project', '-p', help='Filter by project')
+    work_drift_parser.add_argument('--resolve', '-r', help='Resolve drift by ID')
+    work_drift_parser.add_argument('--notes', '-n', help='Resolution notes')
+    work_drift_parser.set_defaults(func=cmd_work_drift)
+
+    # work report
+    work_report_parser = work_subparsers.add_parser('report', help='Generate absorption report')
+    work_report_parser.add_argument('--days', '-d', type=int, default=7, help='Days to include (default: 7)')
+    work_report_parser.set_defaults(func=cmd_work_report)
+
     args = parser.parse_args()
 
     if not hasattr(args, "func"):
