@@ -346,6 +346,54 @@ def cmd_git(args):
         sys.exit(1)
 
 
+def cmd_sync(args):
+    """Synchronize Git state and clean stale branches."""
+    try:
+        from integration.git_sync import GitSynchronizer
+    except ImportError:
+        print("Error: Git sync module not available")
+        sys.exit(1)
+
+    try:
+        sync = GitSynchronizer(str(args.root))
+
+        if args.dry_run or args.status:
+            status = sync.get_sync_status()
+            print(sync.format_status(status))
+            return
+
+        if args.full:
+            results = sync.full_sync(clean_branches=args.clean, force_clean=args.force)
+            print(sync.format_results(results))
+            return
+
+        results = []
+        if args.fetch:
+            results.append(sync.fetch_all(prune=True))
+        if args.pull:
+            results.append(sync.pull_main())
+        if args.rebase:
+            results.append(sync.rebase_on_main())
+        if args.clean:
+            results.append(sync.clean_stale_branches(force=args.force))
+            results.append(sync.prune_gone_branches())
+
+        if results:
+            print(sync.format_results(results))
+        else:
+            status = sync.get_sync_status()
+            print(sync.format_status(status))
+            print("\nRun with --full for complete sync, or use individual flags:")
+            print("  --pull    Pull main branch")
+            print("  --rebase  Rebase current branch on main")
+            print("  --clean   Delete stale branches")
+            print("  --fetch   Fetch from all remotes")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
@@ -1109,6 +1157,18 @@ Examples:
     git_parser.add_argument("--brief", action="store_true", help="Show brief summary")
     git_parser.add_argument("--recommendations", "-r", action="store_true", help="Include actionable recommendations")
     git_parser.set_defaults(func=cmd_git)
+
+    # Sync command
+    sync_parser = subparsers.add_parser("sync", help="Synchronize Git state")
+    sync_parser.add_argument("--status", "-s", action="store_true", help="Show sync status")
+    sync_parser.add_argument("--dry-run", action="store_true", help="Preview what would happen")
+    sync_parser.add_argument("--full", action="store_true", help="Full sync: fetch + pull + rebase")
+    sync_parser.add_argument("--fetch", action="store_true", help="Fetch from all remotes")
+    sync_parser.add_argument("--pull", action="store_true", help="Pull main branch")
+    sync_parser.add_argument("--rebase", action="store_true", help="Rebase current branch on main")
+    sync_parser.add_argument("--clean", action="store_true", help="Delete stale branches")
+    sync_parser.add_argument("--force", action="store_true", help="Force delete unmerged branches")
+    sync_parser.set_defaults(func=cmd_sync)
 
     # Schedule command
     schedule_parser = subparsers.add_parser(
