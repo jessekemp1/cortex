@@ -270,109 +270,14 @@ Defer **P3 & P5** until clear need emerges
 
 ---
 
-## 📝 Notes
-
-### All Items are Optional:
-The core system is **production-ready**. These items are enhancements, not fixes.
-
-### Prioritize Based on Usage:
-Wait to see which features users actually need before building everything.
-
-### Incremental Approach:
-Add features one at a time, validate they work, then move to next.
-
-### Don't Over-Engineer:
-Only build what's needed. Simple solutions are better than complex ones.
-
----
-
-## ✨ Current Capabilities (No Work Needed)
-
-Remember, the system can already:
-- ✅ Track metrics (coverage, commits, violations)
-- ✅ Analyze trends (linear regression, anomaly detection)
-- ✅ Generate alerts (degradation, activity, critical files)
-- ✅ Select files intelligently
-- ✅ Generate smart recommendations
-- ✅ Integrate with CLI and Python API
-- ✅ Inject context automatically
-
-**Use it first, enhance later!**
-
----
-
----
-
-## External Integration Items
-
-### Cursor Extension Integration (AIO)
-**Status:** Planned  
-**Location:** `cortex/FUTURE/CURSOR_EXTENSION_INTEGRATION.md`  
-**Effort:** 14-21 hours  
-**Priority:** Medium
-
-Integrate Cursor usage tracking into AIO via extension, enabling unified usage monitoring across Claude Code and Cursor. Design complete, ready for implementation when prioritized.
-
-**Key Components:**
-- Cursor extension (TypeScript/VS Code API)
-- AIO unified tracker integration
-- CLI updates for combined usage
-
-**References:**
-- `aio/CURSOR_EXTENSION_DESIGN.md`
-- `aio/EXTENSION_IMPLEMENTATION_GUIDE.md`
-- `aio/EXTENSION_IMPACT_GUARANTEE.md`
-
----
-
-## 🔧 VortexV2 Maintenance Items (Added 2025-12-30)
-
-### P2 Priority Items
-
-#### 15. Git Branch Cleanup
-**Effort:** 30 min - 1 hour
-**Context:** 100+ uncommitted files on `feat/dev-stack-and-cortex-git` branch
-**Actions:**
-- Review uncommitted changes
-- Organize into logical commits or PR
-- Consider squashing related changes
-- Clean up stale branches
-
-**Value:** Medium - Keeps repo clean and manageable
-
-#### 16. Fix Deprecation Warnings in Auth Middleware
-**Effort:** 15-30 min
-**Files:** `Vortex/VortexV2/app/middleware/auth.py`
-**Issue:** Using deprecated `datetime.datetime.utcnow()`
-**Fix:** Replace with `datetime.datetime.now(datetime.UTC)`
-
-Lines to fix:
-- Line 400: `now = datetime.utcnow().timestamp()`
-- Line 549: `int(datetime.utcnow().timestamp()) + retry_after`
-
-**Value:** Low-Medium - Eliminates test warnings, future-proofs code
-
----
-
-## 📊 Batch Results Summary (2025-12-30)
-
-9/9 batch tasks completed successfully. Key insights:
-
-| Task | Key Finding |
-|------|-------------|
-| `vortex_test_coverage` | Identified gaps in GRIB edge cases, network timeouts, memory overflow tests |
-| `vortex_performance_audit` | GRIB loading can be parallelized with ThreadPoolExecutor, use chunking |
-| `vortex_api_hardening` | Input validation middleware needed, rate limiting recommendations |
-| `alpha_backtest_review` | Backtesting framework analysis complete |
-| `alpha_risk_metrics` | Risk metrics implementation guide |
-| `cortex_layer5_design` | Layer 5 architecture design |
-| `cortex_embeddings_strategy` | Embeddings strategy for knowledge base |
-| `aio_predictive_model` | Usage prediction model design |
-| `vital_crash_analysis` | Mobile app crash analysis |
-
-Full results: `~/.cortex/batches/msgbatch_01G1DkxR6ivXpg1D5SgxZvnY/individual/`
-
----
+<!--
+NOTES (not tracked as plan items):
+- All items are optional - core system is production-ready
+- Prioritize based on actual usage patterns
+- Add features incrementally, validate, then proceed
+- Don't over-engineer - simple solutions preferred
+- System already tracks metrics, analyzes trends, generates alerts, selects files, and generates recommendations
+-->
 
 **Last Updated:** 2025-12-30
 **Status:** All core work complete ✅
