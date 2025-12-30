@@ -306,6 +306,46 @@ def cmd_briefing(args):
         sys.exit(1)
 
 
+def cmd_git(args):
+    """Show Git/GitHub status and recommendations."""
+    try:
+        from integration.git_tracker import GitTracker
+    except ImportError:
+        print("Error: Git tracker module not available")
+        sys.exit(1)
+
+    try:
+        tracker = GitTracker(str(args.root))
+        state = tracker.get_state()
+
+        if args.json:
+            import json
+            print(json.dumps(tracker.get_summary(), indent=2, default=str))
+            return
+
+        if args.brief:
+            print(tracker.format_for_session_context())
+            return
+
+        # Full output
+        print(tracker.format_for_briefing())
+
+        # Show recommendations if requested
+        if args.recommendations:
+            recommendations = tracker.get_recommendations()
+            if recommendations:
+                print("\n### Actionable Recommendations")
+                for rec in recommendations:
+                    priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(rec["priority"], "⚪")
+                    print(f"{priority_icon} [{rec['type']}] {rec['message']}")
+                    if rec.get("action"):
+                        print(f"   → {rec['action']}")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
@@ -1062,6 +1102,13 @@ Examples:
         "--no-color", action="store_true", help="Disable color output"
     )
     briefing_parser.set_defaults(func=cmd_briefing)
+
+    # Git command
+    git_parser = subparsers.add_parser("git", help="Show Git/GitHub status")
+    git_parser.add_argument("--json", action="store_true", help="Output JSON format")
+    git_parser.add_argument("--brief", action="store_true", help="Show brief summary")
+    git_parser.add_argument("--recommendations", "-r", action="store_true", help="Include actionable recommendations")
+    git_parser.set_defaults(func=cmd_git)
 
     # Schedule command
     schedule_parser = subparsers.add_parser(

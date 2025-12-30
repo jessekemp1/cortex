@@ -41,6 +41,12 @@ try:
 except ImportError:
     ProcessMonitor = None
 
+try:
+    from integration.git_tracker import GitTracker, get_git_briefing
+except ImportError:
+    GitTracker = None
+    get_git_briefing = None
+
 
 @dataclass
 class BriefingData:
@@ -67,6 +73,7 @@ class BriefingData:
     # Optional fields
     resource_status: Optional[Dict[str, Any]] = None
     batch_queue_status: Optional[Dict[str, Any]] = None
+    git_status: Optional[Dict[str, Any]] = None
     period: str = "24h"
 
 
@@ -124,7 +131,20 @@ class BriefingGenerator:
                     f"Warning: Could not generate recommendations: {e}", file=sys.stderr
                 )
 
-        # 4. Get resource status
+        # 4. Get Git/GitHub status
+        git_status = None
+        if GitTracker:
+            try:
+                tracker = GitTracker(str(self.root_dir))
+                git_status = {
+                    "summary": tracker.get_summary(),
+                    "recommendations": tracker.get_recommendations(),
+                    "formatted": tracker.format_for_briefing()
+                }
+            except Exception as e:
+                print(f"Warning: Could not get Git status: {e}", file=sys.stderr)
+
+        # 5. Get resource status
         resource_status = None
         batch_queue_status = None
         if ProcessMonitor:
@@ -145,7 +165,7 @@ class BriefingGenerator:
             except Exception as e:
                 print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
 
-        # 5. Build briefing sections
+        # 6. Build briefing sections
         briefing = BriefingData(
             active_projects=self._get_active_projects(project_activity),
             recent_commits_24h=self._count_recent_commits(project_activity, hours=24),
@@ -156,6 +176,7 @@ class BriefingGenerator:
             waiting_on=self._get_waiting_on(goals, project_activity),
             resource_status=resource_status,
             batch_queue_status=batch_queue_status,
+            git_status=git_status,
             generated_at=datetime.now(),
         )
 
@@ -441,6 +462,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         lines.append(f"  {GREEN}Blockers: None{RESET}")
 
     lines.append("")
+
+    # Git & GitHub Status
+    if briefing.git_status and briefing.git_status.get("formatted"):
+        lines.append(briefing.git_status["formatted"])
+        lines.append("")
 
     # Resource Pulse
     if briefing.resource_status:
