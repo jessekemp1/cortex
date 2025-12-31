@@ -182,6 +182,17 @@
       "notes": null,
       "value_points": [],
       "friction_points": []
+    },
+    {
+      "date": "2025-12-31",
+      "recommendation_id": "next_action_complete_cortex__claude_code_integration_redesign",
+      "recommendation_title": "Complete Cortex + Claude Code integration redesign",
+      "executed": false,
+      "execution_evidence": [],
+      "useful": null,
+      "notes": null,
+      "value_points": [],
+      "friction_points": []
     }
   ],
   "start_date": "2025-12-08T13:22:50.858344"
