@@ -476,6 +476,75 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     lines.append("=" * 64)
     lines.append("")
 
+    # ==================== TL;DR SECTION ====================
+    lines.append(f"{BOLD}TL;DR{RESET}")
+    lines.append("")
+
+    # Portfolio status bullet
+    active_count = len(briefing.active_projects)
+    blocker_count = len(briefing.blockers)
+    blocker_status = f"{RED}{blocker_count} blockers{RESET}" if blocker_count > 0 else f"{GREEN}no blockers{RESET}"
+    lines.append(f"  • {BOLD}Portfolio:{RESET} {active_count} active projects, {briefing.total_commits_7d} commits this week, {blocker_status}")
+
+    # Top priority bullet
+    if briefing.priority_actions:
+        top = briefing.priority_actions[0]
+        priority_color = RED if top["priority"] == "HIGH" else YELLOW if top["priority"] == "MEDIUM" else GREEN
+        lines.append(f"  • {BOLD}Top Priority:{RESET} [{priority_color}{top['priority']}{RESET}] {top['title']}")
+
+    # Git status bullet
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        branch = gs.get("current_branch", "unknown")
+        modified = gs.get("working_tree", {}).get("modified", 0)
+        untracked = gs.get("working_tree", {}).get("untracked", 0)
+        pr_count = len(gs.get("pull_requests", []))
+        pr_text = f", {pr_count} open PR{'s' if pr_count != 1 else ''}" if pr_count > 0 else ""
+        lines.append(f"  • {BOLD}Git:{RESET} on `{branch}`, {modified} modified, {untracked} untracked{pr_text}")
+
+    # Work progress bullet
+    if briefing.work_progress:
+        wp = briefing.work_progress
+        items_24h = wp.get("items_24h", 0)
+        orphaned = wp.get("orphaned_24h", 0)
+        drifts = wp.get("drifts_total", 0)
+        orphan_text = f", {YELLOW}{orphaned} unplanned{RESET}" if orphaned > 0 else ""
+        drift_text = f", {YELLOW}{drifts} drift items{RESET}" if drifts > 0 else ""
+        lines.append(f"  • {BOLD}Work:{RESET} {items_24h} items today{orphan_text}{drift_text}")
+
+    # Resource status bullet
+    if briefing.resource_status:
+        rs = briefing.resource_status
+        cpu_avail = rs.get('cpu_available', 0)
+        mem_used = rs.get('memory_usage_percent', 0)
+        cpu_color = RED if cpu_avail < 30 else YELLOW if cpu_avail < 60 else GREEN
+        mem_color = RED if mem_used > 80 else YELLOW if mem_used > 60 else GREEN
+        waste = rs.get('waste_items', 0)
+        waste_text = f", {YELLOW}{waste} waste items{RESET}" if waste > 10 else ""
+        lines.append(f"  • {BOLD}System:{RESET} {cpu_color}{cpu_avail:.0f}% CPU free{RESET}, {mem_color}{mem_used:.0f}% mem used{RESET}{waste_text}")
+
+    # Batch queue bullet
+    if briefing.batch_queue_status:
+        bq = briefing.batch_queue_status
+        running = bq.get('running_count', 0)
+        pending = bq.get('pending_count', 0) + bq.get('scheduled_count', 0)
+        failed = bq.get('failed_count', 0)
+        if running > 0 or pending > 0 or failed > 0:
+            parts = []
+            if running > 0:
+                parts.append(f"{running} running")
+            if pending > 0:
+                parts.append(f"{pending} queued")
+            if failed > 0:
+                parts.append(f"{RED}{failed} failed{RESET}")
+            lines.append(f"  • {BOLD}Batch:{RESET} {', '.join(parts)}")
+
+    lines.append("")
+    lines.append("-" * 64)
+    lines.append("")
+
+    # ==================== EXPANDED DETAILS ====================
+
     # Portfolio Pulse
     lines.append(f"{BOLD}PORTFOLIO PULSE{RESET}")
     lines.append(
