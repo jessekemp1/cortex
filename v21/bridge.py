@@ -119,11 +119,33 @@ class CortexV2_1Bridge(CortexV2Bridge):
         Returns:
             List of recommendations with calibrated confidence
         """
-        from cortex.recommendation_engine import RecommendationEngine
+        raw_recs = []
 
-        # Get V1 recommendations
-        engine = RecommendationEngine(root_dir=self.root_dir)
-        raw_recs = engine.get_prioritized(project=project, limit=limit * 2)
+        # Try V1 recommendation engine
+        try:
+            import sys
+            # Add cortex to path for intelligence imports
+            cortex_path = str(Path(__file__).parent.parent)
+            if cortex_path not in sys.path:
+                sys.path.insert(0, cortex_path)
+
+            from cortex.recommendation_engine import RecommendationEngine
+            engine = RecommendationEngine(root_dir=self.root_dir)
+            raw_recs = engine.get_prioritized(project=project, limit=limit * 2)
+        except (ImportError, Exception) as e:
+            # Fallback: Generate recommendations from V2 patterns
+            patterns = self.store.get_all_patterns()
+            for pattern in patterns[:limit * 2]:
+                if project and project not in pattern.projects:
+                    continue
+                raw_recs.append({
+                    "title": pattern.title,
+                    "priority": "MEDIUM",
+                    "project": pattern.projects[0] if pattern.projects else "unknown",
+                    "rationale": pattern.problem,
+                    "confidence": pattern.confidence,
+                    "source": "v2_pattern",
+                })
 
         # Enhance with V2 calibration
         enhanced = []
