@@ -13,7 +13,7 @@ from intelligence.monitoring.metric_tracker import MetricType
 from intelligence.monitoring.alert_generator import AlertSeverity, AlertType
 from intelligence.recommendations.alert_adapter import adapt_alerts, AdaptedAlert
 from recommendation_engine import Task, Goal
-from tests.conftest import create_metric_series
+from cortex.tests.conftest import create_metric_series
 
 
 class TestLayer3Pipeline:

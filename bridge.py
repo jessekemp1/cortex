@@ -57,6 +57,27 @@ try:
 except ImportError:
     UnifiedIntelligence = None
 
+# V2 Prime: Engine imports
+try:
+    from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
+    from cortex.engines.synthesis import SynthesisCore, ContextGraph, Node, NodeType, Edge, EdgeType
+    from cortex.engines.broker import ActionBroker, Intervention, InterventionType, Severity
+    V2_PRIME_AVAILABLE = True
+except ImportError:
+    V2_PRIME_AVAILABLE = False
+    ContextAbsorber = None
+    SynthesisCore = None
+    ContextGraph = None
+    ActionBroker = None
+
+# V2 Prime: Protocol imports
+try:
+    from cortex.protocols.iap import IAPHandler, IAPMessage, MessageType, Agent, AgentRole
+    IAP_AVAILABLE = True
+except ImportError:
+    IAP_AVAILABLE = False
+    IAPHandler = None
+
 
 class CortexBridge:
     """Universal interface for AI agents to interact with Cortex."""
@@ -87,6 +108,314 @@ class CortexBridge:
             self.spec_kb = None
 
         self.session_mgr = SessionManager(self.root_dir) if SessionManager else None
+
+        # V2 Prime: Engine initialization
+        self._init_v2_prime()
+
+    def _init_v2_prime(self) -> None:
+        """Initialize V2 Prime engines."""
+        self.v2_available = V2_PRIME_AVAILABLE
+        
+        if not V2_PRIME_AVAILABLE:
+            self.absorber = None
+            self.synthesis = None
+            self.broker = None
+            self.iap = None
+            return
+
+        try:
+            # Engine A: Context Absorber
+            self.absorber = ContextAbsorber(self.root_dir)
+            
+            # Engine B: Synthesis Core with Context Graph
+            self.graph = ContextGraph()
+            self.synthesis = SynthesisCore(self.graph)
+            
+            # Engine C: Action Broker
+            self.broker = ActionBroker()
+            
+            # IAP Handler
+            if IAP_AVAILABLE:
+                self.iap = IAPHandler(
+                    synthesis_core=self.synthesis,
+                    action_broker=self.broker
+                )
+            else:
+                self.iap = None
+
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"V2 Prime init failed: {e}")
+            self.absorber = None
+            self.synthesis = None
+            self.broker = None
+            self.iap = None
+
+    # --- V2 Prime: Graph Methods ---
+
+    def query_graph(self, node_type: str, filters: Optional[Dict] = None) -> List[Dict]:
+        """
+        Query the context graph by node type.
+
+        Args:
+            node_type: Type of nodes to query (goal, project, pattern, lesson, etc.)
+            filters: Optional filters to apply
+
+        Returns:
+            List of matching node dictionaries
+        """
+        if not self.synthesis:
+            return [{"error": "V2 Prime Synthesis Core not available"}]
+
+        try:
+            from cortex.engines.synthesis import NodeType
+            node_type_enum = NodeType(node_type)
+            nodes = self.synthesis.graph.get_nodes_by_type(node_type_enum)
+            return [n.to_dict() for n in nodes]
+        except ValueError:
+            return [{"error": f"Unknown node type: {node_type}"}]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def get_related_nodes(self, node_id: str, edge_type: Optional[str] = None) -> List[Dict]:
+        """
+        Get nodes related to a given node.
+
+        Args:
+            node_id: ID of the source node
+            edge_type: Optional edge type filter
+
+        Returns:
+            List of related node dictionaries
+        """
+        if not self.synthesis:
+            return [{"error": "V2 Prime Synthesis Core not available"}]
+
+        try:
+            from cortex.engines.synthesis import EdgeType
+            edge_type_enum = EdgeType(edge_type) if edge_type else None
+            nodes = self.synthesis.graph.get_related(node_id, edge_type_enum)
+            return [n.to_dict() for n in nodes]
+        except ValueError:
+            return [{"error": f"Unknown edge type: {edge_type}"}]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def add_graph_node(
+        self,
+        node_type: str,
+        name: str,
+        data: Dict[str, Any],
+        node_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Add a node to the context graph.
+
+        Args:
+            node_type: Type of node
+            name: Node name
+            data: Node data
+            node_id: Optional explicit ID
+
+        Returns:
+            Result with node_id
+        """
+        if not self.synthesis:
+            return {"error": "V2 Prime Synthesis Core not available"}
+
+        try:
+            from cortex.engines.synthesis import Node, NodeType
+            import uuid
+            
+            nid = node_id or f"{node_type}:{uuid.uuid4().hex[:8]}"
+            node = Node(
+                id=nid,
+                type=NodeType(node_type),
+                name=name,
+                data=data,
+            )
+            self.synthesis.graph.add_node(node)
+            return {"success": True, "node_id": nid}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def add_graph_edge(
+        self,
+        source_id: str,
+        target_id: str,
+        edge_type: str,
+        weight: float = 1.0
+    ) -> Dict[str, Any]:
+        """
+        Add an edge to the context graph.
+
+        Args:
+            source_id: Source node ID
+            target_id: Target node ID
+            edge_type: Type of edge
+            weight: Edge weight (default 1.0)
+
+        Returns:
+            Result
+        """
+        if not self.synthesis:
+            return {"error": "V2 Prime Synthesis Core not available"}
+
+        try:
+            from cortex.engines.synthesis import Edge, EdgeType
+            edge = Edge(
+                source_id=source_id,
+                target_id=target_id,
+                type=EdgeType(edge_type),
+                weight=weight,
+            )
+            self.synthesis.graph.add_edge(edge)
+            return {"success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_graph_stats(self) -> Dict[str, Any]:
+        """Get context graph statistics."""
+        if not self.synthesis:
+            return {"error": "V2 Prime Synthesis Core not available"}
+
+        try:
+            return self.synthesis.graph.get_stats()
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- V2 Prime: Intervention Methods ---
+
+    def get_pending_interventions(self) -> List[Dict]:
+        """
+        Get pending interventions.
+
+        Returns:
+            List of intervention dictionaries
+        """
+        if not self.broker:
+            return [{"error": "V2 Prime Action Broker not available"}]
+
+        try:
+            return [i.to_dict() for i in self.broker.get_pending()]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def acknowledge_intervention(self, intervention_id: str) -> Dict[str, Any]:
+        """
+        Acknowledge an intervention.
+
+        Args:
+            intervention_id: ID of intervention to acknowledge
+
+        Returns:
+            Result
+        """
+        if not self.broker:
+            return {"error": "V2 Prime Action Broker not available"}
+
+        try:
+            success = self.broker.acknowledge(intervention_id)
+            return {"success": success}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def suppress_intervention(self, intervention_id: str, hours: int = 24) -> Dict[str, Any]:
+        """
+        Suppress an intervention for a duration.
+
+        Args:
+            intervention_id: ID of intervention to suppress
+            hours: Hours to suppress (default 24)
+
+        Returns:
+            Result
+        """
+        if not self.broker:
+            return {"error": "V2 Prime Action Broker not available"}
+
+        try:
+            success = self.broker.suppress(intervention_id, hours)
+            return {"success": success}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_broker_status(self) -> Dict[str, Any]:
+        """Get Action Broker status."""
+        if not self.broker:
+            return {"error": "V2 Prime Action Broker not available"}
+
+        try:
+            return self.broker.get_status()
+        except Exception as e:
+            return {"error": str(e)}
+
+    # --- V2 Prime: IAP Methods ---
+
+    def handle_iap_message(self, message_dict: Dict) -> Dict[str, Any]:
+        """
+        Handle an Inter-Agent Protocol message.
+
+        Args:
+            message_dict: IAP message as dictionary
+
+        Returns:
+            Response message as dictionary
+        """
+        if not self.iap:
+            return {"error": "V2 Prime IAP Handler not available"}
+
+        try:
+            from cortex.protocols.iap import IAPMessage
+            message = IAPMessage.from_dict(message_dict)
+            response = self.iap.handle_message(message)
+            return response.to_dict()
+        except Exception as e:
+            return {"error": str(e)}
+
+    def register_agent(self, agent_id: str, role: str, capabilities: List[str] = None) -> Dict[str, Any]:
+        """
+        Register an agent for IAP communication.
+
+        Args:
+            agent_id: Agent identifier
+            role: Agent role (researcher, implementer, reviewer, etc.)
+            capabilities: List of agent capabilities
+
+        Returns:
+            Result
+        """
+        if not self.iap:
+            return {"error": "V2 Prime IAP Handler not available"}
+
+        try:
+            from cortex.protocols.iap import Agent, AgentRole
+            agent = Agent(
+                id=agent_id,
+                role=AgentRole(role),
+                capabilities=capabilities or [],
+            )
+            self.iap.register_agent(agent)
+            return {"success": True, "agent_id": agent_id}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_v2_status(self) -> Dict[str, Any]:
+        """
+        Get V2 Prime system status.
+
+        Returns:
+            Status of all V2 Prime components
+        """
+        return {
+            "v2_available": self.v2_available,
+            "absorber": self.absorber is not None,
+            "synthesis": self.synthesis is not None,
+            "broker": self.broker is not None,
+            "iap": self.iap is not None,
+            "graph_stats": self.get_graph_stats() if self.synthesis else None,
+            "broker_status": self.get_broker_status() if self.broker else None,
+        }
 
     # --- 1. Context Bridge ---
 

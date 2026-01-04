@@ -2102,6 +2102,261 @@ Examples:
     work_report_parser.add_argument('--days', '-d', type=int, default=7, help='Days to include (default: 7)')
     work_report_parser.set_defaults(func=cmd_work_report)
 
+    # === V2 Prime Commands ===
+
+    def cmd_v2_status(args):
+        """Show V2 Prime system status."""
+        from bridge import CortexBridge
+        bridge = CortexBridge()
+        status = bridge.get_v2_status()
+
+        print("+" + "="*54 + "+")
+        print("|          CORTEX V2 PRIME - SYSTEM STATUS             |")
+        print("+" + "="*54 + "+")
+        print()
+
+        # Engine status
+        print("3-ENGINE ACTIVE MODEL")
+        print("-" * 30)
+        engines = [
+            ("Engine A: Absorber", status.get("absorber", False), "Signal ingestion"),
+            ("Engine B: Synthesis", status.get("synthesis", False), "Graph processing"),
+            ("Engine C: Broker", status.get("broker", False), "Interventions"),
+            ("IAP Handler", status.get("iap", False), "Agent protocol"),
+        ]
+        for name, active, desc in engines:
+            icon = "[OK]" if active else "[--]"
+            print(f"  {icon} {name}: {desc}")
+        print()
+
+        # Graph stats
+        graph_stats = status.get("graph_stats")
+        if graph_stats and "error" not in graph_stats:
+            print("CONTEXT GRAPH")
+            print("-" * 30)
+            print(f"  Nodes: {graph_stats.get('total_nodes', 0)}")
+            print(f"  Edges: {graph_stats.get('total_edges', 0)}")
+            if graph_stats.get("nodes_by_type"):
+                print("  By type:")
+                for ntype, count in graph_stats["nodes_by_type"].items():
+                    print(f"    {ntype}: {count}")
+            print()
+
+        # Broker stats
+        broker_status = status.get("broker_status")
+        if broker_status and "error" not in broker_status:
+            print("ACTION BROKER")
+            print("-" * 30)
+            print(f"  Total interventions: {broker_status.get('total_interventions', 0)}")
+            print(f"  Pending: {broker_status.get('pending_count', 0)}")
+            by_sev = broker_status.get("by_severity", {})
+            if any(by_sev.values()):
+                print("  By severity:")
+                for sev in ["critical", "high", "medium", "low", "info"]:
+                    if by_sev.get(sev, 0) > 0:
+                        print(f"    {sev}: {by_sev[sev]}")
+            print()
+
+        v2_status = "[OK] V2 Prime Operational" if status.get("v2_available") else "[--] V2 Prime Unavailable"
+        print(f"{v2_status}")
+
+    def cmd_graph_query(args):
+        """Query the context graph."""
+        from bridge import CortexBridge
+        import json
+        bridge = CortexBridge()
+
+        if args.node_type:
+            result = bridge.query_graph(args.node_type)
+        else:
+            result = bridge.get_graph_stats()
+
+        print(json.dumps(result, indent=2, default=str))
+
+    def cmd_graph_add(args):
+        """Add a node to the graph."""
+        from bridge import CortexBridge
+        import json
+        bridge = CortexBridge()
+
+        data = {}
+        if args.data:
+            try:
+                data = json.loads(args.data)
+            except json.JSONDecodeError:
+                data = {"description": args.data}
+
+        result = bridge.add_graph_node(args.node_type, args.name, data)
+        if result.get("success"):
+            print(f"[OK] Node added: {result['node_id']}")
+        else:
+            print(f"[FAIL] {result.get('error')}")
+
+    def cmd_graph_related(args):
+        """Get related nodes."""
+        from bridge import CortexBridge
+        import json
+        bridge = CortexBridge()
+
+        result = bridge.get_related_nodes(args.node_id, args.edge_type)
+        print(json.dumps(result, indent=2, default=str))
+
+    def cmd_graph_import(args):
+        """Import portfolio data into graph."""
+        from bridge import CortexBridge
+        from pathlib import Path
+        bridge = CortexBridge()
+
+        if not bridge.synthesis:
+            print("[FAIL] V2 Prime Synthesis Core not available")
+            return
+
+        portfolio_path = Path.home() / ".claude" / "portfolio"
+        print(f"Importing from {portfolio_path}...")
+
+        result = bridge.synthesis.import_portfolio_data(portfolio_path)
+
+        print()
+        print("Import complete:")
+        for category, count in result.items():
+            print(f"  {category}: {count}")
+
+        # Show updated stats
+        stats = bridge.get_graph_stats()
+        print()
+        print(f"Graph now has {stats.get('total_nodes', 0)} nodes and {stats.get('total_edges', 0)} edges")
+
+    def cmd_interventions_list(args):
+        """List pending interventions."""
+        from bridge import CortexBridge
+        bridge = CortexBridge()
+
+        interventions = bridge.get_pending_interventions()
+
+        if not interventions or (len(interventions) == 1 and "error" in interventions[0]):
+            print("No pending interventions")
+            return
+
+        print(f"Pending Interventions ({len(interventions)}):")
+        print()
+
+        for i in interventions:
+            sev_icon = {
+                "critical": "[!]",
+                "high": "[*]",
+                "medium": "[+]",
+                "low": "[-]",
+                "info": "[i]",
+            }.get(i.get("severity", "info"), "[?]")
+
+            print(f"{sev_icon} {i.get('title', 'Unknown')}")
+            print(f"    Type: {i.get('type')}")
+            print(f"    ID: {i.get('id')}")
+            if i.get("description"):
+                desc = i["description"][:80] + "..." if len(i.get("description", "")) > 80 else i.get("description", "")
+                print(f"    {desc}")
+            print()
+
+    def cmd_interventions_ack(args):
+        """Acknowledge an intervention."""
+        from bridge import CortexBridge
+        bridge = CortexBridge()
+
+        result = bridge.acknowledge_intervention(args.id)
+        if result.get("success"):
+            print(f"[OK] Intervention {args.id} acknowledged")
+        else:
+            print(f"[FAIL] {result.get('error')}")
+
+    def cmd_interventions_suppress(args):
+        """Suppress an intervention."""
+        from bridge import CortexBridge
+        bridge = CortexBridge()
+
+        result = bridge.suppress_intervention(args.id, args.hours)
+        if result.get("success"):
+            print(f"[OK] Intervention {args.id} suppressed for {args.hours} hours")
+        else:
+            print(f"[FAIL] {result.get('error')}")
+
+    def cmd_iap_send(args):
+        """Send an IAP message."""
+        from bridge import CortexBridge
+        import json
+        bridge = CortexBridge()
+
+        message = {
+            "message_type": args.type,
+            "payload": {"query": args.payload, "query_type": args.query_type or "context"},
+        }
+
+        result = bridge.handle_iap_message(message)
+        print(json.dumps(result, indent=2, default=str))
+
+    # V2 Prime subparser
+    v2_parser = subparsers.add_parser('v2', help='V2 Prime system commands')
+    v2_subparsers = v2_parser.add_subparsers(dest='v2_command', help='V2 commands')
+
+    # v2 status
+    v2_status_parser = v2_subparsers.add_parser('status', help='Show V2 Prime system status')
+    v2_status_parser.set_defaults(func=cmd_v2_status)
+
+    # Graph subparser
+    graph_parser = subparsers.add_parser('graph', help='Context graph operations')
+    graph_subparsers = graph_parser.add_subparsers(dest='graph_command', help='Graph commands')
+
+    # graph query
+    graph_query_parser = graph_subparsers.add_parser('query', help='Query the context graph')
+    graph_query_parser.add_argument('--type', '-t', dest='node_type', help='Node type to query (project, pattern, lesson, goal)')
+    graph_query_parser.set_defaults(func=cmd_graph_query)
+
+    # graph add
+    graph_add_parser = graph_subparsers.add_parser('add', help='Add a node to the graph')
+    graph_add_parser.add_argument('node_type', help='Node type (project, pattern, lesson, goal)')
+    graph_add_parser.add_argument('name', help='Node name')
+    graph_add_parser.add_argument('--data', '-d', help='Node data as JSON string')
+    graph_add_parser.set_defaults(func=cmd_graph_add)
+
+    # graph related
+    graph_related_parser = graph_subparsers.add_parser('related', help='Get related nodes')
+    graph_related_parser.add_argument('node_id', help='Node ID to find relations for')
+    graph_related_parser.add_argument('--edge-type', '-e', dest='edge_type', help='Edge type filter')
+    graph_related_parser.set_defaults(func=cmd_graph_related)
+
+    # graph import
+    graph_import_parser = graph_subparsers.add_parser('import', help='Import portfolio data into graph')
+    graph_import_parser.set_defaults(func=cmd_graph_import)
+
+    # Interventions subparser
+    int_parser = subparsers.add_parser('interventions', help='Intervention management')
+    int_subparsers = int_parser.add_subparsers(dest='int_command', help='Intervention commands')
+
+    # interventions list
+    int_list_parser = int_subparsers.add_parser('list', help='List pending interventions')
+    int_list_parser.set_defaults(func=cmd_interventions_list)
+
+    # interventions ack
+    int_ack_parser = int_subparsers.add_parser('ack', help='Acknowledge an intervention')
+    int_ack_parser.add_argument('id', help='Intervention ID')
+    int_ack_parser.set_defaults(func=cmd_interventions_ack)
+
+    # interventions suppress
+    int_suppress_parser = int_subparsers.add_parser('suppress', help='Suppress an intervention')
+    int_suppress_parser.add_argument('id', help='Intervention ID')
+    int_suppress_parser.add_argument('--hours', type=int, default=24, help='Hours to suppress (default: 24)')
+    int_suppress_parser.set_defaults(func=cmd_interventions_suppress)
+
+    # IAP subparser
+    iap_parser = subparsers.add_parser('iap', help='Inter-Agent Protocol commands')
+    iap_subparsers = iap_parser.add_subparsers(dest='iap_command', help='IAP commands')
+
+    # iap send
+    iap_send_parser = iap_subparsers.add_parser('send', help='Send an IAP message')
+    iap_send_parser.add_argument('type', choices=['query', 'handoff', 'ack'], help='Message type')
+    iap_send_parser.add_argument('payload', help='Message payload')
+    iap_send_parser.add_argument('--query-type', '-q', dest='query_type', help='Query type for query messages')
+    iap_send_parser.set_defaults(func=cmd_iap_send)
+
     args = parser.parse_args()
 
     if not hasattr(args, "func"):

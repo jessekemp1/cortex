@@ -184,8 +184,14 @@ class TestCaching:
         result2 = injector.inject(cortex_path)
         time2 = (time.time() - start2) * 1000
 
-        # Results should be identical
-        assert result1 == result2
+        # Results should be similar (profile part cached, but CPU may vary slightly)
+        # Extract stable parts (project name, coverage) - CPU metrics are dynamic
+        import re
+        def extract_stable_parts(s):
+            # Remove dynamic CPU percentage which can vary between calls
+            return re.sub(r'CPU:\d+%', 'CPU:XX%', s)
+
+        assert extract_stable_parts(result1) == extract_stable_parts(result2)
 
         # Second call should be faster (or at least not slower)
         # Allow some variance due to system load

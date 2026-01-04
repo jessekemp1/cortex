@@ -34,8 +34,17 @@ class MCPServer:
     def __init__(self):
         self.bridge = CortexBridge(ROOT_DIR)
         self.tools = {
+            # V1 Tools
             "inject_recommendation": self._tool_inject,
             "trigger_action": self._tool_trigger,
+            # V2 Prime Tools
+            "v2_status": self._tool_v2_status,
+            "graph_query": self._tool_graph_query,
+            "graph_add_node": self._tool_graph_add_node,
+            "graph_related": self._tool_graph_related,
+            "interventions_list": self._tool_interventions_list,
+            "interventions_ack": self._tool_interventions_ack,
+            "iap_message": self._tool_iap_message,
         }
 
     def run(self):
@@ -101,6 +110,7 @@ class MCPServer:
             elif method == "tools/list":
                 result = {
                     "tools": [
+                        # V1 Tools
                         {
                             "name": "inject_recommendation",
                             "description": "Inject a strategic recommendation into Cortex.",
@@ -128,6 +138,88 @@ class MCPServer:
                                     "payload": {"type": "object"},
                                 },
                                 "required": ["agent_id"],
+                            },
+                        },
+                        # V2 Prime Tools
+                        {
+                            "name": "v2_status",
+                            "description": "Get Cortex V2 Prime system status including engines, graph stats, and interventions.",
+                            "inputSchema": {"type": "object", "properties": {}},
+                        },
+                        {
+                            "name": "graph_query",
+                            "description": "Query the context graph by node type (project, pattern, lesson, goal, error).",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "node_type": {
+                                        "type": "string",
+                                        "description": "Type of nodes to query",
+                                        "enum": ["project", "pattern", "lesson", "goal", "error", "file", "work_item"],
+                                    },
+                                },
+                            },
+                        },
+                        {
+                            "name": "graph_add_node",
+                            "description": "Add a node to the context graph.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "node_type": {"type": "string", "description": "Type of node"},
+                                    "name": {"type": "string", "description": "Node name"},
+                                    "data": {"type": "object", "description": "Node data"},
+                                },
+                                "required": ["node_type", "name"],
+                            },
+                        },
+                        {
+                            "name": "graph_related",
+                            "description": "Get nodes related to a given node.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "node_id": {"type": "string", "description": "Node ID to find relations for"},
+                                    "edge_type": {
+                                        "type": "string",
+                                        "description": "Optional edge type filter",
+                                        "enum": ["relates_to", "implements", "blocks", "causes", "contains", "used_in"],
+                                    },
+                                },
+                                "required": ["node_id"],
+                            },
+                        },
+                        {
+                            "name": "interventions_list",
+                            "description": "List pending interventions from the Action Broker.",
+                            "inputSchema": {"type": "object", "properties": {}},
+                        },
+                        {
+                            "name": "interventions_ack",
+                            "description": "Acknowledge an intervention.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "intervention_id": {"type": "string", "description": "ID of intervention to acknowledge"},
+                                },
+                                "required": ["intervention_id"],
+                            },
+                        },
+                        {
+                            "name": "iap_message",
+                            "description": "Send an Inter-Agent Protocol message to Cortex.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "message_type": {
+                                        "type": "string",
+                                        "enum": ["query", "handoff", "ack"],
+                                        "description": "Type of IAP message",
+                                    },
+                                    "payload": {"type": "object", "description": "Message payload"},
+                                    "context": {"type": "object", "description": "Optional context snapshot"},
+                                },
+                                "required": ["message_type", "payload"],
                             },
                         },
                     ]
@@ -191,6 +283,55 @@ class MCPServer:
         return self.bridge.trigger_action(
             agent_id=args["agent_id"], payload=args.get("payload", {})
         )
+
+    # V2 Prime Tool Implementations
+
+    def _tool_v2_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Get V2 Prime system status."""
+        return self.bridge.get_v2_status()
+
+    def _tool_graph_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Query context graph by node type."""
+        node_type = args.get("node_type")
+        if node_type:
+            return {"nodes": self.bridge.query_graph(node_type)}
+        else:
+            return {"stats": self.bridge.get_graph_stats()}
+
+    def _tool_graph_add_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a node to the context graph."""
+        return self.bridge.add_graph_node(
+            node_type=args["node_type"],
+            name=args["name"],
+            data=args.get("data", {}),
+        )
+
+    def _tool_graph_related(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Get nodes related to a given node."""
+        return {
+            "related": self.bridge.get_related_nodes(
+                node_id=args["node_id"],
+                edge_type=args.get("edge_type"),
+            )
+        }
+
+    def _tool_interventions_list(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """List pending interventions."""
+        return {"interventions": self.bridge.get_pending_interventions()}
+
+    def _tool_interventions_ack(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Acknowledge an intervention."""
+        return self.bridge.acknowledge_intervention(args["intervention_id"])
+
+    def _tool_iap_message(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle Inter-Agent Protocol message."""
+        message = {
+            "message_type": args["message_type"],
+            "payload": args["payload"],
+        }
+        if args.get("context"):
+            message["context_snapshot"] = args["context"]
+        return self.bridge.handle_iap_message(message)
 
 
 if __name__ == "__main__":
