@@ -279,6 +279,76 @@ NOTES (not tracked as plan items):
 - System already tracks metrics, analyzes trends, generates alerts, selects files, and generates recommendations
 -->
 
-**Last Updated:** 2025-12-30
+---
+
+## 🌊 VortexV2 - Remaining Tasks
+
+**Added:** 2026-01-02
+**Status:** Core ensemble working, needs polish
+
+### High Priority
+
+#### 15. LSTM Auto-Warming on Server Startup
+**Effort:** 1-2 hours
+**Files:** `app/main.py`, `app/models/lstm_warmer.py`
+
+LSTM model warms manually but not automatically on server startup:
+- Investigate why startup warming isn't triggering
+- Ensure LSTM is warmed before first prediction request
+- Add health check gate for LSTM readiness
+
+**Value:** High - LSTM is best-performing model in ensemble
+
+#### 16. ECMWF Forecast Time Alignment
+**Effort:** 1 hour
+**Files:** `app/models/ensemble.py`, `app/core/weather/grib_loader.py`
+
+ECMWF data loading works but forecast times don't always align:
+- Current ECMWF data valid for future times only (F000=analysis time)
+- Need to download more forecast hours or adjust time matching
+- Consider interpolation for missing time steps
+
+**Value:** Medium - ECMWF is highest-quality NWP model
+
+### Medium Priority
+
+#### 17. Expand ECMWF Forecast Coverage
+**Effort:** 30 min
+**Files:** `scripts/download_ecmwf.py`
+
+Download more forecast hours for better coverage:
+- Currently: F000, F006, F012, F024, F048
+- Add: F003, F009, F018, F036, F072, F096
+- Automate daily download via cron
+
+**Value:** Medium - Better temporal coverage
+
+#### 18. Review Full Test Suite Results
+**Effort:** 1 hour
+**Files:** `tests/`
+
+Test suite agent (ade450a) completed but results need review:
+- Check for any failing tests
+- Identify flaky tests
+- Update tests for new ensemble parameters
+
+**Value:** Medium - Ensure stability
+
+### Low Priority
+
+#### 19. Clean Up Root Directory Scripts
+**Effort:** 30 min
+**Files:** Root `*.py` files
+
+38 Python scripts in root directory:
+- Move utility scripts to `scripts/`
+- Move test scripts to `tests/`
+- Update any references
+
+**Value:** Low - Code organization
+
+---
+
+**Last Updated:** 2026-01-02
 **Status:** All core work complete ✅
 **Next:** Optional enhancements based on usage

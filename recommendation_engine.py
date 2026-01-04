@@ -60,8 +60,15 @@ class Recommendation:
     type: str
     title: str
     description: str
-    priority: int
+    priority: str  # "high", "medium", "low"
     confidence: float
+    id: str = None
+    rationale: str = None
+    estimated_effort: str = None
+    estimated_impact: str = None
+    related_projects: List[str] = None
+    related_goals: List[str] = None
+    prerequisites: List[str] = None
     files: List[str] = None
     steps: List[str] = None
     metadata: Dict[str, Any] = None
