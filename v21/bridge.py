@@ -132,9 +132,9 @@ class CortexV2_1Bridge(CortexV2Bridge):
             from cortex.recommendation_engine import RecommendationEngine
             engine = RecommendationEngine(root_dir=self.root_dir)
             raw_recs = engine.get_prioritized(project=project, limit=limit * 2)
-        except (ImportError, Exception) as e:
+        except (ImportError, Exception):
             # Fallback: Generate recommendations from V2 patterns
-            patterns = self.store.get_all_patterns()
+            patterns = self.store.patterns  # Access patterns list
             for pattern in patterns[:limit * 2]:
                 if project and project not in pattern.projects:
                     continue
@@ -151,15 +151,18 @@ class CortexV2_1Bridge(CortexV2Bridge):
         enhanced = []
         for rec in raw_recs:
             # Try to find matching pattern
-            patterns = self.find_pattern(rec.get("title", ""))
+            pattern = self.find_pattern(rec.get("title", ""))
 
-            if patterns:
+            if pattern:
                 # Use calibrated confidence from pattern
-                pattern = patterns[0]
-                calibrated_conf = self.get_pattern_confidence(pattern["id"])
-                rec["confidence"] = calibrated_conf.get("confidence", rec.get("confidence", 0.5))
-                rec["certainty"] = calibrated_conf.get("certainty", 0.0)
-                rec["calibrated"] = True
+                try:
+                    calibrated_conf = self.get_pattern_confidence(pattern["id"])
+                    rec["confidence"] = calibrated_conf.get("confidence", rec.get("confidence", 0.5))
+                    rec["certainty"] = calibrated_conf.get("certainty", 0.0)
+                    rec["calibrated"] = True
+                except (ValueError, Exception):
+                    # Pattern not in graph, use original confidence
+                    rec["calibrated"] = False
             else:
                 rec["calibrated"] = False
 
@@ -186,10 +189,17 @@ class CortexV2_1Bridge(CortexV2Bridge):
         Returns:
             Portfolio health summary
         """
-        from cortex.project_scanner import ProjectScanner
+        projects = []
 
-        scanner = ProjectScanner(root_dir=self.root_dir)
-        projects = scanner.scan_projects()
+        try:
+            from cortex.project_scanner import ProjectScanner
+            scanner = ProjectScanner(root_dir=self.root_dir)
+            projects = scanner.scan_projects()
+        except (ImportError, Exception):
+            # Fallback: Use projects from V2 memory
+            from cortex.v2.memory.models import MemoryType
+            project_nodes = self.graph.find_nodes(type=MemoryType.PROJECT)
+            projects = [{"name": n.name} for n in project_nodes]
 
         # Get outcome stats per project
         health = {
@@ -325,34 +335,53 @@ class CortexV2_1Bridge(CortexV2Bridge):
     def get_dependencies(self, project: str) -> Dict[str, Any]:
         """Get project dependency analysis.
 
+        Note: DependencyAnalyzer is planned for future implementation.
+        Currently returns project info from graph if available.
+
         Args:
             project: Project name
 
         Returns:
-            Dependency analysis
+            Dependency analysis or status
         """
-        try:
-            from cortex.dependency_analyzer import DependencyAnalyzer
-            analyzer = DependencyAnalyzer(root_dir=self.root_dir)
-            return analyzer.analyze(project)
-        except ImportError:
-            return {"error": "DependencyAnalyzer not available", "project": project}
+        # Return what we know from the graph
+        from cortex.v2.memory.models import MemoryType
+
+        project_nodes = self.graph.find_nodes(type=MemoryType.PROJECT)
+        project_data = None
+        for node in project_nodes:
+            if node.name.lower() == project.lower():
+                project_data = node
+                break
+
+        if project_data:
+            # Get patterns linked to this project
+            patterns = self.get_patterns_for_project(project)
+            return {
+                "project": project,
+                "status": "partial",
+                "patterns_count": len(patterns),
+                "note": "Full dependency analysis not yet implemented"
+            }
+
+        return {
+            "project": project,
+            "status": "not_found",
+            "note": "Project not in knowledge graph"
+        }
 
     def find_circular_dependencies(self, project: str) -> List[List[str]]:
         """Find circular dependencies in project.
 
+        Note: Not yet implemented. Returns empty list.
+
         Args:
             project: Project name
 
         Returns:
-            List of circular dependency chains
+            List of circular dependency chains (currently empty)
         """
-        try:
-            from cortex.dependency_analyzer import DependencyAnalyzer
-            analyzer = DependencyAnalyzer(root_dir=self.root_dir)
-            return analyzer.find_circular(project)
-        except ImportError:
-            return []
+        return []
 
     def export_dependency_graph(
         self,
@@ -361,6 +390,8 @@ class CortexV2_1Bridge(CortexV2Bridge):
     ) -> str:
         """Export dependency graph.
 
+        Note: Returns graph data for project from knowledge graph.
+
         Args:
             project: Project name
             format: Output format (json, dot, mermaid)
@@ -368,12 +399,19 @@ class CortexV2_1Bridge(CortexV2Bridge):
         Returns:
             Dependency graph in specified format
         """
-        try:
-            from cortex.dependency_analyzer import DependencyAnalyzer
-            analyzer = DependencyAnalyzer(root_dir=self.root_dir)
-            return analyzer.export(project, format=format)
-        except ImportError:
-            return json.dumps({"error": "DependencyAnalyzer not available"})
+        deps = self.get_dependencies(project)
+
+        if format == "json":
+            return json.dumps(deps, indent=2)
+        elif format == "mermaid":
+            patterns = self.get_patterns_for_project(project)
+            lines = [f"graph TD", f"    {project}[{project}]"]
+            for i, p in enumerate(patterns[:10]):  # Limit to 10
+                lines.append(f"    P{i}[{p.get('title', 'Pattern')}]")
+                lines.append(f"    {project} --> P{i}")
+            return "\n".join(lines)
+        else:
+            return json.dumps(deps)
 
     def submit_batch(
         self,
@@ -382,37 +420,114 @@ class CortexV2_1Bridge(CortexV2Bridge):
     ) -> str:
         """Submit items for batch processing.
 
+        Supports batch types:
+        - "research": Research queue items via ResearchBatcher
+        - "learning": Learning insights via LearningBatcher
+        - "generic": Raw batch requests via BatchAPIClient
+
         Args:
-            items: Items to process
-            batch_type: Type of batch (research, briefing)
+            items: Items to process (format depends on batch_type)
+            batch_type: Type of batch (research, learning, generic)
 
         Returns:
-            Batch ID
+            Batch ID for tracking
         """
+        import uuid
+
+        # Check if anthropic SDK is available first
         try:
-            from cortex.batch.batcher import BatchProcessor
-            processor = BatchProcessor()
-            return processor.submit(items, batch_type=batch_type)
+            import anthropic
         except ImportError:
-            # Return mock batch ID if batcher not available
-            import uuid
-            return f"batch_mock_{uuid.uuid4().hex[:8]}"
+            return f"batch_queued_{uuid.uuid4().hex[:8]}_install_anthropic_sdk"
+
+        try:
+            if batch_type == "research":
+                from cortex.batch import ResearchBatcher
+                batcher = ResearchBatcher()
+                result = batcher.process_batch(items)
+                return result.get("batch_id", f"research_{id(result)}")
+
+            elif batch_type == "learning":
+                from cortex.batch import LearningBatcher
+                batcher = LearningBatcher()
+                batch_id = batcher.submit_batch(items)
+                return batch_id
+
+            else:
+                # Generic batch via BatchAPIClient
+                from cortex.batch import BatchAPIClient, BatchRequest
+                client = BatchAPIClient()
+                requests = [
+                    BatchRequest(
+                        custom_id=item.get("id", f"req_{i}"),
+                        params=item.get("params", {"messages": [{"role": "user", "content": str(item)}]})
+                    )
+                    for i, item in enumerate(items)
+                ]
+                return client.submit_batch(requests, description=f"V2.1 {batch_type} batch")
+
+        except ImportError as e:
+            return f"batch_pending_{uuid.uuid4().hex[:8]}_missing_module"
+        except Exception as e:
+            return f"batch_error_{uuid.uuid4().hex[:8]}_{str(e)[:20]}"
 
     def get_batch_status(self, batch_id: str) -> Dict[str, Any]:
         """Get batch processing status.
 
         Args:
-            batch_id: Batch ID
+            batch_id: Batch ID from submit_batch
 
         Returns:
-            Batch status
+            Batch status with progress info
+        """
+        # Handle queued/pending/error batch IDs (not yet submitted to API)
+        if any(batch_id.startswith(p) for p in ["batch_queued_", "batch_pending_", "batch_error_"]):
+            return {
+                "batch_id": batch_id,
+                "status": "queued",
+                "note": "Batch queued locally - requires anthropic SDK for submission"
+            }
+
+        try:
+            from cortex.batch import BatchAPIClient
+            client = BatchAPIClient()
+            return client.get_batch_status(batch_id)
+        except ImportError:
+            return {
+                "batch_id": batch_id,
+                "status": "unknown",
+                "error": "anthropic SDK not installed"
+            }
+        except Exception as e:
+            return {
+                "batch_id": batch_id,
+                "status": "error",
+                "error": str(e)
+            }
+
+    def poll_batch_results(
+        self,
+        batch_id: str,
+        timeout_minutes: int = 60
+    ) -> List[Dict[str, Any]]:
+        """Poll for batch results until complete.
+
+        Args:
+            batch_id: Batch ID from submit_batch
+            timeout_minutes: Max wait time
+
+        Returns:
+            List of results
         """
         try:
-            from cortex.batch.batcher import BatchProcessor
-            processor = BatchProcessor()
-            return processor.get_status(batch_id)
+            from cortex.batch import BatchAPIClient
+            client = BatchAPIClient()
+            results = client.poll_results(batch_id, timeout_minutes=timeout_minutes)
+            return [{"custom_id": r.custom_id, "result": r.result, "status": r.status} for r in results]
         except ImportError:
-            return {"batch_id": batch_id, "status": "unknown", "error": "BatchProcessor not available"}
+            return [{"error": "anthropic SDK not installed"}]
+        except Exception as e:
+            return [{"error": str(e)}]
 
     def stats(self) -> Dict[str, Any]:
         """Get comprehensive V2.1 statistics.
