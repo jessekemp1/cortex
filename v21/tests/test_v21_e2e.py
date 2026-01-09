@@ -287,7 +287,8 @@ class TestV21Batch:
     def test_get_batch_status(self, bridge):
         batch_id = bridge.submit_batch([{"task": "test"}], "research")
         status = bridge.get_batch_status(batch_id)
-        assert "batch_id" in status
+        # Status returns "id" from API or "batch_id" for queued batches
+        assert "id" in status or "batch_id" in status
         assert "status" in status
 
     def test_poll_batch_results(self, bridge):

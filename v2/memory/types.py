@@ -234,12 +234,62 @@ class Decision(TypedMemory):
         return d
 
 
+@dataclass
+class Goal(TypedMemory):
+    """A tracked goal or objective.
+
+    Example: "Ship VortexV2 production API by end of week"
+    """
+    status: str = "active"  # active, completed, blocked, abandoned
+    progress: int = 0  # 0-100 percent
+    deadline: Optional[str] = None  # ISO date string
+    success_criteria: List[str] = field(default_factory=list)
+    blockers: List[str] = field(default_factory=list)
+    parent_goal_id: Optional[str] = None  # For sub-goals
+    outcome_ids: List[str] = field(default_factory=list)  # Linked outcomes
+
+    @classmethod
+    def create(
+        cls,
+        title: str,
+        description: str = "",
+        deadline: str = None,
+        success_criteria: List[str] = None,
+        projects: List[str] = None,
+        progress: int = 0
+    ) -> "Goal":
+        """Create a new goal."""
+        return cls(
+            id=f"goal_{uuid.uuid4().hex[:8]}",
+            title=title,
+            content=description,
+            deadline=deadline,
+            success_criteria=success_criteria or [],
+            projects=projects or [],
+            progress=progress,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = super().to_dict()
+        d.update({
+            "status": self.status,
+            "progress": self.progress,
+            "deadline": self.deadline,
+            "success_criteria": self.success_criteria,
+            "blockers": self.blockers,
+            "parent_goal_id": self.parent_goal_id,
+            "outcome_ids": self.outcome_ids,
+        })
+        return d
+
+
 # Type registry for deserialization
 MEMORY_TYPES = {
     "pattern": Pattern,
     "incident": Incident,
     "skill": Skill,
     "decision": Decision,
+    "goal": Goal,
 }
 
 
@@ -296,6 +346,17 @@ def memory_from_dict(d: Dict[str, Any]) -> TypedMemory:
             alternatives=d.get("alternatives", []),
             rationale=d.get("rationale", ""),
             outcome=d.get("outcome", ""),
+        )
+    elif cls == Goal:
+        return Goal(
+            **common,
+            status=d.get("status", "active"),
+            progress=d.get("progress", 0),
+            deadline=d.get("deadline"),
+            success_criteria=d.get("success_criteria", []),
+            blockers=d.get("blockers", []),
+            parent_goal_id=d.get("parent_goal_id"),
+            outcome_ids=d.get("outcome_ids", []),
         )
 
     return TypedMemory(**common)

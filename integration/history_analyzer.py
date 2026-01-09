@@ -1,15 +1,12 @@
-"""Execution history analyzer for learning from local-orchestrator"""
+"""Execution history analyzer for learning from Cortex runtime."""
 
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# Add local-orchestrator to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "local-orchestrator"))
-
+# Use internal cortex.runtime imports (merged from local-orchestrator)
 try:
-    from storage.history import ExecutionHistory
+    from cortex.runtime.storage.history import ExecutionHistory
 
     HISTORY_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

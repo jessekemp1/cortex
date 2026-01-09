@@ -210,8 +210,8 @@ class GoalParser:
             ):
                 actions.append(action)
 
-        # Extract success criteria
-        success_match = re.search(r"\*\*Success Criteria\*\*:\s*([^\n]+)", content)
+        # Extract success criteria (format: **Success Criteria:** value)
+        success_match = re.search(r"\*\*Success Criteria:\*\*\s*([^\n]+)", content)
         success_criteria = success_match.group(1).strip() if success_match else ""
 
         # Extract blockers
@@ -219,6 +219,22 @@ class GoalParser:
         blocker_match = re.search(r"\*\*Gap\*\*:\s*([^\n]+)", content)
         if blocker_match:
             blockers.append(blocker_match.group(1).strip())
+
+        # Extract estimated effort (format: **Estimated Effort:** value)
+        effort_match = re.search(r"\*\*Estimated Effort:\*\*\s*([^\n]+)", content)
+        estimated_effort = effort_match.group(1).strip() if effort_match else "unknown"
+
+        # Extract impact
+        impact_match = re.search(r"\*\*Impact:\*\*\s*([^\n]+)", content)
+        impact = impact_match.group(1).strip().lower() if impact_match else "medium"
+
+        # Extract urgency
+        urgency_match = re.search(r"\*\*Urgency:\*\*\s*([^\n]+)", content)
+        urgency = urgency_match.group(1).strip().lower() if urgency_match else "medium"
+
+        # Extract commercial value
+        value_match = re.search(r"\*\*Commercial Value:\*\*\s*(\d+)", content)
+        commercial_value = int(value_match.group(1)) if value_match else 3
 
         return Goal(
             title=title,
@@ -229,26 +245,49 @@ class GoalParser:
             actions=actions[:5],  # Limit to 5 actions
             success_criteria=success_criteria,
             blockers=blockers,
+            estimated_effort=estimated_effort,
+            impact=impact,
+            urgency=urgency,
+            commercial_value=commercial_value,
         )
 
     def _infer_status(self, title: str, content: str) -> str:
         """Infer goal status from content."""
-        combined = (title + " " + content).lower()
+        # First check for explicit **Status:** field (most reliable)
+        status_match = re.search(r"\*\*Status:\*\*\s*(\w+)", content, re.IGNORECASE)
+        if status_match:
+            explicit_status = status_match.group(1).lower()
+            if explicit_status in ("completed", "done", "finished"):
+                return "completed"
+            elif explicit_status in ("in_progress", "active", "started"):
+                return "in_progress"
+            elif explicit_status in ("pending", "todo", "planned"):
+                return "pending"
+            elif explicit_status == "blocked":
+                return "blocked"
 
-        # Check for explicit status markers
-        if any(marker in combined for marker in ["✅", "complete", "done", "finished"]):
+        # Check for checkbox markers [x] or [ ]
+        if re.search(r"\[x\]", content, re.IGNORECASE):
             return "completed"
 
-        if any(
-            marker in combined
-            for marker in ["🔴", "critical", "urgent", "in progress", "active"]
-        ):
+        # Check for emoji status markers (explicit markers only)
+        if "✅" in content:
+            return "completed"
+        if "🔄" in content or "⏳" in content:
             return "in_progress"
 
-        if any(marker in combined for marker in ["🟡", "medium", "next"]):
-            return "pending"
+        # Only use keyword matching as last resort, and be more specific
+        combined = (title + " " + content).lower()
 
-        # Default based on priority
+        # Avoid false positives: "complete X" is not the same as "X is complete"
+        # Look for patterns like "- COMPLETE" or "status: completed"
+        if re.search(r"[-:]\s*(complete|done|finished)\s*$", combined, re.MULTILINE):
+            return "completed"
+
+        if any(marker in combined for marker in ["🔴", "critical", "urgent"]):
+            return "in_progress"
+
+        # Default to pending
         return "pending"
 
     def _extract_project(self, text: str) -> Optional[str]:

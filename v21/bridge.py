@@ -332,6 +332,162 @@ class CortexV2_1Bridge(CortexV2Bridge):
 
         return warnings
 
+    # === Goal Tracking Methods ===
+
+    def add_goal(
+        self,
+        title: str,
+        description: str = "",
+        deadline: Optional[str] = None,
+        success_criteria: Optional[List[str]] = None,
+        projects: Optional[List[str]] = None,
+        progress: int = 0
+    ) -> Dict[str, Any]:
+        """Add a new goal to track.
+
+        Args:
+            title: Goal title
+            description: Goal description
+            deadline: Target deadline (ISO date string)
+            success_criteria: List of success criteria
+            projects: Associated projects
+            progress: Initial progress (0-100)
+
+        Returns:
+            Created goal with ID
+        """
+        from cortex.v2.memory.types import Goal
+        from cortex.v2.memory.models import MemoryType
+
+        goal = Goal.create(
+            title=title,
+            description=description,
+            deadline=deadline,
+            success_criteria=success_criteria or [],
+            projects=projects or [],
+            progress=progress
+        )
+
+        self.store.add(goal)
+
+        # Add to graph
+        node = self.graph.add_node(
+            type=MemoryType.GOAL,
+            name=title,
+            data=goal.to_dict()
+        )
+
+        return {
+            "id": goal.id,
+            "graph_node_id": node.id,
+            "title": title,
+            "status": goal.status,
+            "progress": goal.progress,
+            "success": True
+        }
+
+    def update_goal(
+        self,
+        goal_id: str,
+        progress: Optional[int] = None,
+        status: Optional[str] = None,
+        blockers: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Update a goal's progress or status.
+
+        Args:
+            goal_id: Goal ID
+            progress: New progress (0-100)
+            status: New status (active, completed, blocked, abandoned)
+            blockers: List of blockers
+
+        Returns:
+            Updated goal
+        """
+        # Find goal in store
+        for mem in self.store.goals:
+            if mem.id == goal_id:
+                if progress is not None:
+                    mem.progress = min(100, max(0, progress))
+                if status is not None:
+                    mem.status = status
+                if blockers is not None:
+                    mem.blockers = blockers
+                if progress == 100 and status is None:
+                    mem.status = "completed"
+                mem.mark_used()
+                # Save goals
+                self.store._save_memories(self.store.goals_file, self.store.goals)
+                return mem.to_dict()
+
+        return {"error": f"Goal not found: {goal_id}"}
+
+    def get_goals(
+        self,
+        status: Optional[str] = None,
+        project: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get all goals, optionally filtered.
+
+        Args:
+            status: Filter by status (active, completed, blocked, abandoned)
+            project: Filter by project
+
+        Returns:
+            List of goals
+        """
+        goals = []
+        for mem in self.store.goals:
+            if status and mem.status != status:
+                continue
+            if project and project not in mem.projects:
+                continue
+            goals.append(mem.to_dict())
+
+        # Sort by progress (active goals first, then by progress)
+        goals.sort(key=lambda g: (
+            0 if g["status"] == "active" else 1,
+            -g["progress"]
+        ))
+
+        return goals
+
+    def get_goal_summary(self) -> Dict[str, Any]:
+        """Get summary of all goals.
+
+        Returns:
+            Goal summary with counts and progress
+        """
+        goals = self.get_goals()
+
+        summary = {
+            "total": len(goals),
+            "by_status": {},
+            "avg_progress": 0,
+            "blocked_count": 0,
+            "active_goals": [],
+        }
+
+        total_progress = 0
+        for goal in goals:
+            status = goal["status"]
+            summary["by_status"][status] = summary["by_status"].get(status, 0) + 1
+            total_progress += goal["progress"]
+            if goal.get("blockers"):
+                summary["blocked_count"] += 1
+            if status == "active":
+                summary["active_goals"].append({
+                    "id": goal["id"],
+                    "title": goal["title"],
+                    "progress": goal["progress"],
+                    "deadline": goal.get("deadline"),
+                })
+
+        if goals:
+            summary["avg_progress"] = total_progress / len(goals)
+
+        return summary
+
     def get_dependencies(self, project: str) -> Dict[str, Any]:
         """Get project dependency analysis.
 
@@ -441,22 +597,42 @@ class CortexV2_1Bridge(CortexV2Bridge):
             return f"batch_queued_{uuid.uuid4().hex[:8]}_install_anthropic_sdk"
 
         try:
+            from cortex.batch import BatchAPIClient, BatchRequest
+
+            # Build requests based on batch type
             if batch_type == "research":
-                from cortex.batch import ResearchBatcher
-                batcher = ResearchBatcher()
-                result = batcher.process_batch(items)
-                return result.get("batch_id", f"research_{id(result)}")
+                # Research batch - format items for research prompt
+                from cortex.batch.research_batcher import ResearchBatcher
+                requests = []
+                for i, item in enumerate(items):
+                    req = BatchRequest(
+                        custom_id=item.get("id", f"research_{i}"),
+                        params={
+                            "messages": [{
+                                "role": "user",
+                                "content": ResearchBatcher.RESEARCH_USER_PROMPT_TEMPLATE.format(
+                                    topic=item.get("topic", "unknown"),
+                                    context=item.get("context", ""),
+                                    priority=item.get("priority", "medium")
+                                )
+                            }],
+                            "system": ResearchBatcher.RESEARCH_SYSTEM_PROMPT
+                        }
+                    )
+                    requests.append(req)
 
             elif batch_type == "learning":
-                from cortex.batch import LearningBatcher
-                batcher = LearningBatcher()
-                batch_id = batcher.submit_batch(items)
-                return batch_id
+                # Learning batch - format for learning prompts
+                requests = [
+                    BatchRequest(
+                        custom_id=item.get("id", f"learning_{i}"),
+                        params=item.get("params", {"messages": [{"role": "user", "content": str(item)}]})
+                    )
+                    for i, item in enumerate(items)
+                ]
 
             else:
-                # Generic batch via BatchAPIClient
-                from cortex.batch import BatchAPIClient, BatchRequest
-                client = BatchAPIClient()
+                # Generic batch
                 requests = [
                     BatchRequest(
                         custom_id=item.get("id", f"req_{i}"),
@@ -464,7 +640,10 @@ class CortexV2_1Bridge(CortexV2Bridge):
                     )
                     for i, item in enumerate(items)
                 ]
-                return client.submit_batch(requests, description=f"V2.1 {batch_type} batch")
+
+            # Submit batch (non-blocking - returns immediately)
+            client = BatchAPIClient()
+            return client.submit_batch(requests, description=f"V2.1 {batch_type} batch")
 
         except ImportError as e:
             return f"batch_pending_{uuid.uuid4().hex[:8]}_missing_module"
