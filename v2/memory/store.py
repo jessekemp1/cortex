@@ -12,6 +12,7 @@ from .types import (
     Incident,
     Skill,
     Decision,
+    Goal,
     memory_from_dict,
 )
 from .decay import TemporalDecay
@@ -75,12 +76,14 @@ class TypedMemoryStore:
         self.incidents_file = data_dir / "incidents.json"
         self.skills_file = data_dir / "skills.json"
         self.decisions_file = data_dir / "decisions.json"
+        self.goals_file = data_dir / "goals.json"
 
         # Load all memories
         self.patterns: List[Pattern] = self._load_memories(self.patterns_file, Pattern)
         self.incidents: List[Incident] = self._load_memories(self.incidents_file, Incident)
         self.skills: List[Skill] = self._load_memories(self.skills_file, Skill)
         self.decisions: List[Decision] = self._load_memories(self.decisions_file, Decision)
+        self.goals: List["Goal"] = self._load_memories(self.goals_file, Goal)
 
     def _load_memories(self, path: Path, mem_type: Type[TypedMemory]) -> List[TypedMemory]:
         """Load memories from a file."""
@@ -120,12 +123,15 @@ class TypedMemoryStore:
         elif isinstance(memory, Decision):
             self.decisions.append(memory)
             self._save_memories(self.decisions_file, self.decisions)
+        elif isinstance(memory, Goal):
+            self.goals.append(memory)
+            self._save_memories(self.goals_file, self.goals)
 
         return memory
 
     def get(self, memory_id: str) -> Optional[TypedMemory]:
         """Get a memory by ID."""
-        all_memories = self.patterns + self.incidents + self.skills + self.decisions
+        all_memories = self.patterns + self.incidents + self.skills + self.decisions + self.goals
         for memory in all_memories:
             if memory.id == memory_id:
                 return memory

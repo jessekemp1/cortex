@@ -299,50 +299,84 @@ class BriefingGenerator:
     def _get_priority_actions(
         self, recommendations: List[Recommendation], goals: List[Goal]
     ) -> List[Dict[str, Any]]:
-        """Get top 3 priority actions from recommendations and goals."""
+        """Get top 5 priority actions from recommendations and goals with detailed info."""
         actions = []
+        seen_titles = set()  # Track titles to avoid duplicates
 
-        # Add recommendations
+        def normalize_title(title: str) -> str:
+            """Normalize title for deduplication."""
+            import re
+            # Remove project prefix (e.g., "cortex: " or "VortexV2: ")
+            normalized = re.sub(r'^[^:]+:\s*', '', title.lower())
+            # Remove parenthetical content (e.g., "(feat/branch-name)")
+            normalized = re.sub(r'\([^)]*\)', '', normalized)
+            # Remove punctuation
+            normalized = re.sub(r'[^\w\s]', '', normalized)
+            # Normalize common variations
+            normalized = normalized.replace('complete', 'finish')
+            normalized = normalized.replace('pr 2', 'pr2')
+            # Remove extra whitespace
+            normalized = ' '.join(normalized.split())
+            return normalized.strip()
+
+        # Add recommendations first
         if recommendations:
             for rec in recommendations[:3]:
-                actions.append(
-                    {
-                        "title": (
-                            rec.action_title
-                            if hasattr(rec, "action_title")
-                            else rec.title
-                        ),
-                        "priority": rec.priority.upper(),
-                        "project": (
-                            rec.related_projects[0]
-                            if rec.related_projects
-                            else "General"
-                        ),
-                        "rationale": rec.rationale,
-                        "source": "recommendation",
-                    }
-                )
+                title = rec.action_title if hasattr(rec, "action_title") else rec.title
+                norm_title = normalize_title(title)
 
-        # Fill remaining with high-priority goals if needed
-        if len(actions) < 3 and goals:
+                if norm_title in seen_titles:
+                    continue
+                seen_titles.add(norm_title)
+
+                action = {
+                    "title": title,
+                    "priority": rec.priority.upper(),
+                    "project": (
+                        rec.related_projects[0]
+                        if rec.related_projects
+                        else "General"
+                    ),
+                    "rationale": rec.rationale,
+                    "source": "recommendation",
+                    "steps": getattr(rec, 'steps', []) or [],
+                    "estimated_effort": getattr(rec, 'estimated_effort', None),
+                    "estimated_impact": getattr(rec, 'estimated_impact', None),
+                    "confidence": getattr(rec, 'confidence', None),
+                }
+                actions.append(action)
+
+        # Fill remaining with high-priority goals (avoiding duplicates)
+        if goals:
             priority_goals = [
                 g
                 for g in goals
                 if g.priority == "A" and g.status in ["pending", "in_progress"]
             ]
 
-            for goal in priority_goals[: 3 - len(actions)]:
-                actions.append(
-                    {
-                        "title": goal.title,
-                        "priority": "HIGH",
-                        "project": goal.project or "General",
-                        "rationale": goal.description[:100] if goal.description else "",
-                        "source": "goal",
-                    }
-                )
+            for goal in priority_goals:
+                if len(actions) >= 5:
+                    break
 
-        return actions[:3]
+                norm_title = normalize_title(goal.title)
+                if norm_title in seen_titles:
+                    continue
+                seen_titles.add(norm_title)
+
+                action = {
+                    "title": goal.title,
+                    "priority": "HIGH",
+                    "project": goal.project or "General",
+                    "rationale": goal.description[:150] if goal.description else "",
+                    "source": "goal",
+                    "steps": goal.actions[:3] if goal.actions else [],
+                    "success_criteria": goal.success_criteria,
+                    "estimated_effort": getattr(goal, 'estimated_effort', None),
+                    "completion_percentage": getattr(goal, 'completion_percentage', 0),
+                }
+                actions.append(action)
+
+        return actions[:5]
 
     def _detect_patterns(self, projects: List[ProjectActivity]) -> List[str]:
         """Detect activity patterns and trends."""
@@ -767,27 +801,45 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                 if action["priority"] == "HIGH"
                 else YELLOW if action["priority"] == "MEDIUM" else GREEN
             )
-            lines.append(
-                f"  {i}. [{priority_color}{action['priority']}{RESET}] {action['title']}"
-            )
-            if action.get("project") and action["project"] != "General":
-                lines.append(f"     Project: {action['project']}")
-            if action.get("rationale"):
-                # Truncate rationale to 80 chars
-                rationale = (
-                    action["rationale"][:80] + "..."
-                    if len(action["rationale"]) > 80
-                    else action["rationale"]
-                )
-                lines.append(f"     {rationale}")
 
-        lines.append("")
-        lines.append(f"{BOLD}💡 PROVIDE FEEDBACK{RESET}")
-        lines.append("  After completing a recommendation, log the outcome:")
-        lines.append(
-            f"  {BLUE}cortex feedback --outcome <success|partial|failed>{RESET}"
-        )
-        lines.append("  This helps the learning system improve future recommendations.")
+            # Title with project inline
+            project_suffix = f" ({action['project']})" if action.get("project") and action["project"] != "General" else ""
+            lines.append(
+                f"  {i}. [{priority_color}{action['priority']}{RESET}] {action['title']}{project_suffix}"
+            )
+
+            # Show progress if available
+            if action.get("completion_percentage", 0) > 0:
+                pct = action["completion_percentage"]
+                progress_bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+                lines.append(f"     Progress: [{progress_bar}] {pct}%")
+
+            # Show steps/actions if available
+            steps = action.get("steps", [])
+            if steps:
+                lines.append(f"     {YELLOW}Next steps:{RESET}")
+                for step in steps[:3]:
+                    step_text = step[:70] + "..." if len(step) > 70 else step
+                    lines.append(f"       → {step_text}")
+
+            # Show success criteria if available
+            if action.get("success_criteria"):
+                criteria = action["success_criteria"]
+                criteria_text = criteria[:80] + "..." if len(criteria) > 80 else criteria
+                lines.append(f"     {GREEN}Done when:{RESET} {criteria_text}")
+
+            # Show effort/impact for recommendations
+            if action.get("estimated_effort") or action.get("estimated_impact"):
+                meta_parts = []
+                if action.get("estimated_effort"):
+                    meta_parts.append(f"Effort: {action['estimated_effort']}")
+                if action.get("estimated_impact"):
+                    meta_parts.append(f"Impact: {action['estimated_impact']}")
+                if meta_parts:
+                    lines.append(f"     {BLUE}{' | '.join(meta_parts)}{RESET}")
+
+            lines.append("")  # Spacing between actions
+
     else:
         lines.append("  No priority actions at this time")
 
@@ -800,16 +852,6 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             lines.append(f"  {pattern}")
     else:
         lines.append("  No significant patterns detected")
-
-    lines.append("")
-
-    # Waiting On
-    lines.append(f"{BOLD}WAITING ON YOU{RESET}")
-    if briefing.waiting_on:
-        for item in briefing.waiting_on:
-            lines.append(f"  {item}")
-    else:
-        lines.append("  Nothing waiting on your input")
 
     lines.append("=" * 64)
 

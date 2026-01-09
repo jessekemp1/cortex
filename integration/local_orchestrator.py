@@ -1,107 +1,204 @@
-"""Stub for local-orchestrator integration.
+"""Integration adapter for Cortex intelligence with Cortex runtime.
 
-This module provides stubs for integration with the local-orchestrator project.
-The actual integration is deferred until the local-orchestrator is fully implemented.
+Provides the bridge between Cortex's recommendation engine and the
+runtime executor for scheduled agent execution.
 """
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import structlog
 
-# Flag indicating if local orchestrator is available
-LOCAL_ORCHESTRATOR_AVAILABLE = False
+# Try to import runtime components
+try:
+    from cortex.runtime.executor import RuntimeExecutor
+    from cortex.runtime.agents.builtin.task import TaskAgent
+    from cortex.runtime.config import get_config
+
+    RUNTIME_AVAILABLE = True
+except ImportError:
+    RUNTIME_AVAILABLE = False
+    RuntimeExecutor = None
+    TaskAgent = None
+
+logger = structlog.get_logger()
+
+# Flag indicating if runtime is available
+LOCAL_ORCHESTRATOR_AVAILABLE = RUNTIME_AVAILABLE
 
 
 class CortexLocalOrchestratorIntegration:
-    """
-    Integration adapter for Cortex -> Local Orchestrator.
+    """Integration adapter for Cortex -> Runtime executor.
 
-    This is currently a stub implementation. The actual integration
-    will be implemented when local-orchestrator is production-ready.
+    Provides methods to schedule recommendations as agents and
+    query the runtime for scheduled actions.
     """
 
     def __init__(self, root_dir: Optional[Path] = None):
-        """
-        Initialize the integration.
+        """Initialize the integration.
 
         Args:
-            root_dir: Root directory for local orchestrator (defaults to /Users/jesse.kemp/Dev)
+            root_dir: Root directory for workspace
         """
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
-        self.orchestrator = None
+        self._executor: Optional[RuntimeExecutor] = None
+
+    @property
+    def executor(self) -> Optional[RuntimeExecutor]:
+        """Get or create the runtime executor."""
+        if self._executor is None and RUNTIME_AVAILABLE:
+            try:
+                config = get_config()
+                self._executor = RuntimeExecutor(config)
+            except Exception as e:
+                logger.warning("runtime_executor_init_failed", error=str(e))
+        return self._executor
 
     def is_available(self) -> bool:
-        """
-        Check if local orchestrator is available.
+        """Check if runtime is available.
 
         Returns:
-            False (stub implementation)
+            True if runtime can be used
         """
-        return False
+        return RUNTIME_AVAILABLE
 
     def schedule_recommendation(
         self, recommendation: Any, schedule: str = "0 8 * * *"
     ) -> bool:
-        """
-        Schedule a recommendation to be executed by local orchestrator.
+        """Schedule a recommendation to be executed by the runtime.
 
         Args:
             recommendation: Cortex recommendation to schedule
             schedule: Cron schedule string
 
         Returns:
-            False (stub implementation)
+            True if successfully scheduled
         """
-        return False
+        if not self.is_available() or not self.executor:
+            return False
+
+        try:
+            # Extract recommendation details
+            rec_id = getattr(recommendation, "id", "rec_unknown")
+            title = getattr(recommendation, "title", "Unknown")
+            description = getattr(recommendation, "description", "")
+
+            # Create a task agent for the recommendation
+            def execute_recommendation(context: Dict[str, Any]) -> Dict[str, Any]:
+                """Execute the scheduled recommendation."""
+                return {
+                    "recommendation_id": rec_id,
+                    "title": title,
+                    "status": "executed",
+                    "context": context,
+                }
+
+            agent = TaskAgent(
+                agent_id=f"cortex_rec_{rec_id}",
+                name=f"Cortex: {title}",
+                description=description,
+                task_func=execute_recommendation,
+            )
+
+            self.executor.register_agent(agent, schedule=schedule)
+            logger.info(
+                "recommendation_scheduled",
+                rec_id=rec_id,
+                schedule=schedule,
+            )
+            return True
+
+        except Exception as e:
+            logger.error("schedule_recommendation_failed", error=str(e))
+            return False
 
     def list_scheduled_actions(self) -> List[Dict[str, Any]]:
-        """
-        List all scheduled actions in local orchestrator.
+        """List all scheduled actions in the runtime.
 
         Returns:
-            Empty list (stub implementation)
+            List of scheduled action info dicts
         """
-        return []
+        if not self.is_available() or not self.executor:
+            return []
+
+        try:
+            # Get all agents and filter for Cortex ones
+            agents = self.executor.list_agents()
+            return [
+                a for a in agents
+                if a.get("agent_id", "").startswith("cortex_")
+            ]
+        except Exception as e:
+            logger.error("list_scheduled_actions_failed", error=str(e))
+            return []
+
+    def trigger_action(
+        self, agent_id: str, context: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Manually trigger a scheduled action.
+
+        Args:
+            agent_id: ID of the agent to trigger
+            context: Optional execution context
+
+        Returns:
+            Execution result or None if failed
+        """
+        if not self.is_available() or not self.executor:
+            return None
+
+        try:
+            result = self.executor.trigger_agent(agent_id, context)
+            return result.model_dump()
+        except Exception as e:
+            logger.error("trigger_action_failed", agent_id=agent_id, error=str(e))
+            return None
 
 
 class RecommendationToAgentAdapter:
-    """
-    Adapter to convert Cortex recommendations into Local Orchestrator agents.
+    """Adapter to convert Cortex recommendations into runtime agents."""
 
-    This is currently a stub implementation.
-    """
-
-    def __init__(self, engine: Optional[Any] = None):
-        """
-        Initialize the adapter.
+    def __init__(self, integration: Optional[CortexLocalOrchestratorIntegration] = None):
+        """Initialize the adapter.
 
         Args:
-            engine: Optional recommendation engine
+            integration: Optional integration instance
         """
-        self.engine = engine
+        self.integration = integration or CortexLocalOrchestratorIntegration()
 
     def to_agent(self, recommendation: Any) -> Optional[Dict[str, Any]]:
-        """
-        Convert a Cortex recommendation to a Local Orchestrator agent configuration.
+        """Convert a Cortex recommendation to an agent configuration.
 
         Args:
             recommendation: Cortex recommendation
 
         Returns:
-            None (stub implementation)
+            Agent configuration dict or None
         """
-        return None
+        if not self.integration.is_available():
+            return None
+
+        rec_id = getattr(recommendation, "id", "rec_unknown")
+        title = getattr(recommendation, "title", "Unknown")
+        description = getattr(recommendation, "description", "")
+
+        return {
+            "agent_id": f"cortex_rec_{rec_id}",
+            "name": f"Cortex: {title}",
+            "description": description,
+            "type": "task",
+        }
 
     def register_recommendation(
         self, recommendation: Any, schedule: str = "0 8 * * *"
     ) -> bool:
-        """
-        Register a recommendation as a scheduled agent.
+        """Register a recommendation as a scheduled agent.
 
         Args:
             recommendation: Cortex recommendation
             schedule: Cron schedule string
 
         Returns:
-            False (stub implementation)
+            True if successfully registered
         """
-        return False
+        return self.integration.schedule_recommendation(recommendation, schedule)

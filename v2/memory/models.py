@@ -17,6 +17,7 @@ class MemoryType(Enum):
     FACT = "fact"            # General knowledge
     PROJECT = "project"      # Project metadata
     OUTCOME = "outcome"      # Detected outcomes
+    GOAL = "goal"            # Tracked goals/objectives
 
 
 class RelationType(Enum):

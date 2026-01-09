@@ -1,21 +1,23 @@
-"""Bidirectional feedback loop between Cortex and local-orchestrator"""
+"""Bidirectional feedback loop between Cortex intelligence and runtime."""
 
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# Add cortex to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# Use internal cortex imports
 try:
-    from integration.history_analyzer import ExecutionHistoryAnalyzer
-    from integration.local_orchestrator import CortexLocalOrchestratorIntegration
-    from orchestrator import Priority, Recommendation
+    from cortex.integration.history_analyzer import ExecutionHistoryAnalyzer
+    from cortex.integration.local_orchestrator import CortexLocalOrchestratorIntegration
 except ImportError:
-    Recommendation = None
-    Priority = None
     ExecutionHistoryAnalyzer = None
     CortexLocalOrchestratorIntegration = None
+
+# Recommendation class from cortex
+try:
+    from cortex.recommendation_engine import Recommendation
+except ImportError:
+    Recommendation = None
+
+Priority = None  # Deprecated - use string priorities
 
 
 class FeedbackLoop:

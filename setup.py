@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 setup(
     name="cortex",
@@ -6,7 +6,8 @@ setup(
     description="Strategic orchestrator - What should I do next?",
     author="Jesse Kemp",
     python_requires=">=3.8",
-    packages=find_packages(exclude=["tests"]),
+    packages=["cortex"],
+    package_dir={"cortex": "."},
     install_requires=[],  # Core has no deps
     extras_require={
         "learning": [
