@@ -394,6 +394,40 @@ def cmd_sync(args):
         sys.exit(1)
 
 
+def cmd_docs(args):
+    """Sync documentation to Claude Projects for mobile access."""
+    import subprocess
+
+    sync_script = Path(__file__).parent.parent / "_tools" / "doc-sync" / "sync_docs.py"
+
+    if not sync_script.exists():
+        print(f"Error: Doc sync script not found at {sync_script}")
+        sys.exit(1)
+
+    # Build command
+    cmd = [sys.executable, str(sync_script)]
+
+    if args.init:
+        cmd.append("--init")
+    if args.status:
+        cmd.append("--status")
+    if args.add_source:
+        cmd.extend(["--add-source", args.add_source])
+    if args.source_name:
+        cmd.extend(["--source-name", args.source_name])
+    if args.force:
+        cmd.append("--force")
+    if args.verbose:
+        cmd.append("-v")
+
+    try:
+        result = subprocess.run(cmd, check=False)
+        sys.exit(result.returncode)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
@@ -686,6 +720,155 @@ def cmd_learn(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_interactions(args):
+    """Manage interaction learning system."""
+    from engines.interaction_learner import InteractionLearner, process_interaction_queue
+    from engines.claude_session_absorber import ClaudeSessionSource
+
+    learner = InteractionLearner()
+
+    if args.process:
+        # Process queued interactions
+        result = process_interaction_queue()
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║        CORTEX - INTERACTION QUEUE PROCESSED          ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+        print(f"Status: {result.get('status', 'unknown')}")
+        print(f"Interactions processed: {result.get('processed', 0)}")
+        print(f"Implicit outcomes derived: {result.get('outcomes_derived', 0)}")
+        print(f"Insights generated: {result.get('insights_generated', 0)}")
+        print(f"Sessions analyzed: {result.get('sessions_analyzed', 0)}")
+        return
+
+    if args.patterns:
+        # Show detected patterns
+        source = ClaudeSessionSource()
+        patterns = source.get_patterns(min_frequency=2)
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║         CORTEX - INTERACTION PATTERNS                ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if not patterns:
+            print("No patterns detected yet. Patterns emerge after repeated interactions.")
+            return
+
+        for pattern in patterns[:10]:
+            print(f"🔄 {pattern.pattern_type}: {pattern.description}")
+            print(f"   Frequency: {pattern.frequency} | Success Rate: {pattern.success_rate:.0%}")
+            if pattern.projects:
+                print(f"   Projects: {', '.join(pattern.projects[:3])}")
+            print("")
+        return
+
+    if args.tools:
+        # Show tool success rates
+        source = ClaudeSessionSource()
+        tool_rates = source.get_tool_success_rates()
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║           CORTEX - TOOL SUCCESS RATES                ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if not tool_rates:
+            print("No tool data collected yet.")
+            return
+
+        sorted_tools = sorted(tool_rates.items(), key=lambda x: x[1]['frequency'], reverse=True)
+        for tool, rates in sorted_tools[:15]:
+            bar_len = int(rates['success_rate'] * 20)
+            bar = "█" * bar_len + "░" * (20 - bar_len)
+            print(f"  {tool:15} {bar} {rates['success_rate']:.0%} ({rates['frequency']} uses)")
+        return
+
+    if args.setup:
+        # Show hook setup instructions
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║       CORTEX - INTERACTION CAPTURE SETUP             ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+        print("Add the following to your Claude Code settings.json:")
+        print("(Usually at ~/.claude/settings.json)")
+        print("")
+        print('''
+{
+  "hooks": {
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py prompt"
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py tool_complete"
+      }]
+    }],
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py stop"
+      }]
+    }],
+    "SessionEnd": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py session_end"
+      }]
+    }]
+  }
+}
+''')
+        print("After adding hooks, restart Claude Code to activate.")
+        return
+
+    # Default: show summary
+    summary = learner.get_learning_summary(days=args.days)
+
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║       CORTEX - INTERACTION LEARNING SUMMARY          ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print("")
+
+    if "error" in summary:
+        print(f"Error: {summary['error']}")
+        return
+
+    # Implicit feedback stats
+    fb = summary.get("implicit_feedback", {})
+    print(f"📊 IMPLICIT FEEDBACK (last {args.days} days)")
+    print("────────────────")
+    print(f"  Total prompts analyzed: {fb.get('total_prompts', 0)}")
+    print(f"  Corrections detected: {fb.get('corrections', 0)} ({fb.get('correction_rate', 0):.1%})")
+    print(f"  Approvals detected: {fb.get('approvals', 0)} ({fb.get('approval_rate', 0):.1%})")
+    print(f"  Implicit success signal: {fb.get('implicit_success_signal', 0.5):.1%}")
+    print("")
+
+    # Patterns
+    patterns = summary.get("top_patterns", [])
+    if patterns:
+        print(f"🔄 TOP PATTERNS ({summary.get('detected_patterns', 0)} total)")
+        print("────────────────")
+        for p in patterns[:3]:
+            print(f"  • {p.get('description', 'Unknown pattern')}")
+        print("")
+
+    # Learning state
+    state = summary.get("learning_state", {})
+    print("📈 LEARNING STATE")
+    print("────────────────")
+    print(f"  Total interactions processed: {state.get('total_processed', 0)}")
+    print(f"  Implicit outcomes derived: {state.get('implicit_outcomes', 0)}")
+    print(f"  Insights generated: {state.get('insights_generated', 0)}")
+    if state.get("last_processed"):
+        print(f"  Last processed: {state['last_processed']}")
 
 
 def cmd_batch_status(args):
@@ -1125,6 +1308,32 @@ Examples:
     )
     learn_parser.set_defaults(func=cmd_learn)
 
+    # Interactions command (Real-time feedback loop)
+    interactions_parser = subparsers.add_parser(
+        "interactions", help="Manage interaction learning (real-time feedback loop)"
+    )
+    interactions_parser.add_argument(
+        "--process", action="store_true",
+        help="Process queued interactions from Claude Code sessions"
+    )
+    interactions_parser.add_argument(
+        "--patterns", action="store_true",
+        help="Show detected interaction patterns"
+    )
+    interactions_parser.add_argument(
+        "--tools", action="store_true",
+        help="Show tool success rates from interactions"
+    )
+    interactions_parser.add_argument(
+        "--setup", action="store_true",
+        help="Show instructions to set up interaction capture hooks"
+    )
+    interactions_parser.add_argument(
+        "--days", type=int, default=7,
+        help="Number of days to analyze (default: 7)"
+    )
+    interactions_parser.set_defaults(func=cmd_interactions)
+
     # Batch API status command
     batch_api_status_parser = subparsers.add_parser(
         "batch-api-status", help="Show batch API configuration"
@@ -1169,6 +1378,16 @@ Examples:
     sync_parser.add_argument("--clean", action="store_true", help="Delete stale branches")
     sync_parser.add_argument("--force", action="store_true", help="Force delete unmerged branches")
     sync_parser.set_defaults(func=cmd_sync)
+
+    # Docs command - sync documentation to Claude Projects for mobile access
+    docs_parser = subparsers.add_parser("docs", help="Sync docs to Claude Projects for mobile access")
+    docs_parser.add_argument("--init", action="store_true", help="First-time setup (configure session key)")
+    docs_parser.add_argument("--status", "-s", action="store_true", help="Show what would be synced")
+    docs_parser.add_argument("--add-source", metavar="PATH", help="Add a new doc source directory")
+    docs_parser.add_argument("--source-name", metavar="NAME", help="Name for added source")
+    docs_parser.add_argument("--force", action="store_true", help="Force full re-upload")
+    docs_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    docs_parser.set_defaults(func=cmd_docs)
 
     # Schedule command
     schedule_parser = subparsers.add_parser(
@@ -2293,6 +2512,180 @@ Examples:
         result = bridge.handle_iap_message(message)
         print(json.dumps(result, indent=2, default=str))
 
+    # --- Runtime command handlers ---
+    def cmd_runtime_start(args):
+        """Start the runtime daemon."""
+        try:
+            from cortex.runtime import RuntimeExecutor
+            from cortex.runtime.config import get_config
+
+            config = get_config()
+            print(f"Starting Cortex Runtime on {config.host}:{config.port}...")
+
+            executor = RuntimeExecutor(config)
+            executor.start()
+        except ImportError as e:
+            print(f"Error: Runtime module not available: {e}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error starting runtime: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def cmd_runtime_status(args):
+        """Show runtime status."""
+        import json as json_mod
+        try:
+            from cortex.runtime.config import get_config
+            import urllib.request
+            import urllib.error
+
+            config = get_config()
+            url = f"http://{config.host}:{config.port}/api/v1/runtime/health"
+
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    data = json_mod.loads(response.read().decode())
+                    print("╔══════════════════════════════════════════════════════╗")
+                    print("║              CORTEX RUNTIME STATUS                   ║")
+                    print("╚══════════════════════════════════════════════════════╝")
+                    print(f"Status: {data.get('status', 'unknown')}")
+                    print(f"Uptime: {data.get('uptime_seconds', 0):.0f}s")
+                    print(f"Agents: {data.get('registered_agents', 0)}")
+                    if args.json:
+                        print(json_mod.dumps(data, indent=2))
+            except urllib.error.URLError:
+                print("Runtime is not running.")
+                print(f"Start with: cortex runtime start")
+                sys.exit(1)
+        except ImportError as e:
+            print(f"Error: Runtime module not available: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def cmd_runtime_agents(args):
+        """List registered agents."""
+        import json as json_mod
+        try:
+            from cortex.runtime.config import get_config
+            import urllib.request
+            import urllib.error
+
+            config = get_config()
+            url = f"http://{config.host}:{config.port}/api/v1/runtime/agents"
+
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    data = json_mod.loads(response.read().decode())
+                    agents = data.get('agents', [])
+
+                    if args.json:
+                        print(json_mod.dumps(data, indent=2))
+                        return
+
+                    print("Registered Agents:")
+                    print("─" * 60)
+                    if not agents:
+                        print("  No agents registered")
+                    else:
+                        for agent in agents:
+                            status_icon = "●" if agent.get('status') == 'idle' else "○"
+                            schedule = agent.get('schedule', 'manual')
+                            print(f"  {status_icon} {agent['agent_id']}: {agent.get('name', 'Unnamed')}")
+                            print(f"      Schedule: {schedule}")
+            except urllib.error.URLError:
+                print("Runtime is not running.")
+                sys.exit(1)
+        except ImportError as e:
+            print(f"Error: Runtime module not available: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def cmd_runtime_trigger(args):
+        """Manually trigger an agent."""
+        import json as json_mod
+        try:
+            from cortex.runtime.config import get_config
+            import urllib.request
+            import urllib.error
+
+            config = get_config()
+            url = f"http://{config.host}:{config.port}/api/v1/runtime/agents/{args.agent_id}/trigger"
+
+            req = urllib.request.Request(url, method='POST', data=b'{}')
+            req.add_header('Content-Type', 'application/json')
+
+            try:
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    data = json_mod.loads(response.read().decode())
+                    print(f"Triggered agent: {args.agent_id}")
+                    if data.get('success'):
+                        print(f"Result: Success")
+                        if data.get('result'):
+                            print(f"Output: {json_mod.dumps(data['result'], indent=2)}")
+                    else:
+                        print(f"Result: Failed - {data.get('error', 'Unknown error')}")
+            except urllib.error.HTTPError as e:
+                print(f"Error triggering agent: {e.code} {e.reason}")
+                sys.exit(1)
+            except urllib.error.URLError:
+                print("Runtime is not running.")
+                sys.exit(1)
+        except ImportError as e:
+            print(f"Error: Runtime module not available: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def cmd_runtime_history(args):
+        """Show execution history."""
+        import json as json_mod
+        try:
+            from cortex.runtime.config import get_config
+            import urllib.request
+            import urllib.error
+
+            config = get_config()
+            limit = args.limit if hasattr(args, 'limit') else 20
+            url = f"http://{config.host}:{config.port}/api/v1/runtime/history?limit={limit}"
+
+            try:
+                with urllib.request.urlopen(url, timeout=5) as response:
+                    data = json_mod.loads(response.read().decode())
+                    executions = data.get('executions', [])
+
+                    if args.json:
+                        print(json_mod.dumps(data, indent=2))
+                        return
+
+                    print("Execution History:")
+                    print("─" * 70)
+                    if not executions:
+                        print("  No execution history")
+                    else:
+                        for exec_item in executions:
+                            status = "✓" if exec_item.get('success') else "✗"
+                            agent_id = exec_item.get('agent_id', 'unknown')
+                            start_time = exec_item.get('start_time', '')[:19]  # Truncate to datetime
+                            duration = exec_item.get('duration_seconds', 0)
+                            print(f"  {status} [{start_time}] {agent_id} ({duration:.1f}s)")
+            except urllib.error.URLError:
+                # Try direct database access if runtime not running
+                print("Runtime not running. Querying history database directly...")
+                try:
+                    from cortex.runtime.storage.history import ExecutionHistory
+                    history = ExecutionHistory()
+                    executions = history.get_recent_executions(limit=limit)
+
+                    print("─" * 70)
+                    for exec_item in executions:
+                        status = "✓" if exec_item.get('success') else "✗"
+                        agent_id = exec_item.get('agent_id', 'unknown')
+                        start_time = exec_item.get('start_time', '')[:19]
+                        duration = exec_item.get('duration_seconds', 0)
+                        print(f"  {status} [{start_time}] {agent_id} ({duration:.1f}s)")
+                except Exception as db_err:
+                    print(f"Could not access history: {db_err}")
+                    sys.exit(1)
+        except ImportError as e:
+            print(f"Error: Runtime module not available: {e}", file=sys.stderr)
+            sys.exit(1)
+
     # V2 Prime subparser
     v2_parser = subparsers.add_parser('v2', help='V2 Prime system commands')
     v2_subparsers = v2_parser.add_subparsers(dest='v2_command', help='V2 commands')
@@ -2356,6 +2749,35 @@ Examples:
     iap_send_parser.add_argument('payload', help='Message payload')
     iap_send_parser.add_argument('--query-type', '-q', dest='query_type', help='Query type for query messages')
     iap_send_parser.set_defaults(func=cmd_iap_send)
+
+    # Runtime subparser
+    runtime_parser = subparsers.add_parser('runtime', help='Runtime executor management')
+    runtime_subparsers = runtime_parser.add_subparsers(dest='runtime_command', help='Runtime commands')
+
+    # runtime start
+    runtime_start_parser = runtime_subparsers.add_parser('start', help='Start the runtime daemon')
+    runtime_start_parser.set_defaults(func=cmd_runtime_start)
+
+    # runtime status
+    runtime_status_parser = runtime_subparsers.add_parser('status', help='Show runtime status')
+    runtime_status_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_status_parser.set_defaults(func=cmd_runtime_status)
+
+    # runtime agents
+    runtime_agents_parser = runtime_subparsers.add_parser('agents', help='List registered agents')
+    runtime_agents_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_agents_parser.set_defaults(func=cmd_runtime_agents)
+
+    # runtime trigger
+    runtime_trigger_parser = runtime_subparsers.add_parser('trigger', help='Manually trigger an agent')
+    runtime_trigger_parser.add_argument('agent_id', help='Agent ID to trigger')
+    runtime_trigger_parser.set_defaults(func=cmd_runtime_trigger)
+
+    # runtime history
+    runtime_history_parser = runtime_subparsers.add_parser('history', help='Show execution history')
+    runtime_history_parser.add_argument('--limit', '-n', type=int, default=20, help='Number of entries to show')
+    runtime_history_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_history_parser.set_defaults(func=cmd_runtime_history)
 
     args = parser.parse_args()
 
