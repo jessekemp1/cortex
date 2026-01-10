@@ -1,0 +1,51 @@
+{
+  "$schema": "https://code.claude.com/schemas/settings.json",
+  "_comment": "Cortex Interaction Capture Hooks - Merge into your ~/.claude/settings.json",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/../cortex/hooks/interaction_capture.py prompt",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/../cortex/hooks/interaction_capture.py tool_complete",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/../cortex/hooks/interaction_capture.py stop",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/../cortex/hooks/interaction_capture.py session_end",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
