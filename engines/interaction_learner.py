@@ -353,14 +353,12 @@ class InteractionLearner:
             return
 
         try:
-            from feedback import FeedbackLogger, OutcomeEntry
+            from feedback import FeedbackLogger
 
             logger_instance = FeedbackLogger()
 
             for outcome in outcomes:
-                # Convert implicit outcome to OutcomeEntry format
-                entry = OutcomeEntry(
-                    timestamp=outcome.timestamp.isoformat(),
+                logger_instance.log_outcome(
                     recommendation_id=f"implicit_{outcome.outcome_id}",
                     recommendation_title=f"Implicit {outcome.derived_from}",
                     recommendation_type=f"implicit_{outcome.derived_from}",
@@ -375,7 +373,6 @@ class InteractionLearner:
                         "implicit": True,
                     },
                 )
-                logger_instance.log_outcome(entry)
 
             logger.info(f"Updated learning system with {len(outcomes)} implicit outcomes")
 

@@ -51,29 +51,35 @@ class BriefingAgent(BaseAgent):
         """
         try:
             # Import cortex briefing module
-            from cortex.briefing import generate_daily_briefing
+            from cortex.briefing import generate_daily_briefing, BriefingData
+            from dataclasses import asdict
 
-            result = generate_daily_briefing()
+            briefing: BriefingData = generate_daily_briefing()
 
-            if result.get("success"):
-                summary = result.get("summary", {})
-                focus = summary.get("recommended_focus", "No recommendation")
-                decisions = summary.get("decisions_needed", 0)
-                status = summary.get("system_status", "unknown")
+            # Convert dataclass to dict for serialization
+            briefing_dict = asdict(briefing)
+            # Convert datetime to ISO string for JSON serialization
+            if "generated_at" in briefing_dict and briefing_dict["generated_at"]:
+                briefing_dict["generated_at"] = briefing_dict["generated_at"].isoformat()
 
-                message = (
-                    f"Morning briefing generated ({status}). "
-                    f"Focus: {focus}. "
-                    f"{decisions} decisions needed."
-                )
+            # Extract key metrics for message
+            active_count = len(briefing.active_projects)
+            blocker_count = len(briefing.blockers)
+            action_count = len(briefing.priority_actions)
 
-                return AgentResult(success=True, message=message, data=result)
-            else:
-                return AgentResult(
-                    success=False,
-                    message=f"Failed to generate briefing: {result.get('error')}",
-                    data=result,
-                )
+            # Get top priority action if available
+            focus = "No recommendations"
+            if briefing.priority_actions:
+                top_action = briefing.priority_actions[0]
+                focus = top_action.get("title", top_action.get("description", "Check priorities"))
+
+            message = (
+                f"Morning briefing generated. "
+                f"{active_count} active projects, {action_count} priority actions, "
+                f"{blocker_count} blockers. Focus: {focus}"
+            )
+
+            return AgentResult(success=True, message=message, data=briefing_dict)
 
         except ImportError as e:
             logger.warning("cortex_briefing_not_available", error=str(e))
