@@ -148,6 +148,22 @@ class CortexFormatter:
             lines.append("  • Run: python ai_intelligence.py --recommend")
             lines.append("")
 
+        # Command Workflow Suggestion
+        if response.command_workflow and response.command_workflow.suggested_command:
+            lines.append("────────────────────────────────────────────────────────────")
+            lines.append("⚡ SUGGESTED WORKFLOW")
+            lines.append("────────────────────────────────────────────────────────────")
+            workflow = response.command_workflow
+            lines.append(f"Start with: {workflow.suggested_command}")
+            if workflow.full_workflow:
+                lines.append(f"Full workflow: {workflow.full_workflow}")
+            if workflow.rationale:
+                lines.append(f"Rationale: {workflow.rationale}")
+            if workflow.confidence > 0:
+                conf_icon = "🟢" if workflow.confidence >= 0.8 else "🟡" if workflow.confidence >= 0.6 else "⚪"
+                lines.append(f"Confidence: {conf_icon} {workflow.confidence:.0%}")
+            lines.append("")
+
         # Alternative Actions
         if response.alternative_actions:
             lines.append("────────────────────────────────────────────────────────────")

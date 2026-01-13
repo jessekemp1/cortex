@@ -183,9 +183,19 @@ def capture_session_end(hook_input: dict) -> None:
         "reason": "exit"
     }
     """
+    session_id = hook_input.get("session_id")
+
+    # Finalize command tracking for this session (extracts workflow patterns)
+    try:
+        from engines.command_tracker import get_tracker
+        tracker = get_tracker()
+        tracker._finalize_session()
+    except Exception as e:
+        logger.debug(f"Command session finalization failed: {e}")
+
     queue_interaction({
         "type": "session_ended",
-        "session_id": hook_input.get("session_id"),
+        "session_id": session_id,
         "cwd": hook_input.get("cwd", os.getcwd()),
         "reason": hook_input.get("reason", "unknown"),
     })
@@ -250,6 +260,51 @@ def summarize_response(response: dict) -> dict:
             summary["output_length"] = len(str(response["output"]))
 
     return summary
+
+
+def track_command_if_present(prompt: str, session_id: str, cwd: str) -> dict:
+    """
+    Detect and track slash commands in user prompts.
+
+    Returns command info dict if command detected, None otherwise.
+    """
+    try:
+        from engines.command_tracker import get_tracker
+
+        tracker = get_tracker()
+        result = tracker.detect_command(prompt)
+
+        if result:
+            command_type, arguments = result
+
+            # Derive project from cwd
+            project = None
+            cwd_path = Path(cwd)
+            if "vortex" in cwd_path.as_posix().lower():
+                project = "VortexV2"
+            elif "alpha_arena" in cwd_path.as_posix().lower():
+                project = "alpha_arena"
+            elif "cortex" in cwd_path.as_posix().lower():
+                project = "cortex"
+
+            # Track the command execution
+            execution = tracker.track_command(
+                command=command_type,
+                session_id=session_id or "unknown",
+                project=project,
+                arguments=arguments,
+            )
+
+            return {
+                "command": command_type.value,
+                "arguments": arguments,
+                "project": project,
+            }
+
+    except Exception as e:
+        logger.debug(f"Command tracking failed: {e}")
+
+    return None
 
 
 def get_contextual_hint(hook_input: dict) -> str:
