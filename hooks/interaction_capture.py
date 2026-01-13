@@ -102,12 +102,24 @@ def capture_prompt(hook_input: dict) -> None:
         "prompt": "the user's prompt text"
     }
     """
+    prompt = hook_input.get("prompt", "")
+    session_id = hook_input.get("session_id")
+    cwd = hook_input.get("cwd", os.getcwd())
+
+    # Detect and track slash commands
+    command_info = None
+    try:
+        command_info = track_command_if_present(prompt, session_id, cwd)
+    except Exception:
+        pass  # Never block on command tracking
+
     queue_interaction({
         "type": "prompt_received",
-        "session_id": hook_input.get("session_id"),
-        "cwd": hook_input.get("cwd", os.getcwd()),
-        "prompt": hook_input.get("prompt", ""),
+        "session_id": session_id,
+        "cwd": cwd,
+        "prompt": prompt,
         "transcript_path": hook_input.get("transcript_path"),
+        "command": command_info.get("command") if command_info else None,
     })
 
     # Output context enhancement based on patterns (optional)
