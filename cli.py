@@ -1693,7 +1693,7 @@ Examples:
             estimated_duration_minutes=args.duration
         )
 
-        print(f"✅ Task added to queue")
+        print("✅ Task added to queue")
         print(f"Task ID: {task.task_id}")
         print(f"Command: {task.command}")
         print(f"Type: {task.task_type}")
@@ -1843,10 +1843,10 @@ Examples:
             for task_info in results['tasks']:
                 if task_info['status'] == 'executing':
                     print(f"▶️  {task_info['description']}")
-                    print(f"   Status: Executing")
+                    print("   Status: Executing")
                 else:
                     print(f"⏸️  {task_info['description']}")
-                    print(f"   Status: Deferred")
+                    print("   Status: Deferred")
                     print(f"   Reason: {task_info['reason']}")
                 print()
 
@@ -1949,7 +1949,7 @@ Examples:
 
         if result['success']:
             if args.background:
-                print(f"✓ Daemon started in background")
+                print("✓ Daemon started in background")
                 print(f"  PID: {result['pid']}")
                 print(f"  Interval: {result['interval']}s")
                 print(f"  Log file: {result['log_file']}")
@@ -1972,10 +1972,10 @@ Examples:
         result = daemon.stop()
 
         if result['success']:
-            print(f"✓ Daemon stopped")
+            print("✓ Daemon stopped")
             print(f"  PID: {result['pid']}")
             if result.get('forced'):
-                print(f"  (force killed)")
+                print("  (force killed)")
         else:
             print(f"✗ {result['error']}")
             sys.exit(1)
@@ -1992,7 +1992,7 @@ Examples:
         status = daemon.status()
 
         if status['running']:
-            print(f"✓ Daemon is running")
+            print("✓ Daemon is running")
             print(f"  PID: {status['pid']}")
             print(f"  Uptime: {status['uptime']}")
             print(f"  Started: {status['started_at']}")
@@ -2002,7 +2002,7 @@ Examples:
                 print(f"  Memory: {status['memory_mb']:.1f} MB")
             print(f"  Log file: {status['log_file']}")
         else:
-            print(f"✗ Daemon is not running")
+            print("✗ Daemon is not running")
             if 'pid' in status:
                 print(f"  (stale PID: {status['pid']})")
 
@@ -2252,9 +2252,9 @@ Examples:
         items = absorber.get_recent_work(days=args.days)
         drifts = absorber.storage.get_unresolved_drifts()
 
-        print(f"╔══════════════════════════════════════════════════════╗")
+        print("╔══════════════════════════════════════════════════════╗")
         print(f"║      WORK ABSORPTION REPORT ({args.days} days)              ║")
-        print(f"╚══════════════════════════════════════════════════════╝")
+        print("╚══════════════════════════════════════════════════════╝")
         print()
 
         # Summary
@@ -2555,7 +2555,7 @@ Examples:
                         print(json_mod.dumps(data, indent=2))
             except urllib.error.URLError:
                 print("Runtime is not running.")
-                print(f"Start with: cortex runtime start")
+                print("Start with: cortex runtime start")
                 sys.exit(1)
         except ImportError as e:
             print(f"Error: Runtime module not available: {e}", file=sys.stderr)
@@ -2617,7 +2617,7 @@ Examples:
                     data = json_mod.loads(response.read().decode())
                     print(f"Triggered agent: {args.agent_id}")
                     if data.get('success'):
-                        print(f"Result: Success")
+                        print("Result: Success")
                         if data.get('result'):
                             print(f"Output: {json_mod.dumps(data['result'], indent=2)}")
                     else:

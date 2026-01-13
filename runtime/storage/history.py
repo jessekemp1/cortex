@@ -17,6 +17,19 @@ from cortex.runtime.config import get_config
 logger = structlog.get_logger()
 
 
+def _json_serial(obj: Any) -> Any:
+    """JSON serializer for objects not serializable by default."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if hasattr(obj, "__dict__"):
+        return obj.__dict__
+    if hasattr(obj, "value"):  # Enum
+        return obj.value
+    if hasattr(obj, "name"):  # Enum fallback
+        return obj.name
+    return str(obj)  # Fallback to string representation
+
+
 class ExecutionHistory:
     """Store and query agent execution history."""
 
@@ -125,8 +138,8 @@ class ExecutionHistory:
                 duration_seconds,
                 1 if success else 0,
                 message,
-                json.dumps(result_data) if result_data else None,
-                json.dumps(error_data) if error_data else None,
+                json.dumps(result_data, default=_json_serial) if result_data else None,
+                json.dumps(error_data, default=_json_serial) if error_data else None,
             ),
         )
 

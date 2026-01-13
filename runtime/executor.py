@@ -302,6 +302,19 @@ class RuntimeExecutor:
 
         logger.info("batch_system_started")
 
+    def _start_active_context_loop(self):
+        """Start the V2 Prime Active Context loop agent."""
+        try:
+            from cortex.runtime.agents.system.active_context import ActiveContextAgent
+
+            active_context = ActiveContextAgent()
+            # Register to run every minute (high frequency for active context)
+            # Note: Can be optimized to 30 seconds by enhancing scheduler
+            self.register_agent(active_context, schedule="*/1 * * * *")
+            logger.info("active_context_loop_started")
+        except Exception as e:
+            logger.warning("active_context_loop_start_failed", error=str(e))
+
     def _register_builtin_agents(self):
         """Register built-in agents."""
         try:
@@ -332,6 +345,9 @@ class RuntimeExecutor:
 
         # Start dynamic loader
         self._start_dynamic_loader()
+
+        # Start Active Context loop (V2 Prime)
+        self._start_active_context_loop()
 
         # Start batch system
         self._start_batch_system()

@@ -118,6 +118,24 @@ graph TB
 
 See [Architecture Documentation](docs/ARCHITECTURE.md) for detailed system design.
 
+### V2 Prime: Active Context Operating System
+
+Cortex V2 Prime introduces an **Active Context** loop that runs continuously in the background:
+
+- **Engine A (Absorber)**: Continuously monitors filesystem, shell, IDE, and git events
+- **Engine B (Synthesis)**: Converts raw signals into a hierarchical context graph
+- **Engine C (Broker)**: Proactively emits interventions when patterns are detected
+
+The Active Context loop runs automatically via the `RuntimeExecutor`, monitoring your development environment and providing proactive recommendations without manual commands.
+
+**Key Features:**
+- Real-time signal absorption from multiple sources
+- Context graph synthesis for structured knowledge
+- Proactive intervention system for work drift, error patterns, and blockers
+- Inter-Agent Protocol (IAP) for structured agent communication
+
+See [V2 Prime Technical Reference](docs/TECHNICAL_REFERENCE.md) for complete architecture and implementation details.
+
 ## Documentation
 
 ### Getting Started
@@ -126,7 +144,8 @@ See [Architecture Documentation](docs/ARCHITECTURE.md) for detailed system desig
 - [Core Concepts](docs/user_guide/core_concepts.md) - Understanding Cortex
 
 ### Technical Documentation
-- [Architecture](docs/ARCHITECTURE.md) - System architecture and design
+- **[V2 Prime Technical Reference](docs/TECHNICAL_REFERENCE.md)** - Active Context Operating System architecture
+- [Architecture](docs/ARCHITECTURE.md) - System architecture and design (V1)
 - [Design Specification](docs/DESIGN.md) - Comprehensive technical design
 - [API Reference](docs/API.md) - Complete API documentation
 - [CLI Reference](docs/api/cli_reference.md) - Command-line interface
