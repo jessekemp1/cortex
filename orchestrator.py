@@ -159,6 +159,16 @@ class SystemHealth:
 
 
 @dataclass
+class CommandWorkflow:
+    """Suggested command workflow based on learned patterns."""
+
+    suggested_command: Optional[str] = None
+    full_workflow: Optional[str] = None
+    rationale: str = ""
+    confidence: float = 0.0
+
+
+@dataclass
 class StrategistResponse:
     """Formatted strategist response."""
 
@@ -167,6 +177,7 @@ class StrategistResponse:
     alternative_actions: List[Recommendation]
     context_predictions: List[ContextPrediction]
     system_health: SystemHealth
+    command_workflow: Optional[CommandWorkflow] = None
 
 
 class CortexOrchestrator:
@@ -354,13 +365,52 @@ class CortexOrchestrator:
             context_intelligence=self.context_intel is not None,
         )
 
+        # 10. Get command workflow suggestion based on learned patterns
+        command_workflow = self._get_command_workflow_suggestion(
+            project_filter=project_filter,
+            task_type=next_action.type if next_action else None,
+        )
+
         return StrategistResponse(
             current_state=current_state,
             next_action=next_action,
             alternative_actions=alternative_actions,
             context_predictions=context_predictions,
             system_health=system_health,
+            command_workflow=command_workflow,
         )
+
+    def _get_command_workflow_suggestion(
+        self,
+        project_filter: Optional[str] = None,
+        task_type: Optional[str] = None,
+    ) -> Optional[CommandWorkflow]:
+        """
+        Get command workflow suggestion from learned patterns.
+
+        Uses the CommandTracker to suggest which slash commands to use
+        based on historical success patterns.
+        """
+        try:
+            from engines.command_tracker import get_tracker
+
+            tracker = get_tracker()
+            suggestion = tracker.suggest_for_context(
+                project=project_filter,
+                task_type=task_type,
+            )
+
+            if suggestion:
+                return CommandWorkflow(
+                    suggested_command=suggestion.get("suggested_command"),
+                    full_workflow=suggestion.get("full_workflow"),
+                    rationale=suggestion.get("rationale", ""),
+                    confidence=suggestion.get("confidence", 0.0),
+                )
+        except Exception:
+            pass  # Graceful degradation
+
+        return None
 
     def _build_current_state(
         self,
