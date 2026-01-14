@@ -47,6 +47,21 @@ except ImportError:
     GitTracker = None
     get_git_briefing = None
 
+try:
+    from learning import LearningSystem
+except ImportError:
+    LearningSystem = None
+
+try:
+    from portfolio_memory import PortfolioMemory
+except ImportError:
+    PortfolioMemory = None
+
+try:
+    from intelligence.session_manager import SessionManager
+except ImportError:
+    SessionManager = None
+
 
 @dataclass
 class BriefingData:
@@ -77,6 +92,13 @@ class BriefingData:
     work_progress: Optional[Dict[str, Any]] = None  # Work absorber status
     period: str = "24h"
 
+    # Enhanced intelligence fields
+    intelligence_metrics: Optional[Dict[str, Any]] = None  # Learning system metrics
+    strategic_alignment: Optional[Dict[str, Any]] = None  # Goal velocity, drift
+    temporal_context: Optional[Dict[str, Any]] = None  # Day patterns, session continuity
+    cross_project_insights: Optional[Dict[str, Any]] = None  # Related work, patterns
+    predictive_insights: Optional[Dict[str, Any]] = None  # Predicted focus, optimal sequence
+
 
 class BriefingGenerator:
     """Generate daily briefings from cross-project data."""
@@ -86,12 +108,17 @@ class BriefingGenerator:
             root_dir = Path("/Users/jesse.kemp/Dev")
         self.root_dir = root_dir
 
-        # Initialize tools
+        # Initialize core tools
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
         self.recommendation_engine = (
             RecommendationEngine() if RecommendationEngine else None
         )
+
+        # Initialize enhanced intelligence tools
+        self.learning_system = LearningSystem() if LearningSystem else None
+        self.portfolio_memory = PortfolioMemory() if PortfolioMemory else None
+        self.session_manager = SessionManager(root_dir) if SessionManager else None
 
     def generate_daily_briefing(self) -> BriefingData:
         """
@@ -195,7 +222,16 @@ class BriefingGenerator:
         except Exception as e:
             print(f"Warning: Could not get work progress: {e}", file=sys.stderr)
 
-        # 7. Build briefing sections
+        # 7. Get enhanced intelligence (new sections)
+        intelligence_metrics = self._get_intelligence_metrics()
+        strategic_alignment = self._get_strategic_alignment(goals, project_activity)
+        temporal_context = self._get_temporal_context()
+        cross_project_insights = self._get_cross_project_insights(project_activity)
+        predictive_insights = self._get_predictive_insights(
+            project_activity, goals, temporal_context
+        )
+
+        # 8. Build briefing sections
         briefing = BriefingData(
             active_projects=self._get_active_projects(project_activity),
             recent_commits_24h=self._count_recent_commits(project_activity, hours=24),
@@ -209,6 +245,12 @@ class BriefingGenerator:
             git_status=git_status,
             work_progress=work_progress,
             generated_at=datetime.now(),
+            # Enhanced intelligence fields
+            intelligence_metrics=intelligence_metrics,
+            strategic_alignment=strategic_alignment,
+            temporal_context=temporal_context,
+            cross_project_insights=cross_project_insights,
+            predictive_insights=predictive_insights,
         )
 
         return briefing
@@ -456,6 +498,339 @@ class BriefingGenerator:
                 )
 
         return waiting[:4]  # Top 4 items
+
+    def _get_intelligence_metrics(self) -> Optional[Dict[str, Any]]:
+        """Get learning system metrics for briefing intelligence."""
+        if not self.learning_system:
+            return None
+
+        try:
+            metrics = self.learning_system.get_learning_metrics()
+            patterns = self.learning_system.get_outcome_patterns()
+
+            # Find best and worst performing recommendation types
+            best_type = None
+            worst_type = None
+            if patterns:
+                sorted_patterns = sorted(
+                    [(k, v) for k, v in patterns.items() if v.get("followed", 0) >= 3],
+                    key=lambda x: x[1].get("success_rate", 0),
+                    reverse=True
+                )
+                if sorted_patterns:
+                    best_type = {
+                        "type": sorted_patterns[0][0],
+                        "success_rate": sorted_patterns[0][1].get("success_rate", 0),
+                        "count": sorted_patterns[0][1].get("followed", 0)
+                    }
+                if len(sorted_patterns) > 1:
+                    worst_type = {
+                        "type": sorted_patterns[-1][0],
+                        "success_rate": sorted_patterns[-1][1].get("success_rate", 0),
+                        "count": sorted_patterns[-1][1].get("followed", 0)
+                    }
+
+            return {
+                "recommendation_accuracy": metrics.recommendation_accuracy,
+                "total_outcomes": metrics.total_outcomes,
+                "followed_count": metrics.followed_count,
+                "success_rate": metrics.success_rate,
+                "confidence_calibration": metrics.confidence_calibration,
+                "best_performing_type": best_type,
+                "worst_performing_type": worst_type,
+                "has_sufficient_data": metrics.total_outcomes >= 10
+            }
+        except Exception as e:
+            print(f"Warning: Could not get intelligence metrics: {e}", file=sys.stderr)
+            return None
+
+    def _get_strategic_alignment(self, goals: List[Goal], project_activity: List[ProjectActivity]) -> Optional[Dict[str, Any]]:
+        """Analyze strategic alignment: goal velocity, drift detection."""
+        if not goals:
+            return None
+
+        try:
+            # Calculate goal completion velocity
+            completed_goals = [g for g in goals if g.status == "completed"]
+            in_progress_goals = [g for g in goals if g.status == "in_progress"]
+            pending_goals = [g for g in goals if g.status == "pending"]
+            blocked_goals = [g for g in goals if g.status == "blocked"]
+
+            total_goals = len(goals)
+            completion_rate = len(completed_goals) / total_goals if total_goals > 0 else 0
+
+            # Analyze priority distribution
+            high_priority = [g for g in goals if g.priority == "A"]
+            high_priority_completed = [g for g in high_priority if g.status == "completed"]
+            high_priority_blocked = [g for g in high_priority if g.status == "blocked"]
+
+            # Detect strategic drift: high priority goals blocked or stalled
+            drift_indicators = []
+            if len(high_priority_blocked) > 0:
+                drift_indicators.append(f"{len(high_priority_blocked)} high-priority goals blocked")
+            if len(high_priority) > 0 and len(high_priority_completed) / len(high_priority) < 0.3:
+                drift_indicators.append("Low completion rate on high-priority goals")
+
+            # Project focus alignment: are commits happening on priority projects?
+            priority_projects = set(g.project for g in high_priority if g.project)
+            active_project_names = set(p.name for p in project_activity if p.commits_7d > 0) if project_activity else set()
+            aligned_projects = priority_projects & active_project_names
+            unaligned_active = active_project_names - priority_projects
+
+            if unaligned_active and priority_projects:
+                drift_indicators.append(f"Activity on non-priority projects: {', '.join(list(unaligned_active)[:2])}")
+
+            # Goal velocity insight
+            velocity_status = "healthy"
+            if len(blocked_goals) > len(in_progress_goals):
+                velocity_status = "blocked"
+            elif len(pending_goals) > len(completed_goals) + len(in_progress_goals):
+                velocity_status = "backlog_growing"
+
+            return {
+                "total_goals": total_goals,
+                "completed": len(completed_goals),
+                "in_progress": len(in_progress_goals),
+                "pending": len(pending_goals),
+                "blocked": len(blocked_goals),
+                "completion_rate": completion_rate,
+                "high_priority_total": len(high_priority),
+                "high_priority_completed": len(high_priority_completed),
+                "velocity_status": velocity_status,
+                "drift_indicators": drift_indicators,
+                "aligned_projects": list(aligned_projects),
+                "has_strategic_drift": len(drift_indicators) > 0
+            }
+        except Exception as e:
+            print(f"Warning: Could not analyze strategic alignment: {e}", file=sys.stderr)
+            return None
+
+    def _get_temporal_context(self) -> Optional[Dict[str, Any]]:
+        """Get temporal context: day patterns, session continuity."""
+        try:
+            now = datetime.now()
+            day_of_week = now.strftime("%A")
+            hour = now.hour
+
+            # Day-based patterns and suggestions
+            day_patterns = {
+                "Monday": {
+                    "pattern": "week_start",
+                    "suggestion": "Good day for planning and high-priority tasks",
+                    "energy": "fresh_start"
+                },
+                "Tuesday": {
+                    "pattern": "deep_work",
+                    "suggestion": "Peak productivity day - tackle complex problems",
+                    "energy": "high"
+                },
+                "Wednesday": {
+                    "pattern": "mid_week",
+                    "suggestion": "Continue momentum on in-progress work",
+                    "energy": "sustained"
+                },
+                "Thursday": {
+                    "pattern": "delivery_prep",
+                    "suggestion": "Focus on completing tasks before week end",
+                    "energy": "focused"
+                },
+                "Friday": {
+                    "pattern": "week_close",
+                    "suggestion": "Wrap up, commit changes, plan next week",
+                    "energy": "winding_down"
+                },
+                "Saturday": {
+                    "pattern": "weekend_optional",
+                    "suggestion": "Optional: exploration, learning, or rest",
+                    "energy": "relaxed"
+                },
+                "Sunday": {
+                    "pattern": "week_prep",
+                    "suggestion": "Optional: review upcoming week priorities",
+                    "energy": "preparatory"
+                }
+            }
+
+            # Time of day context
+            time_context = "morning" if hour < 12 else "afternoon" if hour < 17 else "evening"
+            time_suggestions = {
+                "morning": "Best for deep work and complex tasks",
+                "afternoon": "Good for meetings, reviews, and lighter tasks",
+                "evening": "Consider wrapping up and documenting progress"
+            }
+
+            # Get session continuity from session manager
+            session_context = None
+            last_focus = None
+            if self.session_manager:
+                try:
+                    ctx = self.session_manager.load_session_context(max_age_hours=24)
+                    if ctx:
+                        session_context = {
+                            "project": ctx.project,
+                            "current_focus": ctx.current_focus,
+                            "recent_work": ctx.recent_work[:3] if ctx.recent_work else [],
+                            "active_goals": ctx.active_goals[:3] if ctx.active_goals else []
+                        }
+                        last_focus = ctx.current_focus
+                except Exception:
+                    pass
+
+            return {
+                "day_of_week": day_of_week,
+                "time_of_day": time_context,
+                "hour": hour,
+                "day_pattern": day_patterns.get(day_of_week, {}),
+                "time_suggestion": time_suggestions.get(time_context, ""),
+                "session_continuity": session_context,
+                "last_focus": last_focus,
+                "is_weekend": day_of_week in ["Saturday", "Sunday"]
+            }
+        except Exception as e:
+            print(f"Warning: Could not get temporal context: {e}", file=sys.stderr)
+            return None
+
+    def _get_cross_project_insights(self, project_activity: List[ProjectActivity]) -> Optional[Dict[str, Any]]:
+        """Get cross-project intelligence: related work, shared patterns."""
+        if not self.portfolio_memory:
+            return None
+
+        try:
+            # Get portfolio-wide patterns
+            cross_patterns = self.portfolio_memory.get_cross_project_patterns()
+
+            # Find patterns used in multiple active projects
+            active_project_names = set(p.name for p in project_activity if p.commits_7d > 0) if project_activity else set()
+            shared_patterns = []
+            for pattern in cross_patterns[:10]:
+                pattern_projects = set(u["project"] for u in pattern.get("used_in", []))
+                overlap = pattern_projects & active_project_names
+                if len(overlap) > 1:
+                    shared_patterns.append({
+                        "pattern": pattern["pattern"],
+                        "shared_by": list(overlap),
+                        "total_projects": pattern["count"]
+                    })
+
+            # Get relevant lessons learned
+            lessons = self.portfolio_memory.get_lessons_learned()
+            relevant_lessons = []
+            for lesson in lessons[:5]:
+                if lesson.get("project") in active_project_names:
+                    relevant_lessons.append(lesson)
+
+            # Get portfolio health summary
+            health_summary = None
+            try:
+                health_data = self.portfolio_memory.get_portfolio_health_summary(days=7)
+                if "error" not in health_data:
+                    health_summary = {
+                        "healthy_count": len(health_data["aggregate"]["healthy_projects"]),
+                        "at_risk_count": len(health_data["aggregate"]["at_risk_projects"]),
+                        "critical_count": len(health_data["aggregate"]["critical_projects"]),
+                        "overall_score": health_data.get("overall", {}).get("score", 0)
+                    }
+            except Exception:
+                pass
+
+            return {
+                "shared_patterns": shared_patterns[:3],
+                "relevant_lessons": relevant_lessons[:3],
+                "portfolio_health": health_summary,
+                "total_patterns_in_use": len([p for p in cross_patterns if any(u["project"] in active_project_names for u in p.get("used_in", []))])
+            }
+        except Exception as e:
+            print(f"Warning: Could not get cross-project insights: {e}", file=sys.stderr)
+            return None
+
+    def _get_predictive_insights(
+        self,
+        project_activity: List[ProjectActivity],
+        goals: List[Goal],
+        temporal_context: Optional[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """Generate predictive insights: likely focus, optimal sequence."""
+        try:
+            predictions = []
+
+            # Predict likely project focus based on recent activity
+            if project_activity:
+                # Sort by recent activity
+                sorted_projects = sorted(
+                    [p for p in project_activity if p.commits_7d > 0],
+                    key=lambda p: (p.commits_7d, p.uncommitted_changes),
+                    reverse=True
+                )
+
+                if sorted_projects:
+                    top_project = sorted_projects[0]
+                    predictions.append({
+                        "type": "likely_focus",
+                        "prediction": f"Continue work on {top_project.name}",
+                        "confidence": "high" if top_project.commits_7d >= 5 else "medium",
+                        "reason": f"{top_project.commits_7d} commits this week, {top_project.uncommitted_changes} uncommitted changes"
+                    })
+
+            # Predict blockers based on patterns
+            if goals:
+                stalled_goals = [g for g in goals if g.status == "in_progress" and g.priority == "A"]
+                for goal in stalled_goals[:2]:
+                    if goal.blockers:
+                        predictions.append({
+                            "type": "potential_blocker",
+                            "prediction": f"'{goal.title}' may stall",
+                            "confidence": "medium",
+                            "reason": f"Has unresolved blockers: {goal.blockers[0]}"
+                        })
+
+            # Optimal sequence based on time of day and energy
+            optimal_sequence = []
+            if temporal_context:
+                time_of_day = temporal_context.get("time_of_day", "morning")
+                day_pattern = temporal_context.get("day_pattern", {})
+
+                # Morning: complex tasks first
+                if time_of_day == "morning":
+                    high_effort_tasks = [
+                        a for a in (goals or [])
+                        if a.status in ["pending", "in_progress"] and a.priority == "A"
+                    ][:2]
+                    for task in high_effort_tasks:
+                        optimal_sequence.append({
+                            "task": task.title,
+                            "reason": "High-priority - tackle while energy is high",
+                            "project": task.project
+                        })
+
+                # Afternoon: reviews and lighter tasks
+                elif time_of_day == "afternoon":
+                    if project_activity:
+                        projects_with_uncommitted = [
+                            p for p in project_activity if p.uncommitted_changes > 0
+                        ][:2]
+                        for proj in projects_with_uncommitted:
+                            optimal_sequence.append({
+                                "task": f"Review and commit changes in {proj.name}",
+                                "reason": f"{proj.uncommitted_changes} uncommitted changes",
+                                "project": proj.name
+                            })
+
+                # Friday special: cleanup tasks
+                if day_pattern.get("pattern") == "week_close":
+                    optimal_sequence.insert(0, {
+                        "task": "Review and commit all pending changes",
+                        "reason": "End of week - clean slate for Monday",
+                        "project": "Portfolio-wide"
+                    })
+
+            return {
+                "predictions": predictions[:3],
+                "optimal_sequence": optimal_sequence[:3],
+                "confidence_note": "Based on activity patterns and temporal context"
+            }
+        except Exception as e:
+            print(f"Warning: Could not generate predictive insights: {e}", file=sys.stderr)
+            return None
 
 
 def generate_daily_briefing(root_dir: Optional[Path] = None) -> BriefingData:
@@ -705,7 +1080,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             # Show scheduled tasks with times
             scheduled_tasks = bq.get('scheduled_tasks', [])
             if scheduled_tasks:
-                lines.append(f"  📅 Scheduled:")
+                lines.append("  📅 Scheduled:")
                 for task in scheduled_tasks[:3]:  # Show up to 3
                     desc = task.description[:45] + "..." if len(task.description) > 45 else task.description
                     when = ""
@@ -740,7 +1115,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             # Show pending tasks
             pending_tasks = bq.get('pending_tasks', [])
             if pending_tasks:
-                lines.append(f"  ⏳ Pending (not yet scheduled):")
+                lines.append("  ⏳ Pending (not yet scheduled):")
                 for task in pending_tasks[:3]:  # Show up to 3
                     desc = task.description[:50] + "..." if len(task.description) > 50 else task.description
                     lines.append(f"     • {desc}")
