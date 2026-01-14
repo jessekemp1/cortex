@@ -39,6 +39,8 @@ class UnifiedIntelligence:
         self._portfolio = None
         self._context_intel = None
         self._metrics_tracker = None
+        self._dependency_mapper = None
+        self._recommendations_engine = None
 
         # Performance optimization: query cache
         self._query_cache: Dict[str, Tuple[IntelligenceResult, float]] = {}
@@ -959,6 +961,79 @@ class UnifiedIntelligence:
             except (ImportError, Exception):
                 pass
         return self._metrics_tracker
+
+    def _get_dependency_mapper(self):
+        """Lazy initialize DependencyMapper."""
+        if self._dependency_mapper is None:
+            try:
+                from cortex.agents.data_agent.analyzers.dependency_mapper import DependencyMapper
+                self._dependency_mapper = DependencyMapper()
+            except (ImportError, Exception):
+                pass
+        return self._dependency_mapper
+
+    def _get_recommendations_engine(self):
+        """Lazy initialize RecommendationEngine."""
+        if self._recommendations_engine is None:
+            try:
+                from cortex.recommendations import RecommendationEngine
+                self._recommendations_engine = RecommendationEngine(self.root_dir)
+            except (ImportError, Exception):
+                pass
+        return self._recommendations_engine
+
+    def get_dependency_context(self, project: str) -> Optional[Dict[str, Any]]:
+        """
+        Get dependency analysis context for a project.
+
+        Args:
+            project: Project name
+
+        Returns:
+            Dict with dependency health, external deps count, circular deps
+        """
+        mapper = self._get_dependency_mapper()
+        if not mapper:
+            return None
+
+        # Map project name to path
+        project_paths = {
+            "cortex": self.root_dir / "cortex",
+            "VortexV2": self.root_dir / "Vortex" / "VortexV2",
+            "alpha_arena": self.root_dir / "alpha_arena",
+            "DJ-CoPilot": self.root_dir / "DJ-CoPilot",
+        }
+
+        path = project_paths.get(project)
+        if not path or not path.exists():
+            return None
+
+        try:
+            health = mapper.get_health_score(path)
+            return {
+                "health_score": health.get("total_score", 0),
+                "external_deps": len(health.get("external_deps", [])),
+                "has_circular": health.get("circular_dependencies", {}).get("has_cycles", False),
+                "concerns": health.get("concerns", []),
+            }
+        except Exception:
+            return None
+
+    def get_smart_recommendations(self) -> Dict[str, Any]:
+        """
+        Get smart recommendations from the RecommendationEngine.
+
+        Returns:
+            Full recommendations report
+        """
+        engine = self._get_recommendations_engine()
+        if not engine:
+            return {"error": "RecommendationEngine not available"}
+
+        try:
+            return engine.get_full_report()
+        except Exception as e:
+            return {"error": str(e)}
 
     def _calculate_recency_score(self, work: SimilarWork, now: datetime) -> float:
         """

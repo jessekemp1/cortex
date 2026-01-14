@@ -1185,6 +1185,89 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
+    # --- Recommendation Methods ---
+
+    def get_recommendations(self) -> Dict[str, Any]:
+        """
+        Get smart recommendations based on health, goals, and dependencies.
+
+        Returns:
+            Full recommendations report with priority projects, alerts, and next action
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> recs = bridge.get_recommendations()
+            >>> print(recs["next_action"]["action"])
+        """
+        try:
+            from cortex.recommendations import RecommendationEngine
+            engine = RecommendationEngine(self.root_dir)
+            return engine.get_full_report()
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_next_action(self) -> Dict[str, Any]:
+        """
+        Get single most important recommended action.
+
+        Returns:
+            Dict with action, reason, priority, and type
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> action = bridge.get_next_action()
+            >>> print(f"[{action['priority']}] {action['action']}")
+        """
+        try:
+            from cortex.recommendations import RecommendationEngine
+            engine = RecommendationEngine(self.root_dir)
+            return engine.get_recommended_next_action()
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_risk_alerts(self) -> List[Dict[str, Any]]:
+        """
+        Get risk alerts across the portfolio.
+
+        Returns:
+            List of risk alerts with severity, type, and recommendations
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> alerts = bridge.get_risk_alerts()
+            >>> for alert in alerts:
+            ...     print(f"[{alert['severity']}] {alert['message']}")
+        """
+        try:
+            from cortex.recommendations import RecommendationEngine
+            engine = RecommendationEngine(self.root_dir)
+            return engine.get_risk_alerts()
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def get_priority_projects(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get projects that need attention, prioritized by goals and health.
+
+        Args:
+            limit: Maximum projects to return
+
+        Returns:
+            List of priority projects with reasons
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> priorities = bridge.get_priority_projects()
+            >>> for p in priorities:
+            ...     print(f"[{p['priority']}] {p['project']}: {p['reason']}")
+        """
+        try:
+            from cortex.recommendations import RecommendationEngine
+            engine = RecommendationEngine(self.root_dir)
+            return engine.get_priority_projects(limit=limit)
+        except Exception as e:
+            return [{"error": str(e)}]
+
     # --- Batch API Methods ---
 
     def submit_research_batch(
@@ -2323,12 +2406,25 @@ def main():
     rec_parser = subparsers.add_parser("recommendations", help="Get smart recommendations")
     rec_sub = rec_parser.add_subparsers(dest="rec_command", help="Recommendation command")
     
-    # recommendations get
+    # recommendations report - full smart recommendations report
+    rec_report_parser = rec_sub.add_parser("report", help="Get full recommendations report")
+
+    # recommendations next - single next action
+    rec_next_parser = rec_sub.add_parser("next", help="Get recommended next action")
+
+    # recommendations alerts - risk alerts
+    rec_alerts_parser = rec_sub.add_parser("alerts", help="Get risk alerts")
+
+    # recommendations priorities - priority projects
+    rec_priorities_parser = rec_sub.add_parser("priorities", help="Get priority projects")
+    rec_priorities_parser.add_argument("--limit", type=int, default=5, help="Maximum projects")
+
+    # recommendations get (legacy)
     rec_get_parser = rec_sub.add_parser("get", help="Get prioritized recommendations")
     rec_get_parser.add_argument("project", help="Project name")
     rec_get_parser.add_argument("--limit", type=int, default=10, help="Maximum recommendations")
-    
-    # recommendations dashboard
+
+    # recommendations dashboard (legacy)
     rec_dashboard_parser = rec_sub.add_parser("dashboard", help="Get recommendation dashboard")
     rec_dashboard_parser.add_argument("project", help="Project name")
     rec_dashboard_parser.add_argument("--limit", type=int, default=10, help="Maximum recommendations")
@@ -2509,7 +2605,38 @@ def main():
         result = bridge.find_similar_work(args.project, args.task, limit=getattr(args, 'limit', 5))
         print(json.dumps(result, indent=2))
     elif args.command == "recommendations":
-        if args.rec_command == "get":
+        if args.rec_command == "report":
+            result = bridge.get_recommendations()
+            print(json.dumps(result, indent=2, default=str))
+        elif args.rec_command == "next":
+            result = bridge.get_next_action()
+            # Pretty print for terminal
+            print(f"\n🎯 Recommended Next Action")
+            print(f"   Priority: {result.get('priority', 'Unknown')}")
+            print(f"   Action: {result.get('action', 'Unknown')}")
+            if result.get('project'):
+                print(f"   Project: {result['project']}")
+            print()
+        elif args.rec_command == "alerts":
+            alerts = bridge.get_risk_alerts()
+            if not alerts or (len(alerts) == 1 and 'error' in alerts[0]):
+                print("\n✅ No risk alerts\n")
+            else:
+                print(f"\n⚠️  Risk Alerts ({len(alerts)})")
+                for alert in alerts:
+                    icon = "🔴" if alert.get("severity") == "HIGH" else "🟡" if alert.get("severity") == "MEDIUM" else "🟢"
+                    print(f"   {icon} [{alert.get('severity', 'Unknown')}] {alert.get('message', 'Unknown')}")
+                    print(f"      → {alert.get('recommendation', '')}")
+                print()
+        elif args.rec_command == "priorities":
+            priorities = bridge.get_priority_projects(limit=getattr(args, 'limit', 5))
+            print(f"\n📋 Priority Projects ({len(priorities)})")
+            for i, p in enumerate(priorities, 1):
+                health = f" [{p.get('health_score')}/100]" if p.get('health_score') else ""
+                print(f"   {i}. [{p.get('priority', 'Unknown')}] {p.get('project', 'Unknown')}{health}")
+                print(f"      {p.get('reason', '')}")
+            print()
+        elif args.rec_command == "get":
             result = bridge.get_smart_recommendations(
                 args.project,
                 limit=getattr(args, 'limit', 10)
