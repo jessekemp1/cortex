@@ -1,45 +1,44 @@
 #!/usr/bin/env python3
 """
-Cortex Intelligence Dashboard
+Cortex Intelligence Dashboard v2
 
-Unified view of Claude Code + Cortex learning system.
-Shows plugin insights, patterns, sessions, and recommendations.
+Decision-focused dashboard that answers:
+- What should I work on now?
+- How effective am I being?
+- What has Cortex learned?
+- Where are the problems?
 """
 
 import json
 import sqlite3
-from collections import Counter
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
 
-# Data paths
+# === Configuration ===
 CORTEX_DATA = Path.home() / ".cortex"
+DEV_DIR = Path.home() / "Dev"
 CLAUDE_DATA = Path.home() / ".claude"
 
 # Database paths
 CORTEX_DB = CORTEX_DATA / "cortex.db"
 COMMAND_DB = CORTEX_DATA / "command_tracking.db"
-SESSION_DB = CORTEX_DATA / "claude_sessions.db"
 
-# JSONL files
+# Files
 OUTCOMES_FILE = CORTEX_DATA / "outcomes.jsonl"
-PLUGIN_INSIGHTS_FILE = CORTEX_DATA / "plugin_insights.jsonl"
-SESSION_SUMMARIES_FILE = CORTEX_DATA / "session_summaries.jsonl"
-INTERACTION_QUEUE_FILE = CORTEX_DATA / "interaction_queue.jsonl"
-
-# Pattern files
-PATTERNS_DIR = CORTEX_DATA / "patterns"
+INTERACTION_QUEUE = CORTEX_DATA / "interaction_queue.jsonl"
+ACTION_PLAN = DEV_DIR / "ACTION_PLAN.md"
 
 
-def load_jsonl(path: Path, limit: int = 100) -> List[Dict[str, Any]]:
-    """Load recent entries from JSONL file."""
+# === Data Loading ===
+def load_jsonl(path: Path, limit: int = 500) -> List[Dict[str, Any]]:
+    """Load entries from JSONL file."""
     if not path.exists():
         return []
-
     entries = []
     with open(path) as f:
         for line in f:
@@ -47,411 +46,468 @@ def load_jsonl(path: Path, limit: int = 100) -> List[Dict[str, Any]]:
                 entries.append(json.loads(line.strip()))
             except json.JSONDecodeError:
                 continue
-
     return entries[-limit:]
 
 
-def load_json(path: Path) -> Dict[str, Any]:
-    """Load JSON file."""
-    if not path.exists():
-        return {}
-    try:
-        with open(path) as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        return {}
-
-
-def query_db(db_path: Path, query: str) -> pd.DataFrame:
-    """Query SQLite database."""
+def query_db(db_path: Path, query: str, params: tuple = ()) -> pd.DataFrame:
+    """Query SQLite database safely."""
     if not db_path.exists():
         return pd.DataFrame()
     try:
         conn = sqlite3.connect(db_path)
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn, params=params)
         conn.close()
         return df
-    except Exception as e:
-        st.error(f"DB error: {e}")
+    except Exception:
         return pd.DataFrame()
+
+
+def parse_action_plan() -> Dict[str, Any]:
+    """Parse ACTION_PLAN.md into structured data."""
+    if not ACTION_PLAN.exists():
+        return {"items": [], "priorities": {}}
+
+    content = ACTION_PLAN.read_text()
+    items = []
+    current_item = None
+    current_priority = "C"
+
+    for line in content.split("\n"):
+        line = line.strip()
+
+        # Detect priority headers
+        if "Priority A" in line:
+            current_priority = "A"
+        elif "Priority B" in line:
+            current_priority = "B"
+        elif "Priority C" in line:
+            current_priority = "C"
+
+        # Detect item headers (#### N. **Name**)
+        if line.startswith("####") and "**" in line:
+            if current_item:
+                items.append(current_item)
+
+            # Extract name
+            name = line.split("**")[1] if "**" in line else line[4:].strip()
+            current_item = {
+                "name": name,
+                "priority": current_priority,
+                "status": "pending",
+                "project": "",
+                "progress": 0,
+            }
+
+        # Detect status
+        if current_item and line.startswith("**Status:**"):
+            status = line.replace("**Status:**", "").strip().lower()
+            current_item["status"] = status
+
+        # Detect project
+        if current_item and line.startswith("**Project:**"):
+            current_item["project"] = line.replace("**Project:**", "").strip()
+
+        # Detect progress
+        if current_item and line.startswith("**Progress:**"):
+            try:
+                progress = int(line.replace("**Progress:**", "").replace("%", "").strip())
+                current_item["progress"] = progress
+            except ValueError:
+                pass
+
+    if current_item:
+        items.append(current_item)
+
+    # Group by priority
+    priorities = {"A": [], "B": [], "C": []}
+    for item in items:
+        p = item.get("priority", "C")
+        if p in priorities:
+            priorities[p].append(item)
+
+    return {"items": items, "priorities": priorities}
+
+
+def analyze_productivity(interactions: List[Dict]) -> Dict[str, Any]:
+    """Analyze productivity patterns from interactions."""
+    if not interactions:
+        return {}
+
+    # Parse timestamps
+    hourly = defaultdict(int)
+    daily = defaultdict(int)
+    projects = defaultdict(int)
+
+    for i in interactions:
+        ts_str = i.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            hourly[ts.hour] += 1
+            daily[ts.strftime("%A")] += 1
+        except (ValueError, TypeError):
+            pass
+
+        project = i.get("project", "unknown")
+        if project:
+            projects[project] += 1
+
+    # Find peak hours
+    peak_hour = max(hourly.items(), key=lambda x: x[1])[0] if hourly else 12
+    peak_day = max(daily.items(), key=lambda x: x[1])[0] if daily else "Monday"
+
+    return {
+        "hourly": dict(hourly),
+        "daily": dict(daily),
+        "projects": dict(projects),
+        "peak_hour": peak_hour,
+        "peak_day": peak_day,
+        "total_interactions": len(interactions),
+    }
+
+
+def calculate_success_trends(outcomes: List[Dict], window_days: int = 7) -> Dict[str, Any]:
+    """Calculate success rate trends."""
+    if not outcomes:
+        return {"current_rate": 0, "trend": 0, "by_type": {}}
+
+    now = datetime.now()
+    recent = []
+    older = []
+
+    for o in outcomes:
+        ts_str = o.get("timestamp", "")
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            age = (now - ts).days
+            if age <= window_days:
+                recent.append(o)
+            elif age <= window_days * 2:
+                older.append(o)
+        except (ValueError, TypeError):
+            pass
+
+    def success_rate(items):
+        if not items:
+            return 0
+        successes = sum(1 for i in items if i.get("outcome") == "success")
+        return successes / len(items) * 100
+
+    current_rate = success_rate(recent)
+    previous_rate = success_rate(older)
+    trend = current_rate - previous_rate
+
+    # By type
+    by_type = defaultdict(lambda: {"success": 0, "total": 0})
+    for o in outcomes:
+        t = o.get("recommendation_type", "unknown")
+        by_type[t]["total"] += 1
+        if o.get("outcome") == "success":
+            by_type[t]["success"] += 1
+
+    type_rates = {
+        k: round(v["success"] / v["total"] * 100, 1) if v["total"] > 0 else 0
+        for k, v in by_type.items()
+    }
+
+    return {
+        "current_rate": round(current_rate, 1),
+        "previous_rate": round(previous_rate, 1),
+        "trend": round(trend, 1),
+        "by_type": type_rates,
+        "recent_count": len(recent),
+    }
+
+
+def get_stale_items(action_plan: Dict, days_threshold: int = 14) -> List[Dict]:
+    """Find items that might be stuck or forgotten."""
+    stale = []
+    for item in action_plan.get("items", []):
+        status = item.get("status", "").lower()
+        if status == "in_progress" and item.get("progress", 0) < 50:
+            stale.append({**item, "reason": "Low progress while in_progress"})
+        elif status == "pending" and item.get("priority") == "A":
+            stale.append({**item, "reason": "Priority A still pending"})
+    return stale
+
+
+def generate_recommendations(
+    action_plan: Dict,
+    outcomes: List[Dict],
+    productivity: Dict
+) -> List[Dict[str, str]]:
+    """Generate smart recommendations based on data."""
+    recommendations = []
+
+    # Check ACTION_PLAN
+    priority_a = action_plan.get("priorities", {}).get("A", [])
+    in_progress_a = [i for i in priority_a if i.get("status") == "in_progress"]
+    pending_a = [i for i in priority_a if i.get("status") == "pending"]
+
+    if pending_a:
+        recommendations.append({
+            "priority": "HIGH",
+            "action": f"Start Priority A item: {pending_a[0].get('name', 'Unknown')}",
+            "reason": f"{len(pending_a)} Priority A items still pending",
+        })
+
+    if len(in_progress_a) > 2:
+        recommendations.append({
+            "priority": "MEDIUM",
+            "action": "Focus - too many items in progress",
+            "reason": f"{len(in_progress_a)} Priority A items in progress simultaneously",
+        })
+
+    # Check success trends
+    trends = calculate_success_trends(outcomes)
+    if trends.get("trend", 0) < -10:
+        recommendations.append({
+            "priority": "HIGH",
+            "action": "Review recent failures",
+            "reason": f"Success rate dropped {abs(trends['trend']):.0f}% this week",
+        })
+
+    # Check productivity
+    if productivity:
+        peak = productivity.get("peak_hour", 12)
+        current_hour = datetime.now().hour
+        if abs(current_hour - peak) <= 2:
+            recommendations.append({
+                "priority": "LOW",
+                "action": "Peak productivity time - tackle hard problems now",
+                "reason": f"Your most productive hour is around {peak}:00",
+            })
+
+    # Check stale items
+    stale = get_stale_items(action_plan)
+    if stale:
+        recommendations.append({
+            "priority": "MEDIUM",
+            "action": f"Review stale item: {stale[0].get('name', 'Unknown')}",
+            "reason": stale[0].get("reason", "Item may be stuck"),
+        })
+
+    return recommendations
 
 
 # === Page Config ===
 st.set_page_config(
-    page_title="Cortex Intelligence Dashboard",
+    page_title="Cortex Intelligence",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-# === Sidebar Navigation ===
-st.sidebar.title("🧠 Cortex")
-page = st.sidebar.radio(
-    "Navigate",
-    ["Overview", "Plugin Insights", "Patterns", "Sessions", "Commands", "Outcomes"],
-)
+# Custom CSS for cleaner look
+st.markdown("""
+<style>
+    .stMetric { background: #1a1a2e; padding: 15px; border-radius: 10px; }
+    .recommendation-high { border-left: 4px solid #ff4444; padding-left: 10px; }
+    .recommendation-medium { border-left: 4px solid #ffaa00; padding-left: 10px; }
+    .recommendation-low { border-left: 4px solid #44aa44; padding-left: 10px; }
+</style>
+""", unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Data Dir:** `~/.cortex`")
-st.sidebar.markdown(f"**Updated:** {datetime.now().strftime('%H:%M:%S')}")
+# === Load All Data ===
+action_plan = parse_action_plan()
+outcomes = load_jsonl(OUTCOMES_FILE)
+interactions = load_jsonl(INTERACTION_QUEUE)
+productivity = analyze_productivity(interactions)
+trends = calculate_success_trends(outcomes)
+recommendations = generate_recommendations(action_plan, outcomes, productivity)
 
-if st.sidebar.button("🔄 Refresh"):
-    st.rerun()
+# === Header ===
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    st.title("🧠 Cortex Intelligence")
+with col2:
+    st.metric("Success Rate", f"{trends.get('current_rate', 0):.0f}%",
+              f"{trends.get('trend', 0):+.0f}%")
+with col3:
+    if st.button("🔄 Refresh"):
+        st.rerun()
 
+st.markdown("---")
 
-# === Overview Page ===
-if page == "Overview":
-    st.title("Cortex Intelligence Overview")
+# === Main Layout: 3 Columns ===
+left, middle, right = st.columns([1, 1, 1])
 
-    # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
+# === LEFT: What to Do Now ===
+with left:
+    st.subheader("🎯 What to Do Now")
 
-    # Count insights
-    insights = load_jsonl(PLUGIN_INSIGHTS_FILE)
-    with col1:
-        st.metric("Plugin Insights", len(insights))
-
-    # Count outcomes
-    outcomes = load_jsonl(OUTCOMES_FILE)
-    with col2:
-        success_count = sum(1 for o in outcomes if o.get("outcome") == "success")
-        st.metric("Outcomes Logged", len(outcomes), f"{success_count} success")
-
-    # Count patterns
-    patterns_file = PATTERNS_DIR / "plugin_extracted.json"
-    patterns_data = load_json(patterns_file)
-    patterns = patterns_data.get("patterns", [])
-    with col3:
-        st.metric("Patterns Extracted", len(patterns))
-
-    # Session count
-    sessions = load_jsonl(SESSION_SUMMARIES_FILE)
-    with col4:
-        st.metric("Sessions Tracked", len(sessions))
+    if recommendations:
+        for rec in recommendations[:4]:
+            priority = rec.get("priority", "LOW")
+            icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(priority, "⚪")
+            st.markdown(f"""
+            {icon} **{rec.get('action', '')}**
+            <small style='color: gray;'>{rec.get('reason', '')}</small>
+            """, unsafe_allow_html=True)
+            st.markdown("")
+    else:
+        st.success("No urgent recommendations. You're on track!")
 
     st.markdown("---")
 
-    # Recent Activity
-    col1, col2 = st.columns(2)
+    # Priority A Status
+    st.markdown("**Priority A Items**")
+    priority_a = action_plan.get("priorities", {}).get("A", [])
+    if priority_a:
+        for item in priority_a[:5]:
+            status = item.get("status", "pending")
+            icon = {"completed": "✅", "in_progress": "🔄", "pending": "⬜"}.get(status, "⬜")
+            progress = item.get("progress", 0)
+            name = item.get("name", "Unknown")[:40]
+            st.markdown(f"{icon} {name} ({progress}%)")
+    else:
+        st.info("No Priority A items found")
 
-    with col1:
-        st.subheader("📊 Recent Plugin Activity")
-        if insights:
-            recent = insights[-10:]
-            for i in reversed(recent):
-                ts = i.get("timestamp", "")[:16]
-                source = i.get("source", "unknown")
-                has_issues = "⚠️" if i.get("findings", {}).get("has_issues") else "✓"
-                st.markdown(f"- `{ts}` {has_issues} **{source}**")
-        else:
-            st.info("No plugin insights yet. Use review agents to generate data.")
+# === MIDDLE: Productivity Insights ===
+with middle:
+    st.subheader("📊 Productivity Insights")
 
-    with col2:
-        st.subheader("📈 Recent Outcomes")
-        if outcomes:
-            recent = outcomes[-10:]
-            for o in reversed(recent):
-                ts = o.get("timestamp", "")[:10]
-                title = o.get("recommendation_title", "")[:50]
-                outcome = o.get("outcome", "unknown")
-                icon = {"success": "✅", "partial": "🔶", "failed": "❌"}.get(outcome, "❓")
-                st.markdown(f"- `{ts}` {icon} {title}")
-        else:
-            st.info("No outcomes logged yet.")
+    if productivity:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Peak Hour", f"{productivity.get('peak_hour', 12)}:00")
+        with col2:
+            st.metric("Peak Day", productivity.get('peak_day', 'N/A'))
+
+        st.markdown("---")
+
+        # Hourly distribution
+        st.markdown("**Activity by Hour**")
+        hourly = productivity.get("hourly", {})
+        if hourly:
+            # Create 24-hour chart
+            hours = list(range(24))
+            counts = [hourly.get(h, 0) for h in hours]
+            chart_df = pd.DataFrame({"Hour": hours, "Activity": counts})
+            st.bar_chart(chart_df.set_index("Hour"), height=150)
+
+        # Project focus
+        st.markdown("**Project Focus (Last 500 interactions)**")
+        projects = productivity.get("projects", {})
+        if projects:
+            sorted_projects = sorted(projects.items(), key=lambda x: -x[1])[:5]
+            for proj, count in sorted_projects:
+                pct = count / productivity.get("total_interactions", 1) * 100
+                st.markdown(f"- **{proj}**: {pct:.0f}%")
+    else:
+        st.info("Not enough data for productivity insights yet")
+
+# === RIGHT: Learning & Trends ===
+with right:
+    st.subheader("📈 Learning & Trends")
+
+    # Success by type
+    st.markdown("**Success Rate by Type**")
+    by_type = trends.get("by_type", {})
+    if by_type:
+        sorted_types = sorted(by_type.items(), key=lambda x: -x[1])
+        for t, rate in sorted_types[:5]:
+            color = "🟢" if rate >= 70 else "🟡" if rate >= 50 else "🔴"
+            st.markdown(f"{color} **{t[:25]}**: {rate:.0f}%")
+    else:
+        st.info("No outcome data yet")
 
     st.markdown("---")
 
-    # System Health
-    st.subheader("🔧 System Health")
+    # Recent outcomes
+    st.markdown("**Recent Outcomes**")
+    if outcomes:
+        for o in reversed(outcomes[-5:]):
+            outcome = o.get("outcome", "unknown")
+            icon = {"success": "✅", "partial": "🔶", "failed": "❌"}.get(outcome, "❓")
+            title = o.get("recommendation_title", "")[:35]
+            st.markdown(f"{icon} {title}")
+    else:
+        st.info("No outcomes logged yet")
+
+st.markdown("---")
+
+# === Bottom Section: Detailed Views ===
+tab1, tab2, tab3 = st.tabs(["📋 Full ACTION_PLAN", "🕐 Session History", "⚙️ System"])
+
+with tab1:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("**Data Files**")
+        st.markdown("### Priority A")
+        for item in action_plan.get("priorities", {}).get("A", []):
+            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(
+                item.get("status", ""), "⬜"
+            )
+            st.markdown(f"{status_icon} **{item.get('name', '')}**")
+            st.markdown(f"   {item.get('project', '')} | {item.get('progress', 0)}%")
+
+    with col2:
+        st.markdown("### Priority B")
+        for item in action_plan.get("priorities", {}).get("B", [])[:6]:
+            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(
+                item.get("status", ""), "⬜"
+            )
+            st.markdown(f"{status_icon} **{item.get('name', '')}**")
+
+    with col3:
+        st.markdown("### Priority C (Evaluate/Archive)")
+        for item in action_plan.get("priorities", {}).get("C", [])[:6]:
+            st.markdown(f"⬜ {item.get('name', '')[:30]}")
+
+with tab2:
+    st.markdown("### Interaction Patterns")
+    if interactions:
+        # Daily activity
+        daily_counts = defaultdict(int)
+        for i in interactions[-200:]:
+            ts_str = i.get("timestamp", "")
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                daily_counts[ts.strftime("%Y-%m-%d")] += 1
+            except (ValueError, TypeError):
+                pass
+
+        if daily_counts:
+            df = pd.DataFrame(list(daily_counts.items()), columns=["Date", "Interactions"])
+            df = df.sort_values("Date")
+            st.line_chart(df.set_index("Date"))
+    else:
+        st.info("No interaction data available")
+
+with tab3:
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Data Files")
         files = [
+            ("ACTION_PLAN.md", ACTION_PLAN),
             ("outcomes.jsonl", OUTCOMES_FILE),
-            ("plugin_insights.jsonl", PLUGIN_INSIGHTS_FILE),
+            ("interaction_queue.jsonl", INTERACTION_QUEUE),
             ("cortex.db", CORTEX_DB),
         ]
         for name, path in files:
             exists = "✅" if path.exists() else "❌"
-            size = f"{path.stat().st_size / 1024:.1f}KB" if path.exists() else "N/A"
-            st.markdown(f"- {exists} `{name}` ({size})")
+            if path.exists():
+                size = path.stat().st_size
+                if size > 1024 * 1024:
+                    size_str = f"{size / 1024 / 1024:.1f}MB"
+                elif size > 1024:
+                    size_str = f"{size / 1024:.1f}KB"
+                else:
+                    size_str = f"{size}B"
+            else:
+                size_str = "N/A"
+            st.markdown(f"{exists} `{name}` ({size_str})")
 
     with col2:
-        st.markdown("**Hooks Active**")
-        settings = load_json(Path.home() / "Dev" / ".claude" / "settings.json")
-        hooks = settings.get("hooks", {})
-        for hook_type in ["SessionStart", "PostToolUse", "Stop"]:
-            active = "✅" if hook_type in hooks else "❌"
-            st.markdown(f"- {active} {hook_type}")
+        st.markdown("### Quick Stats")
+        st.markdown(f"- **Outcomes logged:** {len(outcomes)}")
+        st.markdown(f"- **Interactions tracked:** {len(interactions)}")
+        st.markdown(f"- **ACTION_PLAN items:** {len(action_plan.get('items', []))}")
 
-    with col3:
-        st.markdown("**Plugins Installed**")
-        plugins_file = CLAUDE_DATA / "plugins" / "installed_plugins.json"
-        plugins_data = load_json(plugins_file)
-        plugins = list(plugins_data.get("plugins", {}).keys())[:5]
-        for p in plugins:
-            st.markdown(f"- `{p.split('@')[0]}`")
-
-
-# === Plugin Insights Page ===
-elif page == "Plugin Insights":
-    st.title("Plugin Insights")
-
-    insights = load_jsonl(PLUGIN_INSIGHTS_FILE, limit=200)
-
-    if not insights:
-        st.info("No plugin insights captured yet. Use pr-review-toolkit or feature-dev agents.")
-    else:
-        # Filters
-        col1, col2 = st.columns(2)
-        with col1:
-            sources = list(set(i.get("source", "unknown") for i in insights))
-            selected_source = st.selectbox("Filter by Source", ["All"] + sources)
-        with col2:
-            projects = list(set(i.get("project", "unknown") for i in insights))
-            selected_project = st.selectbox("Filter by Project", ["All"] + projects)
-
-        # Apply filters
-        filtered = insights
-        if selected_source != "All":
-            filtered = [i for i in filtered if i.get("source") == selected_source]
-        if selected_project != "All":
-            filtered = [i for i in filtered if i.get("project") == selected_project]
-
-        # Stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Insights", len(filtered))
-        with col2:
-            issues = sum(1 for i in filtered if i.get("findings", {}).get("has_issues"))
-            st.metric("With Issues", issues)
-        with col3:
-            types = Counter(i.get("insight_type") for i in filtered)
-            top_type = types.most_common(1)[0][0] if types else "N/A"
-            st.metric("Top Type", top_type)
-
-        st.markdown("---")
-
-        # Insights Table
-        st.subheader("Insights Detail")
-        df_data = []
-        for i in filtered:
-            df_data.append({
-                "Timestamp": i.get("timestamp", "")[:19],
-                "Source": i.get("source", ""),
-                "Type": i.get("insight_type", ""),
-                "Project": i.get("project", ""),
-                "Has Issues": "⚠️" if i.get("findings", {}).get("has_issues") else "✓",
-                "Confidence": f"{i.get('confidence', 0):.2f}",
-            })
-
-        if df_data:
-            df = pd.DataFrame(df_data)
-            st.dataframe(df, use_container_width=True)
-
-        # Chart
-        st.subheader("Insights by Type")
-        type_counts = Counter(i.get("insight_type", "unknown") for i in filtered)
-        if type_counts:
-            chart_df = pd.DataFrame(list(type_counts.items()), columns=["Type", "Count"])
-            st.bar_chart(chart_df.set_index("Type"))
-
-
-# === Patterns Page ===
-elif page == "Patterns":
-    st.title("Extracted Patterns")
-
-    patterns_file = PATTERNS_DIR / "plugin_extracted.json"
-    patterns_data = load_json(patterns_file)
-    patterns = patterns_data.get("patterns", [])
-
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"**Last Updated:** {patterns_data.get('last_updated', 'Never')[:19]}")
-    with col2:
-        if st.button("Run Extraction"):
-            import subprocess
-            result = subprocess.run(
-                ["python3", str(Path.home() / "Dev" / ".claude" / "scripts" / "extract_plugin_patterns.py")],
-                capture_output=True,
-                text=True,
-            )
-            st.code(result.stdout)
-            st.rerun()
-
-    if not patterns:
-        st.info("No patterns extracted yet. Use review agents to accumulate insights, then run extraction.")
-    else:
-        # Pattern type breakdown
-        col1, col2, col3 = st.columns(3)
-        type_counts = Counter(p.get("type") for p in patterns)
-        with col1:
-            st.metric("Anti-Patterns", type_counts.get("anti_pattern", 0))
-        with col2:
-            st.metric("Observations", type_counts.get("observation", 0))
-        with col3:
-            st.metric("Lessons", type_counts.get("lesson", 0))
-
-        st.markdown("---")
-
-        # Patterns list
-        for p in patterns:
-            with st.expander(f"**{p.get('category', 'unknown')}** - {p.get('description', '')[:80]}"):
-                st.markdown(f"**Type:** {p.get('type')}")
-                st.markdown(f"**Confidence:** {p.get('confidence', 0):.2f}")
-                st.markdown(f"**Recommendation:** {p.get('recommendation', 'N/A')}")
-                st.markdown(f"**Extracted:** {p.get('extracted_at', '')[:19]}")
-
-
-# === Sessions Page ===
-elif page == "Sessions":
-    st.title("Session History")
-
-    sessions = load_jsonl(SESSION_SUMMARIES_FILE, limit=50)
-
-    if not sessions:
-        st.info("No session summaries yet. Sessions are logged when Claude Code exits.")
-    else:
-        # Session stats
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Sessions", len(sessions))
-        with col2:
-            total_insights = sum(s.get("insights_captured", 0) for s in sessions)
-            st.metric("Total Insights Captured", total_insights)
-        with col3:
-            total_patterns = sum(s.get("patterns_extracted", 0) for s in sessions)
-            st.metric("Total Patterns", total_patterns)
-
-        st.markdown("---")
-
-        # Sessions table
-        df_data = []
-        for s in reversed(sessions):
-            df_data.append({
-                "Timestamp": s.get("timestamp", "")[:19],
-                "Directory": s.get("cwd", "")[-30:],
-                "Insights": s.get("insights_captured", 0),
-                "Issues": s.get("issues_found", 0),
-                "Patterns": s.get("patterns_extracted", 0),
-            })
-
-        if df_data:
-            df = pd.DataFrame(df_data)
-            st.dataframe(df, use_container_width=True)
-
-        # Chart
-        st.subheader("Insights Over Time")
-        if len(sessions) > 1:
-            chart_data = [
-                {"date": s.get("timestamp", "")[:10], "insights": s.get("insights_captured", 0)}
-                for s in sessions
-            ]
-            chart_df = pd.DataFrame(chart_data)
-            chart_df = chart_df.groupby("date").sum().reset_index()
-            st.line_chart(chart_df.set_index("date"))
-
-
-# === Commands Page ===
-elif page == "Commands":
-    st.title("Command Usage")
-
-    # Query command tracking database
-    if COMMAND_DB.exists():
-        df = query_db(COMMAND_DB, """
-            SELECT command, project, COUNT(*) as count,
-                   MAX(timestamp) as last_used
-            FROM command_executions
-            GROUP BY command, project
-            ORDER BY count DESC
-            LIMIT 50
-        """)
-
-        if not df.empty:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Unique Commands", df["command"].nunique())
-            with col2:
-                st.metric("Total Executions", df["count"].sum())
-
-            st.markdown("---")
-            st.subheader("Command Usage by Project")
-            st.dataframe(df, use_container_width=True)
-
-            # Chart
-            st.subheader("Top Commands")
-            top_commands = df.groupby("command")["count"].sum().sort_values(ascending=False).head(10)
-            st.bar_chart(top_commands)
-        else:
-            st.info("No command usage data yet.")
-    else:
-        st.info("Command tracking database not found.")
-
-
-# === Outcomes Page ===
-elif page == "Outcomes":
-    st.title("Recommendation Outcomes")
-
-    outcomes = load_jsonl(OUTCOMES_FILE, limit=200)
-
-    if not outcomes:
-        st.info("No outcomes logged yet.")
-    else:
-        # Outcome stats
-        outcome_counts = Counter(o.get("outcome") for o in outcomes)
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total", len(outcomes))
-        with col2:
-            st.metric("✅ Success", outcome_counts.get("success", 0))
-        with col3:
-            st.metric("🔶 Partial", outcome_counts.get("partial", 0))
-        with col4:
-            st.metric("❌ Failed", outcome_counts.get("failed", 0))
-
-        # Success rate
-        total_definitive = outcome_counts.get("success", 0) + outcome_counts.get("failed", 0)
-        if total_definitive > 0:
-            success_rate = outcome_counts.get("success", 0) / total_definitive
-            st.progress(success_rate, f"Success Rate: {success_rate:.1%}")
-
-        st.markdown("---")
-
-        # Filter by type
-        types = list(set(o.get("recommendation_type", "unknown") for o in outcomes))
-        selected_type = st.selectbox("Filter by Type", ["All"] + types)
-
-        filtered = outcomes
-        if selected_type != "All":
-            filtered = [o for o in outcomes if o.get("recommendation_type") == selected_type]
-
-        # Outcomes table
-        df_data = []
-        for o in reversed(filtered[-50:]):
-            df_data.append({
-                "Date": o.get("timestamp", "")[:10],
-                "Title": o.get("recommendation_title", "")[:50],
-                "Type": o.get("recommendation_type", ""),
-                "Outcome": o.get("outcome", ""),
-                "Confidence": f"{o.get('confidence', 0):.2f}",
-            })
-
-        if df_data:
-            df = pd.DataFrame(df_data)
-            st.dataframe(df, use_container_width=True)
-
-        # Outcomes by type chart
-        st.subheader("Outcomes by Type")
-        type_outcomes = {}
-        for o in outcomes:
-            t = o.get("recommendation_type", "unknown")
-            if t not in type_outcomes:
-                type_outcomes[t] = {"success": 0, "partial": 0, "failed": 0}
-            outcome = o.get("outcome", "unknown")
-            if outcome in type_outcomes[t]:
-                type_outcomes[t][outcome] += 1
-
-        if type_outcomes:
-            chart_df = pd.DataFrame(type_outcomes).T
-            st.bar_chart(chart_df)
+        # Cortex learning
+        completed_a = sum(1 for i in action_plan.get("priorities", {}).get("A", [])
+                        if i.get("status") == "completed")
+        total_a = len(action_plan.get("priorities", {}).get("A", []))
+        if total_a > 0:
+            st.markdown(f"- **Priority A completion:** {completed_a}/{total_a}")
