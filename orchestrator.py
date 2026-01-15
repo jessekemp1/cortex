@@ -54,11 +54,10 @@ except ImportError:
         GoalParser = None
         Goal = None
 
-# IMPORTANT: Use scripts/recommendation_engine (legacy) instead of cortex/recommendation_engine (Layer 4)
-# The Layer 4 version has incompatible interfaces and is still under development
-# TODO: Complete Layer 4 integration or create adapter layer
+# Import recommendation engine from cortex (Layer 4)
+# Legacy scripts/recommendation_engine.py no longer exists
 try:
-    from scripts.recommendation_engine import Recommendation, RecommendationEngine
+    from recommendation_engine import Recommendation, RecommendationEngine
 except ImportError:
     RecommendationEngine = None
     Recommendation = None
