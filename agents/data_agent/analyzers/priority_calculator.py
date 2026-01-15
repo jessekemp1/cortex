@@ -60,7 +60,14 @@ class PriorityCalculator:
 
     def _get_base_priority(self, recommendation: Dict[str, Any]) -> float:
         """Get base priority from recommendation."""
-        priority_str = recommendation.get("priority", "medium").lower()
+        priority = recommendation.get("priority", "medium")
+        # Handle enum or string priority
+        if hasattr(priority, 'value'):
+            priority_str = priority.value.lower()
+        elif isinstance(priority, str):
+            priority_str = priority.lower()
+        else:
+            priority_str = str(priority).lower()
         priority_map = {
             "critical": 1.0,
             "high": 0.8,

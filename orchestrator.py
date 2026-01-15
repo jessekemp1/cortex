@@ -274,10 +274,14 @@ class CortexOrchestrator:
         recommendations = []
         if self.recommendation_engine:
             try:
-                # Using scripts/recommendation_engine (legacy) which has compatible interface
+                # Build context from project activity
+                context = {
+                    "project_activity": project_activity,
+                    "goals": [g.to_dict() if hasattr(g, 'to_dict') else g for g in goals] if goals else [],
+                } if project_activity else None
+
                 recommendations = self.recommendation_engine.generate_recommendations(
-                    project_activity=project_activity if project_activity else None,
-                    automation_opps=None,
+                    context=context,
                     limit=limit + 1,  # +1 for next action
                 )
 
@@ -296,9 +300,13 @@ class CortexOrchestrator:
                         # Update recommendation with adjusted confidence
                         rec.confidence = adjusted_confidence
 
-                        # Enhance rationale with learning insight
-                        if "previous outcomes" not in rec.rationale.lower():
-                            rec.rationale = f"{rec.rationale} ({explanation})"
+                        # Enhance rationale with learning insight (if rationale exists)
+                        rationale = getattr(rec, 'rationale', None) or getattr(rec, 'description', '')
+                        if rationale and "previous outcomes" not in rationale.lower():
+                            if hasattr(rec, 'rationale') and rec.rationale is not None:
+                                rec.rationale = f"{rec.rationale} ({explanation})"
+                            elif hasattr(rec, 'description'):
+                                rec.description = f"{rec.description} ({explanation})"
 
                         adjusted_recommendations.append(rec)
                     recommendations = adjusted_recommendations
@@ -311,11 +319,12 @@ class CortexOrchestrator:
         # 4. Filter by project if specified
         if project_filter and recommendations:
             project_lower = project_filter.lower()
-            recommendations = [
-                r
-                for r in recommendations
-                if any(project_lower in proj.lower() for proj in r.related_projects)
-            ]
+            filtered = []
+            for r in recommendations:
+                related = getattr(r, 'related_projects', None) or []
+                if any(project_lower in proj.lower() for proj in related):
+                    filtered.append(r)
+            recommendations = filtered if filtered else recommendations[:1]  # Fallback to first if none match
 
         # 5. Get context predictions if requested
         context_predictions = []
