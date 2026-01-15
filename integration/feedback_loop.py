@@ -40,6 +40,16 @@ class FeedbackLoop:
             else None
         )
 
+    def _get_confidence_value(self, confidence) -> float:
+        """Convert confidence to float, handling both enum and numeric types."""
+        if hasattr(confidence, 'value'):
+            # Enum (e.g., Confidence.HIGH -> "high")
+            conf_map = {"high": 0.9, "medium": 0.7, "low": 0.5}
+            return conf_map.get(confidence.value.lower(), 0.7)
+        elif isinstance(confidence, (int, float)):
+            return float(confidence)
+        return 0.7
+
     def adjust_recommendation_priority(
         self, recommendation: Recommendation, base_priority: Optional[Priority] = None
     ) -> Recommendation:
@@ -67,8 +77,13 @@ class FeedbackLoop:
         # Get success rate
         success_rate = self.analyzer.get_success_rate(action_type)
 
-        # Get current priority (Recommendation uses string priority, not Priority enum)
+        # Get current priority (handle both string and Priority enum)
         current_priority = getattr(recommendation, "priority", "medium")
+        # Convert enum to string if needed
+        if hasattr(current_priority, 'value'):
+            current_priority = current_priority.value
+        elif not isinstance(current_priority, str):
+            current_priority = str(current_priority)
         priority_values = ["low", "medium", "high"]
         current_idx = (
             priority_values.index(current_priority.lower())
@@ -126,8 +141,9 @@ class FeedbackLoop:
             prerequisites=getattr(recommendation, "prerequisites", []),
             related_goals=getattr(recommendation, "related_goals", []),
             related_projects=getattr(recommendation, "related_projects", []),
-            confidence=getattr(recommendation, "confidence", 0.8)
-            * success_rate,  # Adjust confidence
+            confidence=self._get_confidence_value(
+                getattr(recommendation, "confidence", 0.8)
+            ) * success_rate,  # Adjust confidence
         )
 
         return adjusted

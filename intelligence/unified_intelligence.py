@@ -2,8 +2,7 @@
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
-from functools import lru_cache
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,6 +18,15 @@ from .models import (
     SimilarWork,
     Warning,
 )
+
+
+def _get_priority_string(priority) -> str:
+    """Convert priority to string, handling both enum and string types."""
+    if hasattr(priority, 'value'):
+        return priority.value
+    elif isinstance(priority, str):
+        return priority
+    return str(priority)
 
 
 class UnifiedIntelligence:
@@ -527,7 +535,7 @@ class UnifiedIntelligence:
         for rec in recommendations:
             # Base confidence from priority
             priority_map = {"high": 0.8, "medium": 0.6, "low": 0.4}
-            base_confidence = priority_map.get(rec.priority.lower(), 0.5)
+            base_confidence = priority_map.get(_get_priority_string(rec.priority).lower(), 0.5)
 
             # Boost if title matches request
             title_lower = rec.title.lower()
@@ -676,7 +684,7 @@ class UnifiedIntelligence:
             confidence_component = rec.confidence_score * confidence_weight
 
             # Priority component
-            priority_score = priority_map.get(rec.priority.lower(), 0.5)
+            priority_score = priority_map.get(_get_priority_string(rec.priority).lower(), 0.5)
             priority_component = priority_score * priority_weight
 
             # Type match with query type
@@ -783,7 +791,7 @@ class UnifiedIntelligence:
             )
             if top_work.project.lower() == project.lower():
                 reasoning_parts.append(
-                    f"  Project match: This work is from the same project, increasing relevance."
+                    "  Project match: This work is from the same project, increasing relevance."
                 )
             if top_work.key_patterns:
                 reasoning_parts.append(
