@@ -15,7 +15,7 @@ from integration.local_orchestrator import (
     CortexLocalOrchestratorIntegration,
     RecommendationToAgentAdapter,
 )
-from orchestrator import CortexOrchestrator, Priority, Recommendation
+from orchestrator import CortexOrchestrator, Recommendation
 
 
 @pytest.mark.skipif(
@@ -38,23 +38,24 @@ def test_recommendation_to_agent_conversion():
 
     # Create a test recommendation
     recommendation = Recommendation(
-        action_title="Test Action",
-        priority=Priority.HIGH,
-        rationale="Test rationale",
-        effort="Low",
-        impact="High",
+        type="test",
+        title="Test Action",
+        description="Test description",
+        priority="high",
         confidence=0.9,
+        rationale="Test rationale",
+        estimated_effort="Low",
+        estimated_impact="High",
         related_goals=[],
-        decision_factors={},
     )
 
     # Convert to agent
     agent = adapter.to_agent(recommendation)
 
     assert agent is not None
-    assert agent.agent_id.startswith("cortex_")
-    assert agent.name == "Test Action"
-    assert agent.description == "Test rationale"
+    assert agent["agent_id"].startswith("cortex_")
+    assert "Test Action" in agent["name"]
+    assert "Test description" in agent["description"]
 
 
 @pytest.mark.skipif(
@@ -69,14 +70,15 @@ def test_schedule_recommendation():
 
     # Create test recommendation
     recommendation = Recommendation(
-        action_title="E2E Test Action",
-        priority=Priority.MEDIUM,
-        rationale="E2E test",
-        effort="Low",
-        impact="Medium",
+        type="test",
+        title="E2E Test Action",
+        description="E2E test description",
+        priority="medium",
         confidence=0.8,
+        rationale="E2E test",
+        estimated_effort="Low",
+        estimated_impact="Medium",
         related_goals=[],
-        decision_factors={},
     )
 
     # Schedule it

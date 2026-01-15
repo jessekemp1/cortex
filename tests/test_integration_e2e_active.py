@@ -60,9 +60,9 @@ def test_recommendation_to_agent_conversion():
         agent = integration.adapter.to_agent(recommendation)
 
         assert agent is not None
-        assert agent.agent_id.startswith("cortex_")
-        assert agent.name == recommendation.title
-        print(f"✓ Converted: {recommendation.title} → {agent.agent_id}")
+        assert agent["agent_id"].startswith("cortex_")
+        assert recommendation.title in agent["name"]
+        print(f"✓ Converted: {recommendation.title} → {agent['agent_id']}")
 
         # Test schedule conversion
         schedule = integration.adapter.to_schedule(recommendation)

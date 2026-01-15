@@ -42,6 +42,14 @@ class CortexLocalOrchestratorIntegration:
         """
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
         self._executor: Optional[RuntimeExecutor] = None
+        self._adapter: Optional["RecommendationToAgentAdapter"] = None
+
+    @property
+    def adapter(self) -> Optional["RecommendationToAgentAdapter"]:
+        """Get or create the recommendation adapter."""
+        if self._adapter is None:
+            self._adapter = RecommendationToAgentAdapter(self)
+        return self._adapter
 
     @property
     def executor(self) -> Optional[RuntimeExecutor]:
@@ -188,6 +196,22 @@ class RecommendationToAgentAdapter:
             "description": description,
             "type": "task",
         }
+
+    def to_schedule(self, recommendation: Any) -> str:
+        """Generate a cron schedule string for a recommendation.
+
+        Args:
+            recommendation: Cortex recommendation
+
+        Returns:
+            Cron schedule string
+        """
+        # Default to daily at 8 AM
+        # Could be enhanced based on priority/type
+        priority = getattr(recommendation, "priority", "medium")
+        if priority in ("high", "critical"):
+            return "0 7 * * *"  # 7 AM daily for high priority
+        return "0 8 * * *"  # 8 AM daily for normal priority
 
     def register_recommendation(
         self, recommendation: Any, schedule: str = "0 8 * * *"
