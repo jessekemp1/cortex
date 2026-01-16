@@ -5,16 +5,16 @@ Analyzes multiple projects in a portfolio for health scoring,
 comparison, and trend detection.
 """
 
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+from .architecture_analyzer import ArchitectureAnalyzer
+from .code_quality_analyzer import CodeQualityAnalyzer
 from .git_analyzer import GitAnalyzer
 from .health_tracker import HealthTracker
 from .tech_stack_detector import TechStackDetector
-from .architecture_analyzer import ArchitectureAnalyzer
-from .code_quality_analyzer import CodeQualityAnalyzer
 
 
 class ProjectAnalyzer:
@@ -59,10 +59,7 @@ class ProjectAnalyzer:
         return projects
 
     def analyze_project(
-        self,
-        project_name: str,
-        days: int = 30,
-        include_deep_analysis: bool = True
+        self, project_name: str, days: int = 30, include_deep_analysis: bool = True
     ) -> Optional[Dict[str, Any]]:
         """
         Analyze a single project with deep analysis capabilities.
@@ -83,27 +80,24 @@ class ProjectAnalyzer:
         try:
             analyzer = GitAnalyzer(project_path)
             analysis = analyzer.get_project_summary(days)
-            
+
             # Add deep analysis if requested
             if include_deep_analysis:
                 # Tech stack detection
                 tech_detector = TechStackDetector(project_path)
                 analysis["tech_stack"] = tech_detector.detect_tech_stack()
-                
+
                 # Architecture analysis
                 arch_analyzer = ArchitectureAnalyzer(project_path)
                 analysis["architecture"] = arch_analyzer.analyze_architecture()
-                
+
                 # Code quality analysis
                 quality_analyzer = CodeQualityAnalyzer(project_path)
                 analysis["code_quality"] = quality_analyzer.analyze_quality()
-            
+
             return analysis
         except Exception as e:
-            return {
-                "project": project_name,
-                "error": str(e)
-            }
+            return {"project": project_name, "error": str(e)}
 
     def analyze_all_projects(self, days: int = 30) -> Dict[str, Any]:
         """
@@ -124,7 +118,7 @@ class ProjectAnalyzer:
             "timestamp": datetime.now().isoformat(),
             "projects_analyzed": len(results),
             "analysis_period_days": days,
-            "projects": results
+            "projects": results,
         }
 
     def get_portfolio_summary(self, days: int = 30) -> Dict[str, Any]:
@@ -143,13 +137,15 @@ class ProjectAnalyzer:
         health_scores = []
         for project_name, data in all_projects["projects"].items():
             if data and "health" in data:
-                health_scores.append({
-                    "project": project_name,
-                    "score": data["health"]["total_score"],
-                    "assessment": data["health"]["assessment"],
-                    "commits": data["commits"]["count"],
-                    "trend": data["commits"]["trend"]
-                })
+                health_scores.append(
+                    {
+                        "project": project_name,
+                        "score": data["health"]["total_score"],
+                        "assessment": data["health"]["assessment"],
+                        "commits": data["commits"]["count"],
+                        "trend": data["commits"]["trend"],
+                    }
+                )
 
         # Sort by health score
         health_scores.sort(key=lambda x: x["score"], reverse=True)
@@ -162,21 +158,14 @@ class ProjectAnalyzer:
         )
 
         avg_health = (
-            sum(s["score"] for s in health_scores) / len(health_scores)
-            if health_scores else 0
+            sum(s["score"] for s in health_scores) / len(health_scores) if health_scores else 0
         )
 
         # Identify concerns
-        concerns = [
-            s for s in health_scores
-            if s["score"] < 40 or s["trend"] == "decreasing"
-        ]
+        concerns = [s for s in health_scores if s["score"] < 40 or s["trend"] == "decreasing"]
 
         # Identify stars
-        stars = [
-            s for s in health_scores
-            if s["score"] >= 80 and s["commits"] >= 10
-        ]
+        stars = [s for s in health_scores if s["score"] >= 80 and s["commits"] >= 10]
 
         return {
             "timestamp": datetime.now().isoformat(),
@@ -185,20 +174,15 @@ class ProjectAnalyzer:
                 "total_commits": total_commits,
                 "average_health": round(avg_health, 1),
                 "projects_with_concerns": len(concerns),
-                "star_projects": len(stars)
+                "star_projects": len(stars),
             },
             "rankings": health_scores,
             "concerns": concerns,
             "stars": stars,
-            "raw_data": all_projects
+            "raw_data": all_projects,
         }
 
-    def compare_projects(
-        self,
-        project1: str,
-        project2: str,
-        days: int = 30
-    ) -> Dict[str, Any]:
+    def compare_projects(self, project1: str, project2: str, days: int = 30) -> Dict[str, Any]:
         """
         Compare two projects side-by-side
 
@@ -216,7 +200,7 @@ class ProjectAnalyzer:
         if not data1 or not data2:
             return {
                 "error": "One or both projects not found",
-                "available": list(self.projects.keys())
+                "available": list(self.projects.keys()),
             }
 
         return {
@@ -226,24 +210,31 @@ class ProjectAnalyzer:
                     "health_score": data1["health"]["total_score"],
                     "commits": data1["commits"]["count"],
                     "trend": data1["commits"]["trend"],
-                    "uncommitted": data1["uncommitted"]["total"]
+                    "uncommitted": data1["uncommitted"]["total"],
                 },
                 project2: {
                     "health_score": data2["health"]["total_score"],
                     "commits": data2["commits"]["count"],
                     "trend": data2["commits"]["trend"],
-                    "uncommitted": data2["uncommitted"]["total"]
-                }
+                    "uncommitted": data2["uncommitted"]["total"],
+                },
             },
             "winner": {
-                "health": project1 if data1["health"]["total_score"] > data2["health"]["total_score"] else project2,
-                "activity": project1 if data1["commits"]["count"] > data2["commits"]["count"] else project2,
-                "cleanliness": project1 if data1["uncommitted"]["total"] < data2["uncommitted"]["total"] else project2
+                "health": (
+                    project1
+                    if data1["health"]["total_score"] > data2["health"]["total_score"]
+                    else project2
+                ),
+                "activity": (
+                    project1 if data1["commits"]["count"] > data2["commits"]["count"] else project2
+                ),
+                "cleanliness": (
+                    project1
+                    if data1["uncommitted"]["total"] < data2["uncommitted"]["total"]
+                    else project2
+                ),
             },
-            "full_data": {
-                project1: data1,
-                project2: data2
-            }
+            "full_data": {project1: data1, project2: data2},
         }
 
     def get_trending_projects(self, days: int = 30, limit: int = 5) -> List[Dict[str, Any]]:
@@ -263,12 +254,14 @@ class ProjectAnalyzer:
         for project_name, data in all_projects["projects"].items():
             if data and "commits" in data:
                 if data["commits"]["trend"] == "increasing":
-                    trending.append({
-                        "project": project_name,
-                        "commits": data["commits"]["count"],
-                        "trend": data["commits"]["trend"],
-                        "health_score": data["health"]["total_score"]
-                    })
+                    trending.append(
+                        {
+                            "project": project_name,
+                            "commits": data["commits"]["count"],
+                            "trend": data["commits"]["trend"],
+                            "health_score": data["health"]["total_score"],
+                        }
+                    )
 
         # Sort by commit count
         trending.sort(key=lambda x: x["commits"], reverse=True)
@@ -292,12 +285,14 @@ class ProjectAnalyzer:
         for project_name, data in all_projects["projects"].items():
             if data and "commits" in data:
                 if data["commits"]["count"] <= threshold:
-                    stale.append({
-                        "project": project_name,
-                        "commits": data["commits"]["count"],
-                        "days_since_last": days,
-                        "health_score": data["health"]["total_score"]
-                    })
+                    stale.append(
+                        {
+                            "project": project_name,
+                            "commits": data["commits"]["count"],
+                            "days_since_last": days,
+                            "health_score": data["health"]["total_score"],
+                        }
+                    )
 
         # Sort by health score (lowest first)
         stale.sort(key=lambda x: x["health_score"])
@@ -315,7 +310,9 @@ class ProjectAnalyzer:
             Dict with history, insights, and recommendations
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         project_path = self.projects[project_name]
         return self.health_tracker.get_health_trends(project_name, project_path)
@@ -340,7 +337,9 @@ class ProjectAnalyzer:
             Dependency analysis dict
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         from .dependency_mapper import DependencyMapper
 
@@ -359,7 +358,9 @@ class ProjectAnalyzer:
             Health score dict
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         from .dependency_mapper import DependencyMapper
 
@@ -378,7 +379,9 @@ class ProjectAnalyzer:
             Circular dependency analysis dict
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         from .dependency_mapper import DependencyMapper
 
@@ -397,7 +400,9 @@ class ProjectAnalyzer:
             Package file parsing results
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         from .package_parser import PackageParser
 
@@ -416,7 +421,9 @@ class ProjectAnalyzer:
             Comparison dict with declared, actual, unused, undeclared
         """
         if project_name not in self.projects:
-            raise ValueError(f"Project '{project_name}' not found. Available: {list(self.projects.keys())}")
+            raise ValueError(
+                f"Project '{project_name}' not found. Available: {list(self.projects.keys())}"
+            )
 
         from .dependency_mapper import DependencyMapper
 
@@ -425,8 +432,7 @@ class ProjectAnalyzer:
         return mapper.compare_declared_vs_actual()
 
     def analyze_portfolio_dependencies(
-        self,
-        project_filter: Optional[str] = None
+        self, project_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze dependencies across entire portfolio (monorepo-wide).
@@ -441,8 +447,9 @@ class ProjectAnalyzer:
             - shared_dependencies: Dependencies used by multiple projects
             - recommendations: Recommendations for decoupling
         """
-        from .dependency_mapper import DependencyMapper
         from collections import defaultdict
+
+        from .dependency_mapper import DependencyMapper
 
         result = {
             "projects_analyzed": [],
@@ -451,7 +458,7 @@ class ProjectAnalyzer:
             "shared_dependencies": defaultdict(list),
             "project_dependencies": {},
             "recommendations": [],
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         # Analyze each project
@@ -472,7 +479,7 @@ class ProjectAnalyzer:
                 external_deps = set(analysis.get("external_deps", []))
                 result["project_dependencies"][project_name] = {
                     "external_deps": sorted(external_deps),
-                    "external_count": len(external_deps)
+                    "external_count": len(external_deps),
                 }
 
                 # Track shared dependencies
@@ -485,55 +492,65 @@ class ProjectAnalyzer:
                     result["cross_project_graph"][project_name] = list(cross_project.keys())
 
             except Exception as e:
-                result["project_dependencies"][project_name] = {
-                    "error": str(e)
-                }
+                result["project_dependencies"][project_name] = {"error": str(e)}
 
         # Analyze coupling
         coupling_scores = {}
         for project, deps in result["cross_project_graph"].items():
             coupling_scores[project] = {
                 "outgoing": len(deps),
-                "incoming": sum(1 for p, d in result["cross_project_graph"].items() 
-                               if p != project and project in d),
-                "bidirectional": sum(1 for dep in deps 
-                                  if project in result["cross_project_graph"].get(dep, []))
+                "incoming": sum(
+                    1
+                    for p, d in result["cross_project_graph"].items()
+                    if p != project and project in d
+                ),
+                "bidirectional": sum(
+                    1 for dep in deps if project in result["cross_project_graph"].get(dep, [])
+                ),
             }
 
         result["coupling_analysis"] = coupling_scores
 
         # Find shared dependencies (used by 2+ projects)
-        shared = {dep: projects for dep, projects in result["shared_dependencies"].items() 
-                  if len(projects) > 1}
+        shared = {
+            dep: projects
+            for dep, projects in result["shared_dependencies"].items()
+            if len(projects) > 1
+        }
         result["shared_dependencies"] = {k: sorted(v) for k, v in sorted(shared.items())}
 
         # Generate recommendations
         # High coupling projects
-        high_coupling = [p for p, c in coupling_scores.items() 
-                        if c["outgoing"] + c["incoming"] > 3]
+        high_coupling = [p for p, c in coupling_scores.items() if c["outgoing"] + c["incoming"] > 3]
         if high_coupling:
-            result["recommendations"].append({
-                "priority": "medium",
-                "action": "Review high coupling projects",
-                "details": f"Projects with high coupling: {', '.join(high_coupling)}"
-            })
+            result["recommendations"].append(
+                {
+                    "priority": "medium",
+                    "action": "Review high coupling projects",
+                    "details": f"Projects with high coupling: {', '.join(high_coupling)}",
+                }
+            )
 
         # Bidirectional coupling (circular dependencies across projects)
         circular = [p for p, c in coupling_scores.items() if c["bidirectional"] > 0]
         if circular:
-            result["recommendations"].append({
-                "priority": "high",
-                "action": "Resolve circular project dependencies",
-                "details": f"Projects with bidirectional coupling: {', '.join(circular)}"
-            })
+            result["recommendations"].append(
+                {
+                    "priority": "high",
+                    "action": "Resolve circular project dependencies",
+                    "details": f"Projects with bidirectional coupling: {', '.join(circular)}",
+                }
+            )
 
         # Shared dependencies opportunities
         if len(result["shared_dependencies"]) > 5:
-            result["recommendations"].append({
-                "priority": "low",
-                "action": "Consider shared utility library",
-                "details": f"{len(result['shared_dependencies'])} dependencies shared across projects"
-            })
+            result["recommendations"].append(
+                {
+                    "priority": "low",
+                    "action": "Consider shared utility library",
+                    "details": f"{len(result['shared_dependencies'])} dependencies shared across projects",
+                }
+            )
 
         return result
 

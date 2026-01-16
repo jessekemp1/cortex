@@ -11,9 +11,9 @@ import structlog
 
 # Try to import runtime components
 try:
-    from cortex.runtime.executor import RuntimeExecutor
     from cortex.runtime.agents.builtin.task import TaskAgent
     from cortex.runtime.config import get_config
+    from cortex.runtime.executor import RuntimeExecutor
 
     RUNTIME_AVAILABLE = True
 except ImportError:
@@ -70,9 +70,7 @@ class CortexLocalOrchestratorIntegration:
         """
         return RUNTIME_AVAILABLE
 
-    def schedule_recommendation(
-        self, recommendation: Any, schedule: str = "0 8 * * *"
-    ) -> bool:
+    def schedule_recommendation(self, recommendation: Any, schedule: str = "0 8 * * *") -> bool:
         """Schedule a recommendation to be executed by the runtime.
 
         Args:
@@ -132,10 +130,7 @@ class CortexLocalOrchestratorIntegration:
         try:
             # Get all agents and filter for Cortex ones
             agents = self.executor.list_agents()
-            return [
-                a for a in agents
-                if a.get("agent_id", "").startswith("cortex_")
-            ]
+            return [a for a in agents if a.get("agent_id", "").startswith("cortex_")]
         except Exception as e:
             logger.error("list_scheduled_actions_failed", error=str(e))
             return []
@@ -213,9 +208,7 @@ class RecommendationToAgentAdapter:
             return "0 7 * * *"  # 7 AM daily for high priority
         return "0 8 * * *"  # 8 AM daily for normal priority
 
-    def register_recommendation(
-        self, recommendation: Any, schedule: str = "0 8 * * *"
-    ) -> bool:
+    def register_recommendation(self, recommendation: Any, schedule: str = "0 8 * * *") -> bool:
         """Register a recommendation as a scheduled agent.
 
         Args:

@@ -6,10 +6,10 @@ Provides caching to avoid expensive git operations.
 """
 
 import json
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
 from .git_analyzer import GitAnalyzer
 
@@ -53,7 +53,7 @@ class HealthTracker:
             return None
 
         try:
-            with open(cache_path, 'r') as f:
+            with open(cache_path, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return None
@@ -63,17 +63,14 @@ class HealthTracker:
         cache_path = self._get_cache_path(project_name)
 
         try:
-            with open(cache_path, 'w') as f:
+            with open(cache_path, "w") as f:
                 json.dump(data, f, indent=2, default=str)
         except IOError:
             # Silently fail on cache write errors
             pass
 
     def get_health_history(
-        self,
-        project_name: str,
-        project_path: Path,
-        days: int = 30
+        self, project_name: str, project_path: Path, days: int = 30
     ) -> Dict[str, Any]:
         """
         Get health history for a project over multiple time periods
@@ -100,7 +97,7 @@ class HealthTracker:
             "project": project_name,
             "path": str(project_path),
             "timestamp": datetime.now().isoformat(),
-            "periods": {}
+            "periods": {},
         }
 
         analyzer = GitAnalyzer(project_path)
@@ -120,7 +117,7 @@ class HealthTracker:
                 "assessment": health["assessment"],
                 "commits": commits["count"],
                 "trend": commits["trend"],
-                "uncommitted": uncommitted["total"]
+                "uncommitted": uncommitted["total"],
             }
 
         # Calculate trend across periods
@@ -142,10 +139,7 @@ class HealthTracker:
             return "insufficient_data"
 
         # Sort periods by days (7d, 14d, 30d, etc.)
-        sorted_periods = sorted(
-            periods.items(),
-            key=lambda x: x[1]["days"]
-        )
+        sorted_periods = sorted(periods.items(), key=lambda x: x[1]["days"])
 
         # Get health scores
         scores = [p[1]["health_score"] for p in sorted_periods]
@@ -167,7 +161,7 @@ class HealthTracker:
         project_name: str,
         project_path: Path,
         days: int = 7,
-        force_refresh: bool = False
+        force_refresh: bool = False,
     ) -> Dict[str, Any]:
         """
         Get health data with caching
@@ -198,11 +192,7 @@ class HealthTracker:
 
         return data
 
-    def get_health_trends(
-        self,
-        project_name: str,
-        project_path: Path
-    ) -> Dict[str, Any]:
+    def get_health_trends(self, project_name: str, project_path: Path) -> Dict[str, Any]:
         """
         Get comprehensive health trends with historical comparison
 
@@ -227,48 +217,55 @@ class HealthTracker:
             older = periods["30d"]["health_score"]
 
             if recent < older - 10:
-                insights.append({
-                    "type": "warning",
-                    "message": f"Health declining: {older} → {recent} (down {older - recent} points in 30 days)"
-                })
-                recommendations.append({
-                    "priority": "high",
-                    "action": "Investigate cause of declining health",
-                    "details": "Check recent commits, uncommitted work, and contributor activity"
-                })
+                insights.append(
+                    {
+                        "type": "warning",
+                        "message": f"Health declining: {older} → {recent} (down {older - recent} points in 30 days)",
+                    }
+                )
+                recommendations.append(
+                    {
+                        "priority": "high",
+                        "action": "Investigate cause of declining health",
+                        "details": "Check recent commits, uncommitted work, and contributor activity",
+                    }
+                )
 
         # Check for low commit activity
         if "7d" in periods and periods["7d"]["commits"] < 3:
-            insights.append({
-                "type": "info",
-                "message": f"Low recent activity: {periods['7d']['commits']} commits in 7 days"
-            })
+            insights.append(
+                {
+                    "type": "info",
+                    "message": f"Low recent activity: {periods['7d']['commits']} commits in 7 days",
+                }
+            )
 
         # Check for high uncommitted changes
         if "7d" in periods and periods["7d"]["uncommitted"] > 20:
-            insights.append({
-                "type": "warning",
-                "message": f"High uncommitted changes: {periods['7d']['uncommitted']} files"
-            })
-            recommendations.append({
-                "priority": "medium",
-                "action": "Commit or clean up uncommitted work",
-                "details": "Large uncommitted work reduces project health score"
-            })
+            insights.append(
+                {
+                    "type": "warning",
+                    "message": f"High uncommitted changes: {periods['7d']['uncommitted']} files",
+                }
+            )
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "action": "Commit or clean up uncommitted work",
+                    "details": "Large uncommitted work reduces project health score",
+                }
+            )
 
         # Check for positive trends
         if history["overall_trend"] == "improving":
-            insights.append({
-                "type": "success",
-                "message": "Project health improving over time"
-            })
+            insights.append({"type": "success", "message": "Project health improving over time"})
 
         return {
             "project": project_name,
             "history": history,
             "insights": insights,
             "recommendations": recommendations,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def clear_cache(self, project_name: Optional[str] = None):
@@ -287,10 +284,7 @@ class HealthTracker:
             for cache_file in self.cache_dir.glob("*_health.json"):
                 cache_file.unlink()
 
-    def get_portfolio_trends(
-        self,
-        projects: Dict[str, Path]
-    ) -> Dict[str, Any]:
+    def get_portfolio_trends(self, projects: Dict[str, Path]) -> Dict[str, Any]:
         """
         Get trends for entire portfolio
 
@@ -304,12 +298,7 @@ class HealthTracker:
             "timestamp": datetime.now().isoformat(),
             "total_projects": len(projects),
             "projects": {},
-            "summary": {
-                "improving": [],
-                "declining": [],
-                "stable": [],
-                "concerns": []
-            }
+            "summary": {"improving": [], "declining": [], "stable": [], "concerns": []},
         }
 
         for project_name, project_path in projects.items():
@@ -328,15 +317,15 @@ class HealthTracker:
 
                 # Track concerns
                 if trends["recommendations"]:
-                    portfolio_trends["summary"]["concerns"].append({
-                        "project": project_name,
-                        "recommendations": len(trends["recommendations"])
-                    })
+                    portfolio_trends["summary"]["concerns"].append(
+                        {
+                            "project": project_name,
+                            "recommendations": len(trends["recommendations"]),
+                        }
+                    )
 
             except Exception as e:
-                portfolio_trends["projects"][project_name] = {
-                    "error": str(e)
-                }
+                portfolio_trends["projects"][project_name] = {"error": str(e)}
 
         return portfolio_trends
 
@@ -350,8 +339,10 @@ if __name__ == "__main__":
     if __package__ is None:
         import sys
         from pathlib import Path as SysPath
+
         sys.path.insert(0, str(SysPath(__file__).parent.parent.parent))
         from agents.data_agent.analyzers.git_analyzer import GitAnalyzer as GA
+
         GitAnalyzer = GA
 
     if len(sys.argv) < 2:

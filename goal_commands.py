@@ -1,8 +1,9 @@
 """
 Cortex Goal/Task/Blocker CLI Commands
 """
-import sys
+
 import importlib.util
+import sys
 from pathlib import Path
 
 # Force load storage from cortex directory (not from local-orchestrator/storage)
@@ -12,7 +13,11 @@ _database_file = _cortex_dir / "storage" / "database.py"
 _models_file = _cortex_dir / "storage" / "models.py"
 
 # Load storage package
-spec = importlib.util.spec_from_file_location("cortex_storage", str(_storage_init), submodule_search_locations=[str(_cortex_dir / "storage")])
+spec = importlib.util.spec_from_file_location(
+    "cortex_storage",
+    str(_storage_init),
+    submodule_search_locations=[str(_cortex_dir / "storage")],
+)
 storage = importlib.util.module_from_spec(spec)
 sys.modules["cortex_storage"] = storage
 spec.loader.exec_module(storage)
@@ -54,9 +59,9 @@ def cmd_goal(args):
             title=args.title,
             priority=Priority(args.priority) if args.priority else Priority.B,
             status=Status.PENDING,
-            project=getattr(args, 'project', None),
-            success_criteria=getattr(args, 'criteria', None),
-            deadline=getattr(args, 'deadline', None),
+            project=getattr(args, "project", None),
+            success_criteria=getattr(args, "criteria", None),
+            deadline=getattr(args, "deadline", None),
         )
         db.add_goal(goal)
         print(f"Goal added: {goal.id}")
@@ -69,9 +74,9 @@ def cmd_goal(args):
 
     elif args.goal_command == "list":
         goals = db.list_goals(
-            priority=getattr(args, 'priority', None),
-            status=getattr(args, 'status', None),
-            project=getattr(args, 'project', None),
+            priority=getattr(args, "priority", None),
+            status=getattr(args, "status", None),
+            project=getattr(args, "project", None),
         )
         if not goals:
             print("No goals found.")
@@ -87,11 +92,11 @@ def cmd_goal(args):
 
     elif args.goal_command == "update":
         updates = {}
-        if getattr(args, 'status', None):
+        if getattr(args, "status", None):
             updates["status"] = args.status
-        if getattr(args, 'priority', None):
+        if getattr(args, "priority", None):
             updates["priority"] = args.priority
-        if getattr(args, 'title', None):
+        if getattr(args, "title", None):
             updates["title"] = args.title
 
         goal = db.update_goal(args.id, **updates)
@@ -144,7 +149,7 @@ def cmd_task(args):
         task = Task(
             id=task_id,
             title=args.title,
-            goal_id=getattr(args, 'goal', None),
+            goal_id=getattr(args, "goal", None),
             status=TaskStatus.PENDING,
             source="manual",
         )
@@ -155,8 +160,7 @@ def cmd_task(args):
 
     elif args.task_command == "list":
         tasks = db.list_tasks(
-            goal_id=getattr(args, 'goal', None),
-            status=getattr(args, 'status', None)
+            goal_id=getattr(args, "goal", None), status=getattr(args, "status", None)
         )
         if not tasks:
             print("No tasks found.")
@@ -174,20 +178,22 @@ def cmd_task(args):
         if task:
             print(f"Task completed: {task.id}")
             if task.goal_id:
-                db.add_progress(Progress(
-                    goal_id=task.goal_id,
-                    task_id=task.id,
-                    action="completed",
-                    notes=f"Completed task: {task.title}",
-                ))
+                db.add_progress(
+                    Progress(
+                        goal_id=task.goal_id,
+                        task_id=task.id,
+                        action="completed",
+                        notes=f"Completed task: {task.title}",
+                    )
+                )
         else:
             print(f"Task not found: {args.id}")
 
     elif args.task_command == "update":
         updates = {}
-        if getattr(args, 'status', None):
+        if getattr(args, "status", None):
             updates["status"] = args.status
-        if getattr(args, 'title', None):
+        if getattr(args, "title", None):
             updates["title"] = args.title
 
         task = db.update_task(args.id, **updates)
@@ -204,8 +210,8 @@ def cmd_blocker(args):
     if args.blocker_command == "add":
         blocker = Blocker(
             description=args.description,
-            project=getattr(args, 'project', None),
-            goal_id=getattr(args, 'goal', None),
+            project=getattr(args, "project", None),
+            goal_id=getattr(args, "goal", None),
         )
         blocker = db.add_blocker(blocker)
         print(f"Blocker added: #{blocker.id}")
@@ -215,9 +221,9 @@ def cmd_blocker(args):
 
     elif args.blocker_command == "list":
         blockers = db.list_blockers(
-            project=getattr(args, 'project', None),
-            goal_id=getattr(args, 'goal', None),
-            include_resolved=getattr(args, 'resolved', False),
+            project=getattr(args, "project", None),
+            goal_id=getattr(args, "goal", None),
+            include_resolved=getattr(args, "resolved", False),
         )
         if not blockers:
             print("No blockers found.")
@@ -246,7 +252,7 @@ def cmd_progress(args):
     if args.progress_command == "add":
         progress = Progress(
             goal_id=args.goal,
-            task_id=getattr(args, 'task', None),
+            task_id=getattr(args, "task", None),
             action="progressed",
             notes=args.notes,
         )
@@ -254,7 +260,7 @@ def cmd_progress(args):
         print(f"Progress logged for goal: {args.goal}")
 
     elif args.progress_command == "list":
-        entries = db.list_progress(goal_id=args.goal, limit=getattr(args, 'limit', 20))
+        entries = db.list_progress(goal_id=args.goal, limit=getattr(args, "limit", 20))
         if not entries:
             print("No progress entries found.")
             return
@@ -268,7 +274,7 @@ def cmd_progress(args):
 
 def register_goal_commands(subparsers):
     """Register goal, task, blocker, and progress subparsers."""
-    
+
     goal_parser = subparsers.add_parser("goal", help="Manage strategic goals")
     goal_subparsers = goal_parser.add_subparsers(dest="goal_command", help="Goal commands")
 
@@ -282,13 +288,17 @@ def register_goal_commands(subparsers):
 
     goal_list = goal_subparsers.add_parser("list", help="List goals")
     goal_list.add_argument("--priority", "-p", choices=["A", "B", "C"])
-    goal_list.add_argument("--status", "-s", choices=["pending", "in_progress", "completed", "blocked"])
+    goal_list.add_argument(
+        "--status", "-s", choices=["pending", "in_progress", "completed", "blocked"]
+    )
     goal_list.add_argument("--project", help="Filter by project")
     goal_list.set_defaults(func=cmd_goal)
 
     goal_update = goal_subparsers.add_parser("update", help="Update a goal")
     goal_update.add_argument("id", help="Goal ID")
-    goal_update.add_argument("--status", "-s", choices=["pending", "in_progress", "completed", "blocked"])
+    goal_update.add_argument(
+        "--status", "-s", choices=["pending", "in_progress", "completed", "blocked"]
+    )
     goal_update.add_argument("--priority", "-p", choices=["A", "B", "C"])
     goal_update.add_argument("--title", help="New title")
     goal_update.set_defaults(func=cmd_goal)
@@ -325,7 +335,9 @@ def register_goal_commands(subparsers):
     task_update.set_defaults(func=cmd_task)
 
     blocker_parser = subparsers.add_parser("blocker", help="Manage blockers")
-    blocker_subparsers = blocker_parser.add_subparsers(dest="blocker_command", help="Blocker commands")
+    blocker_subparsers = blocker_parser.add_subparsers(
+        dest="blocker_command", help="Blocker commands"
+    )
 
     blocker_add = blocker_subparsers.add_parser("add", help="Add a blocker")
     blocker_add.add_argument("description", help="Blocker description")
@@ -344,7 +356,9 @@ def register_goal_commands(subparsers):
     blocker_resolve.set_defaults(func=cmd_blocker)
 
     progress_parser = subparsers.add_parser("progress", help="Log progress updates")
-    progress_subparsers = progress_parser.add_subparsers(dest="progress_command", help="Progress commands")
+    progress_subparsers = progress_parser.add_subparsers(
+        dest="progress_command", help="Progress commands"
+    )
 
     progress_add = progress_subparsers.add_parser("add", help="Add progress note")
     progress_add.add_argument("notes", help="Progress notes")

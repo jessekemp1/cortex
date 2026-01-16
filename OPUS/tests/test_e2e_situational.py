@@ -82,9 +82,7 @@ def validate_text_output(output: str, required_sections: list) -> None:
     """
     output_lower = output.lower()
     for section in required_sections:
-        assert (
-            section.lower() in output_lower
-        ), f"Output missing required section: {section}"
+        assert section.lower() in output_lower, f"Output missing required section: {section}"
 
 
 # Test Case 1: Basic Next Action
@@ -93,9 +91,7 @@ def test_basic_next_action():
     stdout, stderr, return_code, exec_time = run_cli_command(["next"])
 
     # Should succeed
-    assert (
-        return_code == 0
-    ), f"Command failed with return code {return_code}. stderr: {stderr}"
+    assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
     # Should complete within 5 seconds
     assert exec_time < 5.0, f"Command took {exec_time:.2f}s, expected <5s"
@@ -113,9 +109,7 @@ def test_project_specific_filtering():
     stdout, stderr, return_code, exec_time = run_cli_command(["next", "vortexv2"])
 
     # Should succeed
-    assert (
-        return_code == 0
-    ), f"Command failed with return code {return_code}. stderr: {stderr}"
+    assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
     # Should complete within 5 seconds
     assert exec_time < 5.0, f"Command took {exec_time:.2f}s, expected <5s"
@@ -139,9 +133,7 @@ def test_json_output_format():
     stdout, stderr, return_code, exec_time = run_cli_command(["next", "--json"])
 
     # Should succeed
-    assert (
-        return_code == 0
-    ), f"Command failed with return code {return_code}. stderr: {stderr}"
+    assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
     # Should complete within 5 seconds
     assert exec_time < 5.0, f"Command took {exec_time:.2f}s, expected <5s"
@@ -161,14 +153,10 @@ def test_json_output_format():
     ), "next_action should be None or dict"
 
     # Validate alternative_actions
-    assert isinstance(
-        data["alternative_actions"], list
-    ), "alternative_actions should be a list"
+    assert isinstance(data["alternative_actions"], list), "alternative_actions should be a list"
 
     # Validate context_predictions
-    assert isinstance(
-        data["context_predictions"], list
-    ), "context_predictions should be a list"
+    assert isinstance(data["context_predictions"], list), "context_predictions should be a list"
 
 
 # Test Case 4: Status Command
@@ -177,9 +165,7 @@ def test_status_command():
     stdout, stderr, return_code, exec_time = run_cli_command(["status"])
 
     # Should succeed
-    assert (
-        return_code == 0
-    ), f"Command failed with return code {return_code}. stderr: {stderr}"
+    assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
     # Should complete within 5 seconds
     assert exec_time < 5.0, f"Command took {exec_time:.2f}s, expected <5s"
@@ -202,9 +188,7 @@ def test_with_context_integration():
     stdout, stderr, return_code, exec_time = run_cli_command(["next", "--with-context"])
 
     # Should succeed (even if context_intelligence unavailable)
-    assert (
-        return_code == 0
-    ), f"Command failed with return code {return_code}. stderr: {stderr}"
+    assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
     # Should complete within 10 seconds (context prediction may take longer)
     assert exec_time < 10.0, f"Command took {exec_time:.2f}s, expected <10s"
@@ -340,9 +324,7 @@ def test_performance_all_commands():
         total_time += exec_time
 
     # All commands should complete in reasonable time
-    assert (
-        total_time < 15.0
-    ), f"All commands took {total_time:.2f}s total, expected <15s"
+    assert total_time < 15.0, f"All commands took {total_time:.2f}s total, expected <15s"
 
 
 # Integration Test: Verify JSON and text output consistency

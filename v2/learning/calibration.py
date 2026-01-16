@@ -8,7 +8,7 @@ uses Beta-Binomial Bayesian updating to account for both rate AND certainty.
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from ..memory.graph import GraphMemory
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 @dataclass
 class OutcomeStats:
     """Statistics about outcomes for a pattern."""
+
     successes: int = 0
     failures: int = 0
     partial: int = 0
@@ -42,6 +43,7 @@ class OutcomeStats:
 @dataclass
 class CalibrationResult:
     """Result of confidence calibration."""
+
     pattern_id: str
     pattern_name: str
     old_confidence: float
@@ -76,7 +78,7 @@ class ConfidenceCalibrator:
     def __init__(
         self,
         graph: Optional["GraphMemory"] = None,
-        outcomes: Optional["OutcomeDetector"] = None
+        outcomes: Optional["OutcomeDetector"] = None,
     ):
         """Initialize calibrator.
 
@@ -87,10 +89,7 @@ class ConfidenceCalibrator:
         self.graph = graph
         self.outcomes = outcomes
 
-    def calculate_confidence(
-        self,
-        stats: OutcomeStats
-    ) -> tuple[float, float]:
+    def calculate_confidence(self, stats: OutcomeStats) -> tuple[float, float]:
         """Calculate calibrated confidence from outcome stats.
 
         Args:
@@ -119,9 +118,7 @@ class ConfidenceCalibrator:
         return round(confidence, 3), round(certainty, 2)
 
     def calculate_for_pattern(
-        self,
-        pattern_id: str,
-        project: Optional[str] = None
+        self, pattern_id: str, project: Optional[str] = None
     ) -> CalibrationResult:
         """Calculate calibrated confidence for a pattern.
 
@@ -156,13 +153,11 @@ class ConfidenceCalibrator:
             new_confidence=new_confidence,
             delta=new_confidence - old_confidence,
             outcome_stats=stats,
-            certainty=certainty
+            certainty=certainty,
         )
 
     def _get_outcome_stats_for_pattern(
-        self,
-        pattern_id: str,
-        project: Optional[str] = None
+        self, pattern_id: str, project: Optional[str] = None
     ) -> OutcomeStats:
         """Get outcome statistics for a pattern.
 
@@ -173,16 +168,13 @@ class ConfidenceCalibrator:
         Returns:
             OutcomeStats for the pattern
         """
-        from ..memory.models import RelationType, MemoryType
+        from ..memory.models import MemoryType, RelationType
 
         if not self.graph:
             return OutcomeStats()
 
         # Find edges where outcome VALIDATES pattern
-        edges = self.graph.get_edges(
-            to_id=pattern_id,
-            relation=RelationType.VALIDATES
-        )
+        edges = self.graph.get_edges(to_id=pattern_id, relation=RelationType.VALIDATES)
 
         stats = OutcomeStats()
 
@@ -222,10 +214,7 @@ class ConfidenceCalibrator:
 
         return stats
 
-    def recalibrate_all(
-        self,
-        project: Optional[str] = None
-    ) -> Dict[str, CalibrationResult]:
+    def recalibrate_all(self, project: Optional[str] = None) -> Dict[str, CalibrationResult]:
         """Recalibrate confidence for all patterns.
 
         Args:
@@ -260,10 +249,7 @@ class ConfidenceCalibrator:
 
         return results
 
-    def get_confidence_report(
-        self,
-        project: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def get_confidence_report(self, project: Optional[str] = None) -> Dict[str, Any]:
         """Generate a confidence report for all patterns.
 
         Args:
@@ -281,12 +267,12 @@ class ConfidenceCalibrator:
 
         report = {
             "total_patterns": len(patterns),
-            "high_confidence": 0,     # > 0.7
-            "medium_confidence": 0,   # 0.4 - 0.7
-            "low_confidence": 0,      # < 0.4
-            "needs_data": 0,          # < MIN_OUTCOMES
+            "high_confidence": 0,  # > 0.7
+            "medium_confidence": 0,  # 0.4 - 0.7
+            "low_confidence": 0,  # < 0.4
+            "needs_data": 0,  # < MIN_OUTCOMES
             "patterns": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         for pattern in patterns:
@@ -326,9 +312,7 @@ class ConfidenceCalibrator:
 
     @staticmethod
     def calculate_from_counts(
-        successes: int,
-        failures: int,
-        partial: int = 0
+        successes: int, failures: int, partial: int = 0
     ) -> tuple[float, float]:
         """Quick calculation from raw counts.
 
@@ -346,7 +330,7 @@ class ConfidenceCalibrator:
             successes=successes,
             failures=failures,
             partial=partial,
-            total=successes + failures + partial
+            total=successes + failures + partial,
         )
 
         calibrator = ConfidenceCalibrator()

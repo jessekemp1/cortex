@@ -8,13 +8,13 @@ Tracks:
 - Development velocity metrics
 """
 
-import subprocess
 import json
+import logging
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
 from pathlib import Path
-import logging
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Branch:
     """Represents a git branch with metadata."""
+
     name: str
     is_current: bool
     last_commit_date: Optional[datetime]
@@ -51,6 +52,7 @@ class Branch:
 @dataclass
 class PullRequest:
     """Represents a GitHub pull request."""
+
     number: int
     title: str
     branch: str
@@ -76,6 +78,7 @@ class PullRequest:
 @dataclass
 class GitState:
     """Complete Git/GitHub state for a repository."""
+
     repo_path: Path
     current_branch: str
     branches: List[Branch]
@@ -94,7 +97,9 @@ class GitState:
 
     @property
     def prs_needing_attention(self) -> List[PullRequest]:
-        return [pr for pr in self.open_prs if pr.is_stale or pr.review_status == "changes_requested"]
+        return [
+            pr for pr in self.open_prs if pr.is_stale or pr.review_status == "changes_requested"
+        ]
 
 
 class GitTracker:
@@ -121,7 +126,7 @@ class GitTracker:
                 cwd=cwd or self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -138,7 +143,7 @@ class GitTracker:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -155,12 +160,14 @@ class GitTracker:
         current = self._run_git(["branch", "--show-current"]) or "main"
 
         # Get all branches with last commit info
-        branch_output = self._run_git([
-            "for-each-ref",
-            "--sort=-committerdate",
-            "--format=%(refname:short)|%(committerdate:iso)|%(subject)",
-            "refs/heads/"
-        ])
+        branch_output = self._run_git(
+            [
+                "for-each-ref",
+                "--sort=-committerdate",
+                "--format=%(refname:short)|%(committerdate:iso)|%(subject)",
+                "refs/heads/",
+            ]
+        )
 
         if not branch_output:
             return branches
@@ -199,16 +206,18 @@ class GitTracker:
                 if len(parts) >= 2:
                     project = parts[1]
 
-            branches.append(Branch(
-                name=name,
-                is_current=(name == current),
-                last_commit_date=commit_date,
-                last_commit_msg=msg[:100],
-                ahead_of_main=ahead,
-                behind_main=behind,
-                age_days=age_days,
-                project=project
-            ))
+            branches.append(
+                Branch(
+                    name=name,
+                    is_current=(name == current),
+                    last_commit_date=commit_date,
+                    last_commit_msg=msg[:100],
+                    ahead_of_main=ahead,
+                    behind_main=behind,
+                    age_days=age_days,
+                    project=project,
+                )
+            )
 
         return branches
 
@@ -216,11 +225,16 @@ class GitTracker:
         """Get open PRs from GitHub."""
         prs = []
 
-        output = self._run_gh([
-            "pr", "list",
-            "--state", "open",
-            "--json", "number,title,headRefName,state,createdAt,updatedAt,url,additions,deletions,changedFiles,isDraft,reviewDecision"
-        ])
+        output = self._run_gh(
+            [
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--json",
+                "number,title,headRefName,state,createdAt,updatedAt,url,additions,deletions,changedFiles,isDraft,reviewDecision",
+            ]
+        )
 
         if not output:
             return prs
@@ -228,20 +242,22 @@ class GitTracker:
         try:
             pr_data = json.loads(output)
             for pr in pr_data:
-                prs.append(PullRequest(
-                    number=pr["number"],
-                    title=pr["title"],
-                    branch=pr["headRefName"],
-                    state=pr["state"].lower(),
-                    created_at=datetime.fromisoformat(pr["createdAt"].replace("Z", "")),
-                    updated_at=datetime.fromisoformat(pr["updatedAt"].replace("Z", "")),
-                    url=pr["url"],
-                    additions=pr.get("additions", 0),
-                    deletions=pr.get("deletions", 0),
-                    changed_files=pr.get("changedFiles", 0),
-                    is_draft=pr.get("isDraft", False),
-                    review_status=pr.get("reviewDecision", "").lower().replace("_", " ")
-                ))
+                prs.append(
+                    PullRequest(
+                        number=pr["number"],
+                        title=pr["title"],
+                        branch=pr["headRefName"],
+                        state=pr["state"].lower(),
+                        created_at=datetime.fromisoformat(pr["createdAt"].replace("Z", "")),
+                        updated_at=datetime.fromisoformat(pr["updatedAt"].replace("Z", "")),
+                        url=pr["url"],
+                        additions=pr.get("additions", 0),
+                        deletions=pr.get("deletions", 0),
+                        changed_files=pr.get("changedFiles", 0),
+                        is_draft=pr.get("isDraft", False),
+                        review_status=pr.get("reviewDecision", "").lower().replace("_", " "),
+                    )
+                )
         except json.JSONDecodeError:
             logger.warning("Failed to parse PR data")
 
@@ -268,10 +284,12 @@ class GitTracker:
         """Get current Git/GitHub state (cached)."""
         now = datetime.now()
 
-        if (not force_refresh and
-            self._state and
-            self._last_fetch and
-            (now - self._last_fetch) < self._cache_ttl):
+        if (
+            not force_refresh
+            and self._state
+            and self._last_fetch
+            and (now - self._last_fetch) < self._cache_ttl
+        ):
             return self._state
 
         current_branch = self._run_git(["branch", "--show-current"]) or "main"
@@ -286,7 +304,7 @@ class GitTracker:
             open_prs=open_prs,
             uncommitted_changes=uncommitted,
             untracked_files=untracked,
-            last_updated=now
+            last_updated=now,
         )
         self._last_fetch = now
 
@@ -313,10 +331,10 @@ class GitTracker:
                     "branch": pr.branch,
                     "age_days": pr.age_days,
                     "url": pr.url,
-                    "status": pr.review_status or "pending review"
+                    "status": pr.review_status or "pending review",
                 }
                 for pr in state.open_prs
-            ]
+            ],
         }
 
     def get_recommendations(self) -> List[Dict[str, str]]:
@@ -326,48 +344,58 @@ class GitTracker:
 
         # Stale branches
         for branch in state.stale_branches[:3]:
-            recommendations.append({
-                "type": "cleanup",
-                "priority": "low",
-                "message": f"Branch '{branch.name}' is {branch.age_days} days old - review or delete",
-                "action": f"git branch -d {branch.name}"
-            })
+            recommendations.append(
+                {
+                    "type": "cleanup",
+                    "priority": "low",
+                    "message": f"Branch '{branch.name}' is {branch.age_days} days old - review or delete",
+                    "action": f"git branch -d {branch.name}",
+                }
+            )
 
         # Stale PRs
         for pr in state.prs_needing_attention[:3]:
             if pr.review_status == "changes requested":
-                recommendations.append({
-                    "type": "pr_action",
-                    "priority": "high",
-                    "message": f"PR #{pr.number} has requested changes - address feedback",
-                    "action": pr.url
-                })
+                recommendations.append(
+                    {
+                        "type": "pr_action",
+                        "priority": "high",
+                        "message": f"PR #{pr.number} has requested changes - address feedback",
+                        "action": pr.url,
+                    }
+                )
             elif pr.is_stale:
-                recommendations.append({
-                    "type": "pr_action",
-                    "priority": "medium",
-                    "message": f"PR #{pr.number} '{pr.title}' is {pr.age_days} days old - merge or close",
-                    "action": pr.url
-                })
+                recommendations.append(
+                    {
+                        "type": "pr_action",
+                        "priority": "medium",
+                        "message": f"PR #{pr.number} '{pr.title}' is {pr.age_days} days old - merge or close",
+                        "action": pr.url,
+                    }
+                )
 
         # Uncommitted work
         if state.uncommitted_changes > 10:
-            recommendations.append({
-                "type": "commit",
-                "priority": "medium",
-                "message": f"You have {state.uncommitted_changes} uncommitted changes - consider committing",
-                "action": "git status"
-            })
+            recommendations.append(
+                {
+                    "type": "commit",
+                    "priority": "medium",
+                    "message": f"You have {state.uncommitted_changes} uncommitted changes - consider committing",
+                    "action": "git status",
+                }
+            )
 
         # Behind main
         current_branch = next((b for b in state.branches if b.is_current), None)
         if current_branch and current_branch.behind_main > 5:
-            recommendations.append({
-                "type": "sync",
-                "priority": "medium",
-                "message": f"Current branch is {current_branch.behind_main} commits behind main",
-                "action": "git pull origin main"
-            })
+            recommendations.append(
+                {
+                    "type": "sync",
+                    "priority": "medium",
+                    "message": f"Current branch is {current_branch.behind_main} commits behind main",
+                    "action": "git pull origin main",
+                }
+            )
 
         return recommendations
 
@@ -382,7 +410,9 @@ class GitTracker:
         # Current state
         lines.append(f"**Current Branch**: `{state.current_branch}`")
         if state.uncommitted_changes or state.untracked_files:
-            lines.append(f"**Working Tree**: {state.uncommitted_changes} modified, {state.untracked_files} untracked")
+            lines.append(
+                f"**Working Tree**: {state.uncommitted_changes} modified, {state.untracked_files} untracked"
+            )
 
         # Open PRs
         if state.open_prs:
@@ -397,7 +427,9 @@ class GitTracker:
         if state.active_feature_branches:
             lines.append(f"\n### Active Branches ({len(state.active_feature_branches)})")
             for branch in state.active_feature_branches[:5]:
-                lines.append(f"- `{branch.name}` ({branch.age_days}d old, +{branch.ahead_of_main} commits)")
+                lines.append(
+                    f"- `{branch.name}` ({branch.age_days}d old, +{branch.ahead_of_main} commits)"
+                )
 
         # Stale branches warning
         if state.stale_branches:
@@ -409,7 +441,9 @@ class GitTracker:
         if recommendations:
             lines.append("\n### Recommendations")
             for rec in recommendations[:5]:
-                priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(rec["priority"], "⚪")
+                priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
+                    rec["priority"], "⚪"
+                )
                 lines.append(f"{priority_icon} {rec['message']}")
 
         return "\n".join(lines)
@@ -424,7 +458,9 @@ class GitTracker:
         if state.current_branch != "main":
             current = next((b for b in state.branches if b.is_current), None)
             if current:
-                lines.append(f"Branch: `{current.name}` (+{current.ahead_of_main}/-{current.behind_main} vs main)")
+                lines.append(
+                    f"Branch: `{current.name}` (+{current.ahead_of_main}/-{current.behind_main} vs main)"
+                )
         else:
             lines.append("Branch: `main`")
 

@@ -10,9 +10,9 @@ Usage:
     python inject_context.py [task_description]
 """
 
+import logging
 import sys
 import time
-import logging
 from pathlib import Path
 
 # Add cortex to path
@@ -40,7 +40,7 @@ def inject_via_hook_manager(cwd: Path, task: str) -> tuple[str, float]:
     Raises:
         Exception: If hook manager fails
     """
-    from hooks import HookManager, ContextInjectorHook
+    from hooks import ContextInjectorHook, HookManager
 
     # Create manager and register context injector hook
     manager = HookManager()
@@ -97,18 +97,14 @@ def main():
             logger.debug(f"Context injection via HookManager: {elapsed:.1f}ms")
         except Exception as e:
             # Fallback to direct injection
-            logger.warning(
-                f"HookManager failed ({e}), falling back to direct injection"
-            )
+            logger.warning(f"HookManager failed ({e}), falling back to direct injection")
             context, elapsed = inject_via_direct_injector(cwd, task)
             logger.debug(f"Context injection via fallback: {elapsed:.1f}ms")
 
         # Check overall timing
         total_elapsed = (time.time() - overall_start) * 1000
         if total_elapsed > 500:
-            logger.warning(
-                f"Context injection took {total_elapsed:.1f}ms (over 500ms budget)"
-            )
+            logger.warning(f"Context injection took {total_elapsed:.1f}ms (over 500ms budget)")
 
         # Output context
         print("<cortex_context>")

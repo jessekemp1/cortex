@@ -31,15 +31,17 @@ def create_layer3_requests() -> List[BatchRequest]:
     plan_content = plan_path.read_text()
 
     # Task 1: Implement metric_tracker.py
-    requests.append(BatchRequest(
-        custom_id="layer3_metric_tracker",
-        params={
-            "model": MODELS.strong,
-            "max_tokens": 16000,
-            "temperature": 0.3,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
+    requests.append(
+        BatchRequest(
+            custom_id="layer3_metric_tracker",
+            params={
+                "model": MODELS.strong,
+                "max_tokens": 16000,
+                "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
 
 # Context
 
@@ -81,22 +83,26 @@ Implement `intelligence/monitoring/metric_tracker.py` (~300 lines) with:
 
 Provide the complete implementation of `metric_tracker.py` as a single code block.
 Include comprehensive docstrings and error handling.
-"""
-            }],
-            "system": "You are an expert Python developer implementing a production-quality metric tracking system. Write clean, well-documented, robust code with proper error handling."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are an expert Python developer implementing a production-quality metric tracking system. Write clean, well-documented, robust code with proper error handling.",
+            },
+        )
+    )
 
     # Task 2: Implement trend_analyzer.py
-    requests.append(BatchRequest(
-        custom_id="layer3_trend_analyzer",
-        params={
-            "model": MODELS.strong,
-            "max_tokens": 16000,
-            "temperature": 0.3,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
+    requests.append(
+        BatchRequest(
+            custom_id="layer3_trend_analyzer",
+            params={
+                "model": MODELS.strong,
+                "max_tokens": 16000,
+                "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
 
 # Context
 
@@ -135,22 +141,26 @@ Implement `intelligence/monitoring/trend_analyzer.py` (~250 lines) with:
 
 Provide the complete implementation of `trend_analyzer.py` as a single code block.
 Include Trend and Anomaly dataclasses, statistical functions, and comprehensive docstrings.
-"""
-            }],
-            "system": "You are an expert Python developer implementing statistical analysis. Write efficient code without external dependencies (no numpy/pandas)."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are an expert Python developer implementing statistical analysis. Write efficient code without external dependencies (no numpy/pandas).",
+            },
+        )
+    )
 
     # Task 3: Implement alert_generator.py
-    requests.append(BatchRequest(
-        custom_id="layer3_alert_generator",
-        params={
-            "model": MODELS.strong,
-            "max_tokens": 16000,
-            "temperature": 0.3,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
+    requests.append(
+        BatchRequest(
+            custom_id="layer3_alert_generator",
+            params={
+                "model": MODELS.strong,
+                "max_tokens": 16000,
+                "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are implementing Layer 3 (Warning System) for the Cortex Intelligence Stack.
 
 # Context
 
@@ -191,22 +201,26 @@ Implement `intelligence/monitoring/alert_generator.py` (~200 lines) with:
 
 Provide the complete implementation of `alert_generator.py` as a single code block.
 Include Alert dataclass, alert rules, and formatting methods.
-"""
-            }],
-            "system": "You are an expert Python developer implementing an alert system. Write clear, maintainable code with good formatting."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are an expert Python developer implementing an alert system. Write clear, maintainable code with good formatting.",
+            },
+        )
+    )
 
     # Task 4: Integration with inject_context.py
-    requests.append(BatchRequest(
-        custom_id="layer3_inject_integration",
-        params={
-            "model": MODELS.integration,
-            "max_tokens": 8000,
-            "temperature": 0.2,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are integrating Layer 3 (Warning System) into the inject_context.py hook.
+    requests.append(
+        BatchRequest(
+            custom_id="layer3_inject_integration",
+            params={
+                "model": MODELS.integration,
+                "max_tokens": 8000,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are integrating Layer 3 (Warning System) into the inject_context.py hook.
 
 # Context
 
@@ -279,11 +293,13 @@ def get_enhanced_context() -> str:
 
 Provide the modified `inject_context.py` code showing the integration.
 Focus on the new `get_alerts()` function and changes to `get_enhanced_context()`.
-"""
-            }],
-            "system": "You are integrating a warning system into an existing hook. Write efficient, non-blocking code with proper error handling."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are integrating a warning system into an existing hook. Write efficient, non-blocking code with proper error handling.",
+            },
+        )
+    )
 
     return requests
 
@@ -297,15 +313,17 @@ def create_layer4_requests() -> List[BatchRequest]:
     plan_content = plan_path.read_text()
 
     # Task 5: Implement file_selector.py
-    requests.append(BatchRequest(
-        custom_id="layer4_file_selector",
-        params={
-            "model": MODELS.strong,
-            "max_tokens": 16000,
-            "temperature": 0.3,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are implementing Layer 4 (Smart Recommendations) for the Cortex Intelligence Stack.
+    requests.append(
+        BatchRequest(
+            custom_id="layer4_file_selector",
+            params={
+                "model": MODELS.strong,
+                "max_tokens": 16000,
+                "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are implementing Layer 4 (Smart Recommendations) for the Cortex Intelligence Stack.
 
 # Context
 
@@ -344,22 +362,26 @@ Implement `intelligence/recommendations/file_selector.py` (~200 lines) with:
 
 Provide the complete implementation of `file_selector.py` as a single code block.
 Include FileInfo dataclass, selection algorithms with scoring, and integration with Layers 1-2.
-"""
-            }],
-            "system": "You are an expert at code analysis and file relevance scoring. Write intelligent heuristics for file selection."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are an expert at code analysis and file relevance scoring. Write intelligent heuristics for file selection.",
+            },
+        )
+    )
 
     # Task 6: Implement smart_generator.py
-    requests.append(BatchRequest(
-        custom_id="layer4_smart_generator",
-        params={
-            "model": MODELS.strong,
-            "max_tokens": 16000,
-            "temperature": 0.3,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are implementing Layer 4 (Smart Recommendations) for the Cortex Intelligence Stack.
+    requests.append(
+        BatchRequest(
+            custom_id="layer4_smart_generator",
+            params={
+                "model": MODELS.strong,
+                "max_tokens": 16000,
+                "temperature": 0.3,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are implementing Layer 4 (Smart Recommendations) for the Cortex Intelligence Stack.
 
 # Context
 
@@ -404,22 +426,26 @@ Implement `intelligence/recommendations/smart_generator.py` (~400 lines) with:
 
 Provide the complete implementation of `smart_generator.py` as a single code block.
 Include all methods, comprehensive intelligence gathering, and step generation logic.
-"""
-            }],
-            "system": "You are creating an intelligent recommendation system. Write code that synthesizes multiple data sources into actionable guidance."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are creating an intelligent recommendation system. Write code that synthesizes multiple data sources into actionable guidance.",
+            },
+        )
+    )
 
     # Task 7: Integration with recommendation_engine.py
-    requests.append(BatchRequest(
-        custom_id="layer4_engine_integration",
-        params={
-            "model": MODELS.integration,
-            "max_tokens": 8000,
-            "temperature": 0.2,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are integrating Layer 4 (Smart Recommendations) into the recommendation engine.
+    requests.append(
+        BatchRequest(
+            custom_id="layer4_engine_integration",
+            params={
+                "model": MODELS.integration,
+                "max_tokens": 8000,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are integrating Layer 4 (Smart Recommendations) into the recommendation engine.
 
 # Your Task
 
@@ -482,22 +508,26 @@ Show the modified code for:
 2. SmartGenerator initialization in __init__
 3. Updated generate_recommendations() flow
 4. How to replace the 4 generators with SmartGenerator
-"""
-            }],
-            "system": "You are refactoring code to use a new smart recommendation system. Maintain backward compatibility while integrating new features."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are refactoring code to use a new smart recommendation system. Maintain backward compatibility while integrating new features.",
+            },
+        )
+    )
 
     # Task 8: Create CLI commands and documentation
-    requests.append(BatchRequest(
-        custom_id="layer3_4_cli_docs",
-        params={
-            "model": MODELS.integration,
-            "max_tokens": 8000,
-            "temperature": 0.2,
-            "messages": [{
-                "role": "user",
-                "content": f"""You are creating CLI commands and documentation for Layers 3-4.
+    requests.append(
+        BatchRequest(
+            custom_id="layer3_4_cli_docs",
+            params={
+                "model": MODELS.integration,
+                "max_tokens": 8000,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"""You are creating CLI commands and documentation for Layers 3-4.
 
 # Your Task
 
@@ -537,11 +567,13 @@ For each file, provide:
 3. Brief description
 
 Make documentation clear, practical, and example-driven.
-"""
-            }],
-            "system": "You are writing technical documentation for developers. Be clear, concise, and provide many examples."
-        }
-    ))
+""",
+                    }
+                ],
+                "system": "You are writing technical documentation for developers. Be clear, concise, and provide many examples.",
+            },
+        )
+    )
 
     return requests
 
@@ -563,13 +595,7 @@ def save_batch_spec(output_path: Path):
         "description": "Cortex Intelligence Stack - Layers 3-4 Implementation",
         "created_at": "2025-12-22T23:30:00Z",
         "total_requests": len(requests),
-        "requests": [
-            {
-                "custom_id": req.custom_id,
-                "params": req.params
-            }
-            for req in requests
-        ]
+        "requests": [{"custom_id": req.custom_id, "params": req.params} for req in requests],
     }
 
     output_path.write_text(json.dumps(spec, indent=2))

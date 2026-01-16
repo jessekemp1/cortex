@@ -9,17 +9,18 @@ Handles:
 - Automatic task scheduling and execution
 """
 
+import logging
 import os
 import signal
 import sys
-import logging
-from pathlib import Path
-from typing import Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import psutil
 
-from .batch_queue import BatchTaskQueue
 from .batch_executor import BatchExecutor
+from .batch_queue import BatchTaskQueue
 
 
 class BatchDaemon:
@@ -40,7 +41,7 @@ class BatchDaemon:
         self,
         queue: Optional[BatchTaskQueue] = None,
         executor: Optional[BatchExecutor] = None,
-        process_monitor: Optional[Any] = None
+        process_monitor: Optional[Any] = None,
     ):
         """
         Initialize daemon manager.
@@ -51,10 +52,7 @@ class BatchDaemon:
             process_monitor: ProcessMonitor for capacity checking
         """
         self.queue = queue or BatchTaskQueue()
-        self.executor = executor or BatchExecutor(
-            queue=self.queue,
-            process_monitor=process_monitor
-        )
+        self.executor = executor or BatchExecutor(queue=self.queue, process_monitor=process_monitor)
 
         # Ensure directories exist
         self.PID_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +60,7 @@ class BatchDaemon:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
+
         def shutdown_handler(signum, frame):
             sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
             logging.info(f"Received {sig_name}, initiating graceful shutdown...")
@@ -75,11 +74,11 @@ class BatchDaemon:
         """Setup file-based logging for daemon."""
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
                 logging.FileHandler(self.LOG_FILE),
-                logging.StreamHandler(sys.stdout)  # Also log to stdout in foreground mode
-            ]
+                logging.StreamHandler(sys.stdout),  # Also log to stdout in foreground mode
+            ],
         )
 
     def _write_pid_file(self) -> None:
@@ -141,9 +140,9 @@ class BatchDaemon:
         existing_pid = self._read_pid_file()
         if existing_pid and self._is_process_running(existing_pid):
             return {
-                'success': False,
-                'error': f'Daemon already running with PID {existing_pid}',
-                'pid': existing_pid
+                "success": False,
+                "error": f"Daemon already running with PID {existing_pid}",
+                "pid": existing_pid,
             }
 
         # Clean up stale PID file
@@ -157,17 +156,14 @@ class BatchDaemon:
                 if pid > 0:
                     # Parent process - return immediately
                     return {
-                        'success': True,
-                        'message': f'Daemon started in background',
-                        'pid': pid,
-                        'interval': interval_seconds,
-                        'log_file': str(self.LOG_FILE)
+                        "success": True,
+                        "message": f"Daemon started in background",
+                        "pid": pid,
+                        "interval": interval_seconds,
+                        "log_file": str(self.LOG_FILE),
                     }
             except OSError as e:
-                return {
-                    'success': False,
-                    'error': f'Failed to fork process: {e}'
-                }
+                return {"success": False, "error": f"Failed to fork process: {e}"}
 
             # Child process continues below
             # Detach from parent
@@ -188,8 +184,8 @@ class BatchDaemon:
             # Setup logging (file only for background)
             logging.basicConfig(
                 level=logging.INFO,
-                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                handlers=[logging.FileHandler(self.LOG_FILE)]
+                format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                handlers=[logging.FileHandler(self.LOG_FILE)],
             )
         else:
             # Foreground mode - setup logging with stdout
@@ -207,19 +203,12 @@ class BatchDaemon:
             self.executor.run_scheduler_daemon(interval_seconds=interval_seconds)
         except Exception as e:
             logging.error(f"Daemon error: {e}", exc_info=True)
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
         finally:
             # Cleanup
             self._remove_pid_file()
 
-        return {
-            'success': True,
-            'message': 'Daemon stopped',
-            'pid': os.getpid()
-        }
+        return {"success": True, "message": "Daemon stopped", "pid": os.getpid()}
 
     def stop(self) -> Dict[str, Any]:
         """
@@ -232,16 +221,16 @@ class BatchDaemon:
 
         if not pid:
             return {
-                'success': False,
-                'error': 'Daemon is not running (no PID file found)'
+                "success": False,
+                "error": "Daemon is not running (no PID file found)",
             }
 
         if not self._is_process_running(pid):
             # Process not running, clean up stale PID file
             self._remove_pid_file()
             return {
-                'success': False,
-                'error': f'Daemon not running (stale PID file for PID {pid})'
+                "success": False,
+                "error": f"Daemon not running (stale PID file for PID {pid})",
             }
 
         # Send SIGTERM for graceful shutdown
@@ -250,6 +239,7 @@ class BatchDaemon:
 
             # Wait for process to stop (up to 10 seconds)
             import time
+
             for _ in range(100):  # 100 * 0.1s = 10s
                 if not self._is_process_running(pid):
                     break
@@ -260,37 +250,27 @@ class BatchDaemon:
                 # Force kill if still running
                 os.kill(pid, signal.SIGKILL)
                 return {
-                    'success': True,
-                    'message': f'Daemon stopped (force killed PID {pid})',
-                    'pid': pid,
-                    'forced': True
+                    "success": True,
+                    "message": f"Daemon stopped (force killed PID {pid})",
+                    "pid": pid,
+                    "forced": True,
                 }
 
             return {
-                'success': True,
-                'message': f'Daemon stopped gracefully',
-                'pid': pid,
-                'forced': False
+                "success": True,
+                "message": f"Daemon stopped gracefully",
+                "pid": pid,
+                "forced": False,
             }
 
         except ProcessLookupError:
             # Process already gone
             self._remove_pid_file()
-            return {
-                'success': True,
-                'message': 'Daemon already stopped',
-                'pid': pid
-            }
+            return {"success": True, "message": "Daemon already stopped", "pid": pid}
         except PermissionError:
-            return {
-                'success': False,
-                'error': f'Permission denied to stop PID {pid}'
-            }
+            return {"success": False, "error": f"Permission denied to stop PID {pid}"}
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Failed to stop daemon: {e}'
-            }
+            return {"success": False, "error": f"Failed to stop daemon: {e}"}
 
     def status(self) -> Dict[str, Any]:
         """
@@ -303,19 +283,19 @@ class BatchDaemon:
 
         if not pid:
             return {
-                'running': False,
-                'message': 'Daemon is not running',
-                'pid_file': str(self.PID_FILE)
+                "running": False,
+                "message": "Daemon is not running",
+                "pid_file": str(self.PID_FILE),
             }
 
         is_running = self._is_process_running(pid)
 
         if not is_running:
             return {
-                'running': False,
-                'message': f'Daemon not running (stale PID file for PID {pid})',
-                'pid': pid,
-                'pid_file': str(self.PID_FILE)
+                "running": False,
+                "message": f"Daemon not running (stale PID file for PID {pid})",
+                "pid": pid,
+                "pid_file": str(self.PID_FILE),
             }
 
         # Get process details
@@ -337,20 +317,20 @@ class BatchDaemon:
                 uptime_str = f"{seconds}s"
 
             return {
-                'running': True,
-                'message': f'Daemon running (PID {pid})',
-                'pid': pid,
-                'uptime': uptime_str,
-                'started_at': create_time.isoformat(),
-                'cpu_percent': process.cpu_percent(interval=0.1),
-                'memory_mb': process.memory_info().rss / 1024 / 1024,
-                'log_file': str(self.LOG_FILE),
-                'pid_file': str(self.PID_FILE)
+                "running": True,
+                "message": f"Daemon running (PID {pid})",
+                "pid": pid,
+                "uptime": uptime_str,
+                "started_at": create_time.isoformat(),
+                "cpu_percent": process.cpu_percent(interval=0.1),
+                "memory_mb": process.memory_info().rss / 1024 / 1024,
+                "log_file": str(self.LOG_FILE),
+                "pid_file": str(self.PID_FILE),
             }
         except Exception as e:
             return {
-                'running': True,
-                'message': f'Daemon running (PID {pid}) - limited info',
-                'pid': pid,
-                'error': str(e)
+                "running": True,
+                "message": f"Daemon running (PID {pid}) - limited info",
+                "pid": pid,
+                "error": str(e),
             }

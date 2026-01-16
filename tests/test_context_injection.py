@@ -1,9 +1,9 @@
 """Tests for context injection system."""
+
 import time
 from pathlib import Path
 
 import pytest
-
 from intelligence.context_injector import ContextInjector, InjectionContext
 
 
@@ -137,7 +137,7 @@ class TestContextInjectorIntegration:
 
     @pytest.mark.skipif(
         not Path("/Users/jesse.kemp/Dev/Vortex/VortexV2").exists(),
-        reason="VortexV2 project not found"
+        reason="VortexV2 project not found",
     )
     def test_inject_vortex_project(self, injector):
         """Test injection for VortexV2 project."""
@@ -149,7 +149,7 @@ class TestContextInjectorIntegration:
 
     @pytest.mark.skipif(
         not Path("/Users/jesse.kemp/Dev/cortex").exists(),
-        reason="Cortex project not found"
+        reason="Cortex project not found",
     )
     def test_inject_cortex_project(self, injector):
         """Test injection for Cortex project."""
@@ -187,9 +187,10 @@ class TestCaching:
         # Results should be similar (profile part cached, but CPU may vary slightly)
         # Extract stable parts (project name, coverage) - CPU metrics are dynamic
         import re
+
         def extract_stable_parts(s):
             # Remove dynamic CPU percentage which can vary between calls
-            return re.sub(r'CPU:\d+%', 'CPU:XX%', s)
+            return re.sub(r"CPU:\d+%", "CPU:XX%", s)
 
         assert extract_stable_parts(result1) == extract_stable_parts(result2)
 
@@ -210,10 +211,10 @@ class TestWarningInclusion:
         """Warnings should appear in context output."""
         ctx = InjectionContext(
             project_name="TestProject",
-            warnings=["Test coverage low", "GRIB data 12h old"]
+            warnings=["Test coverage low", "GRIB data 12h old"],
         )
         result = ctx.to_string()
-        
+
         assert "Warning:" in result
         # Should include at least first warning
         assert "Test coverage low" in result or "GRIB data" in result
@@ -221,24 +222,23 @@ class TestWarningInclusion:
     def test_multiple_warnings_prioritized(self):
         """Multiple warnings should be included up to limit."""
         ctx = InjectionContext(
-            project_name="TestProject",
-            warnings=["Warning 1", "Warning 2", "Warning 3"]
+            project_name="TestProject", warnings=["Warning 1", "Warning 2", "Warning 3"]
         )
         result = ctx.to_string()
-        
+
         # Should include at least first warning
         assert "Warning:" in result
         assert "Warning 1" in result
 
     @pytest.mark.skipif(
         not Path("/Users/jesse.kemp/Dev/Vortex/VortexV2").exists(),
-        reason="VortexV2 project not found"
+        reason="VortexV2 project not found",
     )
     def test_vortex_warnings_integration(self, injector):
         """VortexV2 domain expert warnings should appear when relevant."""
         vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
         result = injector.inject(vortex_path, task="process GRIB data")
-        
+
         # If GRIB data is stale, warning should appear
         # (May not appear if data is fresh, so this is a soft check)
         # Just verify the injection works without error
@@ -258,10 +258,10 @@ class TestPatternHints:
         """Pattern hints should appear in context output."""
         ctx = InjectionContext(
             project_name="TestProject",
-            pattern_hint="Similar to VortexV2: GRIB integration"
+            pattern_hint="Similar to VortexV2: GRIB integration",
         )
         result = ctx.to_string()
-        
+
         assert "Pattern:" in result
         assert "Similar to" in result or "VortexV2" in result
 
@@ -269,10 +269,10 @@ class TestPatternHints:
         """Pattern hints should be formatted correctly."""
         ctx = InjectionContext(
             project_name="TestProject",
-            pattern_hint="Similar to Project: Very long pattern title that should be truncated"
+            pattern_hint="Similar to Project: Very long pattern title that should be truncated",
         )
         result = ctx.to_string(max_chars=200)
-        
+
         # Should include pattern but may be truncated
         assert "Pattern:" in result
         assert len(result) <= 200
@@ -282,7 +282,7 @@ class TestPatternHints:
         # This test depends on pattern memory having indexed patterns
         # May not find patterns if index is empty, so this is a soft check
         result = injector.inject(Path.cwd(), task="implement authentication")
-        
+
         # Just verify injection works - pattern may or may not appear
         assert isinstance(result, str)
         assert len(result) > 0

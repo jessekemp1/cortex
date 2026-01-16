@@ -108,9 +108,7 @@ class Week1Automation:
         today = datetime.now().date().isoformat()
 
         print("╔══════════════════════════════════════════════════════╗")
-        print(
-            f"║     WEEK 1 AUTOMATION - Day {len(self.week_data.get('days', [])) + 1}     ║"
-        )
+        print(f"║     WEEK 1 AUTOMATION - Day {len(self.week_data.get('days', [])) + 1}     ║")
         print("╚══════════════════════════════════════════════════════╝")
         print("")
         print(f"Date: {today}")
@@ -207,9 +205,7 @@ class Week1Automation:
                     # Check commits from yesterday
                     commits = self._get_commits_on_date(repo, yesterday)
                     if commits:
-                        execution_evidence.append(
-                            f"Git commits in {repo.name}: {len(commits)}"
-                        )
+                        execution_evidence.append(f"Git commits in {repo.name}: {len(commits)}")
                         for commit in commits[:3]:  # Show first 3
                             execution_evidence.append(f"  - {commit}")
             except Exception as e:
@@ -223,9 +219,7 @@ class Week1Automation:
         if previous_day["executed"] and self.feedback_logger:
             # Assume useful if executed (user can override)
             useful = True
-            notes = (
-                f"Auto-detected execution: {len(execution_evidence)} evidence points"
-            )
+            notes = f"Auto-detected execution: {len(execution_evidence)} evidence points"
 
             self.feedback_logger.log_feedback(
                 action_title=previous_day["recommendation_title"],
@@ -258,11 +252,7 @@ class Week1Automation:
                 text=True,
             )
             if result.returncode == 0 and result.stdout.strip():
-                return [
-                    line.strip()
-                    for line in result.stdout.strip().split("\n")
-                    if line.strip()
-                ]
+                return [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
         except Exception:
             pass
         return []
@@ -288,9 +278,7 @@ class Week1Automation:
         report.append("📊 STATISTICS")
         report.append("─────────────")
         report.append(f"Days tracked: {total_days}")
-        report.append(
-            f"Actions executed: {executed_days}/{total_days} ({execution_rate:.0f}%)"
-        )
+        report.append(f"Actions executed: {executed_days}/{total_days} ({execution_rate:.0f}%)")
         report.append("")
 
         # Feedback stats
@@ -321,15 +309,11 @@ class Week1Automation:
         # Check success criteria
         used_daily = total_days >= 7
         actionable_rate = (
-            stats["useful_rate"]
-            if self.feedback_logger and stats["total_entries"] > 0
-            else 0
+            stats["useful_rate"] if self.feedback_logger and stats["total_entries"] > 0 else 0
         )
         actionable_70pct = actionable_rate >= 0.7
 
-        report.append(
-            f"[{'✓' if used_daily else '○'}] Used daily for 7 days ({total_days}/7)"
-        )
+        report.append(f"[{'✓' if used_daily else '○'}] Used daily for 7 days ({total_days}/7)")
         report.append(
             f"[{'✓' if actionable_70pct else '○'}] Recommendations actionable 70%+ ({actionable_rate:.0%})"
         )
@@ -371,9 +355,7 @@ class Week1Automation:
                 if stats["useful_rate"] >= 0.7:
                     value_points.append(f"High useful rate: {stats['useful_rate']:.0%}")
                 elif stats["useful_rate"] < 0.5:
-                    friction_points.append(
-                        f"Low useful rate: {stats['useful_rate']:.0%}"
-                    )
+                    friction_points.append(f"Low useful rate: {stats['useful_rate']:.0%}")
 
         return value_points, friction_points
 
@@ -382,13 +364,9 @@ def main():
     """Main entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Week 1 Foundation Calibration Automation"
-    )
+    parser = argparse.ArgumentParser(description="Week 1 Foundation Calibration Automation")
     parser.add_argument("--daily", action="store_true", help="Run daily automation")
-    parser.add_argument(
-        "--report", action="store_true", help="Generate progress report"
-    )
+    parser.add_argument("--report", action="store_true", help="Generate progress report")
     parser.add_argument(
         "--auto-detect", action="store_true", help="Auto-detect value/friction points"
     )

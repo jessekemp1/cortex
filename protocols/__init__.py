@@ -6,22 +6,22 @@ Inter-Agent Protocol (IAP) enables structured communication between AI agents an
 
 try:
     from cortex.protocols.iap import (
-        IAPHandler,
-        IAPMessage,
-        MessageType,
         Agent,
         AgentRole,
         ContextSnapshot,
+        IAPHandler,
+        IAPMessage,
+        MessageType,
     )
 except ImportError:
     # Fallback for direct execution
     from .iap import (
-        IAPHandler,
-        IAPMessage,
-        MessageType,
         Agent,
         AgentRole,
         ContextSnapshot,
+        IAPHandler,
+        IAPMessage,
+        MessageType,
     )
 
 __all__ = [

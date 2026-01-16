@@ -30,14 +30,14 @@ def _load_cache_from_disk() -> Optional[List[Dict[str, Any]]]:
         return None
 
     try:
-        with open(CACHE_FILE, 'r') as f:
+        with open(CACHE_FILE, "r") as f:
             data = json.load(f)
 
-        cache_time = datetime.fromisoformat(data.get('timestamp', ''))
+        cache_time = datetime.fromisoformat(data.get("timestamp", ""))
         age_seconds = (datetime.now() - cache_time).total_seconds()
 
         if age_seconds < CACHE_TTL_SECONDS:
-            return data.get('tasks', [])
+            return data.get("tasks", [])
     except (json.JSONDecodeError, KeyError, ValueError, OSError):
         pass
 
@@ -49,12 +49,9 @@ def _save_cache_to_disk(tasks: List[Dict[str, Any]]) -> None:
     try:
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-        data = {
-            'timestamp': datetime.now().isoformat(),
-            'tasks': tasks
-        }
+        data = {"timestamp": datetime.now().isoformat(), "tasks": tasks}
 
-        with open(CACHE_FILE, 'w') as f:
+        with open(CACHE_FILE, "w") as f:
             json.dump(data, f)
     except (OSError, TypeError):
         # Ignore cache save failures

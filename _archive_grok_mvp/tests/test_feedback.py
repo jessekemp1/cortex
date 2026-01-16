@@ -30,9 +30,7 @@ def test_log_feedback():
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
 
-        logger.log_feedback(
-            action_title="Test Action", useful=True, notes="This was helpful"
-        )
+        logger.log_feedback(action_title="Test Action", useful=True, notes="This was helpful")
 
         # Verify entry was written
         assert log_file.exists()

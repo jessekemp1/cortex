@@ -42,9 +42,7 @@ def test_briefing_generation():
     assert isinstance(briefing.patterns, list)
     assert isinstance(briefing.waiting_on, list)
 
-    print(
-        f"  ✓ Generated briefing with {len(briefing.active_projects)} active projects"
-    )
+    print(f"  ✓ Generated briefing with {len(briefing.active_projects)} active projects")
     print(f"  ✓ {briefing.total_commits_7d} commits in last 7 days")
     print(f"  ✓ {len(briefing.priority_actions)} priority actions")
     return True

@@ -231,9 +231,7 @@ def get_stale_items(action_plan: Dict, days_threshold: int = 14) -> List[Dict]:
 
 
 def generate_recommendations(
-    action_plan: Dict,
-    outcomes: List[Dict],
-    productivity: Dict
+    action_plan: Dict, outcomes: List[Dict], productivity: Dict
 ) -> List[Dict[str, str]]:
     """Generate smart recommendations based on data."""
     recommendations = []
@@ -244,47 +242,57 @@ def generate_recommendations(
     pending_a = [i for i in priority_a if i.get("status") == "pending"]
 
     if pending_a:
-        recommendations.append({
-            "priority": "HIGH",
-            "action": f"Start Priority A item: {pending_a[0].get('name', 'Unknown')}",
-            "reason": f"{len(pending_a)} Priority A items still pending",
-        })
+        recommendations.append(
+            {
+                "priority": "HIGH",
+                "action": f"Start Priority A item: {pending_a[0].get('name', 'Unknown')}",
+                "reason": f"{len(pending_a)} Priority A items still pending",
+            }
+        )
 
     if len(in_progress_a) > 2:
-        recommendations.append({
-            "priority": "MEDIUM",
-            "action": "Focus - too many items in progress",
-            "reason": f"{len(in_progress_a)} Priority A items in progress simultaneously",
-        })
+        recommendations.append(
+            {
+                "priority": "MEDIUM",
+                "action": "Focus - too many items in progress",
+                "reason": f"{len(in_progress_a)} Priority A items in progress simultaneously",
+            }
+        )
 
     # Check success trends
     trends = calculate_success_trends(outcomes)
     if trends.get("trend", 0) < -10:
-        recommendations.append({
-            "priority": "HIGH",
-            "action": "Review recent failures",
-            "reason": f"Success rate dropped {abs(trends['trend']):.0f}% this week",
-        })
+        recommendations.append(
+            {
+                "priority": "HIGH",
+                "action": "Review recent failures",
+                "reason": f"Success rate dropped {abs(trends['trend']):.0f}% this week",
+            }
+        )
 
     # Check productivity
     if productivity:
         peak = productivity.get("peak_hour", 12)
         current_hour = datetime.now().hour
         if abs(current_hour - peak) <= 2:
-            recommendations.append({
-                "priority": "LOW",
-                "action": "Peak productivity time - tackle hard problems now",
-                "reason": f"Your most productive hour is around {peak}:00",
-            })
+            recommendations.append(
+                {
+                    "priority": "LOW",
+                    "action": "Peak productivity time - tackle hard problems now",
+                    "reason": f"Your most productive hour is around {peak}:00",
+                }
+            )
 
     # Check stale items
     stale = get_stale_items(action_plan)
     if stale:
-        recommendations.append({
-            "priority": "MEDIUM",
-            "action": f"Review stale item: {stale[0].get('name', 'Unknown')}",
-            "reason": stale[0].get("reason", "Item may be stuck"),
-        })
+        recommendations.append(
+            {
+                "priority": "MEDIUM",
+                "action": f"Review stale item: {stale[0].get('name', 'Unknown')}",
+                "reason": stale[0].get("reason", "Item may be stuck"),
+            }
+        )
 
     return recommendations
 
@@ -298,14 +306,17 @@ st.set_page_config(
 )
 
 # Custom CSS for cleaner look
-st.markdown("""
+st.markdown(
+    """
 <style>
     .stMetric { background: #1a1a2e; padding: 15px; border-radius: 10px; }
     .recommendation-high { border-left: 4px solid #ff4444; padding-left: 10px; }
     .recommendation-medium { border-left: 4px solid #ffaa00; padding-left: 10px; }
     .recommendation-low { border-left: 4px solid #44aa44; padding-left: 10px; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # === Load All Data ===
 action_plan = parse_action_plan()
@@ -320,8 +331,11 @@ col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
     st.title("🧠 Cortex Intelligence")
 with col2:
-    st.metric("Success Rate", f"{trends.get('current_rate', 0):.0f}%",
-              f"{trends.get('trend', 0):+.0f}%")
+    st.metric(
+        "Success Rate",
+        f"{trends.get('current_rate', 0):.0f}%",
+        f"{trends.get('trend', 0):+.0f}%",
+    )
 with col3:
     if st.button("🔄 Refresh"):
         st.rerun()
@@ -339,10 +353,13 @@ with left:
         for rec in recommendations[:4]:
             priority = rec.get("priority", "LOW")
             icon = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(priority, "⚪")
-            st.markdown(f"""
+            st.markdown(
+                f"""
             {icon} **{rec.get('action', '')}**
             <small style='color: gray;'>{rec.get('reason', '')}</small>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
             st.markdown("")
     else:
         st.success("No urgent recommendations. You're on track!")
@@ -371,7 +388,7 @@ with middle:
         with col1:
             st.metric("Peak Hour", f"{productivity.get('peak_hour', 12)}:00")
         with col2:
-            st.metric("Peak Day", productivity.get('peak_day', 'N/A'))
+            st.metric("Peak Day", productivity.get("peak_day", "N/A"))
 
         st.markdown("---")
 
@@ -435,18 +452,14 @@ with tab1:
     with col1:
         st.markdown("### Priority A")
         for item in action_plan.get("priorities", {}).get("A", []):
-            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(
-                item.get("status", ""), "⬜"
-            )
+            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(item.get("status", ""), "⬜")
             st.markdown(f"{status_icon} **{item.get('name', '')}**")
             st.markdown(f"   {item.get('project', '')} | {item.get('progress', 0)}%")
 
     with col2:
         st.markdown("### Priority B")
         for item in action_plan.get("priorities", {}).get("B", [])[:6]:
-            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(
-                item.get("status", ""), "⬜"
-            )
+            status_icon = {"completed": "✅", "in_progress": "🔄"}.get(item.get("status", ""), "⬜")
             st.markdown(f"{status_icon} **{item.get('name', '')}**")
 
     with col3:
@@ -506,8 +519,11 @@ with tab3:
         st.markdown(f"- **ACTION_PLAN items:** {len(action_plan.get('items', []))}")
 
         # Cortex learning
-        completed_a = sum(1 for i in action_plan.get("priorities", {}).get("A", [])
-                        if i.get("status") == "completed")
+        completed_a = sum(
+            1
+            for i in action_plan.get("priorities", {}).get("A", [])
+            if i.get("status") == "completed"
+        )
         total_a = len(action_plan.get("priorities", {}).get("A", []))
         if total_a > 0:
             st.markdown(f"- **Priority A completion:** {completed_a}/{total_a}")

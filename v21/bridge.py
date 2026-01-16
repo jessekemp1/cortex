@@ -72,7 +72,11 @@ class CortexV2_1Bridge(CortexV2Bridge):
         Returns:
             Formatted briefing string
         """
-        from cortex.briefing import generate_daily_briefing, format_briefing, format_briefing_json
+        from cortex.briefing import (
+            format_briefing,
+            format_briefing_json,
+            generate_daily_briefing,
+        )
 
         # Generate V1 briefing
         briefing_data = generate_daily_briefing(root_dir=self.root_dir)
@@ -82,7 +86,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         confidence_report = self.get_confidence_report()
 
         # Add V2 insights to briefing
-        if hasattr(briefing_data, 'v2_insights'):
+        if hasattr(briefing_data, "v2_insights"):
             briefing_data.v2_insights = {
                 "outcomes_7d": outcome_stats.get("total", 0),
                 "success_rate": outcome_stats.get("success_rate", 0),
@@ -104,9 +108,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             return format_briefing(briefing_data, use_color=use_color)
 
     def get_recommendations(
-        self,
-        project: Optional[str] = None,
-        limit: int = 5
+        self, project: Optional[str] = None, limit: int = 5
     ) -> List[Dict[str, Any]]:
         """Get smart recommendations using patterns with calibrated confidence.
 
@@ -124,28 +126,32 @@ class CortexV2_1Bridge(CortexV2Bridge):
         # Try V1 recommendation engine
         try:
             import sys
+
             # Add cortex to path for intelligence imports
             cortex_path = str(Path(__file__).parent.parent)
             if cortex_path not in sys.path:
                 sys.path.insert(0, cortex_path)
 
             from cortex.recommendation_engine import RecommendationEngine
+
             engine = RecommendationEngine(root_dir=self.root_dir)
             raw_recs = engine.get_prioritized(project=project, limit=limit * 2)
         except (ImportError, Exception):
             # Fallback: Generate recommendations from V2 patterns
             patterns = self.store.patterns  # Access patterns list
-            for pattern in patterns[:limit * 2]:
+            for pattern in patterns[: limit * 2]:
                 if project and project not in pattern.projects:
                     continue
-                raw_recs.append({
-                    "title": pattern.title,
-                    "priority": "MEDIUM",
-                    "project": pattern.projects[0] if pattern.projects else "unknown",
-                    "rationale": pattern.problem,
-                    "confidence": pattern.confidence,
-                    "source": "v2_pattern",
-                })
+                raw_recs.append(
+                    {
+                        "title": pattern.title,
+                        "priority": "MEDIUM",
+                        "project": (pattern.projects[0] if pattern.projects else "unknown"),
+                        "rationale": pattern.problem,
+                        "confidence": pattern.confidence,
+                        "source": "v2_pattern",
+                    }
+                )
 
         # Enhance with V2 calibration
         enhanced = []
@@ -157,7 +163,9 @@ class CortexV2_1Bridge(CortexV2Bridge):
                 # Use calibrated confidence from pattern
                 try:
                     calibrated_conf = self.get_pattern_confidence(pattern["id"])
-                    rec["confidence"] = calibrated_conf.get("confidence", rec.get("confidence", 0.5))
+                    rec["confidence"] = calibrated_conf.get(
+                        "confidence", rec.get("confidence", 0.5)
+                    )
                     rec["certainty"] = calibrated_conf.get("certainty", 0.0)
                     rec["calibrated"] = True
                 except (ValueError, Exception):
@@ -170,7 +178,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             if "last_used" in rec:
                 decay_result = self.decay.calculate(
                     last_used=datetime.fromisoformat(rec["last_used"]),
-                    use_count=rec.get("use_count", 0)
+                    use_count=rec.get("use_count", 0),
                 )
                 rec["relevance"] = decay_result.relevance
 
@@ -193,11 +201,13 @@ class CortexV2_1Bridge(CortexV2Bridge):
 
         try:
             from cortex.project_scanner import ProjectScanner
+
             scanner = ProjectScanner(root_dir=self.root_dir)
             projects = scanner.scan_projects()
         except (ImportError, Exception):
             # Fallback: Use projects from V2 memory
             from cortex.v2.memory.models import MemoryType
+
             project_nodes = self.graph.find_nodes(type=MemoryType.PROJECT)
             projects = [{"name": n.name} for n in project_nodes]
 
@@ -234,11 +244,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
 
         return health
 
-    def analyze_project(
-        self,
-        project: str,
-        quick: bool = False
-    ) -> Dict[str, Any]:
+    def analyze_project(self, project: str, quick: bool = False) -> Dict[str, Any]:
         """Perform deep project analysis.
 
         Args:
@@ -286,9 +292,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         return profile
 
     def get_warnings(
-        self,
-        project: Optional[str] = None,
-        severity: Optional[str] = None
+        self, project: Optional[str] = None, severity: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get project warnings.
 
@@ -307,24 +311,28 @@ class CortexV2_1Bridge(CortexV2Bridge):
         # Low confidence patterns
         for pattern in confidence_report.get("patterns", []):
             if pattern.get("confidence", 0.5) < 0.4:
-                warnings.append({
-                    "type": "low_confidence_pattern",
-                    "severity": "minor",
-                    "message": f"Pattern '{pattern['name']}' has low confidence ({pattern['confidence']:.0%})",
-                    "recommendation": "Consider reviewing or deprecating",
-                    "pattern_id": pattern["id"],
-                })
+                warnings.append(
+                    {
+                        "type": "low_confidence_pattern",
+                        "severity": "minor",
+                        "message": f"Pattern '{pattern['name']}' has low confidence ({pattern['confidence']:.0%})",
+                        "recommendation": "Consider reviewing or deprecating",
+                        "pattern_id": pattern["id"],
+                    }
+                )
 
         # Stale memories
         stale = self.get_stale_memories(threshold=0.1)
         for memory in stale:
-            warnings.append({
-                "type": "stale_memory",
-                "severity": "minor",
-                "message": f"Memory '{memory.get('title')}' is stale (relevance: {memory.get('effective_confidence', 0):.0%})",
-                "recommendation": "Consider updating or archiving",
-                "memory_id": memory.get("id"),
-            })
+            warnings.append(
+                {
+                    "type": "stale_memory",
+                    "severity": "minor",
+                    "message": f"Memory '{memory.get('title')}' is stale (relevance: {memory.get('effective_confidence', 0):.0%})",
+                    "recommendation": "Consider updating or archiving",
+                    "memory_id": memory.get("id"),
+                }
+            )
 
         # Filter by severity if specified
         if severity:
@@ -341,7 +349,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         deadline: Optional[str] = None,
         success_criteria: Optional[List[str]] = None,
         projects: Optional[List[str]] = None,
-        progress: int = 0
+        progress: int = 0,
     ) -> Dict[str, Any]:
         """Add a new goal to track.
 
@@ -356,8 +364,8 @@ class CortexV2_1Bridge(CortexV2Bridge):
         Returns:
             Created goal with ID
         """
-        from cortex.v2.memory.types import Goal
         from cortex.v2.memory.models import MemoryType
+        from cortex.v2.memory.types import Goal
 
         goal = Goal.create(
             title=title,
@@ -365,17 +373,13 @@ class CortexV2_1Bridge(CortexV2Bridge):
             deadline=deadline,
             success_criteria=success_criteria or [],
             projects=projects or [],
-            progress=progress
+            progress=progress,
         )
 
         self.store.add(goal)
 
         # Add to graph
-        node = self.graph.add_node(
-            type=MemoryType.GOAL,
-            name=title,
-            data=goal.to_dict()
-        )
+        node = self.graph.add_node(type=MemoryType.GOAL, name=title, data=goal.to_dict())
 
         return {
             "id": goal.id,
@@ -383,7 +387,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             "title": title,
             "status": goal.status,
             "progress": goal.progress,
-            "success": True
+            "success": True,
         }
 
     def update_goal(
@@ -391,7 +395,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         goal_id: str,
         progress: Optional[int] = None,
         status: Optional[str] = None,
-        blockers: Optional[List[str]] = None
+        blockers: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Update a goal's progress or status.
 
@@ -423,9 +427,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         return {"error": f"Goal not found: {goal_id}"}
 
     def get_goals(
-        self,
-        status: Optional[str] = None,
-        project: Optional[str] = None
+        self, status: Optional[str] = None, project: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get all goals, optionally filtered.
 
@@ -445,10 +447,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             goals.append(mem.to_dict())
 
         # Sort by progress (active goals first, then by progress)
-        goals.sort(key=lambda g: (
-            0 if g["status"] == "active" else 1,
-            -g["progress"]
-        ))
+        goals.sort(key=lambda g: (0 if g["status"] == "active" else 1, -g["progress"]))
 
         return goals
 
@@ -476,12 +475,14 @@ class CortexV2_1Bridge(CortexV2Bridge):
             if goal.get("blockers"):
                 summary["blocked_count"] += 1
             if status == "active":
-                summary["active_goals"].append({
-                    "id": goal["id"],
-                    "title": goal["title"],
-                    "progress": goal["progress"],
-                    "deadline": goal.get("deadline"),
-                })
+                summary["active_goals"].append(
+                    {
+                        "id": goal["id"],
+                        "title": goal["title"],
+                        "progress": goal["progress"],
+                        "deadline": goal.get("deadline"),
+                    }
+                )
 
         if goals:
             summary["avg_progress"] = total_progress / len(goals)
@@ -517,13 +518,13 @@ class CortexV2_1Bridge(CortexV2Bridge):
                 "project": project,
                 "status": "partial",
                 "patterns_count": len(patterns),
-                "note": "Full dependency analysis not yet implemented"
+                "note": "Full dependency analysis not yet implemented",
             }
 
         return {
             "project": project,
             "status": "not_found",
-            "note": "Project not in knowledge graph"
+            "note": "Project not in knowledge graph",
         }
 
     def find_circular_dependencies(self, project: str) -> List[List[str]]:
@@ -539,11 +540,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         """
         return []
 
-    def export_dependency_graph(
-        self,
-        project: str,
-        format: str = "json"
-    ) -> str:
+    def export_dependency_graph(self, project: str, format: str = "json") -> str:
         """Export dependency graph.
 
         Note: Returns graph data for project from knowledge graph.
@@ -569,11 +566,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
         else:
             return json.dumps(deps)
 
-    def submit_batch(
-        self,
-        items: List[Dict[str, Any]],
-        batch_type: str = "research"
-    ) -> str:
+    def submit_batch(self, items: List[Dict[str, Any]], batch_type: str = "research") -> str:
         """Submit items for batch processing.
 
         Supports batch types:
@@ -603,21 +596,24 @@ class CortexV2_1Bridge(CortexV2Bridge):
             if batch_type == "research":
                 # Research batch - format items for research prompt
                 from cortex.batch.research_batcher import ResearchBatcher
+
                 requests = []
                 for i, item in enumerate(items):
                     req = BatchRequest(
                         custom_id=item.get("id", f"research_{i}"),
                         params={
-                            "messages": [{
-                                "role": "user",
-                                "content": ResearchBatcher.RESEARCH_USER_PROMPT_TEMPLATE.format(
-                                    topic=item.get("topic", "unknown"),
-                                    context=item.get("context", ""),
-                                    priority=item.get("priority", "medium")
-                                )
-                            }],
-                            "system": ResearchBatcher.RESEARCH_SYSTEM_PROMPT
-                        }
+                            "messages": [
+                                {
+                                    "role": "user",
+                                    "content": ResearchBatcher.RESEARCH_USER_PROMPT_TEMPLATE.format(
+                                        topic=item.get("topic", "unknown"),
+                                        context=item.get("context", ""),
+                                        priority=item.get("priority", "medium"),
+                                    ),
+                                }
+                            ],
+                            "system": ResearchBatcher.RESEARCH_SYSTEM_PROMPT,
+                        },
                     )
                     requests.append(req)
 
@@ -626,7 +622,10 @@ class CortexV2_1Bridge(CortexV2Bridge):
                 requests = [
                     BatchRequest(
                         custom_id=item.get("id", f"learning_{i}"),
-                        params=item.get("params", {"messages": [{"role": "user", "content": str(item)}]})
+                        params=item.get(
+                            "params",
+                            {"messages": [{"role": "user", "content": str(item)}]},
+                        ),
                     )
                     for i, item in enumerate(items)
                 ]
@@ -636,7 +635,10 @@ class CortexV2_1Bridge(CortexV2Bridge):
                 requests = [
                     BatchRequest(
                         custom_id=item.get("id", f"req_{i}"),
-                        params=item.get("params", {"messages": [{"role": "user", "content": str(item)}]})
+                        params=item.get(
+                            "params",
+                            {"messages": [{"role": "user", "content": str(item)}]},
+                        ),
                     )
                     for i, item in enumerate(items)
                 ]
@@ -664,31 +666,24 @@ class CortexV2_1Bridge(CortexV2Bridge):
             return {
                 "batch_id": batch_id,
                 "status": "queued",
-                "note": "Batch queued locally - requires anthropic SDK for submission"
+                "note": "Batch queued locally - requires anthropic SDK for submission",
             }
 
         try:
             from cortex.batch import BatchAPIClient
+
             client = BatchAPIClient()
             return client.get_batch_status(batch_id)
         except ImportError:
             return {
                 "batch_id": batch_id,
                 "status": "unknown",
-                "error": "anthropic SDK not installed"
+                "error": "anthropic SDK not installed",
             }
         except Exception as e:
-            return {
-                "batch_id": batch_id,
-                "status": "error",
-                "error": str(e)
-            }
+            return {"batch_id": batch_id, "status": "error", "error": str(e)}
 
-    def poll_batch_results(
-        self,
-        batch_id: str,
-        timeout_minutes: int = 60
-    ) -> List[Dict[str, Any]]:
+    def poll_batch_results(self, batch_id: str, timeout_minutes: int = 60) -> List[Dict[str, Any]]:
         """Poll for batch results until complete.
 
         Args:
@@ -700,9 +695,12 @@ class CortexV2_1Bridge(CortexV2Bridge):
         """
         try:
             from cortex.batch import BatchAPIClient
+
             client = BatchAPIClient()
             results = client.poll_results(batch_id, timeout_minutes=timeout_minutes)
-            return [{"custom_id": r.custom_id, "result": r.result, "status": r.status} for r in results]
+            return [
+                {"custom_id": r.custom_id, "result": r.result, "status": r.status} for r in results
+            ]
         except ImportError:
             return [{"error": "anthropic SDK not installed"}]
         except Exception as e:

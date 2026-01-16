@@ -20,43 +20,41 @@ class WarningGenerator:
         self,
         project: str,
         trends: List[Dict[str, Any]],
-        health_data: Optional[Dict[str, Any]] = None
+        health_data: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generate warnings based on trends and health data.
-        
+
         Args:
             project: Project name
             trends: List of trend analysis results
             health_data: Optional project health data
-            
+
         Returns:
             List of warning dictionaries
         """
         warnings = []
-        
+
         # Generate warnings from trends
         for trend in trends:
             if trend.get("is_concerning", False):
                 warning = self._create_warning_from_trend(project, trend)
                 if warning:
                     warnings.append(warning)
-        
+
         # Generate warnings from health data
         if health_data:
             health_warnings = self._create_warnings_from_health(project, health_data)
             warnings.extend(health_warnings)
-        
+
         # Sort by severity
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         warnings.sort(key=lambda w: severity_order.get(w.get("severity", "low"), 3))
-        
+
         return warnings
 
     def _create_warning_from_trend(
-        self,
-        project: str,
-        trend: Dict[str, Any]
+        self, project: str, trend: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Create a warning from a concerning trend."""
         metric = trend.get("metric", "unknown")
@@ -64,7 +62,7 @@ class WarningGenerator:
         current_value = trend.get("current_value", 0)
         velocity = trend.get("velocity", 0)
         severity = trend.get("severity", "medium")
-        
+
         # Generate warning message
         if direction == "decreasing":
             message = f"{metric.replace('_', ' ').title()} is decreasing (current: {current_value:.1f}, trend: {velocity:.2f}/day)"
@@ -72,10 +70,10 @@ class WarningGenerator:
             message = f"{metric.replace('_', ' ').title()} is increasing (current: {current_value:.1f}, trend: {velocity:.2f}/day)"
         else:
             return None  # Not concerning
-        
+
         # Generate recommendation
         recommendation = self._generate_recommendation(metric, direction, current_value)
-        
+
         return {
             "id": f"{project}_{metric}_{datetime.now().isoformat()}",
             "project": project,
@@ -92,67 +90,66 @@ class WarningGenerator:
         }
 
     def _create_warnings_from_health(
-        self,
-        project: str,
-        health_data: Dict[str, Any]
+        self, project: str, health_data: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """Create warnings from health data."""
         warnings = []
-        
+
         health_score = health_data.get("total_score", 0)
-        
+
         if health_score < 40:
-            warnings.append({
-                "id": f"{project}_health_critical_{datetime.now().isoformat()}",
-                "project": project,
-                "type": "health",
-                "metric": "project_health",
-                "severity": "critical",
-                "message": f"Project health is critically low ({health_score:.1f}/100)",
-                "current_value": health_score,
-                "recommendation": "Review project status, address critical issues, consider refactoring",
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-            })
+            warnings.append(
+                {
+                    "id": f"{project}_health_critical_{datetime.now().isoformat()}",
+                    "project": project,
+                    "type": "health",
+                    "metric": "project_health",
+                    "severity": "critical",
+                    "message": f"Project health is critically low ({health_score:.1f}/100)",
+                    "current_value": health_score,
+                    "recommendation": "Review project status, address critical issues, consider refactoring",
+                    "created_at": datetime.now().isoformat(),
+                    "status": "active",
+                }
+            )
         elif health_score < 60:
-            warnings.append({
-                "id": f"{project}_health_low_{datetime.now().isoformat()}",
-                "project": project,
-                "type": "health",
-                "metric": "project_health",
-                "severity": "medium",
-                "message": f"Project health is below acceptable threshold ({health_score:.1f}/100)",
-                "current_value": health_score,
-                "recommendation": "Review project metrics, address identified issues",
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-            })
-        
+            warnings.append(
+                {
+                    "id": f"{project}_health_low_{datetime.now().isoformat()}",
+                    "project": project,
+                    "type": "health",
+                    "metric": "project_health",
+                    "severity": "medium",
+                    "message": f"Project health is below acceptable threshold ({health_score:.1f}/100)",
+                    "current_value": health_score,
+                    "recommendation": "Review project metrics, address identified issues",
+                    "created_at": datetime.now().isoformat(),
+                    "status": "active",
+                }
+            )
+
         # Check individual health components
         components = health_data.get("components", {})
         for component, score in components.items():
             if score < 50:
-                warnings.append({
-                    "id": f"{project}_{component}_low_{datetime.now().isoformat()}",
-                    "project": project,
-                    "type": "health_component",
-                    "metric": component,
-                    "severity": "medium" if score < 30 else "low",
-                    "message": f"{component.replace('_', ' ').title()} score is low ({score:.1f}/100)",
-                    "current_value": score,
-                    "recommendation": f"Focus on improving {component.replace('_', ' ')}",
-                    "created_at": datetime.now().isoformat(),
-                    "status": "active",
-                })
-        
+                warnings.append(
+                    {
+                        "id": f"{project}_{component}_low_{datetime.now().isoformat()}",
+                        "project": project,
+                        "type": "health_component",
+                        "metric": component,
+                        "severity": "medium" if score < 30 else "low",
+                        "message": f"{component.replace('_', ' ').title()} score is low ({score:.1f}/100)",
+                        "current_value": score,
+                        "recommendation": f"Focus on improving {component.replace('_', ' ')}",
+                        "created_at": datetime.now().isoformat(),
+                        "status": "active",
+                    }
+                )
+
         return warnings
 
-    def _generate_recommendation(
-        self,
-        metric: str,
-        direction: str,
-        current_value: float
-    ) -> str:
+    def _generate_recommendation(self, metric: str, direction: str, current_value: float) -> str:
         """Generate actionable recommendation based on metric and trend."""
         recommendations = {
             "test_coverage": {
@@ -169,9 +166,9 @@ class WarningGenerator:
                 "decreasing": f"Code quality is decreasing. Review code smells, refactor complex code, improve documentation.",
             },
         }
-        
+
         metric_recs = recommendations.get(metric, {})
-        
+
         if direction in metric_recs:
             return metric_recs[direction]
         elif "low" in metric_recs:
@@ -179,7 +176,9 @@ class WarningGenerator:
         else:
             return f"Monitor {metric.replace('_', ' ')} closely and take corrective action if trend continues."
 
-    def categorize_warnings(self, warnings: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    def categorize_warnings(
+        self, warnings: List[Dict[str, Any]]
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Categorize warnings by type and severity."""
         categorized = {
             "critical": [],
@@ -188,16 +187,14 @@ class WarningGenerator:
             "low": [],
             "by_type": {},
         }
-        
+
         for warning in warnings:
             severity = warning.get("severity", "low")
             categorized[severity].append(warning)
-            
+
             warning_type = warning.get("type", "unknown")
             if warning_type not in categorized["by_type"]:
                 categorized["by_type"][warning_type] = []
             categorized["by_type"][warning_type].append(warning)
-        
+
         return categorized
-
-

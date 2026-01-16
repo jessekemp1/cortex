@@ -5,17 +5,17 @@ Deep analysis of project structure, tech stack, and health.
 """
 
 from intelligence.analysis.project_profiler import (
-    ProjectProfiler,
+    CriticalFile,
     ProjectProfile,
+    ProjectProfiler,
     TechStack,
     TestCoverage,
-    CriticalFile
 )
 
 __all__ = [
-    'ProjectProfiler',
-    'ProjectProfile',
-    'TechStack',
-    'TestCoverage',
-    'CriticalFile',
+    "ProjectProfiler",
+    "ProjectProfile",
+    "TechStack",
+    "TestCoverage",
+    "CriticalFile",
 ]

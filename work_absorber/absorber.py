@@ -5,28 +5,28 @@ Orchestrates the detection, consolidation, and correlation of work
 across all projects in the portfolio.
 """
 
-import logging
 import hashlib
+import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
+from .correlator import DriftAnalyzer, PlanCorrelator
+from .detectors.base import SignalDetector
+from .detectors.batch_detector import BatchResultDetector
+from .detectors.doc_detector import CompletionDocDetector
+from .detectors.git_detector import GitSignalDetector
 from .models import (
-    WorkSignal,
-    WorkItem,
-    ProgressEntry,
-    PlanDrift,
     AbsorptionReport,
+    PlanDrift,
+    ProgressEntry,
+    WorkItem,
+    WorkSignal,
     WorkSignalType,
     WorkStatus,
 )
 from .storage import WorkAbsorberStorage
-from .correlator import PlanCorrelator, DriftAnalyzer
-from .detectors.base import SignalDetector
-from .detectors.git_detector import GitSignalDetector
-from .detectors.doc_detector import CompletionDocDetector
-from .detectors.batch_detector import BatchResultDetector
 
 logger = logging.getLogger(__name__)
 
@@ -168,9 +168,20 @@ class WorkAbsorber:
 
         # Skip these common non-project directories
         skip = {
-            "node_modules", "venv", "__pycache__", ".git",
-            "logs", "reports", "sandbox", "archive", "_meta", "_tools",
-            "dataset", "scripts", "Docs", "production"
+            "node_modules",
+            "venv",
+            "__pycache__",
+            ".git",
+            "logs",
+            "reports",
+            "sandbox",
+            "archive",
+            "_meta",
+            "_tools",
+            "dataset",
+            "scripts",
+            "Docs",
+            "production",
         }
 
         def is_project_dir(item: Path) -> bool:
@@ -181,11 +192,13 @@ class WorkAbsorber:
             if (item / ".git").exists():
                 return True
             # Has common project files
-            if (item / "package.json").exists() or \
-               (item / "pyproject.toml").exists() or \
-               (item / "setup.py").exists() or \
-               (item / "requirements.txt").exists() or \
-               (item / "Cargo.toml").exists():
+            if (
+                (item / "package.json").exists()
+                or (item / "pyproject.toml").exists()
+                or (item / "setup.py").exists()
+                or (item / "requirements.txt").exists()
+                or (item / "Cargo.toml").exists()
+            ):
                 return True
             # Has a src or app directory (common project structure)
             if (item / "src").is_dir() or (item / "app").is_dir():
@@ -371,6 +384,7 @@ class WorkAbsorber:
 
         # High similarity
         from difflib import SequenceMatcher
+
         ratio = SequenceMatcher(None, t1, t2).ratio()
         return ratio > 0.8
 
@@ -517,11 +531,17 @@ class WorkAbsorber:
 
         return {
             "storage": stats,
-            "last_absorption": {
-                "id": latest.id if latest else None,
-                "time": latest.completed_at.isoformat() if latest else None,
-                "signals": latest.signals_absorbed if latest else 0,
-                "items": latest.work_items_created + latest.work_items_updated if latest else 0,
-                "drifts": latest.drifts_detected if latest else 0,
-            } if latest else None,
+            "last_absorption": (
+                {
+                    "id": latest.id if latest else None,
+                    "time": latest.completed_at.isoformat() if latest else None,
+                    "signals": latest.signals_absorbed if latest else 0,
+                    "items": (
+                        latest.work_items_created + latest.work_items_updated if latest else 0
+                    ),
+                    "drifts": latest.drifts_detected if latest else 0,
+                }
+                if latest
+                else None
+            ),
         }

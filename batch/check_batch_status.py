@@ -39,7 +39,7 @@ def check_status(batch_id: str):
         print(f"Created: {status.get('created_at', 'Unknown')}")
         print()
 
-        request_counts = status.get('request_counts', {})
+        request_counts = status.get("request_counts", {})
         total = sum(request_counts.values())
 
         print("Request Counts:")
@@ -53,7 +53,7 @@ def check_status(batch_id: str):
 
         # Progress bar
         if total > 0:
-            succeeded = request_counts.get('succeeded', 0)
+            succeeded = request_counts.get("succeeded", 0)
             progress = succeeded / total * 100
             bar_length = 40
             filled = int(bar_length * progress / 100)
@@ -62,16 +62,16 @@ def check_status(batch_id: str):
             print()
 
         # Estimate completion time
-        if status['status'] == 'in_progress':
+        if status["status"] == "in_progress":
             print("⏳ Batch is still processing...")
             print("   Expected completion: 24 hours from submission (API SLA)")
             print()
             print("Monitor overnight with:")
             print(f"  python batch/monitor_batch_overnight.py {batch_id}")
-        elif status['status'] in ['ended', 'completed']:
+        elif status["status"] in ["ended", "completed"]:
             print("✅ Batch complete! Download results with:")
             print(f"  python batch/monitor_batch_overnight.py {batch_id}")
-        elif status['status'] in ['failed', 'expired', 'canceled']:
+        elif status["status"] in ["failed", "expired", "canceled"]:
             print(f"❌ Batch {status['status']}")
 
         print()
@@ -79,6 +79,7 @@ def check_status(batch_id: str):
     except Exception as e:
         print(f"❌ Error checking status: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

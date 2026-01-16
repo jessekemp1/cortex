@@ -12,17 +12,47 @@ Extended with:
 
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
-    from cortex.engines.synthesis import SynthesisCore, ContextGraph, Node, NodeType, Edge, EdgeType
-    from cortex.engines.broker import ActionBroker, Intervention, InterventionType, Severity
-    from cortex.engines.claude_session_absorber import ClaudeSessionSource, InteractionSignal, InteractionSignalType, InteractionPattern
-    from cortex.engines.interaction_learner import InteractionLearner, ImplicitOutcome, LearningInsight
+    from cortex.engines.broker import (
+        ActionBroker,
+        Intervention,
+        InterventionType,
+        Severity,
+    )
+    from cortex.engines.claude_session_absorber import (
+        ClaudeSessionSource,
+        InteractionPattern,
+        InteractionSignal,
+        InteractionSignalType,
+    )
+    from cortex.engines.interaction_learner import (
+        ImplicitOutcome,
+        InteractionLearner,
+        LearningInsight,
+    )
+    from cortex.engines.synthesis import (
+        ContextGraph,
+        Edge,
+        EdgeType,
+        Node,
+        NodeType,
+        SynthesisCore,
+    )
 except ImportError:
     # Fallback for direct execution
     from .absorber import ContextAbsorber, Signal, SignalType
-    from .synthesis import SynthesisCore, ContextGraph, Node, NodeType, Edge, EdgeType
     from .broker import ActionBroker, Intervention, InterventionType, Severity
-    from .claude_session_absorber import ClaudeSessionSource, InteractionSignal, InteractionSignalType, InteractionPattern
-    from .interaction_learner import InteractionLearner, ImplicitOutcome, LearningInsight
+    from .claude_session_absorber import (
+        ClaudeSessionSource,
+        InteractionPattern,
+        InteractionSignal,
+        InteractionSignalType,
+    )
+    from .interaction_learner import (
+        ImplicitOutcome,
+        InteractionLearner,
+        LearningInsight,
+    )
+    from .synthesis import ContextGraph, Edge, EdgeType, Node, NodeType, SynthesisCore
 
 __all__ = [
     # Engine A

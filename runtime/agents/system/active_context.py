@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 
@@ -22,8 +21,9 @@ logger = structlog.get_logger()
 # V2 Prime Engine imports
 try:
     from cortex.engines.absorber import ContextAbsorber, create_default_absorber
-    from cortex.engines.synthesis import SynthesisCore, ContextGraph
     from cortex.engines.broker import ActionBroker
+    from cortex.engines.synthesis import ContextGraph, SynthesisCore
+
     V2_PRIME_AVAILABLE = True
 except ImportError as e:
     logger.warning("v2_prime_engines_not_available", error=str(e))
@@ -53,10 +53,7 @@ class ActiveContextAgent(BaseAgent):
             agent_id="system_active_context",
             name="Active Context Loop (V2 Prime)",
             description="Runs the active context absorption and synthesis loop",
-            metadata=AgentMetadata(
-                version="2.0.0",
-                tags=["system", "v2-prime", "active-context"]
-            ),
+            metadata=AgentMetadata(version="2.0.0", tags=["system", "v2-prime", "active-context"]),
         )
 
         if not V2_PRIME_AVAILABLE:
@@ -100,6 +97,7 @@ class ActiveContextAgent(BaseAgent):
 
         # Wire up callbacks: When absorber gets signals, process them
         if self.absorber and self.synthesis:
+
             def on_signal(signal):
                 """Callback when absorber detects a signal."""
                 try:
@@ -108,7 +106,7 @@ class ActiveContextAgent(BaseAgent):
                         "signal_processed",
                         signal_id=signal.id,
                         signal_type=signal.type.value,
-                        nodes_affected=len(affected_nodes)
+                        nodes_affected=len(affected_nodes),
                     )
                 except Exception as e:
                     logger.error("signal_processing_error", signal_id=signal.id, error=str(e))
@@ -128,7 +126,7 @@ class ActiveContextAgent(BaseAgent):
             return AgentResult(
                 success=False,
                 message="V2 Prime engines not available",
-                data={"error": "engines_not_loaded"}
+                data={"error": "engines_not_loaded"},
             )
 
         if not self.absorber or not self.synthesis or not self.broker:
@@ -139,7 +137,7 @@ class ActiveContextAgent(BaseAgent):
                     "absorber": self.absorber is not None,
                     "synthesis": self.synthesis is not None,
                     "broker": self.broker is not None,
-                }
+                },
             )
 
         summary = {
@@ -178,13 +176,13 @@ class ActiveContextAgent(BaseAgent):
                     "active_context_cycle",
                     signals=summary["signals_absorbed"],
                     processed=summary["signals_processed"],
-                    interventions=summary["interventions_pending"]
+                    interventions=summary["interventions_pending"],
                 )
 
             return AgentResult(
                 success=True,
                 message=f"Absorbed {summary['signals_absorbed']} signals, {summary['interventions_pending']} interventions pending",
-                data=summary
+                data=summary,
             )
 
         except Exception as e:
@@ -192,7 +190,7 @@ class ActiveContextAgent(BaseAgent):
             return AgentResult(
                 success=False,
                 message=f"Active context cycle failed: {str(e)}",
-                data=summary
+                data=summary,
             )
 
     def shutdown(self):

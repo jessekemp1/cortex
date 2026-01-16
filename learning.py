@@ -100,11 +100,7 @@ class LearningSystem:
 
             if followed:
                 success_count = sum(
-                    (
-                        1.0
-                        if o.outcome == "success"
-                        else 0.5 if o.outcome == "partial" else 0.0
-                    )
+                    (1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0)
                     for o in followed
                 )
                 success_rate = success_count / len(followed)
@@ -115,8 +111,7 @@ class LearningSystem:
                 "total": len(type_outcomes),
                 "followed": len(followed),
                 "success_rate": success_rate,
-                "avg_confidence": sum(o.confidence for o in type_outcomes)
-                / len(type_outcomes),
+                "avg_confidence": sum(o.confidence for o in type_outcomes) / len(type_outcomes),
             }
 
         return patterns
@@ -159,11 +154,7 @@ class LearningSystem:
         for bucket, bucket_outcomes in buckets.items():
             if bucket_outcomes:
                 success_count = sum(
-                    (
-                        1.0
-                        if o.outcome == "success"
-                        else 0.5 if o.outcome == "partial" else 0.0
-                    )
+                    (1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0)
                     for o in bucket_outcomes
                 )
                 calibration[bucket] = success_count / len(bucket_outcomes)
@@ -286,7 +277,7 @@ class LearningSystem:
         self, recommendation_type: str, base_confidence: float
     ) -> Tuple[float, str]:
         """
-        Adjust recommendation confidence based on historical outcomes.
+        Adjust recommendation confidence based on historical outcomes and calibrated weights.
 
         Args:
             recommendation_type: Type of recommendation
@@ -295,27 +286,202 @@ class LearningSystem:
         Returns:
             (adjusted_confidence, explanation)
         """
+        # Convert Confidence enum to float if needed
+        if hasattr(base_confidence, "value"):
+            conf_map = {"high": 0.9, "medium": 0.7, "low": 0.5}
+            base_confidence = conf_map.get(base_confidence.value.lower(), 0.7)
+        elif not isinstance(base_confidence, (int, float)):
+            base_confidence = 0.7
+
+        # Import learning config for calibrated weights
+        try:
+            from learning_config import get_learning_config
+
+            config = get_learning_config()
+            type_weight = config.get_weight(recommendation_type)
+        except ImportError:
+            type_weight = 1.0
+
         patterns = self.get_outcome_patterns()
 
         if recommendation_type not in patterns:
-            return base_confidence, "No historical data for this recommendation type"
+            # Apply calibrated weight even without historical data
+            adjusted = min(1.0, base_confidence * type_weight)
+            return adjusted, f"Using calibrated weight ({type_weight:.1f}x)"
 
         type_metrics = patterns[recommendation_type]
 
         if type_metrics["followed"] < 3:
+            adjusted = min(1.0, base_confidence * type_weight)
             return (
-                base_confidence,
-                f"Limited data ({type_metrics['followed']} outcomes)",
+                adjusted,
+                f"Limited data ({type_metrics['followed']} outcomes), using calibrated weight",
             )
 
         # Adjust based on historical success rate
         historical_success = type_metrics["success_rate"]
 
-        # Simple adjustment: blend base confidence with historical success
-        # Weight: 60% base, 40% historical (as we gather more data, trust history more)
-        weight = min(0.4, type_metrics["followed"] / 20)  # Cap at 40% weight
-        adjusted = base_confidence * (1 - weight) + historical_success * weight
+        # Blend: 50% base, 30% historical, 20% calibrated weight
+        # As we gather more data, trust history more
+        history_weight = min(0.3, type_metrics["followed"] / 20)  # Cap at 30%
+        calibration_weight = 0.2 * (type_weight - 1.0)  # Boost or penalty from config
 
-        explanation = f"Based on {type_metrics['followed']} previous outcomes ({historical_success:.0%} success rate)"
+        adjusted = base_confidence * (1 - history_weight) + historical_success * history_weight
+        adjusted = min(1.0, adjusted + calibration_weight)
+
+        weight_note = f", weight {type_weight:.1f}x" if type_weight != 1.0 else ""
+        explanation = f"Based on {type_metrics['followed']} outcomes ({historical_success:.0%} success rate{weight_note})"
 
         return adjusted, explanation
+
+    def get_rule_outcome_patterns(self, days: int = 30) -> Dict[str, Any]:
+        """
+        Correlate rule violations with session outcomes.
+
+        Analyzes whether rule violations correlate with session failures,
+        helping to identify which rules have the most impact on outcomes.
+
+        Args:
+            days: Number of days to analyze
+
+        Returns:
+            Dictionary with rule-outcome correlations:
+            {
+                "rules": {
+                    "read_before_edit": {
+                        "violations": 5,
+                        "sessions_with_violations": 3,
+                        "avg_session_outcome": 0.6,  # 0=fail, 0.5=partial, 1=success
+                        "correlation_score": -0.3,  # negative = violations hurt outcomes
+                    },
+                    ...
+                },
+                "insights": ["rule X has strong negative correlation with success", ...],
+                "total_sessions": 10,
+            }
+        """
+        import json
+        from collections import defaultdict
+        from datetime import datetime, timedelta
+
+        rule_events_file = Path.home() / ".cortex" / "rule_events.jsonl"
+        outcomes = self.feedback_logger.load_outcomes()
+
+        # Load rule events
+        rule_events = []
+        if rule_events_file.exists():
+            cutoff = datetime.now() - timedelta(days=days)
+            with open(rule_events_file, "r") as f:
+                for line in f:
+                    try:
+                        event = json.loads(line.strip())
+                        event_time = datetime.fromisoformat(event["timestamp"])
+                        if event_time >= cutoff:
+                            rule_events.append(event)
+                    except (json.JSONDecodeError, KeyError, ValueError):
+                        continue
+
+        if not rule_events or not outcomes:
+            return {
+                "rules": {},
+                "insights": ["Insufficient data for rule-outcome correlation"],
+                "total_sessions": 0,
+                "total_rule_events": len(rule_events),
+            }
+
+        # Group rule events by session (approximate by day for simplicity)
+        events_by_day = defaultdict(list)
+        for event in rule_events:
+            day = event["timestamp"][:10]  # YYYY-MM-DD
+            events_by_day[day].append(event)
+
+        # Group outcomes by day
+        outcomes_by_day = {}
+        for outcome in outcomes:
+            if hasattr(outcome, "timestamp"):
+                day = str(outcome.timestamp)[:10]
+            else:
+                continue
+            if day not in outcomes_by_day:
+                outcomes_by_day[day] = []
+            outcomes_by_day[day].append(outcome)
+
+        # Analyze correlations per rule
+        rule_stats = defaultdict(
+            lambda: {
+                "violations": 0,
+                "adherences": 0,
+                "sessions_with_violations": set(),
+                "session_outcomes": [],
+            }
+        )
+
+        for day, day_events in events_by_day.items():
+            day_outcomes = outcomes_by_day.get(day, [])
+
+            # Calculate day's average outcome
+            if day_outcomes:
+                day_outcome_score = sum(
+                    (1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0)
+                    for o in day_outcomes
+                ) / len(day_outcomes)
+            else:
+                day_outcome_score = 0.5  # neutral if no outcome data
+
+            for event in day_events:
+                rule = event["rule_name"]
+                event_type = event["event_type"]
+
+                if event_type == "violation":
+                    rule_stats[rule]["violations"] += 1
+                    rule_stats[rule]["sessions_with_violations"].add(day)
+                    rule_stats[rule]["session_outcomes"].append(day_outcome_score)
+                elif event_type == "adherence":
+                    rule_stats[rule]["adherences"] += 1
+
+        # Calculate correlation scores
+        rules_analysis = {}
+        insights = []
+
+        for rule, stats in rule_stats.items():
+            violations = stats["violations"]
+            adherences = stats["adherences"]
+            session_outcomes = stats["session_outcomes"]
+
+            if session_outcomes:
+                avg_outcome = sum(session_outcomes) / len(session_outcomes)
+            else:
+                avg_outcome = 0.5
+
+            # Simple correlation: how much do violations correlate with lower outcomes?
+            # Negative score = violations hurt outcomes
+            # Compare to baseline (0.5 = neutral)
+            correlation_score = avg_outcome - 0.5  # negative if outcomes are below average
+
+            rules_analysis[rule] = {
+                "violations": violations,
+                "adherences": adherences,
+                "sessions_with_violations": len(stats["sessions_with_violations"]),
+                "avg_session_outcome": round(avg_outcome, 3),
+                "correlation_score": round(correlation_score, 3),
+            }
+
+            # Generate insights for problematic rules
+            if violations >= 3 and correlation_score < -0.1:
+                insights.append(
+                    f"Rule '{rule}' has {violations} violations with below-average outcomes "
+                    f"(avg: {avg_outcome:.0%}). Consider stricter enforcement."
+                )
+            elif violations >= 5 and correlation_score > 0.1:
+                insights.append(
+                    f"Rule '{rule}' violations don't significantly impact outcomes. "
+                    f"Consider relaxing this rule."
+                )
+
+        return {
+            "rules": rules_analysis,
+            "insights": (insights if insights else ["No significant patterns detected yet"]),
+            "total_sessions": len(events_by_day),
+            "total_rule_events": len(rule_events),
+            "days_analyzed": days,
+        }

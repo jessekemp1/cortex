@@ -1,21 +1,17 @@
 """Tests for auto skill extraction."""
 
-import pytest
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
 
-from cortex.v2.learning.skills import (
-    SkillExtractor,
-    SkillSequence,
-    ExtractedSkill
-)
+import pytest
 from cortex.v2.learning.outcomes import (
     DetectedOutcome,
     OutcomeDetector,
+    OutcomeSource,
     OutcomeType,
-    OutcomeSource
 )
+from cortex.v2.learning.skills import ExtractedSkill, SkillExtractor, SkillSequence
 
 
 @pytest.fixture
@@ -38,7 +34,10 @@ def sample_sequence():
             confidence=0.7,
             project="TestProject",
             timestamp=now - timedelta(minutes=60),
-            context={"message": "feat: Add user authentication", "commit_hash": "abc123"}
+            context={
+                "message": "feat: Add user authentication",
+                "commit_hash": "abc123",
+            },
         ),
         DetectedOutcome(
             id="git_def456",
@@ -47,7 +46,7 @@ def sample_sequence():
             confidence=0.7,
             project="TestProject",
             timestamp=now - timedelta(minutes=45),
-            context={"message": "feat: Add login form", "commit_hash": "def456"}
+            context={"message": "feat: Add login form", "commit_hash": "def456"},
         ),
         DetectedOutcome(
             id="git_ghi789",
@@ -56,7 +55,10 @@ def sample_sequence():
             confidence=0.7,
             project="TestProject",
             timestamp=now - timedelta(minutes=30),
-            context={"message": "feat: Add JWT token validation", "commit_hash": "ghi789"}
+            context={
+                "message": "feat: Add JWT token validation",
+                "commit_hash": "ghi789",
+            },
         ),
         DetectedOutcome(
             id="git_jkl012",
@@ -65,7 +67,10 @@ def sample_sequence():
             confidence=0.9,
             project="TestProject",
             timestamp=now - timedelta(minutes=15),
-            context={"message": "feat: Complete auth implementation", "commit_hash": "jkl012"}
+            context={
+                "message": "feat: Complete auth implementation",
+                "commit_hash": "jkl012",
+            },
         ),
     ]
     return SkillSequence(
@@ -73,7 +78,7 @@ def sample_sequence():
         start_time=outcomes[0].timestamp,
         end_time=outcomes[-1].timestamp,
         project="TestProject",
-        files_touched={"auth.py", "login.py", "jwt.py"}
+        files_touched={"auth.py", "login.py", "jwt.py"},
     )
 
 
@@ -104,14 +109,14 @@ class TestSkillSequence:
                 outcome_type=OutcomeType.FAILURE,
                 confidence=0.7,
                 project="Test",
-                context={"message": "revert: Broken"}
+                context={"message": "revert: Broken"},
             )
         ]
         seq = SkillSequence(
             outcomes=outcomes,
             start_time=datetime.utcnow(),
             end_time=datetime.utcnow(),
-            project="Test"
+            project="Test",
         )
         assert seq.ends_with_success is False
 
@@ -130,7 +135,7 @@ class TestSkillExtractor:
                 confidence=0.9,
                 project="Test",
                 timestamp=now,
-                context={"message": "One commit"}
+                context={"message": "One commit"},
             ),
             DetectedOutcome(
                 id="git_2",
@@ -139,7 +144,7 @@ class TestSkillExtractor:
                 confidence=0.9,
                 project="Test",
                 timestamp=now + timedelta(minutes=5),
-                context={"message": "Two commits"}
+                context={"message": "Two commits"},
             ),
         ]
         sequences = extractor.detect_sequences(outcomes)
@@ -156,20 +161,22 @@ class TestSkillExtractor:
                 confidence=0.9,
                 project="Test",
                 timestamp=now + timedelta(minutes=i * 10),
-                context={"message": f"Commit {i}"}
+                context={"message": f"Commit {i}"},
             )
             for i in range(3)
         ]
         # Add a commit after a big gap
-        outcomes.append(DetectedOutcome(
-            id="git_far",
-            source=OutcomeSource.GIT_COMMIT,
-            outcome_type=OutcomeType.SUCCESS,
-            confidence=0.9,
-            project="Test",
-            timestamp=now + timedelta(minutes=90),
-            context={"message": "Far away commit"}
-        ))
+        outcomes.append(
+            DetectedOutcome(
+                id="git_far",
+                source=OutcomeSource.GIT_COMMIT,
+                outcome_type=OutcomeType.SUCCESS,
+                confidence=0.9,
+                project="Test",
+                timestamp=now + timedelta(minutes=90),
+                context={"message": "Far away commit"},
+            )
+        )
 
         sequences = extractor.detect_sequences(outcomes)
         # Should only detect one sequence (first 3)
@@ -187,7 +194,7 @@ class TestSkillExtractor:
                 confidence=0.7,
                 project="Test",
                 timestamp=now + timedelta(minutes=i * 5),
-                context={"message": f"Commit {i}"}
+                context={"message": f"Commit {i}"},
             )
             for i in range(3)
         ]
@@ -214,7 +221,7 @@ class TestSkillExtractor:
                 confidence=0.7,
                 project="Test",
                 timestamp=datetime.utcnow() + timedelta(minutes=i * 5),
-                context={"message": f"Commit {i}"}
+                context={"message": f"Commit {i}"},
             )
             for i in range(3)
         ]
@@ -222,7 +229,7 @@ class TestSkillExtractor:
             outcomes=outcomes,
             start_time=outcomes[0].timestamp,
             end_time=outcomes[-1].timestamp,
-            project="Test"
+            project="Test",
         )
         skill = extractor.sequence_to_skill(seq)
         assert skill is None
@@ -268,7 +275,7 @@ class TestSkillExtractor:
                 project="Test",
                 confidence=0.8,
                 duration_minutes=30,
-                files_touched=["auth.py"]
+                files_touched=["auth.py"],
             ),
             ExtractedSkill(
                 id="skill_2",
@@ -278,7 +285,7 @@ class TestSkillExtractor:
                 project="Test",
                 confidence=0.7,
                 duration_minutes=45,
-                files_touched=["auth2.py"]
+                files_touched=["auth2.py"],
             ),
         ]
         merged = extractor.merge_similar(skills)
@@ -311,7 +318,7 @@ class TestSkillExtractor:
             outcomes=sample_sequence.outcomes[:3],
             start_time=sample_sequence.outcomes[0].timestamp,
             end_time=sample_sequence.outcomes[2].timestamp,
-            project="Test"
+            project="Test",
         )
         small_conf = extractor._calculate_confidence(small_seq)
 
@@ -332,7 +339,7 @@ class TestExtractedSkill:
             project="Test",
             confidence=0.8,
             duration_minutes=30,
-            files_touched=["auth.py"]
+            files_touched=["auth.py"],
         )
         d = skill.to_dict()
 
@@ -354,18 +361,20 @@ class TestSkillExtractionE2E:
             now = datetime.utcnow()
 
             # Record a sequence of commits
-            for i, msg in enumerate([
-                "feat: Start API implementation",
-                "feat: Add endpoints",
-                "feat: Add validation",
-                "feat: Complete API with tests"
-            ]):
+            for i, msg in enumerate(
+                [
+                    "feat: Start API implementation",
+                    "feat: Add endpoints",
+                    "feat: Add validation",
+                    "feat: Complete API with tests",
+                ]
+            ):
                 detector.record_git_outcome(
                     commit_hash=f"hash{i}",
                     message=msg,
                     branch="main",
                     files_changed=3,
-                    project="APIProject"
+                    project="APIProject",
                 )
                 # Manually set timestamp for testing
                 detector._outcomes[-1].timestamp = now + timedelta(minutes=i * 10)

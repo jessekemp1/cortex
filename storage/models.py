@@ -1,8 +1,9 @@
 """Cortex Storage Models"""
+
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 from enum import Enum
+from typing import Optional
 
 
 class Priority(str, Enum):
@@ -40,8 +41,10 @@ class Goal:
         return {
             "id": self.id,
             "title": self.title,
-            "priority": self.priority.value if isinstance(self.priority, Priority) else self.priority,
-            "status": self.status.value if isinstance(self.status, Status) else self.status,
+            "priority": (
+                self.priority.value if isinstance(self.priority, Priority) else self.priority
+            ),
+            "status": (self.status.value if isinstance(self.status, Status) else self.status),
             "project": self.project,
             "success_criteria": self.success_criteria,
             "deadline": self.deadline,
@@ -80,7 +83,7 @@ class Task:
             "id": self.id,
             "title": self.title,
             "goal_id": self.goal_id,
-            "status": self.status.value if isinstance(self.status, TaskStatus) else self.status,
+            "status": (self.status.value if isinstance(self.status, TaskStatus) else self.status),
             "source": self.source,
             "source_file": self.source_file,
             "created_at": self.created_at,
@@ -93,7 +96,7 @@ class Task:
             id=data["id"],
             title=data["title"],
             goal_id=data.get("goal_id"),
-            status=TaskStatus(data["status"]) if data.get("status") else TaskStatus.PENDING,
+            status=(TaskStatus(data["status"]) if data.get("status") else TaskStatus.PENDING),
             source=data.get("source"),
             source_file=data.get("source_file"),
             created_at=data.get("created_at"),

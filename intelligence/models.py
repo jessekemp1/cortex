@@ -2,11 +2,12 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Any, Dict
+from typing import Any, Dict, List, Optional
 
 
 class IntelligenceQueryType(Enum):
     """Types of intelligence queries."""
+
     spec = "spec"
     architecture = "architecture"
     implementation = "implementation"
@@ -16,6 +17,7 @@ class IntelligenceQueryType(Enum):
 @dataclass
 class SimilarWork:
     """Represents similar work found via semantic search."""
+
     id: str
     title: str
     type: str
@@ -32,6 +34,7 @@ class SimilarWork:
 @dataclass
 class Pattern:
     """Cross-project pattern."""
+
     name: str
     description: str
     projects: List[str]
@@ -43,6 +46,7 @@ class Pattern:
 @dataclass
 class Lesson:
     """Lesson learned from portfolio."""
+
     id: str
     project: str
     category: str
@@ -56,6 +60,7 @@ class Lesson:
 @dataclass
 class Warning:
     """Warning about repeated mistakes."""
+
     type: str
     severity: str
     message: str
@@ -67,6 +72,7 @@ class Warning:
 @dataclass
 class Recommendation:
     """Strategic recommendation."""
+
     type: str
     priority: str
     title: str
@@ -80,6 +86,7 @@ class Recommendation:
 @dataclass
 class ProjectContext:
     """Project-specific context."""
+
     name: str
     description: str
     tech_stack: List[str]
@@ -94,6 +101,7 @@ class ProjectContext:
 @dataclass
 class SessionContext:
     """Current session context."""
+
     project: str
     working_directory: str
     recent_work: List[Dict[str, Any]]
@@ -105,6 +113,7 @@ class SessionContext:
 @dataclass
 class ContextPrediction:
     """Predicted relevant context."""
+
     type: str
     relevance_score: float
     content: str
@@ -114,6 +123,7 @@ class ContextPrediction:
 @dataclass
 class IntelligenceResult:
     """Complete result from unified intelligence query."""
+
     query_timestamp: str
     query_type: IntelligenceQueryType
     project: str
@@ -133,6 +143,7 @@ class IntelligenceResult:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         from dataclasses import asdict
+
         result = asdict(self)
         result["query_type"] = self.query_type.value
         return result

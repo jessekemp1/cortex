@@ -13,13 +13,13 @@ Message Types:
 - ack: Acknowledge intervention
 """
 
+import json
+import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any
-import json
-import uuid
-import logging
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ PROTOCOL_VERSION = "Cortex-IAP/1.0"
 
 class MessageType(Enum):
     """Types of IAP messages."""
+
     HANDOFF = "handoff"
     INTERVENTION = "intervention"
     QUERY = "query"
@@ -37,6 +38,7 @@ class MessageType(Enum):
 
 class AgentRole(Enum):
     """Roles that agents can have."""
+
     RESEARCHER = "researcher"
     IMPLEMENTER = "implementer"
     REVIEWER = "reviewer"
@@ -48,6 +50,7 @@ class AgentRole(Enum):
 @dataclass
 class Agent:
     """Agent identity."""
+
     id: str
     role: AgentRole
     capabilities: List[str] = field(default_factory=list)
@@ -71,6 +74,7 @@ class Agent:
 @dataclass
 class ContextSnapshot:
     """Snapshot of current context for handoff."""
+
     active_goal_id: Optional[str] = None
     active_project: Optional[str] = None
     relevant_files: List[str] = field(default_factory=list)
@@ -103,6 +107,7 @@ class ContextSnapshot:
 @dataclass
 class IAPMessage:
     """Inter-Agent Protocol message."""
+
     protocol: str = PROTOCOL_VERSION
     message_id: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
@@ -126,7 +131,9 @@ class IAPMessage:
             "message_type": self.message_type.value,
             "source_agent": self.source_agent.to_dict() if self.source_agent else None,
             "target_agent": self.target_agent.to_dict() if self.target_agent else None,
-            "context_snapshot": self.context_snapshot.to_dict() if self.context_snapshot else None,
+            "context_snapshot": (
+                self.context_snapshot.to_dict() if self.context_snapshot else None
+            ),
             "payload": self.payload,
         }
 
@@ -139,11 +146,23 @@ class IAPMessage:
         return cls(
             protocol=data.get("protocol", PROTOCOL_VERSION),
             message_id=data.get("message_id", ""),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if data.get("timestamp") else datetime.now(),
+            timestamp=(
+                datetime.fromisoformat(data["timestamp"])
+                if data.get("timestamp")
+                else datetime.now()
+            ),
             message_type=MessageType(data.get("message_type", "query")),
-            source_agent=Agent.from_dict(data["source_agent"]) if data.get("source_agent") else None,
-            target_agent=Agent.from_dict(data["target_agent"]) if data.get("target_agent") else None,
-            context_snapshot=ContextSnapshot.from_dict(data["context_snapshot"]) if data.get("context_snapshot") else None,
+            source_agent=(
+                Agent.from_dict(data["source_agent"]) if data.get("source_agent") else None
+            ),
+            target_agent=(
+                Agent.from_dict(data["target_agent"]) if data.get("target_agent") else None
+            ),
+            context_snapshot=(
+                ContextSnapshot.from_dict(data["context_snapshot"])
+                if data.get("context_snapshot")
+                else None
+            ),
             payload=data.get("payload", {}),
         )
 
@@ -155,7 +174,7 @@ class IAPMessage:
 class IAPHandler:
     """
     Handler for Inter-Agent Protocol messages.
-    
+
     Routes messages between agents and Cortex engines.
     """
 
@@ -194,11 +213,13 @@ class IAPHandler:
     def handle_message(self, message: IAPMessage) -> IAPMessage:
         """
         Handle an incoming IAP message.
-        
+
         Returns response message.
         """
         self._message_history.append(message)
-        logger.info(f"Handling IAP message: {message.message_type.value} from {message.source_agent.id if message.source_agent else 'unknown'}")
+        logger.info(
+            f"Handling IAP message: {message.message_type.value} from {message.source_agent.id if message.source_agent else 'unknown'}"
+        )
 
         try:
             if message.message_type == MessageType.QUERY:
@@ -210,7 +231,9 @@ class IAPHandler:
             elif message.message_type == MessageType.INTERVENTION:
                 return self._handle_intervention(message)
             else:
-                return self._error_response(message, f"Unknown message type: {message.message_type}")
+                return self._error_response(
+                    message, f"Unknown message type: {message.message_type}"
+                )
         except Exception as e:
             logger.error(f"Error handling message: {e}")
             return self._error_response(message, str(e))
@@ -229,6 +252,7 @@ class IAPHandler:
             node_type = message.payload.get("node_type")
             if node_type:
                 from cortex.engines.synthesis import NodeType
+
                 try:
                     nodes = self.synthesis.graph.get_nodes_by_type(NodeType(node_type))
                     result = {"nodes": [n.to_dict() for n in nodes]}
@@ -242,7 +266,10 @@ class IAPHandler:
         elif query_type == "status":
             result = self._get_system_status()
         else:
-            result = {"message": "Query received but no handler available", "query": query}
+            result = {
+                "message": "Query received but no handler available",
+                "query": query,
+            }
 
         return IAPMessage(
             message_type=MessageType.RESPONSE,
@@ -256,35 +283,37 @@ class IAPHandler:
         """Handle a handoff message between agents."""
         target_id = message.target_agent.id if message.target_agent else None
         instruction = message.payload.get("instruction", "")
-        
+
         logger.info(f"Processing handoff to {target_id}: {instruction[:50]}...")
 
         # Store handoff context in graph if available
         if self.synthesis and message.context_snapshot:
             from cortex.engines.synthesis import Node, NodeType
+
             handoff_node = Node(
                 id=f"handoff:{message.message_id}",
                 type=NodeType.WORK_ITEM,
                 name=f"Handoff: {instruction[:50]}",
                 data={
-                    "source_agent": message.source_agent.id if message.source_agent else None,
+                    "source_agent": (message.source_agent.id if message.source_agent else None),
                     "target_agent": target_id,
                     "instruction": instruction,
                     "context": message.context_snapshot.to_dict(),
                     "constraints": message.payload.get("constraints", []),
-                }
+                },
             )
             self.synthesis.graph.add_node(handoff_node)
 
         # Create intervention for target agent if broker available
         if self.broker and target_id and target_id in self.registered_agents:
             from cortex.engines.broker import InterventionType, Severity
+
             self.broker.create_intervention(
                 intervention_type=InterventionType.CONTEXT_SWITCH,
                 severity=Severity.INFO,
                 title=f"Handoff from {message.source_agent.id if message.source_agent else 'unknown'}",
                 description=instruction,
-                context=message.context_snapshot.to_dict() if message.context_snapshot else {},
+                context=(message.context_snapshot.to_dict() if message.context_snapshot else {}),
             )
 
         return IAPMessage(
@@ -301,7 +330,7 @@ class IAPHandler:
     def _handle_ack(self, message: IAPMessage) -> IAPMessage:
         """Handle acknowledgment message."""
         intervention_id = message.payload.get("intervention_id")
-        
+
         if intervention_id and self.broker:
             success = self.broker.acknowledge(intervention_id)
             status = "acknowledged" if success else "not_found"
@@ -319,9 +348,9 @@ class IAPHandler:
         """Handle incoming intervention (for forwarding)."""
         # This handles interventions from external sources
         # and forwards them to the appropriate agent
-        
+
         target_id = message.target_agent.id if message.target_agent else None
-        
+
         if target_id and target_id in self.registered_agents:
             # Agent is registered, intervention can be delivered
             return IAPMessage(
@@ -426,13 +455,13 @@ class IAPHandler:
 def create_default_handler() -> IAPHandler:
     """Create IAP handler with default engines."""
     try:
-        from cortex.engines.synthesis import SynthesisCore, ContextGraph
         from cortex.engines.broker import ActionBroker
-        
+        from cortex.engines.synthesis import ContextGraph, SynthesisCore
+
         graph = ContextGraph()
         synthesis = SynthesisCore(graph)
         broker = ActionBroker()
-        
+
         return IAPHandler(synthesis_core=synthesis, action_broker=broker)
     except ImportError as e:
         logger.warning(f"Could not initialize engines: {e}")

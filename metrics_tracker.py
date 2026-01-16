@@ -12,16 +12,19 @@ All metrics stored in ~/.claude/portfolio/metrics.json
 """
 
 import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
 from collections import defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class MetricsTracker:
     """Track and analyze Cortex performance metrics"""
 
-    def __init__(self, metrics_path: Path = Path.home() / ".claude" / "portfolio" / "metrics.json"):
+    def __init__(
+        self,
+        metrics_path: Path = Path.home() / ".claude" / "portfolio" / "metrics.json",
+    ):
         self.metrics_path = metrics_path
         self.metrics_path.parent.mkdir(parents=True, exist_ok=True)
         self.data = self._load_metrics()
@@ -33,21 +36,21 @@ class MetricsTracker:
                 "meta": {
                     "created_at": datetime.now().isoformat(),
                     "last_updated": datetime.now().isoformat(),
-                    "version": "1.0"
+                    "version": "1.0",
                 },
                 "velocity": [],
                 "mistakes": [],
                 "calibration": [],
-                "roi": []
+                "roi": [],
             }
 
-        with open(self.metrics_path, 'r') as f:
+        with open(self.metrics_path, "r") as f:
             return json.load(f)
 
     def _save_metrics(self):
         """Save metrics to disk"""
         self.data["meta"]["last_updated"] = datetime.now().isoformat()
-        with open(self.metrics_path, 'w') as f:
+        with open(self.metrics_path, "w") as f:
             json.dump(self.data, f, indent=2)
 
     # === VELOCITY METRICS ===
@@ -56,9 +59,9 @@ class MetricsTracker:
         self,
         task: str,
         time_without_cortex: int,  # minutes
-        time_with_cortex: int,      # minutes
+        time_with_cortex: int,  # minutes
         project: str,
-        notes: str = ""
+        notes: str = "",
     ):
         """
         Record development velocity improvement
@@ -73,16 +76,18 @@ class MetricsTracker:
         savings = time_without_cortex - time_with_cortex
         improvement_pct = (savings / time_without_cortex * 100) if time_without_cortex > 0 else 0
 
-        self.data["velocity"].append({
-            "timestamp": datetime.now().isoformat(),
-            "task": task,
-            "project": project,
-            "baseline_minutes": time_without_cortex,
-            "actual_minutes": time_with_cortex,
-            "savings_minutes": savings,
-            "improvement_pct": round(improvement_pct, 1),
-            "notes": notes
-        })
+        self.data["velocity"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "task": task,
+                "project": project,
+                "baseline_minutes": time_without_cortex,
+                "actual_minutes": time_with_cortex,
+                "savings_minutes": savings,
+                "improvement_pct": round(improvement_pct, 1),
+                "notes": notes,
+            }
+        )
 
         self._save_metrics()
         return savings
@@ -91,8 +96,7 @@ class MetricsTracker:
         """Get velocity statistics for last N days"""
         cutoff = datetime.now() - timedelta(days=days)
         recent = [
-            v for v in self.data["velocity"]
-            if datetime.fromisoformat(v["timestamp"]) > cutoff
+            v for v in self.data["velocity"] if datetime.fromisoformat(v["timestamp"]) > cutoff
         ]
 
         if not recent:
@@ -101,7 +105,7 @@ class MetricsTracker:
                 "total_savings_minutes": 0,
                 "total_savings_hours": 0,
                 "avg_improvement_pct": 0,
-                "by_project": {}
+                "by_project": {},
             }
 
         total_savings = sum(v["savings_minutes"] for v in recent)
@@ -118,7 +122,7 @@ class MetricsTracker:
             "total_savings_minutes": total_savings,
             "total_savings_hours": round(total_savings / 60, 1),
             "avg_improvement_pct": round(avg_improvement, 1),
-            "by_project": dict(by_project)
+            "by_project": dict(by_project),
         }
 
     # === MISTAKE METRICS ===
@@ -130,7 +134,7 @@ class MetricsTracker:
         lesson_id: Optional[str] = None,
         project: str = "",
         impact_minutes: int = 0,
-        notes: str = ""
+        notes: str = "",
     ):
         """
         Record a mistake (prevented or not)
@@ -143,15 +147,17 @@ class MetricsTracker:
             impact_minutes: Time cost if not prevented
             notes: Additional context
         """
-        self.data["mistakes"].append({
-            "timestamp": datetime.now().isoformat(),
-            "mistake_type": mistake_type,
-            "was_prevented": was_prevented,
-            "lesson_id": lesson_id,
-            "project": project,
-            "impact_minutes": impact_minutes,
-            "notes": notes
-        })
+        self.data["mistakes"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "mistake_type": mistake_type,
+                "was_prevented": was_prevented,
+                "lesson_id": lesson_id,
+                "project": project,
+                "impact_minutes": impact_minutes,
+                "notes": notes,
+            }
+        )
 
         self._save_metrics()
 
@@ -159,8 +165,7 @@ class MetricsTracker:
         """Get mistake prevention statistics"""
         cutoff = datetime.now() - timedelta(days=days)
         recent = [
-            m for m in self.data["mistakes"]
-            if datetime.fromisoformat(m["timestamp"]) > cutoff
+            m for m in self.data["mistakes"] if datetime.fromisoformat(m["timestamp"]) > cutoff
         ]
 
         if not recent:
@@ -169,7 +174,7 @@ class MetricsTracker:
                 "prevented": 0,
                 "repeated": 0,
                 "prevention_rate": 0,
-                "time_saved_minutes": 0
+                "time_saved_minutes": 0,
             }
 
         prevented = sum(1 for m in recent if m["was_prevented"])
@@ -183,7 +188,7 @@ class MetricsTracker:
             "repeated": repeated,
             "prevention_rate": round(prevention_rate, 1),
             "time_saved_minutes": time_saved,
-            "time_saved_hours": round(time_saved / 60, 1)
+            "time_saved_hours": round(time_saved / 60, 1),
         }
 
     # === CALIBRATION METRICS ===
@@ -196,7 +201,7 @@ class MetricsTracker:
         confidence: float,  # 0.0 to 1.0
         predicted_time: int,  # minutes
         project: str = "",
-        notes: str = ""
+        notes: str = "",
     ) -> str:
         """
         Record a prediction for later validation
@@ -204,38 +209,35 @@ class MetricsTracker:
         Returns:
             prediction_id for later outcome recording
         """
-        self.data["calibration"].append({
-            "id": prediction_id,
-            "timestamp": datetime.now().isoformat(),
-            "task": task,
-            "predicted_outcome": predicted_outcome,
-            "confidence": confidence,
-            "predicted_time_minutes": predicted_time,
-            "project": project,
-            "notes": notes,
-            "outcome_recorded": False,
-            "actual_outcome": None,
-            "actual_time_minutes": None,
-            "was_correct": None,
-            "outcome_timestamp": None
-        })
+        self.data["calibration"].append(
+            {
+                "id": prediction_id,
+                "timestamp": datetime.now().isoformat(),
+                "task": task,
+                "predicted_outcome": predicted_outcome,
+                "confidence": confidence,
+                "predicted_time_minutes": predicted_time,
+                "project": project,
+                "notes": notes,
+                "outcome_recorded": False,
+                "actual_outcome": None,
+                "actual_time_minutes": None,
+                "was_correct": None,
+                "outcome_timestamp": None,
+            }
+        )
 
         self._save_metrics()
         return prediction_id
 
-    def record_outcome(
-        self,
-        prediction_id: str,
-        actual_outcome: str,
-        actual_time: int  # minutes
-    ):
+    def record_outcome(self, prediction_id: str, actual_outcome: str, actual_time: int):  # minutes
         """Record actual outcome for a prediction"""
         for calibration in self.data["calibration"]:
             if calibration["id"] == prediction_id:
                 calibration["outcome_recorded"] = True
                 calibration["actual_outcome"] = actual_outcome
                 calibration["actual_time_minutes"] = actual_time
-                calibration["was_correct"] = (calibration["predicted_outcome"] == actual_outcome)
+                calibration["was_correct"] = calibration["predicted_outcome"] == actual_outcome
                 calibration["outcome_timestamp"] = datetime.now().isoformat()
                 self._save_metrics()
                 return True
@@ -244,10 +246,7 @@ class MetricsTracker:
 
     def get_calibration_stats(self) -> Dict[str, Any]:
         """Get calibration curve statistics with enhanced analysis"""
-        predictions = [
-            c for c in self.data["calibration"]
-            if c["outcome_recorded"]
-        ]
+        predictions = [c for c in self.data["calibration"] if c["outcome_recorded"]]
 
         if not predictions:
             return {
@@ -258,7 +257,7 @@ class MetricsTracker:
                 "by_confidence_bucket": {},
                 "calibration_curve": [],
                 "brier_score": 0.0,
-                "overconfidence_index": 0.0
+                "overconfidence_index": 0.0,
             }
 
         # Overall accuracy
@@ -285,26 +284,29 @@ class MetricsTracker:
         for bucket in sorted(buckets.keys()):
             data = buckets[bucket]
             bucket_accuracy = data["correct"] / data["total"] if data["total"] > 0 else 0
-            avg_bucket_confidence = data["confidence_sum"] / data["total"] if data["total"] > 0 else bucket
+            avg_bucket_confidence = (
+                data["confidence_sum"] / data["total"] if data["total"] > 0 else bucket
+            )
 
             bucket_stats[f"{bucket:.1f}-{bucket+0.2:.1f}"] = {
                 "predictions": data["total"],
                 "accuracy": round(bucket_accuracy, 3),
                 "avg_confidence": round(avg_bucket_confidence, 3),
-                "calibration_error": round(abs(avg_bucket_confidence - bucket_accuracy), 3)
+                "calibration_error": round(abs(avg_bucket_confidence - bucket_accuracy), 3),
             }
 
-            calibration_curve.append({
-                "confidence_range": f"{bucket:.1f}-{bucket+0.2:.1f}",
-                "predicted_confidence": round(avg_bucket_confidence, 3),
-                "actual_accuracy": round(bucket_accuracy, 3),
-                "count": data["total"]
-            })
+            calibration_curve.append(
+                {
+                    "confidence_range": f"{bucket:.1f}-{bucket+0.2:.1f}",
+                    "predicted_confidence": round(avg_bucket_confidence, 3),
+                    "actual_accuracy": round(bucket_accuracy, 3),
+                    "count": data["total"],
+                }
+            )
 
         # Calculate Brier Score (lower is better, 0 = perfect)
         brier_score = sum(
-            (p["confidence"] - (1.0 if p["was_correct"] else 0.0))**2
-            for p in predictions
+            (p["confidence"] - (1.0 if p["was_correct"] else 0.0)) ** 2 for p in predictions
         ) / len(predictions)
 
         # Calculate Overconfidence Index (confidence - accuracy, positive = overconfident)
@@ -318,35 +320,26 @@ class MetricsTracker:
             "by_confidence_bucket": bucket_stats,
             "calibration_curve": calibration_curve,
             "brier_score": round(brier_score, 4),
-            "overconfidence_index": round(overconfidence_index, 3)
+            "overconfidence_index": round(overconfidence_index, 3),
         }
 
     def get_pending_predictions(self) -> List[Dict]:
         """Get predictions awaiting outcomes"""
-        return [
-            p for p in self.data.get("calibration", [])
-            if not p.get("outcome_recorded", False)
-        ]
+        return [p for p in self.data.get("calibration", []) if not p.get("outcome_recorded", False)]
 
     def get_calibration_data(self) -> Dict[str, Any]:
         """Get raw calibration data for analysis"""
         predictions = self.data.get("calibration", [])
-        outcomes_dict = {
-            p["id"]: p for p in predictions
-            if p.get("outcome_recorded")
-        }
+        outcomes_dict = {p["id"]: p for p in predictions if p.get("outcome_recorded")}
         return {
             "predictions": predictions,
             "outcomes": outcomes_dict,
-            "pending_count": len(predictions) - len(outcomes_dict)
+            "pending_count": len(predictions) - len(outcomes_dict),
         }
 
     def get_time_estimation_stats(self) -> Dict[str, float]:
         """Analyze time estimation accuracy"""
-        completed = [
-            p for p in self.data.get("calibration", [])
-            if p.get("outcome_recorded")
-        ]
+        completed = [p for p in self.data.get("calibration", []) if p.get("outcome_recorded")]
 
         if not completed:
             return {"count": 0}
@@ -360,19 +353,17 @@ class MetricsTracker:
                 errors.append(error_pct)
 
         underestimates = sum(
-            1 for p in completed
-            if p["actual_time_minutes"] > p["predicted_time_minutes"]
+            1 for p in completed if p["actual_time_minutes"] > p["predicted_time_minutes"]
         )
         overestimates = sum(
-            1 for p in completed
-            if p["actual_time_minutes"] < p["predicted_time_minutes"]
+            1 for p in completed if p["actual_time_minutes"] < p["predicted_time_minutes"]
         )
 
         return {
             "count": len(errors),
             "mean_error_pct": sum(errors) / len(errors) if errors else 0,
             "underestimates": underestimates,
-            "overestimates": overestimates
+            "overestimates": overestimates,
         }
 
     # === ROI METRICS ===
@@ -382,21 +373,23 @@ class MetricsTracker:
         activity: str,
         time_minutes: int,
         category: str,  # 'setup', 'maintenance', 'learning', 'documentation'
-        notes: str = ""
+        notes: str = "",
     ):
         """Record time invested in Cortex system"""
         # Find or create ROI tracker
         if not self.data.get("roi"):
             self.data["roi"] = []
 
-        self.data["roi"].append({
-            "timestamp": datetime.now().isoformat(),
-            "type": "investment",
-            "activity": activity,
-            "time_minutes": time_minutes,
-            "category": category,
-            "notes": notes
-        })
+        self.data["roi"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "type": "investment",
+                "activity": activity,
+                "time_minutes": time_minutes,
+                "category": category,
+                "notes": notes,
+            }
+        )
 
         self._save_metrics()
 
@@ -404,19 +397,21 @@ class MetricsTracker:
         self,
         source: str,  # 'velocity', 'mistake_prevention', 'faster_decision'
         time_saved_minutes: int,
-        notes: str = ""
+        notes: str = "",
     ):
         """Record time saved from using Cortex"""
         if not self.data.get("roi"):
             self.data["roi"] = []
 
-        self.data["roi"].append({
-            "timestamp": datetime.now().isoformat(),
-            "type": "benefit",
-            "source": source,
-            "time_saved_minutes": time_saved_minutes,
-            "notes": notes
-        })
+        self.data["roi"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "type": "benefit",
+                "source": source,
+                "time_saved_minutes": time_saved_minutes,
+                "notes": notes,
+            }
+        )
 
         self._save_metrics()
 
@@ -428,7 +423,7 @@ class MetricsTracker:
                 "total_benefit_minutes": 0,
                 "roi_ratio": 0,
                 "roi_percentage": 0,
-                "break_even": False
+                "break_even": False,
             }
 
         investments = [r for r in self.data["roi"] if r["type"] == "investment"]
@@ -438,7 +433,11 @@ class MetricsTracker:
         total_benefit = sum(b["time_saved_minutes"] for b in benefits)
 
         roi_ratio = (total_benefit / total_investment) if total_investment > 0 else 0
-        roi_percentage = ((total_benefit - total_investment) / total_investment * 100) if total_investment > 0 else 0
+        roi_percentage = (
+            ((total_benefit - total_investment) / total_investment * 100)
+            if total_investment > 0
+            else 0
+        )
 
         return {
             "total_investment_minutes": total_investment,
@@ -449,7 +448,7 @@ class MetricsTracker:
             "net_savings_hours": round((total_benefit - total_investment) / 60, 1),
             "roi_ratio": round(roi_ratio, 2),
             "roi_percentage": round(roi_percentage, 1),
-            "break_even": total_benefit >= total_investment
+            "break_even": total_benefit >= total_investment,
         }
 
     # === DASHBOARD ===
@@ -469,11 +468,12 @@ class MetricsTracker:
         """
         try:
             from cortex.portfolio_memory import PortfolioMemory
+
             portfolio = PortfolioMemory()
-            
+
             # Get pattern data from portfolio
             patterns = portfolio.get_cross_project_patterns(pattern_type=pattern_name)
-            
+
             if not patterns:
                 return {
                     "pattern": pattern_name,
@@ -482,12 +482,15 @@ class MetricsTracker:
                     "success_rate": 0.0,
                     "confidence_interval": (0.0, 0.0),
                     "is_effective": False,
-                    "validation_status": "pattern_not_found"
+                    "validation_status": "pattern_not_found",
                 }
-            
+
             # Find matching pattern
-            pattern_data = next((p for p in patterns if p.get("pattern", "").lower() == pattern_name.lower()), None)
-            
+            pattern_data = next(
+                (p for p in patterns if p.get("pattern", "").lower() == pattern_name.lower()),
+                None,
+            )
+
             if not pattern_data:
                 return {
                     "pattern": pattern_name,
@@ -496,40 +499,46 @@ class MetricsTracker:
                     "success_rate": 0.0,
                     "confidence_interval": (0.0, 0.0),
                     "is_effective": False,
-                    "validation_status": "pattern_not_found"
+                    "validation_status": "pattern_not_found",
                 }
-            
+
             # Extract metrics
             projects = pattern_data.get("used_in", [])
             total_applications = len(projects)
-            
+
             # Estimate success from project count and frequency
             # Higher project count and frequency indicate success
             frequency = pattern_data.get("count", 0)
             success_indicators = total_applications + (frequency // 2)  # Weight projects more
-            
+
             # Calculate success rate (simplified - assumes patterns used in multiple projects are successful)
             if total_applications > 0:
                 # Pattern used in multiple projects suggests success
-                success_rate = min(total_applications / 5.0, 1.0)  # Cap at 1.0, normalize by 5 projects
+                success_rate = min(
+                    total_applications / 5.0, 1.0
+                )  # Cap at 1.0, normalize by 5 projects
             else:
                 success_rate = 0.0
-            
+
             # Calculate confidence interval (Wilson score interval)
             confidence_interval = self._calculate_confidence_interval(
                 success_rate, total_applications, confidence_level=0.95
             )
-            
+
             is_effective = success_rate >= success_threshold and total_applications >= 2
-            
+
             return {
                 "pattern": pattern_name,
                 "total_applications": total_applications,
-                "successful_applications": int(success_rate * total_applications) if total_applications > 0 else 0,
+                "successful_applications": (
+                    int(success_rate * total_applications) if total_applications > 0 else 0
+                ),
                 "success_rate": round(success_rate, 3),
                 "confidence_interval": confidence_interval,
                 "is_effective": is_effective,
-                "validation_status": "validated" if total_applications >= 3 else "insufficient_data",
+                "validation_status": (
+                    "validated" if total_applications >= 3 else "insufficient_data"
+                ),
                 "projects_using": [p.get("project", "") for p in projects[:5]],
                 "frequency": frequency,
             }
@@ -542,7 +551,7 @@ class MetricsTracker:
                 "success_rate": 0.0,
                 "confidence_interval": (0.0, 0.0),
                 "is_effective": False,
-                "validation_status": f"error: {str(e)}"
+                "validation_status": f"error: {str(e)}",
             }
 
     def validate_recommendation_accuracy(
@@ -559,11 +568,12 @@ class MetricsTracker:
         """
         try:
             from cortex.learning import LearningSystem
+
             learning = LearningSystem()
-            
+
             # Get recommendation outcomes
             outcomes = learning.feedback_logger.load_outcomes()
-            
+
             if not outcomes:
                 return {
                     "recommendation_type": recommendation_type or "all",
@@ -572,26 +582,23 @@ class MetricsTracker:
                     "successful_count": 0,
                     "accuracy": 0.0,
                     "by_type": {},
-                    "validation_status": "insufficient_data"
+                    "validation_status": "insufficient_data",
                 }
-            
+
             # Filter by type if specified
             if recommendation_type:
                 outcomes = [o for o in outcomes if o.recommendation_type == recommendation_type]
-            
+
             total = len(outcomes)
             followed = [o for o in outcomes if o.followed]
             followed_count = len(followed)
-            
+
             # Calculate success
-            successful_count = sum(
-                1 for o in followed
-                if o.outcome == "success"
-            )
-            
+            successful_count = sum(1 for o in followed if o.outcome == "success")
+
             # Calculate accuracy (success rate among followed recommendations)
             accuracy = successful_count / followed_count if followed_count > 0 else 0.0
-            
+
             # Calculate by type
             by_type = {}
             type_groups = {}
@@ -600,27 +607,24 @@ class MetricsTracker:
                 if rec_type not in type_groups:
                     type_groups[rec_type] = []
                 type_groups[rec_type].append(outcome)
-            
+
             for rec_type, type_outcomes in type_groups.items():
                 type_followed = [o for o in type_outcomes if o.followed]
-                type_successful = sum(
-                    1 for o in type_followed
-                    if o.outcome == "success"
-                )
+                type_successful = sum(1 for o in type_followed if o.outcome == "success")
                 type_accuracy = type_successful / len(type_followed) if type_followed else 0.0
-                
+
                 by_type[rec_type] = {
                     "total": len(type_outcomes),
                     "followed": len(type_followed),
                     "successful": type_successful,
                     "accuracy": round(type_accuracy, 3),
                 }
-            
+
             # Calculate confidence interval for overall accuracy
             confidence_interval = self._calculate_confidence_interval(
                 accuracy, followed_count, confidence_level=0.95
             )
-            
+
             return {
                 "recommendation_type": recommendation_type or "all",
                 "total_recommendations": total,
@@ -629,7 +633,7 @@ class MetricsTracker:
                 "accuracy": round(accuracy, 3),
                 "confidence_interval": confidence_interval,
                 "by_type": by_type,
-                "validation_status": "validated" if followed_count >= 10 else "insufficient_data",
+                "validation_status": ("validated" if followed_count >= 10 else "insufficient_data"),
             }
         except Exception as e:
             logger.warning(f"Error validating recommendations: {e}")
@@ -640,7 +644,7 @@ class MetricsTracker:
                 "successful_count": 0,
                 "accuracy": 0.0,
                 "by_type": {},
-                "validation_status": f"error: {str(e)}"
+                "validation_status": f"error: {str(e)}",
             }
 
     def _calculate_confidence_interval(
@@ -648,41 +652,41 @@ class MetricsTracker:
     ) -> tuple:
         """
         Calculate confidence interval for a proportion using Wilson score interval.
-        
+
         Args:
             proportion: Sample proportion (0.0-1.0)
             sample_size: Sample size
             confidence_level: Confidence level (default: 0.95 for 95% CI)
-            
+
         Returns:
             Tuple of (lower_bound, upper_bound)
         """
         if sample_size == 0:
             return (0.0, 0.0)
-        
+
         import math
-        
+
         # Z-score for confidence level
         z_scores = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
         z = z_scores.get(confidence_level, 1.96)
-        
+
         # Wilson score interval
         n = sample_size
         p = proportion
-        
+
         denominator = 1 + (z**2 / n)
         center = (p + (z**2 / (2 * n))) / denominator
         margin = (z / denominator) * math.sqrt((p * (1 - p) / n) + (z**2 / (4 * n**2)))
-        
+
         lower = max(0.0, center - margin)
         upper = min(1.0, center + margin)
-        
+
         return (round(lower, 3), round(upper, 3))
 
     def generate_validation_report(self) -> Dict[str, Any]:
         """
         Generate comprehensive validation report with statistical analysis.
-        
+
         Returns:
             Dict with validation results for calibration, patterns, and recommendations
         """
@@ -691,18 +695,20 @@ class MetricsTracker:
         report = {
             "timestamp": datetime.now().isoformat(),
             "calibration": {
-                "status": "good" if calibration_stats["calibration_error"] < 0.15 else "needs_improvement",
+                "status": (
+                    "good" if calibration_stats["calibration_error"] < 0.15 else "needs_improvement"
+                ),
                 "stats": calibration_stats,
-                "recommendations": []
+                "recommendations": [],
             },
             "pattern_validation": {
                 "status": "operational",
-                "note": "Pattern validation integrated with portfolio memory"
+                "note": "Pattern validation integrated with portfolio memory",
             },
             "recommendation_validation": {
                 "status": "operational",
-                "note": "Recommendation validation integrated with learning system"
-            }
+                "note": "Recommendation validation integrated with learning system",
+            },
         }
 
         # Add calibration recommendations with statistical analysis
@@ -722,7 +728,7 @@ class MetricsTracker:
                 f"High Brier score ({calibration_stats['brier_score']:.3f}) indicates poor calibration - "
                 "review prediction methodology"
             )
-        
+
         # Add calibration curve analysis
         calibration_data = self.get_calibration_data()
         if calibration_data.get("predictions"):
@@ -736,39 +742,40 @@ class MetricsTracker:
     def _generate_calibration_curve_bins(self, predictions: List[Dict]) -> List[Dict]:
         """
         Generate calibration curve bins for visualization.
-        
+
         Args:
             predictions: List of prediction dicts with 'confidence' and 'outcome'
-            
+
         Returns:
             List of bin statistics
         """
         bins = []
         bin_size = 0.1  # 10 bins (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
-        
+
         for i in range(10):
             bin_lower = i * bin_size
             bin_upper = (i + 1) * bin_size
-            
+
             bin_predictions = [
-                p for p in predictions
-                if bin_lower <= p.get("confidence", 0.0) < bin_upper
+                p for p in predictions if bin_lower <= p.get("confidence", 0.0) < bin_upper
             ]
-            
+
             if bin_predictions:
                 actual_positive = sum(1 for p in bin_predictions if p.get("outcome") == "success")
                 total = len(bin_predictions)
                 actual_rate = actual_positive / total
                 avg_confidence = sum(p.get("confidence", 0.0) for p in bin_predictions) / total
-                
-                bins.append({
-                    "bin_range": f"{bin_lower:.1f}-{bin_upper:.1f}",
-                    "count": total,
-                    "avg_confidence": round(avg_confidence, 3),
-                    "actual_rate": round(actual_rate, 3),
-                    "calibration_error": round(abs(avg_confidence - actual_rate), 3),
-                })
-        
+
+                bins.append(
+                    {
+                        "bin_range": f"{bin_lower:.1f}-{bin_upper:.1f}",
+                        "count": total,
+                        "avg_confidence": round(avg_confidence, 3),
+                        "actual_rate": round(actual_rate, 3),
+                        "calibration_error": round(abs(avg_confidence - actual_rate), 3),
+                    }
+                )
+
         return bins
 
     def get_dashboard(self, days: int = 30) -> Dict[str, Any]:
@@ -779,7 +786,7 @@ class MetricsTracker:
             "mistakes": self.get_mistake_stats(days),
             "calibration": self.get_calibration_stats(),
             "roi": self.get_roi_stats(),
-            "validation": self.generate_validation_report()
+            "validation": self.generate_validation_report(),
         }
 
 
@@ -787,9 +794,9 @@ def main():
     """Demo metrics tracking"""
     tracker = MetricsTracker()
 
-    print("="*60)
+    print("=" * 60)
     print("AGENT 8: METRICS INFRASTRUCTURE")
-    print("="*60)
+    print("=" * 60)
 
     # Record initial investment in Cortex setup
     print("\n📊 Recording initial setup investment...")
@@ -797,7 +804,7 @@ def main():
         activity="Week 1 implementation (Agents 1-5)",
         time_minutes=40,
         category="setup",
-        notes="Core modules: Portfolio, Session, Specs, Bridge, Migration"
+        notes="Core modules: Portfolio, Session, Specs, Bridge, Migration",
     )
     print("  ✅ Recorded 40 minutes setup investment")
 
@@ -806,9 +813,9 @@ def main():
     tracker.record_velocity(
         task="Find similar GRIB processing code",
         time_without_cortex=30,  # Would take 30 min without Cortex
-        time_with_cortex=5,       # Took 5 min with spec search
+        time_with_cortex=5,  # Took 5 min with spec search
         project="VortexV2",
-        notes="Used spec knowledge base to find existing implementation"
+        notes="Used spec knowledge base to find existing implementation",
     )
     print("  ✅ Recorded 25 minutes saved (83% improvement)")
 
@@ -820,7 +827,7 @@ def main():
         lesson_id="grib_index_check",
         project="VortexV2",
         impact_minutes=240,  # Would have wasted 4 hours
-        notes="Remembered lesson: check GRIB index before download"
+        notes="Remembered lesson: check GRIB index before download",
     )
     print("  ✅ Recorded prevented mistake (4 hours saved)")
 
@@ -833,14 +840,14 @@ def main():
         confidence=0.85,
         predicted_time=15,
         project="Cortex",
-        notes="Based on similar VortexV2 integration pattern"
+        notes="Based on similar VortexV2 integration pattern",
     )
     print(f"  ✅ Recorded prediction {prediction_id} (85% confidence, 15 min estimate)")
 
     # Get dashboard
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("METRICS DASHBOARD")
-    print("="*60)
+    print("=" * 60)
 
     dashboard = tracker.get_dashboard()
 
@@ -867,12 +874,12 @@ def main():
     print(f"  ROI ratio: {dashboard['roi']['roi_ratio']}x")
     print(f"  Break-even: {dashboard['roi']['break_even']}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("METRICS TRACKING OPERATIONAL ✅")
-    print("="*60)
+    print("=" * 60)
     print(f"\nMetrics stored: {tracker.metrics_path}")
     print("\nUse this tracker to measure Cortex effectiveness over time!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

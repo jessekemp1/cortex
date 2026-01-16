@@ -41,9 +41,7 @@ def cmd_status(args):
     orchestrator = ConverxOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(
-            limit=0
-        )  # Just get state, no recommendations
+        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
 
         state = response.current_state
         health = response.system_health
@@ -160,9 +158,7 @@ def cmd_feedback(args):
             actual_outcome=args.outcome,
         )
 
-        print(
-            f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}"
-        )
+        print(f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}")
 
 
 def cmd_health(args):
@@ -200,9 +196,7 @@ def cmd_health(args):
             print("")
 
         print("──────────────────────────────────────────────────────")
-        overall = (
-            "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
-        )
+        overall = "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
         print(f"{overall}")
         print(f"Active: {health.active_count}/4 integrations")
         print("")
@@ -245,9 +239,7 @@ Examples:
 
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
-    next_parser.add_argument(
-        "project", nargs="?", help="Filter by project name (optional)"
-    )
+    next_parser.add_argument("project", nargs="?", help="Filter by project name (optional)")
     next_parser.add_argument(
         "--with-context", action="store_true", help="Include context predictions"
     )
@@ -269,15 +261,11 @@ Examples:
     health_parser.set_defaults(func=cmd_health)
 
     # Feedback command
-    feedback_parser = subparsers.add_parser(
-        "feedback", help="Log feedback for recommendations"
-    )
+    feedback_parser = subparsers.add_parser("feedback", help="Log feedback for recommendations")
     feedback_parser.add_argument(
         "--action-title", type=str, help="Title of the action/recommendation"
     )
-    feedback_parser.add_argument(
-        "--action-id", type=str, help="ID of the action (if available)"
-    )
+    feedback_parser.add_argument("--action-id", type=str, help="ID of the action (if available)")
     feedback_parser.add_argument(
         "--useful", type=str, required=False, help="Was it useful? (yes/no)"
     )
@@ -290,9 +278,7 @@ Examples:
         const="summary",
         help="Show feedback statistics (use 'recent' for recent entries)",
     )
-    feedback_parser.add_argument(
-        "--log", type=str, help="Quick log entry (general note)"
-    )
+    feedback_parser.add_argument("--log", type=str, help="Quick log entry (general note)")
     feedback_parser.set_defaults(func=cmd_feedback)
 
     args = parser.parse_args()

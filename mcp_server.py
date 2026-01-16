@@ -24,9 +24,7 @@ if str(ROOT_DIR) not in sys.path:
 from cortex.bridge import CortexBridge
 
 # Configure logging to stderr (stdout is for Protocol)
-logging.basicConfig(
-    stream=sys.stderr, level=logging.INFO, format="[CortexMCP] %(message)s"
-)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[CortexMCP] %(message)s")
 logger = logging.getLogger("cortex-mcp")
 
 
@@ -90,9 +88,7 @@ class MCPServer:
                 # client acknowledging
                 return None
             elif method == "resources/list":
-                result = {
-                    "resources": []
-                }  # We use templates mostly, but could list recent?
+                result = {"resources": []}  # We use templates mostly, but could list recent?
             elif method == "resources/templates/list":
                 result = {
                     "resourceTemplates": [
@@ -155,7 +151,15 @@ class MCPServer:
                                     "node_type": {
                                         "type": "string",
                                         "description": "Type of nodes to query",
-                                        "enum": ["project", "pattern", "lesson", "goal", "error", "file", "work_item"],
+                                        "enum": [
+                                            "project",
+                                            "pattern",
+                                            "lesson",
+                                            "goal",
+                                            "error",
+                                            "file",
+                                            "work_item",
+                                        ],
                                     },
                                 },
                             },
@@ -166,9 +170,18 @@ class MCPServer:
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "node_type": {"type": "string", "description": "Type of node"},
-                                    "name": {"type": "string", "description": "Node name"},
-                                    "data": {"type": "object", "description": "Node data"},
+                                    "node_type": {
+                                        "type": "string",
+                                        "description": "Type of node",
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Node name",
+                                    },
+                                    "data": {
+                                        "type": "object",
+                                        "description": "Node data",
+                                    },
                                 },
                                 "required": ["node_type", "name"],
                             },
@@ -179,11 +192,21 @@ class MCPServer:
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "node_id": {"type": "string", "description": "Node ID to find relations for"},
+                                    "node_id": {
+                                        "type": "string",
+                                        "description": "Node ID to find relations for",
+                                    },
                                     "edge_type": {
                                         "type": "string",
                                         "description": "Optional edge type filter",
-                                        "enum": ["relates_to", "implements", "blocks", "causes", "contains", "used_in"],
+                                        "enum": [
+                                            "relates_to",
+                                            "implements",
+                                            "blocks",
+                                            "causes",
+                                            "contains",
+                                            "used_in",
+                                        ],
                                     },
                                 },
                                 "required": ["node_id"],
@@ -200,7 +223,10 @@ class MCPServer:
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "intervention_id": {"type": "string", "description": "ID of intervention to acknowledge"},
+                                    "intervention_id": {
+                                        "type": "string",
+                                        "description": "ID of intervention to acknowledge",
+                                    },
                                 },
                                 "required": ["intervention_id"],
                             },
@@ -216,8 +242,14 @@ class MCPServer:
                                         "enum": ["query", "handoff", "ack"],
                                         "description": "Type of IAP message",
                                     },
-                                    "payload": {"type": "object", "description": "Message payload"},
-                                    "context": {"type": "object", "description": "Optional context snapshot"},
+                                    "payload": {
+                                        "type": "object",
+                                        "description": "Message payload",
+                                    },
+                                    "context": {
+                                        "type": "object",
+                                        "description": "Optional context snapshot",
+                                    },
                                 },
                                 "required": ["message_type", "payload"],
                             },
@@ -230,9 +262,7 @@ class MCPServer:
                 if name in self.tools:
                     tool_result = self.tools[name](args)
                     result = {
-                        "content": [
-                            {"type": "text", "text": json.dumps(tool_result, indent=2)}
-                        ]
+                        "content": [{"type": "text", "text": json.dumps(tool_result, indent=2)}]
                     }
                 else:
                     raise ValueError(f"Unknown tool: {name}")

@@ -8,15 +8,15 @@ Uses multiple signals to correlate detected work with planned items:
 - Project matching
 """
 
-import re
 import json
 import logging
+import re
 from datetime import datetime
-from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
 from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from .models import WorkItem, PlanDrift, DriftType, WorkStatus
+from .models import DriftType, PlanDrift, WorkItem, WorkStatus
 
 logger = logging.getLogger(__name__)
 
@@ -202,11 +202,52 @@ class PlanCorrelator:
 
         # Common stop words to exclude
         stop_words = {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "been",
-            "be", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can", "need",
-            "this", "that", "these", "those", "it", "its", "they", "them",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+            "are",
+            "were",
+            "been",
+            "be",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "they",
+            "them",
         }
 
         # Extract words
@@ -314,15 +355,19 @@ class PlanCorrelator:
                 steps.append(step)
 
             # Also extract checkbox items as steps
-            checkboxes = re.findall(r"^\s*-\s*\[[ x]\]\s*(.+)$", content, re.MULTILINE | re.IGNORECASE)
+            checkboxes = re.findall(
+                r"^\s*-\s*\[[ x]\]\s*(.+)$", content, re.MULTILINE | re.IGNORECASE
+            )
             for i, item in enumerate(checkboxes[:20]):  # Limit
-                steps.append({
-                    "id": f"{plan['id']}-checkbox-{i}",
-                    "title": item.strip(),
-                    "description": "",
-                    "files": [],
-                    "tags": [],
-                })
+                steps.append(
+                    {
+                        "id": f"{plan['id']}-checkbox-{i}",
+                        "title": item.strip(),
+                        "description": "",
+                        "files": [],
+                        "tags": [],
+                    }
+                )
 
             plan["steps"] = steps
             return plan

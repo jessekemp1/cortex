@@ -46,11 +46,11 @@ def test_get_next_action_with_project_filter():
     assert isinstance(response, StrategistResponse)
     # If recommendations exist, they should be filtered (if related_projects available)
     if response.next_action:
-        related = getattr(response.next_action, 'related_projects', None)
+        related = getattr(response.next_action, "related_projects", None)
         if related:
             assert any("vortexv2" in proj.lower() for proj in related)
         # If no related_projects, just verify we got a recommendation
-        assert hasattr(response.next_action, 'title')
+        assert hasattr(response.next_action, "title")
 
 
 def test_get_next_action_with_context():

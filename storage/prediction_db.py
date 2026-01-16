@@ -55,7 +55,8 @@ class PredictionDB:
             cursor = conn.cursor()
 
             # Predictions table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS predictions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     domain TEXT NOT NULL,           -- 'weather', 'trading', 'dev'
@@ -67,10 +68,12 @@ class PredictionDB:
                     outcome_quality REAL,           -- Calculated: how good was prediction
                     metadata TEXT                   -- JSON for additional context
                 )
-            """)
+            """
+            )
 
             # Confidence state per domain
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS confidence_state (
                     domain TEXT PRIMARY KEY,
                     current_confidence REAL NOT NULL,
@@ -78,18 +81,23 @@ class PredictionDB:
                     prediction_count INTEGER DEFAULT 0,
                     last_updated DATETIME NOT NULL
                 )
-            """)
+            """
+            )
 
             # Indexes for performance
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_predictions_domain
                 ON predictions(domain, timestamp DESC)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_predictions_type
                 ON predictions(domain, prediction_type, timestamp DESC)
-            """)
+            """
+            )
 
             logger.debug("db_schema_initialized")
 
@@ -189,9 +197,7 @@ class PredictionDB:
         current_confidence = (recent_accuracy + avg_confidence) / 2
 
         # Get total prediction count
-        cursor.execute(
-            "SELECT COUNT(*) as count FROM predictions WHERE domain = ?", (domain,)
-        )
+        cursor.execute("SELECT COUNT(*) as count FROM predictions WHERE domain = ?", (domain,))
         prediction_count = cursor.fetchone()["count"]
 
         # Upsert confidence state
@@ -226,9 +232,7 @@ class PredictionDB:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT * FROM confidence_state WHERE domain = ?", (domain,)
-            )
+            cursor.execute("SELECT * FROM confidence_state WHERE domain = ?", (domain,))
             row = cursor.fetchone()
 
             if row:
@@ -290,9 +294,7 @@ class PredictionDB:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
-    def get_prediction_stats(
-        self, domain: str, days: int = 7
-    ) -> Dict[str, float]:
+    def get_prediction_stats(self, domain: str, days: int = 7) -> Dict[str, float]:
         """
         Get prediction statistics for a domain over last N days
 

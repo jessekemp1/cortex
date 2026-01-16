@@ -8,7 +8,6 @@ import os
 from typing import Any, Dict, Optional
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 
@@ -117,9 +116,7 @@ class EmailAgent(BaseAgent):
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             elif creds_path.exists():
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(creds_path), SCOPES
-                )
+                flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
                 creds = flow.run_local_server(port=0)
             else:
                 return AgentResult(

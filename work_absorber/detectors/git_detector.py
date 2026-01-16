@@ -5,15 +5,15 @@ This is the primary source of work signals as commits represent
 actual completed work with timestamps, authors, and file changes.
 """
 
-import subprocess
-import re
 import logging
+import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from .base import SignalDetector
 from ..models import WorkSignal, WorkSignalType
+from .base import SignalDetector
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,8 @@ class GitSignalDetector(SignalDetector):
     ) -> List[Dict[str, Any]]:
         """Get commits from repository."""
         cmd = [
-            "git", "log",
+            "git",
+            "log",
             "--pretty=format:%H|%an|%ae|%at|%s|%b<<<END>>>",
             "--numstat",
         ]
@@ -203,15 +204,17 @@ class GitSignalDetector(SignalDetector):
             except (ValueError, OSError):
                 commit_time = datetime.now()
 
-            commits.append({
-                "hash": commit_hash,
-                "author": author,
-                "email": email,
-                "timestamp": commit_time,
-                "subject": subject,
-                "body": body.strip(),
-                "files": files,
-            })
+            commits.append(
+                {
+                    "hash": commit_hash,
+                    "author": author,
+                    "email": email,
+                    "timestamp": commit_time,
+                    "subject": subject,
+                    "body": body.strip(),
+                    "files": files,
+                }
+            )
 
         return commits
 
@@ -307,8 +310,17 @@ class GitSignalDetector(SignalDetector):
 
         # Common project areas
         areas = [
-            "api", "cli", "ui", "database", "auth", "config",
-            "test", "docs", "build", "deploy", "security",
+            "api",
+            "cli",
+            "ui",
+            "database",
+            "auth",
+            "config",
+            "test",
+            "docs",
+            "build",
+            "deploy",
+            "security",
         ]
         for area in areas:
             if area in text:
@@ -352,7 +364,8 @@ class GitSignalDetector(SignalDetector):
 
         try:
             cmd = [
-                "git", "log",
+                "git",
+                "log",
                 f"{since_hash}..HEAD",
                 "--pretty=format:%H|%an|%ae|%at|%s|%b<<<END>>>",
                 "--numstat",

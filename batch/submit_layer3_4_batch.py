@@ -91,7 +91,7 @@ def submit_batch():
         client = BatchAPIClient(api_key=api_key)
         batch_id = client.submit_batch(
             requests=requests,
-            description="Cortex Intelligence Stack - Layers 3-4 Implementation"
+            description="Cortex Intelligence Stack - Layers 3-4 Implementation",
         )
 
         print(f"✅ Batch submitted successfully!")
@@ -106,7 +106,7 @@ def submit_batch():
             "layer3_tasks": len(layer3_requests),
             "layer4_tasks": len(layer4_requests),
             "description": "Layers 3-4 implementation",
-            "status": "submitted"
+            "status": "submitted",
         }
 
         info_path = Path.home() / ".cortex" / "batches" / f"{batch_id}.json"
@@ -139,6 +139,7 @@ def submit_batch():
     except Exception as e:
         print(f"❌ Error submitting batch: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

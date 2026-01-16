@@ -18,9 +18,7 @@ from integration.local_orchestrator import (
 from orchestrator import CortexOrchestrator, Recommendation
 
 
-@pytest.mark.skipif(
-    not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available"
-)
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
 def test_integration_available():
     """Test that integration can be initialized"""
     integration = CortexLocalOrchestratorIntegration()
@@ -29,9 +27,7 @@ def test_integration_available():
     assert isinstance(integration.is_available(), bool)
 
 
-@pytest.mark.skipif(
-    not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available"
-)
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
 def test_recommendation_to_agent_conversion():
     """Test that recommendations can be converted to agents"""
     adapter = RecommendationToAgentAdapter()
@@ -58,9 +54,7 @@ def test_recommendation_to_agent_conversion():
     assert "Test description" in agent["description"]
 
 
-@pytest.mark.skipif(
-    not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available"
-)
+@pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")
 def test_schedule_recommendation():
     """Test scheduling a recommendation"""
     integration = CortexLocalOrchestratorIntegration()
@@ -108,8 +102,8 @@ def test_cortex_generates_recommendation():
     if response.next_action:
         # May be different Recommendation classes, check for required attrs
         rec = response.next_action
-        assert hasattr(rec, 'title')
-        assert hasattr(rec, 'priority')
+        assert hasattr(rec, "title")
+        assert hasattr(rec, "priority")
 
 
 def test_feedback_loop_initialization():

@@ -68,9 +68,7 @@ class BatchAPIClient:
     def __init__(self, api_key: Optional[str] = None):
         """Initialize batch API client"""
         if anthropic is None:
-            raise ImportError(
-                "anthropic SDK not installed. Install with: pip install anthropic"
-            )
+            raise ImportError("anthropic SDK not installed. Install with: pip install anthropic")
 
         self.client = anthropic.Anthropic(api_key=api_key)
         self.batch_dir = Path.home() / ".cortex" / "batches"
@@ -167,13 +165,13 @@ class BatchAPIClient:
                 "errored": batch.request_counts.errored,
                 "expired": batch.request_counts.expired,
             }
-            
+
             # Calculate progress metrics
             total = sum(counts.values())
             completed = counts["succeeded"] + counts["errored"] + counts["expired"]
             progress_pct = (completed / total * 100) if total > 0 else 0.0
             error_rate = (counts["errored"] / total * 100) if total > 0 else 0.0
-            
+
             return {
                 "id": batch.id,
                 "status": batch.processing_status,
@@ -187,8 +185,12 @@ class BatchAPIClient:
             raise BatchResultError(f"Failed to get batch status: {e}") from e
 
     def poll_results(
-        self, batch_id: str, timeout_minutes: int = 1440, poll_interval_seconds: int = 5,
-        max_retries: int = 3, retry_backoff: float = 2.0
+        self,
+        batch_id: str,
+        timeout_minutes: int = 1440,
+        poll_interval_seconds: int = 5,
+        max_retries: int = 3,
+        retry_backoff: float = 2.0,
     ) -> List[BatchResult]:
         """
         Poll for batch results until complete or timeout with enhanced retry logic.
@@ -229,8 +231,7 @@ class BatchAPIClient:
                 elapsed = time.time() - start_time
                 if elapsed > timeout_seconds:
                     raise BatchTimeoutError(
-                        f"Batch {batch_id} did not complete within "
-                        f"{timeout_minutes} minutes"
+                        f"Batch {batch_id} did not complete within " f"{timeout_minutes} minutes"
                     )
 
                 # Log progress periodically
@@ -256,9 +257,7 @@ class BatchAPIClient:
                 # Enhanced retry logic with exponential backoff
                 retry_count += 1
                 if retry_count > max_retries:
-                    logger.error(
-                        f"Exhausted retries ({max_retries}) for batch {batch_id}: {e}"
-                    )
+                    logger.error(f"Exhausted retries ({max_retries}) for batch {batch_id}: {e}")
                     raise BatchResultError(
                         f"Failed to poll batch {batch_id} after {max_retries} retries: {e}"
                     ) from e
@@ -277,9 +276,7 @@ class BatchAPIClient:
                 retry_count += 1
                 if retry_count > max_retries:
                     logger.error(f"Unexpected error polling batch {batch_id}: {e}")
-                    raise BatchResultError(
-                        f"Unexpected error polling batch {batch_id}: {e}"
-                    ) from e
+                    raise BatchResultError(f"Unexpected error polling batch {batch_id}: {e}") from e
                 backoff_time = current_poll_interval * (retry_backoff ** (retry_count - 1))
                 logger.warning(
                     f"Unexpected error polling batch {batch_id} (attempt {retry_count}/{max_retries}): {e}. "
@@ -301,7 +298,7 @@ class BatchAPIClient:
         try:
             for result in self.client.beta.messages.batches.results(batch_id):
                 # Get status from result.result.type
-                status = result.result.type if hasattr(result.result, 'type') else 'unknown'
+                status = result.result.type if hasattr(result.result, "type") else "unknown"
 
                 batch_result = BatchResult(
                     custom_id=result.custom_id,
@@ -316,6 +313,37 @@ class BatchAPIClient:
         except anthropic.APIError as e:
             logger.error(f"Error retrieving batch results: {e}")
             raise BatchResultError(f"Failed to retrieve batch results: {e}") from e
+
+    def list_batches(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        List recent batch jobs from the API.
+
+        Args:
+            limit: Maximum number of batches to retrieve
+
+        Returns:
+            List of batch status dicts
+        """
+        try:
+            batches = []
+            for batch in self.client.beta.messages.batches.list(limit=limit):
+                batches.append(
+                    {
+                        "id": batch.id,
+                        "status": batch.processing_status,
+                        "created_at": batch.created_at,
+                        "request_counts": {
+                            "processing": batch.request_counts.processing,
+                            "succeeded": batch.request_counts.succeeded,
+                            "errored": batch.request_counts.errored,
+                            "expired": batch.request_counts.expired,
+                        },
+                    }
+                )
+            return batches
+        except anthropic.APIError as e:
+            logger.error(f"Error listing batches: {e}")
+            return []
 
     def _save_batch_metadata(self, batch_id: str, metadata: Dict[str, Any]):
         """Save batch metadata locally for tracking and recovery"""

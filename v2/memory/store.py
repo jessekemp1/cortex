@@ -6,16 +6,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
+from .decay import TemporalDecay
 from .types import (
-    TypedMemory,
-    Pattern,
-    Incident,
-    Skill,
     Decision,
     Goal,
+    Incident,
+    Pattern,
+    Skill,
+    TypedMemory,
     memory_from_dict,
 )
-from .decay import TemporalDecay
 
 
 class TypedMemoryStore:
@@ -100,12 +100,16 @@ class TypedMemoryStore:
     def _save_memories(self, path: Path, memories: List[TypedMemory]):
         """Save memories to a file."""
         with open(path, "w") as f:
-            json.dump({
-                "version": "2.0",
-                "type": memories[0].__class__.__name__.lower() if memories else "unknown",
-                "count": len(memories),
-                "memories": [m.to_dict() for m in memories]
-            }, f, indent=2)
+            json.dump(
+                {
+                    "version": "2.0",
+                    "type": (memories[0].__class__.__name__.lower() if memories else "unknown"),
+                    "count": len(memories),
+                    "memories": [m.to_dict() for m in memories],
+                },
+                f,
+                indent=2,
+            )
 
     # === CRUD Operations ===
 
@@ -186,7 +190,7 @@ class TypedMemoryStore:
         tags: Optional[List[str]] = None,
         min_confidence: float = 0.0,
         limit: int = 10,
-        apply_decay: bool = True
+        apply_decay: bool = True,
     ) -> List[TypedMemory]:
         """Smart query with intent detection.
 
@@ -220,17 +224,11 @@ class TypedMemoryStore:
 
         # Filter by projects
         if projects:
-            candidates = [
-                m for m in candidates
-                if any(p in m.projects for p in projects)
-            ]
+            candidates = [m for m in candidates if any(p in m.projects for p in projects)]
 
         # Filter by tags
         if tags:
-            candidates = [
-                m for m in candidates
-                if any(t in m.tags for t in tags)
-            ]
+            candidates = [m for m in candidates if any(t in m.tags for t in tags)]
 
         # Filter by confidence
         candidates = [m for m in candidates if m.confidence >= min_confidence]
@@ -336,7 +334,7 @@ class TypedMemoryStore:
             query=problem,
             types=["pattern"],
             projects=[project] if project else None,
-            limit=1
+            limit=1,
         )
         return results[0] if results else None
 
@@ -346,7 +344,7 @@ class TypedMemoryStore:
             query=f"how to {task}",
             types=["skill"],
             projects=[project] if project else None,
-            limit=1
+            limit=1,
         )
         return results[0] if results else None
 
@@ -356,7 +354,7 @@ class TypedMemoryStore:
             query=symptom,
             types=["incident"],
             projects=[project] if project else None,
-            limit=1
+            limit=1,
         )
         return results[0] if results else None
 
@@ -366,7 +364,7 @@ class TypedMemoryStore:
             query=f"why {topic}",
             types=["decision"],
             projects=[project] if project else None,
-            limit=1
+            limit=1,
         )
         return results[0] if results else None
 
@@ -383,7 +381,9 @@ class TypedMemoryStore:
             "skills": len(self.skills),
             "decisions": len(self.decisions),
             "by_project": self._count_by_project(all_memories),
-            "avg_confidence": sum(m.confidence for m in all_memories) / len(all_memories) if all_memories else 0,
+            "avg_confidence": (
+                sum(m.confidence for m in all_memories) / len(all_memories) if all_memories else 0
+            ),
             "total_uses": sum(m.use_count for m in all_memories),
         }
 

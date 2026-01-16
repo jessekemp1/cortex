@@ -18,7 +18,7 @@ import json
 import logging
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -87,10 +87,10 @@ class WeatherBackfillBatcher:
             if str(vortex_path) not in sys.path:
                 sys.path.insert(0, str(vortex_path))
 
-            from app.database.connection import db_connection
-            from app.database.models import WeatherForecast, Observation
-            from app.models.ensemble import EnhancedEnsemble
             from app.core.observations.ndbc_client import get_station_coordinates
+            from app.database.connection import db_connection
+            from app.database.models import Observation, WeatherForecast
+            from app.models.ensemble import EnhancedEnsemble
 
             self._vortex_imports = {
                 "db_connection": db_connection,
@@ -145,7 +145,9 @@ class WeatherBackfillBatcher:
 
         for context in contexts:
             try:
-                logger.info(f"Processing context: {context.context_id} (station {context.station_id})")
+                logger.info(
+                    f"Processing context: {context.context_id} (station {context.station_id})"
+                )
 
                 result = self._process_single_context(context)
                 results[context.context_id] = result
@@ -205,12 +207,13 @@ class WeatherBackfillBatcher:
         # Download ECMWF data via Herbie
         try:
             ecmwf_data = self._download_ecmwf_data(
-                lat, lon,
+                lat,
+                lon,
                 context.start_date,
                 context.end_date,
                 context.forecast_hours,
                 context.run_times,
-                context.source
+                context.source,
             )
             logger.info(f"Downloaded {len(ecmwf_data)} ECMWF forecasts")
         except Exception as e:
@@ -222,9 +225,7 @@ class WeatherBackfillBatcher:
         # Query observation timestamps
         try:
             observation_timestamps = self._query_observation_timestamps(
-                context.station_id,
-                context.start_date,
-                context.end_date
+                context.station_id, context.start_date, context.end_date
             )
             logger.info(f"Found {len(observation_timestamps)} observation timestamps")
         except Exception as e:
@@ -236,11 +237,7 @@ class WeatherBackfillBatcher:
         # Generate forecasts
         try:
             forecast_count = self._generate_forecasts(
-                context.station_id,
-                coords,
-                observation_timestamps,
-                ecmwf_data,
-                context
+                context.station_id, coords, observation_timestamps, ecmwf_data, context
             )
             logger.info(f"Generated {forecast_count} forecasts")
         except Exception as e:
@@ -269,7 +266,7 @@ class WeatherBackfillBatcher:
         end_date: datetime,
         forecast_hours: List[int],
         run_times: List[int],
-        source: str
+        source: str,
     ) -> Dict[datetime, Dict[str, Any]]:
         """
         Download ECMWF data via Herbie.
@@ -286,15 +283,12 @@ class WeatherBackfillBatcher:
 
             loader = HerbieECMWFLoader(
                 target_location=(lat, lon),
-                cache_dir=str(self.checkpoint_dir / "herbie_cache")
+                cache_dir=str(self.checkpoint_dir / "herbie_cache"),
             )
 
             # Fetch forecasts for date range
             df = loader.fetch_forecasts_for_date_range(
-                start_date,
-                end_date,
-                forecast_hours=forecast_hours,
-                run_times=run_times
+                start_date, end_date, forecast_hours=forecast_hours, run_times=run_times
             )
 
             # Convert to dict for easy lookup
@@ -310,10 +304,7 @@ class WeatherBackfillBatcher:
             raise
 
     def _query_observation_timestamps(
-        self,
-        station_id: str,
-        start_date: datetime,
-        end_date: datetime
+        self, station_id: str, start_date: datetime, end_date: datetime
     ) -> List[datetime]:
         """
         Query observation timestamps from VortexV2 database.
@@ -348,7 +339,7 @@ class WeatherBackfillBatcher:
         coords: Tuple[float, float],
         observation_timestamps: List[datetime],
         ecmwf_data: Dict[Tuple, Dict[str, Any]],
-        context: WeatherBackfillContext
+        context: WeatherBackfillContext,
     ) -> int:
         """
         Generate forecasts for observation timestamps using ECMWF data.
@@ -380,7 +371,9 @@ class WeatherBackfillBatcher:
                     # Find matching ECMWF data
                     # Look for nearest run time (00z or 12z)
                     run_hour = 0 if forecast_time.hour < 12 else 12
-                    run_time = forecast_time.replace(hour=run_hour, minute=0, second=0, microsecond=0)
+                    run_time = forecast_time.replace(
+                        hour=run_hour, minute=0, second=0, microsecond=0
+                    )
 
                     key = (run_time, lead_hours)
                     ecmwf_forecast = ecmwf_data.get(key)
@@ -407,7 +400,7 @@ class WeatherBackfillBatcher:
                             "target_time": obs_time.isoformat(),
                             "run_time": str(run_time),
                             "herbie_source": context.source,
-                        }
+                        },
                     )
 
                     batch.append(forecast)

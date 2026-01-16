@@ -137,13 +137,15 @@ class RecommendationEngine:
             project = goal.get("project")
             health = project_health.get(project, {}) if project else {}
 
-            priorities.append({
-                "project": project or "General",
-                "priority": "HIGH",
-                "reason": f"Uncompleted goal: {goal['text'][:60]}...",
-                "health_score": health.get("score"),
-                "source": "goals",
-            })
+            priorities.append(
+                {
+                    "project": project or "General",
+                    "priority": "HIGH",
+                    "reason": f"Uncompleted goal: {goal['text'][:60]}...",
+                    "health_score": health.get("score"),
+                    "source": "goals",
+                }
+            )
 
         # Add at-risk projects from health analysis
         at_risk = health_summary.get("aggregate", {}).get("at_risk_projects", [])
@@ -153,20 +155,24 @@ class RecommendationEngine:
                 continue
 
             health = project_health.get(project, {})
-            priorities.append({
-                "project": project,
-                "priority": "MEDIUM",
-                "reason": f"Health declining: {health.get('assessment', 'unknown')}",
-                "health_score": health.get("score"),
-                "source": "health",
-            })
+            priorities.append(
+                {
+                    "project": project,
+                    "priority": "MEDIUM",
+                    "reason": f"Health declining: {health.get('assessment', 'unknown')}",
+                    "health_score": health.get("score"),
+                    "source": "health",
+                }
+            )
 
         # Sort by priority and health
         priority_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
-        priorities.sort(key=lambda x: (
-            priority_order.get(x["priority"], 2),
-            -(x.get("health_score") or 100),
-        ))
+        priorities.sort(
+            key=lambda x: (
+                priority_order.get(x["priority"], 2),
+                -(x.get("health_score") or 100),
+            )
+        )
 
         return priorities[:limit]
 
@@ -190,45 +196,53 @@ class RecommendationEngine:
         overall = health_summary.get("overall", {})
 
         if overall.get("score", 100) < 50:
-            alerts.append({
-                "severity": "HIGH",
-                "type": "health",
-                "message": f"Portfolio health is critical: {overall.get('score')}/100",
-                "recommendation": "Review recent commits and address test failures",
-            })
+            alerts.append(
+                {
+                    "severity": "HIGH",
+                    "type": "health",
+                    "message": f"Portfolio health is critical: {overall.get('score')}/100",
+                    "recommendation": "Review recent commits and address test failures",
+                }
+            )
 
         # Check for stale commits
         if overall.get("commits", 0) == 0:
-            alerts.append({
-                "severity": "MEDIUM",
-                "type": "activity",
-                "message": "No commits in analysis period",
-                "recommendation": "Resume development activity",
-            })
+            alerts.append(
+                {
+                    "severity": "MEDIUM",
+                    "type": "activity",
+                    "message": "No commits in analysis period",
+                    "recommendation": "Resume development activity",
+                }
+            )
 
         # Check uncommitted files
         uncommitted = overall.get("uncommitted", 0)
         if uncommitted > 20:
-            alerts.append({
-                "severity": "LOW",
-                "type": "uncommitted",
-                "message": f"{uncommitted} uncommitted files",
-                "recommendation": "Commit or stash pending changes",
-            })
+            alerts.append(
+                {
+                    "severity": "LOW",
+                    "type": "uncommitted",
+                    "message": f"{uncommitted} uncommitted files",
+                    "recommendation": "Commit or stash pending changes",
+                }
+            )
 
         # Check dependency health for key projects
         for project in ["cortex", "VortexV2"]:
             dep_health = self._get_dependency_health(project)
             if dep_health and dep_health.get("total_score", 100) < 60:
                 concerns = dep_health.get("concerns", [])
-                alerts.append({
-                    "severity": "MEDIUM",
-                    "type": "dependencies",
-                    "project": project,
-                    "message": f"{project} dependency health: {dep_health.get('total_score')}/100",
-                    "concerns": concerns[:2],
-                    "recommendation": "Review and consolidate dependencies",
-                })
+                alerts.append(
+                    {
+                        "severity": "MEDIUM",
+                        "type": "dependencies",
+                        "project": project,
+                        "message": f"{project} dependency health: {dep_health.get('total_score')}/100",
+                        "concerns": concerns[:2],
+                        "recommendation": "Review and consolidate dependencies",
+                    }
+                )
 
         # Sort by severity
         severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
@@ -337,7 +351,11 @@ if __name__ == "__main__":
         else:
             print(f"\n⚠️  Risk Alerts ({len(alerts)})")
             for alert in alerts:
-                icon = "🔴" if alert["severity"] == "HIGH" else "🟡" if alert["severity"] == "MEDIUM" else "🟢"
+                icon = (
+                    "🔴"
+                    if alert["severity"] == "HIGH"
+                    else "🟡" if alert["severity"] == "MEDIUM" else "🟢"
+                )
                 print(f"   {icon} [{alert['severity']}] {alert['message']}")
                 print(f"      → {alert['recommendation']}")
 

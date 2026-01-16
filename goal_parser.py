@@ -38,7 +38,8 @@ class Goal:
         if self.id is None:
             # Create ID from title: lowercase, replace spaces with underscores, limit length
             import re
-            self.id = re.sub(r'[^a-z0-9_]', '', self.title.lower().replace(' ', '_'))[:50]
+
+            self.id = re.sub(r"[^a-z0-9_]", "", self.title.lower().replace(" ", "_"))[:50]
 
         # Infer urgency from priority
         if self.urgency == "medium" and self.priority:
@@ -144,9 +145,7 @@ class GoalParser:
             start_pos = match.end()
             next_goal = re.search(r"####\s*\d+\.", section_content[start_pos:])
             if next_goal:
-                goal_content = section_content[
-                    start_pos : start_pos + next_goal.start()
-                ]
+                goal_content = section_content[start_pos : start_pos + next_goal.start()]
             else:
                 goal_content = section_content[start_pos:]
 
@@ -204,10 +203,7 @@ class GoalParser:
         for action_match in re.finditer(action_pattern, content, re.MULTILINE):
             action = action_match.group(1).strip()
             # Skip if it's a status or metadata line
-            if not any(
-                action.startswith(skip)
-                for skip in ["Status:", "Impact:", "Gap:", "Tool"]
-            ):
+            if not any(action.startswith(skip) for skip in ["Status:", "Impact:", "Gap:", "Tool"]):
                 actions.append(action)
 
         # Extract success criteria (format: **Success Criteria:** value)
@@ -415,18 +411,12 @@ class GoalParser:
         all_goals = self.parse_all_goals()
 
         # Filter to pending or in_progress
-        active_goals = [
-            g for g in all_goals
-            if g.status in ['pending', 'in_progress']
-        ]
+        active_goals = [g for g in all_goals if g.status in ["pending", "in_progress"]]
 
         # Sort by priority (A > B > C)
-        priority_order = {'A': 0, 'B': 1, 'C': 2}
+        priority_order = {"A": 0, "B": 1, "C": 2}
 
-        sorted_goals = sorted(
-            active_goals,
-            key=lambda g: priority_order.get(g.priority, 99)
-        )
+        sorted_goals = sorted(active_goals, key=lambda g: priority_order.get(g.priority, 99))
 
         return sorted_goals[:limit]
 
@@ -439,9 +429,7 @@ def main():
     parser = argparse.ArgumentParser(description="Parse goals from ACTION_PLAN.md")
     parser.add_argument("--path", help="Path to ACTION_PLAN.md")
     parser.add_argument("--json", action="store_true", help="JSON output")
-    parser.add_argument(
-        "--priority", choices=["A", "B", "C"], help="Filter by priority"
-    )
+    parser.add_argument("--priority", choices=["A", "B", "C"], help="Filter by priority")
     args = parser.parse_args()
 
     goal_parser = GoalParser(Path(args.path) if args.path else None)

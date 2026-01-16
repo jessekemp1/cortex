@@ -927,6 +927,53 @@ class Lesson:
 - Health data: On daily briefing generation
 - Spec index: On project scan
 
+### 4.5 Rule Tracking System
+
+**Purpose**: Track adherence to behavioral rules and correlate with outcomes.
+
+**Rule Events** (`~/.cortex/rule_events.jsonl`):
+
+```jsonl
+{"event_id": "rule_read_before_edit_20260115_...", "timestamp": "ISO8601", "rule_name": "read_before_edit", "event_type": "violation", "context": {"file_path": "/path/to/file", "tool": "Edit"}, "message": "Edit attempted on unread file", "project": "/path/to/project", "session_id": null}
+```
+
+**Event Types**:
+- `violation`: Rule was broken
+- `adherence`: Rule was followed (sampled)
+- `warning`: Potential issue detected
+
+**Tracked Rules**:
+
+| Rule | Description | Trigger |
+|------|-------------|---------|
+| `read_before_edit` | Must read file before editing | PostToolUse on Edit/Write |
+
+**Hook Implementation** (`.claude/hooks/rule_adherence_hook.py`):
+- Tracks which files have been read in session
+- Logs violations when Edit called without prior Read
+- Outputs JSON warning for Claude Code UI
+
+**Anti-Pattern Mining**:
+
+```bash
+# Mine patterns from failed outcomes
+python cortex/bridge.py mine-anti-patterns --days 30
+
+# Preview without saving
+python cortex/bridge.py mine-anti-patterns --days 30 --dry-run
+```
+
+**Mining Logic**:
+1. Load outcomes.jsonl and rule_events.jsonl
+2. Identify recommendation types with >30% failure rate
+3. Identify rules with >3 violations
+4. Correlate violations occurring same day as failures
+5. Extract patterns and append to anti-patterns.md
+
+**Integration with Session Context**:
+- `session_start_context.py` loads anti-patterns at session start
+- Known patterns displayed as warnings to Claude
+
 ---
 
 ## 5. CLI Reference

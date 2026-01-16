@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import structlog
-
 from cortex.runtime.storage.history import ExecutionHistory
 
 logger = structlog.get_logger()
@@ -50,11 +49,7 @@ class MetricsCollector:
         failed = total - successful
         success_rate = (successful / total * 100) if total > 0 else 0.0
 
-        durations = [
-            e.get("duration_seconds", 0)
-            for e in executions
-            if e.get("duration_seconds")
-        ]
+        durations = [e.get("duration_seconds", 0) for e in executions if e.get("duration_seconds")]
         avg_duration = sum(durations) / len(durations) if durations else 0.0
 
         # Count unique agents
@@ -106,8 +101,7 @@ class MetricsCollector:
             e
             for e in executions
             if e.get("created_at")
-            and datetime.fromisoformat(e["created_at"].replace("Z", "+00:00"))
-            >= week_ago
+            and datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")) >= week_ago
         ]
 
         older_executions = [
@@ -171,9 +165,7 @@ class MetricsCollector:
             success_rate = (successful / total * 100) if total > 0 else 0.0
 
             durations = [
-                e.get("duration_seconds", 0)
-                for e in agent_execs
-                if e.get("duration_seconds")
+                e.get("duration_seconds", 0) for e in agent_execs if e.get("duration_seconds")
             ]
             avg_duration = sum(durations) / len(durations) if durations else 0.0
 

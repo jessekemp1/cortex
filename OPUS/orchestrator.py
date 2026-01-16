@@ -63,12 +63,8 @@ class ConverxOrchestrator:
         # Initialize tools (gracefully handle missing tools)
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = (
-            RecommendationEngine() if RecommendationEngine else None
-        )
-        self.context_intel = (
-            ContextIntelligence(root_dir) if ContextIntelligence else None
-        )
+        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
+        self.context_intel = ContextIntelligence(root_dir) if ContextIntelligence else None
 
     def get_next_action(
         self,
@@ -92,9 +88,7 @@ class ConverxOrchestrator:
         if self.project_scanner:
             try:
                 repos = self.project_scanner.find_git_repos()
-                project_activity = [
-                    self.project_scanner.analyze_project(repo) for repo in repos
-                ]
+                project_activity = [self.project_scanner.analyze_project(repo) for repo in repos]
             except Exception as e:
                 print(f"Warning: Could not scan projects: {e}", file=sys.stderr)
 
@@ -115,9 +109,7 @@ class ConverxOrchestrator:
                     limit=limit + 1,  # +1 for next action
                 )
             except Exception as e:
-                print(
-                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
-                )
+                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
 
         # 4. Filter by project if specified
         if project_filter and recommendations:
@@ -144,9 +136,7 @@ class ConverxOrchestrator:
 
         # 7. Extract next action and alternatives
         next_action = recommendations[0] if recommendations else None
-        alternative_actions = (
-            recommendations[1 : limit + 1] if len(recommendations) > 1 else []
-        )
+        alternative_actions = recommendations[1 : limit + 1] if len(recommendations) > 1 else []
 
         return StrategistResponse(
             current_state=current_state,

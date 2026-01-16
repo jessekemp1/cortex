@@ -12,7 +12,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import structlog
 import uvicorn
-
 from cortex.runtime.agents.base import BaseAgent
 from cortex.runtime.agents.loader import DynamicAgentLoader
 from cortex.runtime.batch.manager import BatchManager
@@ -112,7 +111,7 @@ class RuntimeExecutor:
         if webhook_path:
             normalized = webhook_path.lstrip("/")
             if normalized.startswith("webhooks/"):
-                normalized = normalized[len("webhooks/"):]
+                normalized = normalized[len("webhooks/") :]
 
             if self.api_app is None:
                 from cortex.runtime.api import create_api_app
@@ -203,9 +202,7 @@ class RuntimeExecutor:
             except Exception as e:
                 logger.error("success_hook_failed", error=str(e))
 
-    def trigger_agent(
-        self, agent_id: str, context: Optional[Dict[str, Any]] = None
-    ) -> AgentResult:
+    def trigger_agent(self, agent_id: str, context: Optional[Dict[str, Any]] = None) -> AgentResult:
         """Manually trigger an agent.
 
         Args:

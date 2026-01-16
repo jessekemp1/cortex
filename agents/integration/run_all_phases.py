@@ -80,9 +80,7 @@ def main():
 
     for phase_result in results["execution_log"]:
         status_icon = "✓" if phase_result["success"] else "✗"
-        print(
-            f"{status_icon} Phase {phase_result['phase']}: {phase_result['phase_name']}"
-        )
+        print(f"{status_icon} Phase {phase_result['phase']}: {phase_result['phase_name']}")
         print(f"   Status: {phase_result['message']}")
         if phase_result.get("errors"):
             print(f"   Errors: {len(phase_result['errors'])}")

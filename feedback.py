@@ -32,9 +32,7 @@ class OutcomeEntry:
     timestamp: str
     recommendation_id: str  # Unique ID for the recommendation
     recommendation_title: str
-    recommendation_type: (
-        str  # e.g., "goal_progress", "blocker_resolution", "project_health"
-    )
+    recommendation_type: str  # e.g., "goal_progress", "blocker_resolution", "project_health"
     priority: str  # A, B, C
     confidence: float  # 0.0-1.0
     followed: bool  # Did user follow the recommendation?
@@ -46,9 +44,7 @@ class OutcomeEntry:
 class FeedbackLogger:
     """Logs user feedback for system calibration."""
 
-    def __init__(
-        self, log_file: Optional[Path] = None, outcomes_file: Optional[Path] = None
-    ):
+    def __init__(self, log_file: Optional[Path] = None, outcomes_file: Optional[Path] = None):
         if log_file is None:
             # Default to ~/.cortex/feedback.json
             home = Path.home()
@@ -68,9 +64,7 @@ class FeedbackLogger:
 
         self.log_file = log_file
         self.outcomes_file = (
-            outcomes_file
-            if outcomes_file
-            else Path.home() / ".cortex" / "outcomes.jsonl"
+            outcomes_file if outcomes_file else Path.home() / ".cortex" / "outcomes.jsonl"
         )
         self._ensure_log_exists()
         self._ensure_outcomes_exists()

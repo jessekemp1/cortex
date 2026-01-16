@@ -9,23 +9,23 @@ Provides SQLite persistence with caching for:
 - Absorption reports (audit trail)
 """
 
-import sqlite3
 import json
 import logging
+import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
 
 from .models import (
-    WorkSignal,
-    WorkItem,
-    ProgressEntry,
-    PlanDrift,
     AbsorptionReport,
+    DriftType,
+    PlanDrift,
+    ProgressEntry,
+    WorkItem,
+    WorkSignal,
     WorkSignalType,
     WorkStatus,
-    DriftType,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,8 @@ class WorkAbsorberStorage:
     def _init_db(self) -> None:
         """Initialize database schema."""
         with self._get_connection() as conn:
-            conn.executescript("""
+            conn.executescript(
+                """
                 -- Work signals (raw detections)
                 CREATE TABLE IF NOT EXISTS work_signals (
                     id TEXT PRIMARY KEY,
@@ -177,7 +178,8 @@ class WorkAbsorberStorage:
                 CREATE INDEX IF NOT EXISTS idx_progress_plan_step ON progress_entries(plan_step_id);
                 CREATE INDEX IF NOT EXISTS idx_drifts_project ON plan_drifts(project);
                 CREATE INDEX IF NOT EXISTS idx_drifts_resolved ON plan_drifts(resolved);
-            """)
+            """
+            )
 
     @contextmanager
     def _get_connection(self):
@@ -201,50 +203,15 @@ class WorkAbsorberStorage:
         """Save a work signal to the database."""
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO work_signals
                     (id, signal_type, source_path, project, timestamp, title, description,
                      metadata, commit_hash, author, files_changed, achievements, scope,
                      batch_id, tokens_used, processed, absorbed_into)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    signal.id,
-                    signal.signal_type.value,
-                    signal.source_path,
-                    signal.project,
-                    signal.timestamp.isoformat(),
-                    signal.title,
-                    signal.description,
-                    json.dumps(signal.metadata),
-                    signal.commit_hash,
-                    signal.author,
-                    json.dumps(signal.files_changed),
-                    json.dumps(signal.achievements),
-                    signal.scope,
-                    signal.batch_id,
-                    signal.tokens_used,
-                    1 if signal.processed else 0,
-                    signal.absorbed_into,
-                ))
-            self._invalidate_cache("signals")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save signal {signal.id}: {e}")
-            return False
-
-    def save_signals_batch(self, signals: List[WorkSignal]) -> int:
-        """Save multiple signals in a batch. Returns count saved."""
-        saved = 0
-        with self._get_connection() as conn:
-            for signal in signals:
-                try:
-                    conn.execute("""
-                        INSERT OR REPLACE INTO work_signals
-                        (id, signal_type, source_path, project, timestamp, title, description,
-                         metadata, commit_hash, author, files_changed, achievements, scope,
-                         batch_id, tokens_used, processed, absorbed_into)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                """,
+                    (
                         signal.id,
                         signal.signal_type.value,
                         signal.source_path,
@@ -262,7 +229,48 @@ class WorkAbsorberStorage:
                         signal.tokens_used,
                         1 if signal.processed else 0,
                         signal.absorbed_into,
-                    ))
+                    ),
+                )
+            self._invalidate_cache("signals")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save signal {signal.id}: {e}")
+            return False
+
+    def save_signals_batch(self, signals: List[WorkSignal]) -> int:
+        """Save multiple signals in a batch. Returns count saved."""
+        saved = 0
+        with self._get_connection() as conn:
+            for signal in signals:
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO work_signals
+                        (id, signal_type, source_path, project, timestamp, title, description,
+                         metadata, commit_hash, author, files_changed, achievements, scope,
+                         batch_id, tokens_used, processed, absorbed_into)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                        (
+                            signal.id,
+                            signal.signal_type.value,
+                            signal.source_path,
+                            signal.project,
+                            signal.timestamp.isoformat(),
+                            signal.title,
+                            signal.description,
+                            json.dumps(signal.metadata),
+                            signal.commit_hash,
+                            signal.author,
+                            json.dumps(signal.files_changed),
+                            json.dumps(signal.achievements),
+                            signal.scope,
+                            signal.batch_id,
+                            signal.tokens_used,
+                            1 if signal.processed else 0,
+                            signal.absorbed_into,
+                        ),
+                    )
                     saved += 1
                 except Exception as e:
                     logger.warning(f"Failed to save signal {signal.id}: {e}")
@@ -272,9 +280,7 @@ class WorkAbsorberStorage:
     def get_signal(self, signal_id: str) -> Optional[WorkSignal]:
         """Get a signal by ID."""
         with self._get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM work_signals WHERE id = ?", (signal_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM work_signals WHERE id = ?", (signal_id,)).fetchone()
             if row:
                 return self._row_to_signal(row)
         return None
@@ -290,12 +296,12 @@ class WorkAbsorberStorage:
             if project:
                 rows = conn.execute(
                     "SELECT * FROM work_signals WHERE timestamp >= ? AND project = ? ORDER BY timestamp DESC",
-                    (since.isoformat(), project)
+                    (since.isoformat(), project),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT * FROM work_signals WHERE timestamp >= ? ORDER BY timestamp DESC",
-                    (since.isoformat(),)
+                    (since.isoformat(),),
                 ).fetchall()
 
         signals = [self._row_to_signal(row) for row in rows]
@@ -315,7 +321,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             conn.execute(
                 "UPDATE work_signals SET processed = 1, absorbed_into = ? WHERE id = ?",
-                (work_item_id, signal_id)
+                (work_item_id, signal_id),
             )
         self._invalidate_cache("signals")
         return True
@@ -333,7 +339,7 @@ class WorkAbsorberStorage:
             metadata=json.loads(row["metadata"]) if row["metadata"] else {},
             commit_hash=row["commit_hash"],
             author=row["author"],
-            files_changed=json.loads(row["files_changed"]) if row["files_changed"] else [],
+            files_changed=(json.loads(row["files_changed"]) if row["files_changed"] else []),
             achievements=json.loads(row["achievements"]) if row["achievements"] else [],
             scope=row["scope"],
             batch_id=row["batch_id"],
@@ -350,31 +356,34 @@ class WorkAbsorberStorage:
         """Save a work item to the database."""
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO work_items
                     (id, project, title, description, first_seen, last_activity,
                      signal_ids, signal_count, status, plan_step_id, correlation_confidence,
                      files_touched, estimated_effort_hours, tags, scope, metadata, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    item.id,
-                    item.project,
-                    item.title,
-                    item.description,
-                    item.first_seen.isoformat(),
-                    item.last_activity.isoformat(),
-                    json.dumps(item.signal_ids),
-                    item.signal_count,
-                    item.status.value,
-                    item.plan_step_id,
-                    item.correlation_confidence,
-                    json.dumps(item.files_touched),
-                    item.estimated_effort_hours,
-                    json.dumps(item.tags),
-                    item.scope,
-                    json.dumps(item.metadata),
-                    datetime.now().isoformat(),
-                ))
+                """,
+                    (
+                        item.id,
+                        item.project,
+                        item.title,
+                        item.description,
+                        item.first_seen.isoformat(),
+                        item.last_activity.isoformat(),
+                        json.dumps(item.signal_ids),
+                        item.signal_count,
+                        item.status.value,
+                        item.plan_step_id,
+                        item.correlation_confidence,
+                        json.dumps(item.files_touched),
+                        item.estimated_effort_hours,
+                        json.dumps(item.tags),
+                        item.scope,
+                        json.dumps(item.metadata),
+                        datetime.now().isoformat(),
+                    ),
+                )
             self._invalidate_cache("items")
             return True
         except Exception as e:
@@ -384,9 +393,7 @@ class WorkAbsorberStorage:
     def get_work_item(self, item_id: str) -> Optional[WorkItem]:
         """Get a work item by ID."""
         with self._get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM work_items WHERE id = ?", (item_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM work_items WHERE id = ?", (item_id,)).fetchone()
             if row:
                 return self._row_to_work_item(row)
         return None
@@ -401,7 +408,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM work_items WHERE project = ? ORDER BY last_activity DESC",
-                (project,)
+                (project,),
             ).fetchall()
 
         items = [self._row_to_work_item(row) for row in rows]
@@ -413,7 +420,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM work_items WHERE status = ? ORDER BY last_activity DESC",
-                (status.value,)
+                (status.value,),
             ).fetchall()
         return [self._row_to_work_item(row) for row in rows]
 
@@ -425,8 +432,7 @@ class WorkAbsorberStorage:
         """Get all work items, ordered by last activity."""
         with self._get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM work_items ORDER BY last_activity DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM work_items ORDER BY last_activity DESC LIMIT ?", (limit,)
             ).fetchall()
         return [self._row_to_work_item(row) for row in rows]
 
@@ -435,7 +441,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM work_items WHERE last_activity >= ? ORDER BY last_activity DESC",
-                (since.isoformat(),)
+                (since.isoformat(),),
             ).fetchall()
         return [self._row_to_work_item(row) for row in rows]
 
@@ -453,7 +459,7 @@ class WorkAbsorberStorage:
             status=WorkStatus(row["status"]),
             plan_step_id=row["plan_step_id"],
             correlation_confidence=row["correlation_confidence"] or 0.0,
-            files_touched=json.loads(row["files_touched"]) if row["files_touched"] else [],
+            files_touched=(json.loads(row["files_touched"]) if row["files_touched"] else []),
             estimated_effort_hours=row["estimated_effort_hours"] or 0.0,
             tags=json.loads(row["tags"]) if row["tags"] else [],
             scope=row["scope"],
@@ -468,26 +474,29 @@ class WorkAbsorberStorage:
         """Save a progress entry."""
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO progress_entries
                     (id, work_item_id, plan_step_id, project, timestamp,
                      progress_delta, cumulative_progress, evidence_type,
                      evidence_summary, evidence_path, confidence, verified)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    entry.id,
-                    entry.work_item_id,
-                    entry.plan_step_id,
-                    entry.project,
-                    entry.timestamp.isoformat(),
-                    entry.progress_delta,
-                    entry.cumulative_progress,
-                    entry.evidence_type,
-                    entry.evidence_summary,
-                    entry.evidence_path,
-                    entry.confidence,
-                    1 if entry.verified else 0,
-                ))
+                """,
+                    (
+                        entry.id,
+                        entry.work_item_id,
+                        entry.plan_step_id,
+                        entry.project,
+                        entry.timestamp.isoformat(),
+                        entry.progress_delta,
+                        entry.cumulative_progress,
+                        entry.evidence_type,
+                        entry.evidence_summary,
+                        entry.evidence_path,
+                        entry.confidence,
+                        1 if entry.verified else 0,
+                    ),
+                )
             return True
         except Exception as e:
             logger.error(f"Failed to save progress entry {entry.id}: {e}")
@@ -498,7 +507,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM progress_entries WHERE plan_step_id = ? ORDER BY timestamp",
-                (plan_step_id,)
+                (plan_step_id,),
             ).fetchall()
         return [self._row_to_progress(row) for row in rows]
 
@@ -507,7 +516,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM progress_entries WHERE project = ? ORDER BY timestamp DESC",
-                (project,)
+                (project,),
             ).fetchall()
         return [self._row_to_progress(row) for row in rows]
 
@@ -536,26 +545,29 @@ class WorkAbsorberStorage:
         """Save a plan drift."""
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO plan_drifts
                     (id, project, detected_at, drift_type, severity,
                      plan_step_id, work_item_id, description, suggested_action,
                      resolved, resolved_at, resolution_notes)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    drift.id,
-                    drift.project,
-                    drift.detected_at.isoformat(),
-                    drift.drift_type.value,
-                    drift.severity,
-                    drift.plan_step_id,
-                    drift.work_item_id,
-                    drift.description,
-                    drift.suggested_action,
-                    1 if drift.resolved else 0,
-                    drift.resolved_at.isoformat() if drift.resolved_at else None,
-                    drift.resolution_notes,
-                ))
+                """,
+                    (
+                        drift.id,
+                        drift.project,
+                        drift.detected_at.isoformat(),
+                        drift.drift_type.value,
+                        drift.severity,
+                        drift.plan_step_id,
+                        drift.work_item_id,
+                        drift.description,
+                        drift.suggested_action,
+                        1 if drift.resolved else 0,
+                        drift.resolved_at.isoformat() if drift.resolved_at else None,
+                        drift.resolution_notes,
+                    ),
+                )
             self._invalidate_cache("drifts")
             return True
         except Exception as e:
@@ -573,7 +585,7 @@ class WorkAbsorberStorage:
             if project:
                 rows = conn.execute(
                     "SELECT * FROM plan_drifts WHERE resolved = 0 AND project = ? ORDER BY detected_at DESC",
-                    (project,)
+                    (project,),
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -589,7 +601,7 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             conn.execute(
                 "UPDATE plan_drifts SET resolved = 1, resolved_at = ?, resolution_notes = ? WHERE id = ?",
-                (datetime.now().isoformat(), notes, drift_id)
+                (datetime.now().isoformat(), notes, drift_id),
             )
         self._invalidate_cache("drifts")
         return True
@@ -607,7 +619,9 @@ class WorkAbsorberStorage:
             description=row["description"] or "",
             suggested_action=row["suggested_action"] or "",
             resolved=bool(row["resolved"]),
-            resolved_at=datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
+            resolved_at=(
+                datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None
+            ),
             resolution_notes=row["resolution_notes"] or "",
         )
 
@@ -619,25 +633,28 @@ class WorkAbsorberStorage:
         """Save an absorption report."""
         try:
             with self._get_connection() as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO absorption_reports
                     (id, started_at, completed_at, signals_detected, signals_absorbed,
                      work_items_created, work_items_updated, correlations_made,
                      drifts_detected, by_project, errors)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    report.id,
-                    report.started_at.isoformat(),
-                    report.completed_at.isoformat(),
-                    report.signals_detected,
-                    report.signals_absorbed,
-                    report.work_items_created,
-                    report.work_items_updated,
-                    report.correlations_made,
-                    report.drifts_detected,
-                    json.dumps(report.by_project),
-                    json.dumps(report.errors),
-                ))
+                """,
+                    (
+                        report.id,
+                        report.started_at.isoformat(),
+                        report.completed_at.isoformat(),
+                        report.signals_detected,
+                        report.signals_absorbed,
+                        report.work_items_created,
+                        report.work_items_updated,
+                        report.correlations_made,
+                        report.drifts_detected,
+                        json.dumps(report.by_project),
+                        json.dumps(report.errors),
+                    ),
+                )
             return True
         except Exception as e:
             logger.error(f"Failed to save report {report.id}: {e}")
@@ -660,7 +677,7 @@ class WorkAbsorberStorage:
                     work_items_updated=row["work_items_updated"] or 0,
                     correlations_made=row["correlations_made"] or 0,
                     drifts_detected=row["drifts_detected"] or 0,
-                    by_project=json.loads(row["by_project"]) if row["by_project"] else {},
+                    by_project=(json.loads(row["by_project"]) if row["by_project"] else {}),
                     errors=json.loads(row["errors"]) if row["errors"] else [],
                 )
         return None
@@ -682,17 +699,18 @@ class WorkAbsorberStorage:
     def set_last_absorption_time(self, timestamp: datetime) -> None:
         """Set the timestamp of the last absorption run."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO sync_state (key, value, updated_at)
                 VALUES ('last_absorption', ?, ?)
-            """, (timestamp.isoformat(), datetime.now().isoformat()))
+            """,
+                (timestamp.isoformat(), datetime.now().isoformat()),
+            )
 
     def get_sync_state(self, key: str) -> Optional[str]:
         """Get a sync state value."""
         with self._get_connection() as conn:
-            row = conn.execute(
-                "SELECT value FROM sync_state WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM sync_state WHERE key = ?", (key,)).fetchone()
             if row:
                 return row["value"]
         return None
@@ -700,10 +718,13 @@ class WorkAbsorberStorage:
     def set_sync_state(self, key: str, value: str) -> None:
         """Set a sync state value."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO sync_state (key, value, updated_at)
                 VALUES (?, ?, ?)
-            """, (key, value, datetime.now().isoformat()))
+            """,
+                (key, value, datetime.now().isoformat()),
+            )
 
     # ─────────────────────────────────────────────────────────────────
     # Cache Operations
@@ -742,13 +763,17 @@ class WorkAbsorberStorage:
         with self._get_connection() as conn:
             signal_count = conn.execute("SELECT COUNT(*) FROM work_signals").fetchone()[0]
             item_count = conn.execute("SELECT COUNT(*) FROM work_items").fetchone()[0]
-            drift_count = conn.execute("SELECT COUNT(*) FROM plan_drifts WHERE resolved = 0").fetchone()[0]
+            drift_count = conn.execute(
+                "SELECT COUNT(*) FROM plan_drifts WHERE resolved = 0"
+            ).fetchone()[0]
 
             # By project
             project_stats = {}
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT project, COUNT(*) as count FROM work_items GROUP BY project
-            """).fetchall()
+            """
+            ).fetchall()
             for row in rows:
                 project_stats[row["project"]] = row["count"]
 

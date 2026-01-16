@@ -4,11 +4,12 @@ Automatic Calibration with Smart Defaults
 Reduces manual prompts from 8 to 0-1 by auto-detecting context
 """
 
-import subprocess
 import json
+import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 from metrics_tracker import MetricsTracker
 
 
@@ -36,23 +37,20 @@ def get_changed_files():
             ["git", "diff", "--name-only", "HEAD"],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
         if result.returncode == 0 and result.stdout:
-            return [f for f in result.stdout.strip().split('\n') if f]
+            return [f for f in result.stdout.strip().split("\n") if f]
     except:
         pass
 
     # Fallback: check git status for unstaged changes
     try:
         result = subprocess.run(
-            ["git", "status", "--short"],
-            capture_output=True,
-            text=True,
-            check=False
+            ["git", "status", "--short"], capture_output=True, text=True, check=False
         )
         if result.returncode == 0 and result.stdout:
-            lines = result.stdout.strip().split('\n')
+            lines = result.stdout.strip().split("\n")
             return [line.split()[-1] for line in lines if line]
     except:
         pass
@@ -71,13 +69,13 @@ def estimate_baseline_time(files):
     # Adjust for file types
     adjustment = 0
     for f in files:
-        if f.endswith('.md'):
+        if f.endswith(".md"):
             adjustment -= 5  # Docs faster
-        elif f.endswith(('.py', '.js', '.ts', '.tsx')):
+        elif f.endswith((".py", ".js", ".ts", ".tsx")):
             adjustment += 10  # Code slower
-        elif f.endswith(('.json', '.yaml', '.yml')):
+        elif f.endswith((".json", ".yaml", ".yml")):
             adjustment -= 10  # Config faster
-        elif f.endswith('.sh'):
+        elif f.endswith(".sh"):
             adjustment += 5  # Scripts moderate
 
     total = base_time + adjustment
@@ -95,7 +93,7 @@ def infer_task_description(files):
                 ["git", "log", "-1", "--format=%s"],
                 capture_output=True,
                 text=True,
-                check=False
+                check=False,
             )
             if result.returncode == 0 and result.stdout:
                 return f"Continue: {result.stdout.strip()}"
@@ -153,15 +151,15 @@ def auto_start(force_manual=False):
     print()
 
     if force_manual:
-        override = 'e'
+        override = "e"
     else:
         override = input("✅ Accept (Enter) | ✏️  Edit (e) | ❌ Cancel (c): ").lower().strip()
 
-    if override == 'c':
+    if override == "c":
         print("\n❌ Cancelled")
         return
 
-    if override == 'e':
+    if override == "e":
         # Manual entry
         print("\n--- MANUAL ENTRY ---")
         task = input(f"Task [{task}]: ").strip() or task
@@ -175,7 +173,7 @@ def auto_start(force_manual=False):
         confidence = float(confidence_input) if confidence_input else 0.70
 
         use_cortex_input = input("Use Cortex? (y/n) [y]: ").lower().strip()
-        use_cortex = use_cortex_input != 'n'
+        use_cortex = use_cortex_input != "n"
     else:
         # Use auto-detected values
         confidence = 0.70
@@ -191,7 +189,7 @@ def auto_start(force_manual=False):
         predicted_outcome="success",
         confidence=confidence,
         predicted_time=baseline,
-        project=project
+        project=project,
     )
 
     # Save current task for completion
@@ -203,7 +201,7 @@ def auto_start(force_manual=False):
         "use_cortex": use_cortex,
         "project": project,
         "started_at": datetime.now().isoformat(),
-        "files": files[:10]  # Store first 10 files for reference
+        "files": files[:10],  # Store first 10 files for reference
     }
 
     task_file.parent.mkdir(parents=True, exist_ok=True)
@@ -240,7 +238,7 @@ def auto_complete_from_commit():
             ["git", "log", "-1", "--format=%s"],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
         commit_msg = result.stdout.strip() if result.returncode == 0 else "No commit"
     except:
@@ -277,16 +275,18 @@ def auto_complete_from_commit():
     else:
         notes = commit_msg
 
-    confirm = input(f"✅ Complete with {elapsed} min, outcome={outcome}? (y/n) [y]: ").lower().strip()
+    confirm = (
+        input(f"✅ Complete with {elapsed} min, outcome={outcome}? (y/n) [y]: ").lower().strip()
+    )
 
-    if confirm in ('', 'y', 'yes'):
+    if confirm in ("", "y", "yes"):
         tracker = MetricsTracker()
 
         # Record outcome
         tracker.record_outcome(
             prediction_id=task_data["prediction_id"],
             actual_outcome=outcome,
-            actual_time=elapsed
+            actual_time=elapsed,
         )
 
         # Record velocity if using Cortex
@@ -296,12 +296,14 @@ def auto_complete_from_commit():
                 time_without_cortex=task_data["baseline_min"],
                 time_with_cortex=elapsed,
                 project=task_data["project"],
-                notes=notes
+                notes=notes,
             )
 
         # Calculate savings
         saved = task_data["baseline_min"] - elapsed
-        saved_pct = (saved / task_data["baseline_min"]) * 100 if task_data["baseline_min"] > 0 else 0
+        saved_pct = (
+            (saved / task_data["baseline_min"]) * 100 if task_data["baseline_min"] > 0 else 0
+        )
 
         print()
         print(f"✅ Task completed!")

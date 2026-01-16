@@ -11,11 +11,10 @@ Provides REST API endpoints for:
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import structlog
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-
 from cortex.runtime.models import WebhookEvent
 from cortex.runtime.storage.metrics import MetricsCollector
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 
 if TYPE_CHECKING:
     from cortex.runtime.executor import RuntimeExecutor
@@ -113,9 +112,7 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
     @app.get("/api/v1/runtime/history")
     async def get_history(limit: int = 50, agent_id: Optional[str] = None):
         """Get recent execution history."""
-        executions = executor.history.get_recent_executions(
-            limit=limit, agent_id=agent_id
-        )
+        executions = executor.history.get_recent_executions(limit=limit, agent_id=agent_id)
         return {"executions": executions, "count": len(executions)}
 
     @app.get("/api/v1/runtime/history/{agent_id}")
@@ -124,9 +121,7 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         if agent_id not in executor.agents:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        executions = executor.history.get_recent_executions(
-            limit=limit, agent_id=agent_id
-        )
+        executions = executor.history.get_recent_executions(limit=limit, agent_id=agent_id)
         statistics = executor.history.get_agent_statistics(agent_id)
         return {
             "agent_id": agent_id,
@@ -153,9 +148,7 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         agent_id = webhook_handlers[webhook_path]
 
         try:
-            result = executor.trigger_agent(
-                agent_id, context={"event": event.model_dump()}
-            )
+            result = executor.trigger_agent(agent_id, context={"event": event.model_dump()})
             return result.model_dump()
         except Exception as e:
             logger.error("webhook_error", webhook_path=webhook_path, error=str(e))

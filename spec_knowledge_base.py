@@ -1,10 +1,11 @@
 # ~/Dev/cortex/spec_knowledge_base.py
 
 import hashlib
-from pathlib import Path
-from typing import Dict, List, Optional
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
 
 class SpecKnowledgeBase:
     """
@@ -27,21 +28,16 @@ class SpecKnowledgeBase:
     def _load_index(self) -> Dict:
         """Load spec index from disk"""
         if self.index_path.exists():
-            with open(self.index_path, 'r') as f:
+            with open(self.index_path, "r") as f:
                 return json.load(f)
         return {}
 
     def _save_index(self):
         """Save spec index to disk"""
-        with open(self.index_path, 'w') as f:
+        with open(self.index_path, "w") as f:
             json.dump(self.specs, f, indent=2, default=str)
 
-    def index_spec(
-        self,
-        spec_path: str,
-        project: str,
-        force: bool = False
-    ) -> bool:
+    def index_spec(self, spec_path: str, project: str, force: bool = False) -> bool:
         """
         Index a single spec file
 
@@ -65,11 +61,11 @@ class SpecKnowledgeBase:
         if not force and spec_id in self.specs:
             # Check if file modified
             current_mtime = path.stat().st_mtime
-            if self.specs[spec_id]['mtime'] >= current_mtime:
+            if self.specs[spec_id]["mtime"] >= current_mtime:
                 return False
 
         # Read spec content
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             content = f.read()
 
         # Extract metadata
@@ -80,15 +76,15 @@ class SpecKnowledgeBase:
 
         # Store spec
         self.specs[spec_id] = {
-            'id': spec_id,
-            'path': str(path),
-            'project': project,
-            'name': path.stem,
-            'content': content,
-            'metadata': metadata,
-            'content_hash': content_hash,
-            'mtime': path.stat().st_mtime,
-            'indexed_at': datetime.now().isoformat()
+            "id": spec_id,
+            "path": str(path),
+            "project": project,
+            "name": path.stem,
+            "content": content,
+            "metadata": metadata,
+            "content_hash": content_hash,
+            "mtime": path.stat().st_mtime,
+            "indexed_at": datetime.now().isoformat(),
         }
 
         self._save_index()
@@ -118,12 +114,7 @@ class SpecKnowledgeBase:
 
         return indexed_count
 
-    def search(
-        self,
-        query: str,
-        project: str = None,
-        limit: int = 5
-    ) -> List[Dict]:
+    def search(self, query: str, project: str = None, limit: int = 5) -> List[Dict]:
         """
         Search for similar specs
 
@@ -142,23 +133,25 @@ class SpecKnowledgeBase:
         results = []
         for spec in self.specs.values():
             # Filter by project if specified
-            if project and spec['project'] != project:
+            if project and spec["project"] != project:
                 continue
 
             # Calculate similarity (simple hash-based for now)
-            similarity = self._calculate_similarity(query_hash, spec['content_hash'])
+            similarity = self._calculate_similarity(query_hash, spec["content_hash"])
 
-            results.append({
-                'spec_id': spec['id'],
-                'spec_name': spec['name'],
-                'project': spec['project'],
-                'similarity': similarity,
-                'path': spec['path'],
-                'summary': self._extract_summary(spec['content'])
-            })
+            results.append(
+                {
+                    "spec_id": spec["id"],
+                    "spec_name": spec["name"],
+                    "project": spec["project"],
+                    "similarity": similarity,
+                    "path": spec["path"],
+                    "summary": self._extract_summary(spec["content"]),
+                }
+            )
 
         # Sort by similarity
-        results.sort(key=lambda x: x['similarity'], reverse=True)
+        results.sort(key=lambda x: x["similarity"], reverse=True)
 
         return results[:limit]
 
@@ -172,7 +165,7 @@ class SpecKnowledgeBase:
 
     def list_projects(self) -> List[str]:
         """List all projects with indexed specs"""
-        projects = set(spec['project'] for spec in self.specs.values())
+        projects = set(spec["project"] for spec in self.specs.values())
         return sorted(projects)
 
     # === Helper Methods ===
@@ -187,8 +180,8 @@ class SpecKnowledgeBase:
         # Simple word-based hash (upgrade to embeddings later)
         words = content.lower().split()
         # Use 3-grams for better matching
-        trigrams = [' '.join(words[i:i+3]) for i in range(len(words)-2)]
-        combined = '|'.join(sorted(set(trigrams)))
+        trigrams = [" ".join(words[i : i + 3]) for i in range(len(words) - 2)]
+        combined = "|".join(sorted(set(trigrams)))
         return hashlib.md5(combined.encode()).hexdigest()
 
     def _calculate_similarity(self, hash1: str, hash2: str) -> float:
@@ -211,22 +204,22 @@ class SpecKnowledgeBase:
         metadata = {}
 
         # Look for common metadata patterns
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         for line in lines[:20]:  # Check first 20 lines
-            if line.startswith('**Status**:'):
-                metadata['status'] = line.split(':', 1)[1].strip()
-            elif line.startswith('**Priority**:'):
-                metadata['priority'] = line.split(':', 1)[1].strip()
-            elif line.startswith('**Domain**:'):
-                metadata['domain'] = line.split(':', 1)[1].strip()
+            if line.startswith("**Status**:"):
+                metadata["status"] = line.split(":", 1)[1].strip()
+            elif line.startswith("**Priority**:"):
+                metadata["priority"] = line.split(":", 1)[1].strip()
+            elif line.startswith("**Domain**:"):
+                metadata["domain"] = line.split(":", 1)[1].strip()
 
         return metadata
 
     def _extract_summary(self, content: str, max_length: int = 200) -> str:
         """Extract summary from spec content"""
         # Find first paragraph after title
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         in_paragraph = False
         summary_lines = []
@@ -235,7 +228,7 @@ class SpecKnowledgeBase:
             stripped = line.strip()
 
             # Skip title lines
-            if stripped.startswith('#'):
+            if stripped.startswith("#"):
                 continue
 
             # Start collecting after first non-empty line
@@ -246,7 +239,7 @@ class SpecKnowledgeBase:
             if len(summary_lines) > 0 and not stripped:
                 break
 
-        summary = ' '.join(summary_lines)
+        summary = " ".join(summary_lines)
 
         if len(summary) > max_length:
             summary = summary[:max_length] + "..."

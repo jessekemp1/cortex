@@ -9,10 +9,10 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from .base import SignalDetector
 from ..models import WorkSignal, WorkSignalType
+from .base import SignalDetector
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,9 @@ class BatchResultDetector(SignalDetector):
         """
         self.batch_schedule_dir = batch_schedule_dir or Path.home() / ".cortex" / "batch_schedule"
         self.batches_dir = batches_dir or Path.home() / ".cortex" / "batches"
-        self.batch_results_dir = batch_results_dir or Path.home() / "Dev" / "cortex" / "batch" / "results"
+        self.batch_results_dir = (
+            batch_results_dir or Path.home() / "Dev" / "cortex" / "batch" / "results"
+        )
 
     @property
     def name(self) -> str:
@@ -319,7 +321,8 @@ class BatchResultDetector(SignalDetector):
                 achievements=achievements,
                 scope=scope,
                 batch_id=task.get("batch_id"),
-                tokens_used=task.get("actual_output_tokens", 0) + task.get("actual_input_tokens", 0),
+                tokens_used=task.get("actual_output_tokens", 0)
+                + task.get("actual_input_tokens", 0),
                 metadata={
                     "task_id": task_id,
                     "priority": task.get("priority", "medium"),
@@ -361,6 +364,7 @@ class BatchResultDetector(SignalDetector):
 
         # Look for numbered lists or bullet points
         import re
+
         bullets = re.findall(r"^\s*[-*\d.]+\s+(.+)$", result, re.MULTILINE)
 
         for bullet in bullets[:10]:  # Limit to 10

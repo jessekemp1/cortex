@@ -2,31 +2,33 @@
 Process analyzer for pattern detection and anomaly analysis.
 """
 
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
 from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
+from .collector import ProcessCollector
 from .models import (
-    ProcessSnapshot,
-    ResourceMetric,
-    ProcessCategory,
-    ProcessStatus,
+    AIToolInsights,
     Anomaly,
     AnomalyType,
-    UtilizationInsights,
-    AIToolInsights,
     DevPatterns,
+    ProcessCategory,
+    ProcessSnapshot,
+    ProcessStatus,
+    ResourceMetric,
+    UtilizationInsights,
 )
 from .tracker import ProcessTracker
-from .collector import ProcessCollector
 
 
 class ProcessAnalyzer:
     """Analyzes process patterns and detects anomalies."""
 
-    def __init__(self,
-                 tracker: Optional[ProcessTracker] = None,
-                 collector: Optional[ProcessCollector] = None):
+    def __init__(
+        self,
+        tracker: Optional[ProcessTracker] = None,
+        collector: Optional[ProcessCollector] = None,
+    ):
         """
         Initialize the analyzer.
 
@@ -60,14 +62,10 @@ class ProcessAnalyzer:
             )
 
         # Extract CPU and memory by hour
-        avg_cpu_by_hour = {
-            hour: stats['avg_cpu']
-            for hour, stats in hourly_stats.items()
-        }
+        avg_cpu_by_hour = {hour: stats["avg_cpu"] for hour, stats in hourly_stats.items()}
 
         avg_memory_by_hour = {
-            hour: stats['avg_memory_used']
-            for hour, stats in hourly_stats.items()
+            hour: stats["avg_memory_used"] for hour, stats in hourly_stats.items()
         }
 
         # Identify peak hours (top 3 highest CPU)
@@ -108,28 +106,35 @@ class ProcessAnalyzer:
         # Check for zombie processes
         zombies = [p for p in processes if p.status == ProcessStatus.ZOMBIE]
         for zombie in zombies:
-            anomalies.append(Anomaly(
-                timestamp=now,
-                process_name=zombie.name,
-                process_pid=zombie.pid,
-                anomaly_type=AnomalyType.ZOMBIE_PROCESS,
-                severity="CRITICAL",
-                description=f"Zombie process detected: {zombie.name} (PID {zombie.pid})",
-                metadata={"command": zombie.command},
-            ))
+            anomalies.append(
+                Anomaly(
+                    timestamp=now,
+                    process_name=zombie.name,
+                    process_pid=zombie.pid,
+                    anomaly_type=AnomalyType.ZOMBIE_PROCESS,
+                    severity="CRITICAL",
+                    description=f"Zombie process detected: {zombie.name} (PID {zombie.pid})",
+                    metadata={"command": zombie.command},
+                )
+            )
 
         # Check for sustained high CPU
         high_cpu_procs = [p for p in processes if p.cpu_percent > 80.0]
         for proc in high_cpu_procs:
-            anomalies.append(Anomaly(
-                timestamp=now,
-                process_name=proc.name,
-                process_pid=proc.pid,
-                anomaly_type=AnomalyType.CPU_SPIKE,
-                severity="WARNING",
-                description=f"High CPU usage: {proc.name} using {proc.cpu_percent:.1f}%",
-                metadata={"cpu_percent": proc.cpu_percent, "category": proc.category.value},
-            ))
+            anomalies.append(
+                Anomaly(
+                    timestamp=now,
+                    process_name=proc.name,
+                    process_pid=proc.pid,
+                    anomaly_type=AnomalyType.CPU_SPIKE,
+                    severity="WARNING",
+                    description=f"High CPU usage: {proc.name} using {proc.cpu_percent:.1f}%",
+                    metadata={
+                        "cpu_percent": proc.cpu_percent,
+                        "category": proc.category.value,
+                    },
+                )
+            )
 
         # Check for memory leaks (compare with historical data)
         history = self.tracker.get_utilization_history(hours=24)
@@ -144,15 +149,20 @@ class ProcessAnalyzer:
             growth_rate = ((recent_avg - early_avg) / early_avg * 100) if early_avg > 0 else 0
 
             if growth_rate > 20:  # 20% growth
-                anomalies.append(Anomaly(
-                    timestamp=now,
-                    process_name="system",
-                    process_pid=0,
-                    anomaly_type=AnomalyType.MEMORY_LEAK,
-                    severity="WARNING",
-                    description=f"Memory usage increased {growth_rate:.1f}% in last 24h",
-                    metadata={"growth_rate": growth_rate, "recent_avg_mb": recent_avg},
-                ))
+                anomalies.append(
+                    Anomaly(
+                        timestamp=now,
+                        process_name="system",
+                        process_pid=0,
+                        anomaly_type=AnomalyType.MEMORY_LEAK,
+                        severity="WARNING",
+                        description=f"Memory usage increased {growth_rate:.1f}% in last 24h",
+                        metadata={
+                            "growth_rate": growth_rate,
+                            "recent_avg_mb": recent_avg,
+                        },
+                    )
+                )
 
         # Check for idle AI tools
         ai_tools = [p for p in processes if p.category == ProcessCategory.AI_TOOL]
@@ -163,19 +173,21 @@ class ProcessAnalyzer:
                 uptime_hours = (now - tool.start_time).total_seconds() / 3600
 
                 if uptime_hours > 2.0:  # Idle for 2+ hours
-                    anomalies.append(Anomaly(
-                        timestamp=now,
-                        process_name=tool.name,
-                        process_pid=tool.pid,
-                        anomaly_type=AnomalyType.IDLE_WASTE,
-                        severity="INFO",
-                        description=f"{tool.name} idle for {uptime_hours:.1f}h, using {tool.memory_mb:.0f}MB",
-                        metadata={
-                            "idle_hours": uptime_hours,
-                            "memory_mb": tool.memory_mb,
-                            "category": tool.category.value,
-                        },
-                    ))
+                    anomalies.append(
+                        Anomaly(
+                            timestamp=now,
+                            process_name=tool.name,
+                            process_pid=tool.pid,
+                            anomaly_type=AnomalyType.IDLE_WASTE,
+                            severity="INFO",
+                            description=f"{tool.name} idle for {uptime_hours:.1f}h, using {tool.memory_mb:.0f}MB",
+                            metadata={
+                                "idle_hours": uptime_hours,
+                                "memory_mb": tool.memory_mb,
+                                "category": tool.category.value,
+                            },
+                        )
+                    )
 
         return anomalies
 
@@ -195,8 +207,8 @@ class ProcessAnalyzer:
         for tool_name, stats in patterns.items():
             # Estimate usage vs idle hours based on CPU
             # Consider active if avg CPU > 5%
-            sample_count = stats['sample_count']
-            avg_cpu = stats['avg_cpu']
+            sample_count = stats["sample_count"]
+            avg_cpu = stats["avg_cpu"]
 
             # Rough estimate: if avg CPU > 5%, consider it active
             if avg_cpu > 5.0:
@@ -210,14 +222,16 @@ class ProcessAnalyzer:
             usage_hours = total_hours * usage_ratio
             idle_hours = total_hours - usage_hours
 
-            insights.append(AIToolInsights(
-                tool_name=tool_name,
-                usage_hours=usage_hours,
-                idle_hours=idle_hours,
-                avg_cpu=avg_cpu,
-                avg_memory=stats['avg_memory'],
-                cost_estimate=None,  # Could be enhanced with API usage tracking
-            ))
+            insights.append(
+                AIToolInsights(
+                    tool_name=tool_name,
+                    usage_hours=usage_hours,
+                    idle_hours=idle_hours,
+                    avg_cpu=avg_cpu,
+                    avg_memory=stats["avg_memory"],
+                    cost_estimate=None,  # Could be enhanced with API usage tracking
+                )
+            )
 
         return insights
 
@@ -234,27 +248,32 @@ class ProcessAnalyzer:
         hourly_stats = self.tracker.get_hourly_stats(days=days)
 
         # Analyze build tool patterns
-        build_patterns = self.tracker.get_process_patterns(ProcessCategory.BUILD_TOOL, hours=days * 24)
+        build_patterns = self.tracker.get_process_patterns(
+            ProcessCategory.BUILD_TOOL, hours=days * 24
+        )
 
         # Identify active coding hours (when dev services are running)
-        dev_patterns = self.tracker.get_process_patterns(ProcessCategory.DEV_SERVICE, hours=days * 24)
+        dev_patterns = self.tracker.get_process_patterns(
+            ProcessCategory.DEV_SERVICE, hours=days * 24
+        )
 
         # Active coding hours: hours with above-average dev service activity
         if hourly_stats:
-            avg_cpu = sum(stats['avg_cpu'] for stats in hourly_stats.values()) / len(hourly_stats)
+            avg_cpu = sum(stats["avg_cpu"] for stats in hourly_stats.values()) / len(hourly_stats)
             active_coding_hours = [
-                hour for hour, stats in hourly_stats.items()
-                if stats['avg_cpu'] > avg_cpu
+                hour for hour, stats in hourly_stats.items() if stats["avg_cpu"] > avg_cpu
             ]
         else:
             active_coding_hours = []
 
         # Testing hours: when build tools (pytest, etc.) are active
         # This is a simplified heuristic
-        testing_hours = active_coding_hours[:3] if len(active_coding_hours) >= 3 else active_coding_hours
+        testing_hours = (
+            active_coding_hours[:3] if len(active_coding_hours) >= 3 else active_coding_hours
+        )
 
         # Build frequency
-        total_build_samples = sum(stats['sample_count'] for stats in build_patterns.values())
+        total_build_samples = sum(stats["sample_count"] for stats in build_patterns.values())
         # Estimate: 1 build sample = 1 build (rough approximation)
         build_frequency = total_build_samples / max(days, 1)
 
@@ -282,10 +301,7 @@ class ProcessAnalyzer:
 
         # Get recent anomalies for this category
         anomalies = self.tracker.get_recent_anomalies(hours=24)
-        category_anomalies = [
-            a for a in anomalies
-            if a.metadata.get('category') == category.value
-        ]
+        category_anomalies = [a for a in anomalies if a.metadata.get("category") == category.value]
 
         # Deduct points for anomalies
         for anomaly in category_anomalies:
@@ -363,7 +379,8 @@ class ProcessAnalyzer:
             "avg_availability": availability,
             "estimated_duration_minutes": estimated_duration,
             "recommendation": (
-                "Good time to run" if best_time == "now"
+                "Good time to run"
+                if best_time == "now"
                 else f"Consider running at {best_time} for better resource availability"
             ),
         }

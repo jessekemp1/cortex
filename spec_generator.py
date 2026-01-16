@@ -89,9 +89,7 @@ class SpecGenerator:
     def __init__(self, root_dir: Path):
         self.root_dir = root_dir
 
-    def generate(
-        self, intent: str, project_name: str, target_dir: Optional[Path] = None
-    ) -> Path:
+    def generate(self, intent: str, project_name: str, target_dir: Optional[Path] = None) -> Path:
         """
         Generate a GOLDEN_SPEC.md file.
 

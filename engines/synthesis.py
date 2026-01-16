@@ -9,19 +9,20 @@ Architecture: Hierarchical Context Graph
 - Edges: relates_to, implements, blocks, causes, contains, used_in
 """
 
+import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any, Set
 from pathlib import Path
-import json
-import logging
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class NodeType(Enum):
     """Types of nodes in the context graph."""
+
     GOAL = "goal"
     PROJECT = "project"
     FILE = "file"
@@ -34,6 +35,7 @@ class NodeType(Enum):
 
 class EdgeType(Enum):
     """Types of edges (relationships) in the context graph."""
+
     RELATES_TO = "relates_to"
     IMPLEMENTS = "implements"
     BLOCKS = "blocks"
@@ -47,6 +49,7 @@ class EdgeType(Enum):
 @dataclass
 class Node:
     """Graph node representing a context entity."""
+
     id: str
     type: NodeType
     name: str
@@ -79,6 +82,7 @@ class Node:
 @dataclass
 class Edge:
     """Graph edge representing a relationship."""
+
     source_id: str
     target_id: str
     type: EdgeType
@@ -111,7 +115,7 @@ class Edge:
 class ContextGraph:
     """
     Hierarchical context graph for V2 Prime.
-    
+
     Nodes: Goals, Projects, Files, Patterns, Errors
     Edges: Relates To, Blocks, Implements, Caused By
     """
@@ -212,16 +216,16 @@ class ContextGraph:
             return False
 
         del self.nodes[node_id]
-        
+
         # Remove related edges
         self.edges = [e for e in self.edges if e.source_id != node_id and e.target_id != node_id]
-        
+
         # Clean up adjacency
         if node_id in self._adjacency:
             del self._adjacency[node_id]
         if node_id in self._reverse_adjacency:
             del self._reverse_adjacency[node_id]
-        
+
         for adj in self._adjacency.values():
             adj.discard(node_id)
         for adj in self._reverse_adjacency.values():
@@ -236,21 +240,25 @@ class ContextGraph:
         self._update_adjacency(edge)
         self._save()
 
-    def remove_edge(self, source_id: str, target_id: str, edge_type: Optional[EdgeType] = None) -> bool:
+    def remove_edge(
+        self, source_id: str, target_id: str, edge_type: Optional[EdgeType] = None
+    ) -> bool:
         """Remove an edge from the graph."""
         original_len = len(self.edges)
-        
+
         if edge_type:
             self.edges = [
-                e for e in self.edges
-                if not (e.source_id == source_id and e.target_id == target_id and e.type == edge_type)
+                e
+                for e in self.edges
+                if not (
+                    e.source_id == source_id and e.target_id == target_id and e.type == edge_type
+                )
             ]
         else:
             self.edges = [
-                e for e in self.edges
-                if not (e.source_id == source_id and e.target_id == target_id)
+                e for e in self.edges if not (e.source_id == source_id and e.target_id == target_id)
             ]
-        
+
         if len(self.edges) < original_len:
             self._rebuild_adjacency()
             self._save()
@@ -263,7 +271,7 @@ class ContextGraph:
         self._reverse_adjacency.clear()
         self._edges_by_source.clear()
         self._edges_by_target.clear()
-        
+
         for edge in self.edges:
             self._update_adjacency(edge)
 
@@ -283,8 +291,7 @@ class ContextGraph:
         if edge_type:
             # Filter by edge type
             valid_targets = {
-                e.target_id for e in self._edges_by_source.get(node_id, [])
-                if e.type == edge_type
+                e.target_id for e in self._edges_by_source.get(node_id, []) if e.type == edge_type
             }
             related_nodes = [n for n in related_nodes if n.id in valid_targets]
 
@@ -297,8 +304,7 @@ class ContextGraph:
 
         if edge_type:
             valid_sources = {
-                e.source_id for e in self._edges_by_target.get(node_id, [])
-                if e.type == edge_type
+                e.source_id for e in self._edges_by_target.get(node_id, []) if e.type == edge_type
             }
             source_nodes = [n for n in source_nodes if n.id in valid_sources]
 
@@ -332,14 +338,16 @@ class ContextGraph:
 
         visited = {center_id}
         to_visit = [(center_id, 0)]
-        
+
         while to_visit:
             node_id, current_depth = to_visit.pop(0)
-            
+
             if current_depth >= depth:
                 continue
-            
-            neighbors = self._adjacency.get(node_id, set()) | self._reverse_adjacency.get(node_id, set())
+
+            neighbors = self._adjacency.get(node_id, set()) | self._reverse_adjacency.get(
+                node_id, set()
+            )
             for neighbor in neighbors:
                 if neighbor not in visited:
                     visited.add(neighbor)
@@ -347,37 +355,41 @@ class ContextGraph:
 
         nodes = [self.nodes[nid].to_dict() for nid in visited if nid in self.nodes]
         edges = [
-            e.to_dict() for e in self.edges
-            if e.source_id in visited and e.target_id in visited
+            e.to_dict() for e in self.edges if e.source_id in visited and e.target_id in visited
         ]
 
         return {"nodes": nodes, "edges": edges}
 
-    def query(self, query_text: str, node_types: Optional[List[NodeType]] = None, limit: int = 10) -> List[Node]:
+    def query(
+        self,
+        query_text: str,
+        node_types: Optional[List[NodeType]] = None,
+        limit: int = 10,
+    ) -> List[Node]:
         """
         Simple text-based query over graph.
-        
+
         TODO: Upgrade to semantic search with embeddings.
         """
         query_lower = query_text.lower()
         results = []
-        
+
         for node in self.nodes.values():
             if node_types and node.type not in node_types:
                 continue
-            
+
             # Simple text matching on name and data
             score = 0
             if query_lower in node.name.lower():
                 score += 2
-            
+
             data_str = json.dumps(node.data).lower()
             if query_lower in data_str:
                 score += 1
-            
+
             if score > 0:
                 results.append((score, node))
-        
+
         # Sort by score descending
         results.sort(key=lambda x: -x[0])
         return [node for _, node in results[:limit]]
@@ -403,7 +415,7 @@ class ContextGraph:
 class SynthesisCore:
     """
     Engine B: Converts signals to structured context.
-    
+
     This is the processing layer of Cortex V2 Prime.
     """
 
@@ -414,11 +426,11 @@ class SynthesisCore:
     def process_signal(self, signal) -> List[Node]:
         """
         Process a raw signal and update the context graph.
-        
+
         Returns list of affected nodes.
         """
         from cortex.engines.absorber import Signal, SignalType
-        
+
         affected_nodes = []
 
         if signal.type == SignalType.FILE_MODIFIED:
@@ -450,10 +462,13 @@ class SynthesisCore:
         existing = self.graph.get_node(file_id)
 
         if existing:
-            self.graph.update_node(file_id, {
-                "last_modified": signal.timestamp.isoformat(),
-                "modification_count": existing.data.get("modification_count", 0) + 1,
-            })
+            self.graph.update_node(
+                file_id,
+                {
+                    "last_modified": signal.timestamp.isoformat(),
+                    "modification_count": existing.data.get("modification_count", 0) + 1,
+                },
+            )
             return existing
         else:
             node = Node(
@@ -465,28 +480,30 @@ class SynthesisCore:
                     "project": signal.project,
                     "last_modified": signal.timestamp.isoformat(),
                     "modification_count": 1,
-                }
+                },
             )
             self.graph.add_node(node)
-            
+
             # Link to project if known
             if signal.project:
                 project_id = f"project:{signal.project}"
                 if self.graph.get_node(project_id):
-                    self.graph.add_edge(Edge(
-                        source_id=project_id,
-                        target_id=file_id,
-                        type=EdgeType.CONTAINS,
-                    ))
-            
+                    self.graph.add_edge(
+                        Edge(
+                            source_id=project_id,
+                            target_id=file_id,
+                            type=EdgeType.CONTAINS,
+                        )
+                    )
+
             return node
 
     def _process_git_signal(self, signal) -> List[Node]:
         """Process git commit signal."""
         nodes = []
-        
+
         commit_id = f"commit:{signal.payload.get('hash', 'unknown')}"
-        
+
         node = Node(
             id=commit_id,
             type=NodeType.WORK_ITEM,
@@ -498,7 +515,7 @@ class SynthesisCore:
                 "timestamp": signal.timestamp.isoformat(),
                 "project": signal.project,
                 "files_changed": signal.payload.get("files", []),
-            }
+            },
         )
         self.graph.add_node(node)
         nodes.append(node)
@@ -507,18 +524,20 @@ class SynthesisCore:
         if signal.project:
             project_id = f"project:{signal.project}"
             if self.graph.get_node(project_id):
-                self.graph.add_edge(Edge(
-                    source_id=project_id,
-                    target_id=commit_id,
-                    type=EdgeType.CONTAINS,
-                ))
+                self.graph.add_edge(
+                    Edge(
+                        source_id=project_id,
+                        target_id=commit_id,
+                        type=EdgeType.CONTAINS,
+                    )
+                )
 
         return nodes
 
     def _process_command_signal(self, signal) -> Optional[Node]:
         """Process command execution signal."""
         from cortex.engines.absorber import SignalType
-        
+
         command = signal.payload.get("command", "")
         if not command or len(command) < 3:
             return None
@@ -529,6 +548,7 @@ class SynthesisCore:
             return None
 
         import uuid
+
         node = Node(
             id=f"command:{uuid.uuid4().hex[:8]}",
             type=NodeType.WORK_ITEM,
@@ -538,7 +558,7 @@ class SynthesisCore:
                 "success": signal.type == SignalType.COMMAND_EXECUTED,
                 "timestamp": signal.timestamp.isoformat(),
                 "project": signal.project,
-            }
+            },
         )
         self.graph.add_node(node)
         return node
@@ -546,18 +566,15 @@ class SynthesisCore:
     def query(self, query: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Query the context graph.
-        
+
         Returns relevant nodes and relationships.
         """
         # Get relevant nodes
         nodes = self.graph.query(query, limit=10)
-        
+
         # Get edges between these nodes
         node_ids = {n.id for n in nodes}
-        edges = [
-            e for e in self.graph.edges
-            if e.source_id in node_ids or e.target_id in node_ids
-        ]
+        edges = [e for e in self.graph.edges if e.source_id in node_ids or e.target_id in node_ids]
 
         return {
             "query": query,
@@ -588,7 +605,7 @@ class SynthesisCore:
         """Get full context for a project."""
         project_id = f"project:{project_name}"
         project = self.graph.get_node(project_id)
-        
+
         if not project:
             return {"error": f"Project {project_name} not found"}
 
@@ -608,7 +625,7 @@ class SynthesisCore:
     def import_portfolio_data(self, portfolio_path: Path) -> Dict[str, int]:
         """
         Import existing portfolio data into graph.
-        
+
         Converts V1 patterns, lessons, projects to V2 Prime nodes.
         """
         imported = {"patterns": 0, "lessons": 0, "projects": 0, "goals": 0}
@@ -655,7 +672,7 @@ class SynthesisCore:
             try:
                 with open(projects_file) as f:
                     data = json.load(f)
-                
+
                 # Handle nested "projects" key format
                 if isinstance(data, dict) and "projects" in data:
                     projects = data["projects"]
@@ -667,7 +684,7 @@ class SynthesisCore:
                     projects = list(data.values())
                 else:
                     projects = data
-                
+
                 for project in projects:
                     if isinstance(project, dict):
                         node = Node(

@@ -87,11 +87,55 @@ class PatternIndexer:
 
         # Stop words for keyword extraction
         self.stop_words = {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "up", "about", "into", "through", "during",
-            "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-            "do", "does", "did", "will", "would", "should", "could", "may", "might",
-            "this", "that", "these", "those", "it", "its", "as", "if", "when", "where",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "up",
+            "about",
+            "into",
+            "through",
+            "during",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "should",
+            "could",
+            "may",
+            "might",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "as",
+            "if",
+            "when",
+            "where",
         }
 
     def index_project(
@@ -224,7 +268,9 @@ class PatternIndexer:
         pattern_id = f"{project_name}:{commit['hash'][:8]}"
 
         try:
-            commit_date = datetime.fromisoformat(commit["date"].replace(" ", "T").split("+")[0].split("-")[0])
+            commit_date = datetime.fromisoformat(
+                commit["date"].replace(" ", "T").split("+")[0].split("-")[0]
+            )
         except Exception:
             commit_date = datetime.now()
 
@@ -259,11 +305,7 @@ class PatternIndexer:
         words = re.findall(r"\b[a-z_][a-z0-9_]*\b", combined.lower())
 
         # Filter stop words and short words
-        keywords = {
-            word
-            for word in words
-            if word not in self.stop_words and len(word) > 2
-        }
+        keywords = {word for word in words if word not in self.stop_words and len(word) > 2}
 
         # Add tech-specific keywords
         tech_keywords = self._extract_tech_keywords(combined)
@@ -277,13 +319,38 @@ class PatternIndexer:
 
         # Common tech terms
         tech_terms = [
-            "api", "rest", "graphql", "sql", "postgresql", "redis", "mongodb",
-            "fastapi", "flask", "django", "react", "vue", "nextjs",
-            "docker", "kubernetes", "aws", "gcp", "azure",
-            "auth", "jwt", "oauth", "session",
-            "cache", "queue", "pubsub",
-            "test", "unittest", "pytest", "jest",
-            "ci", "cd", "pipeline",
+            "api",
+            "rest",
+            "graphql",
+            "sql",
+            "postgresql",
+            "redis",
+            "mongodb",
+            "fastapi",
+            "flask",
+            "django",
+            "react",
+            "vue",
+            "nextjs",
+            "docker",
+            "kubernetes",
+            "aws",
+            "gcp",
+            "azure",
+            "auth",
+            "jwt",
+            "oauth",
+            "session",
+            "cache",
+            "queue",
+            "pubsub",
+            "test",
+            "unittest",
+            "pytest",
+            "jest",
+            "ci",
+            "cd",
+            "pipeline",
         ]
 
         text_lower = text.lower()
@@ -395,9 +462,7 @@ class PatternSearcher:
 
         # Normalize scores
         max_score = max(scores.values()) if scores else 1.0
-        normalized_scores = {
-            pattern_id: score / max_score for pattern_id, score in scores.items()
-        }
+        normalized_scores = {pattern_id: score / max_score for pattern_id, score in scores.items()}
 
         # Filter by pattern type
         pattern_map = {p.id: p for p in self.patterns}

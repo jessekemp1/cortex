@@ -12,10 +12,8 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List
-
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from .batch_api_client import BatchAPIClient, BatchRequest
 from .model_policy import AnthropicBatchModels
@@ -41,15 +39,16 @@ class RecommendationBatcher:
         """Initialize recommendation batcher with optional session manager integration"""
         self.client = BatchAPIClient()
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
-        
+
         # Try to initialize session manager for context
         try:
             from cortex.intelligence.session_manager import SessionManager
+
             self.session_mgr = SessionManager(self.root_dir)
         except Exception:
             self.session_mgr = None
             logger.warning("SessionManager not available - briefings won't include session context")
-        
+
         self.system_prompt = """You are a strategic advisor analyzing a developer's current state.
 Provide clear, actionable recommendations based on:
 1. Current portfolio/project status
@@ -125,9 +124,7 @@ ALTERNATIVE_APPROACHES:
             for result in results_list:
                 context_id = result.custom_id
                 try:
-                    processed = self._process_recommendation_result(
-                        context_id, result.result
-                    )
+                    processed = self._process_recommendation_result(context_id, result.result)
                     results_dict[context_id] = processed
                     completed += 1
                 except Exception as e:
@@ -150,9 +147,7 @@ ALTERNATIVE_APPROACHES:
             logger.error(f"Recommendation batching failed: {e}")
             raise
 
-    def _build_recommendation_requests(
-        self, contexts: List[BriefingContext]
-    ) -> List[BatchRequest]:
+    def _build_recommendation_requests(self, contexts: List[BriefingContext]) -> List[BatchRequest]:
         """Convert briefing contexts to batch requests with session context integration"""
         requests = []
         models = AnthropicBatchModels()
@@ -182,18 +177,20 @@ ALTERNATIVE_APPROACHES:
                 "GOALS:",
                 json.dumps(context.goals_context, indent=2),
             ]
-            
+
             # Add session context if available
             if session_context:
-                prompt_parts.extend([
-                    "",
-                    "CURRENT SESSION CONTEXT:",
-                    f"Project: {session_context.project}",
-                    f"Working Directory: {session_context.working_directory}",
-                    f"Current Focus: {session_context.current_focus}",
-                    f"Active Goals: {', '.join(session_context.active_goals[:3])}",
-                ])
-            
+                prompt_parts.extend(
+                    [
+                        "",
+                        "CURRENT SESSION CONTEXT:",
+                        f"Project: {session_context.project}",
+                        f"Working Directory: {session_context.working_directory}",
+                        f"Current Focus: {session_context.current_focus}",
+                        f"Active Goals: {', '.join(session_context.active_goals[:3])}",
+                    ]
+                )
+
             prompt_parts.append("\nProvide clear, prioritized recommendations for today's focus.")
             prompt = "\n".join(prompt_parts)
 
@@ -389,9 +386,7 @@ ADJUSTMENT_SUGGESTIONS:
             logger.error(f"Insight batching failed: {e}")
             raise
 
-    def _build_insight_requests(
-        self, contexts: List[BriefingContext]
-    ) -> List[BatchRequest]:
+    def _build_insight_requests(self, contexts: List[BriefingContext]) -> List[BatchRequest]:
         """Convert contexts to insight batch requests"""
         requests = []
 
@@ -420,9 +415,7 @@ Provide learning insights, decision points, and confidence assessment for future
         logger.debug(f"Created {len(requests)} insight requests")
         return requests
 
-    def _process_insight_result(
-        self, context_id: str, result: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _process_insight_result(self, context_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and structure insight results"""
         try:
             message = result.get("message", {})

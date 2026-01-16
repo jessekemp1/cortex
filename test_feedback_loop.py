@@ -68,9 +68,7 @@ def test_feedback_loop():
         # Test adjustment for each type
         for rec_type, pattern_metrics in list(patterns.items())[:3]:  # Test first 3
             if pattern_metrics["followed"] >= 3:
-                adjusted, explanation = learning.adjust_confidence_based_on_history(
-                    rec_type, 0.8
-                )
+                adjusted, explanation = learning.adjust_confidence_based_on_history(rec_type, 0.8)
                 print(f"     {rec_type}: {0.8:.2f} → {adjusted:.2f}")
                 print(f"       {explanation}")
     else:
@@ -84,13 +82,28 @@ def test_feedback_loop():
         # Count outcomes before
         outcomes_before = len(logger.load_outcomes())
 
-        # Log outcome
+        # Log outcome - handle priority as int, enum, or string
+        priority = rec.priority
+        if isinstance(priority, int):
+            priority_char = "A" if priority > 70 else "B" if priority > 40 else "C"
+        elif hasattr(priority, "value"):
+            priority_char = priority.value[0].upper()
+        elif priority:
+            priority_char = str(priority).upper()[0]
+        else:
+            priority_char = "B"
+
+        # Handle confidence as enum or float
+        confidence = rec.confidence
+        if hasattr(confidence, "value"):
+            confidence = {"high": 0.9, "medium": 0.7, "low": 0.5}.get(confidence.value.lower(), 0.7)
+
         logger.log_outcome(
-            recommendation_id=rec.id,
+            recommendation_id=getattr(rec, "id", "unknown"),
             recommendation_title=rec.title,
-            recommendation_type=rec.type,
-            priority=rec.priority.upper()[0] if rec.priority else "B",
-            confidence=rec.confidence,
+            recommendation_type=getattr(rec, "type", "unknown"),
+            priority=priority_char,
+            confidence=confidence,
             followed=True,
             outcome="success",
             notes="Integration test outcome",
@@ -105,9 +118,7 @@ def test_feedback_loop():
 
         # Verify last outcome
         last_outcome = logger.load_outcomes()[-1]
-        assert (
-            last_outcome.recommendation_id == rec.id
-        ), "Recommendation ID should match"
+        assert last_outcome.recommendation_id == rec.id, "Recommendation ID should match"
         assert last_outcome.outcome == "success", "Outcome should be success"
         print(f"   ✓ Outcome verified: {last_outcome.recommendation_title}")
 

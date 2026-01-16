@@ -10,14 +10,15 @@ Provides intelligent scheduling recommendations based on:
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from .models import CapacityForecast
 
 
 class TaskType(Enum):
     """Types of tasks that can be scheduled."""
+
     TEST = "test"
     BUILD = "build"
     DEPLOY = "deploy"
@@ -29,6 +30,7 @@ class TaskType(Enum):
 
 class SchedulingPriority(Enum):
     """Priority levels for scheduling."""
+
     IMMEDIATE = "immediate"  # Run now regardless of capacity
     HIGH = "high"  # Run ASAP, but consider capacity
     NORMAL = "normal"  # Run when capacity available
@@ -38,6 +40,7 @@ class SchedulingPriority(Enum):
 @dataclass
 class ScheduledTask:
     """A task with scheduling metadata."""
+
     task_id: str
     task_type: TaskType
     priority: SchedulingPriority
@@ -97,7 +100,11 @@ class CapacityScheduler:
             TaskType.GENERAL: 1000.0,
         }
 
-    def can_run_now(self, task_type: TaskType, priority: SchedulingPriority = SchedulingPriority.NORMAL) -> tuple[bool, str]:
+    def can_run_now(
+        self,
+        task_type: TaskType,
+        priority: SchedulingPriority = SchedulingPriority.NORMAL,
+    ) -> tuple[bool, str]:
         """
         Check if a task can run now based on current capacity.
 
@@ -110,8 +117,8 @@ class CapacityScheduler:
         """
         # Get current resource status
         status = self.monitor.get_status()
-        cpu_available = status['cpu_available']
-        memory_available_mb = status['memory_available_mb']
+        cpu_available = status["cpu_available"]
+        memory_available_mb = status["memory_available_mb"]
 
         # IMMEDIATE priority always runs
         if priority == SchedulingPriority.IMMEDIATE:
@@ -120,26 +127,41 @@ class CapacityScheduler:
         # Check CPU threshold
         min_cpu = self.min_cpu_percent.get(task_type, 30.0)
         if cpu_available < min_cpu:
-            return False, f"Insufficient CPU: {cpu_available:.1f}% available (need {min_cpu:.1f}%)"
+            return (
+                False,
+                f"Insufficient CPU: {cpu_available:.1f}% available (need {min_cpu:.1f}%)",
+            )
 
         # Check memory threshold
         min_memory = self.min_memory_mb.get(task_type, 1000.0)
         if memory_available_mb < min_memory:
-            return False, f"Insufficient memory: {memory_available_mb:.1f}MB available (need {min_memory:.1f}MB)"
+            return (
+                False,
+                f"Insufficient memory: {memory_available_mb:.1f}MB available (need {min_memory:.1f}MB)",
+            )
 
         # HIGH priority runs if minimum thresholds met
         if priority == SchedulingPriority.HIGH:
-            return True, f"HIGH priority - capacity available (CPU: {cpu_available:.1f}%, Memory: {memory_available_mb:.0f}MB)"
+            return (
+                True,
+                f"HIGH priority - capacity available (CPU: {cpu_available:.1f}%, Memory: {memory_available_mb:.0f}MB)",
+            )
 
         # For NORMAL priority, prefer better capacity headroom
         if cpu_available < min_cpu * 1.5:  # Want 50% more than minimum
             if priority == SchedulingPriority.LOW:
-                return False, f"LOW priority - waiting for more capacity (current: {cpu_available:.1f}%)"
+                return (
+                    False,
+                    f"LOW priority - waiting for more capacity (current: {cpu_available:.1f}%)",
+                )
             # NORMAL can run but suggest deferring
             return True, f"Can run but capacity is tight (CPU: {cpu_available:.1f}%)"
 
         # Good capacity available
-        return True, f"Good capacity available (CPU: {cpu_available:.1f}%, Memory: {memory_available_mb:.0f}MB)"
+        return (
+            True,
+            f"Good capacity available (CPU: {cpu_available:.1f}%, Memory: {memory_available_mb:.0f}MB)",
+        )
 
     def get_optimal_time(self, task_type: TaskType) -> CapacityForecast:
         """
@@ -161,7 +183,7 @@ class CapacityScheduler:
         estimated_cpu_percent: float = 50.0,
         estimated_memory_mb: float = 1000.0,
         estimated_duration_minutes: float = 10.0,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> ScheduledTask:
         """
         Schedule a task based on capacity.
@@ -185,7 +207,10 @@ class CapacityScheduler:
         forecast = self.get_optimal_time(task_type)
 
         # Determine recommended start time
-        if can_run and priority in [SchedulingPriority.IMMEDIATE, SchedulingPriority.HIGH]:
+        if can_run and priority in [
+            SchedulingPriority.IMMEDIATE,
+            SchedulingPriority.HIGH,
+        ]:
             recommended_time = datetime.now()
             scheduling_reason = f"Running immediately - {reason}"
         elif can_run and forecast.best_time_to_run <= datetime.now() + timedelta(minutes=5):
@@ -209,10 +234,7 @@ class CapacityScheduler:
             metadata=metadata or {},
         )
 
-    def schedule_multiple(
-        self,
-        tasks: List[Dict[str, Any]]
-    ) -> List[ScheduledTask]:
+    def schedule_multiple(self, tasks: List[Dict[str, Any]]) -> List[ScheduledTask]:
         """
         Schedule multiple tasks optimally.
 
@@ -226,13 +248,13 @@ class CapacityScheduler:
 
         for task_dict in tasks:
             scheduled = self.schedule_task(
-                task_id=task_dict['task_id'],
-                task_type=TaskType(task_dict.get('task_type', 'general')),
-                priority=SchedulingPriority(task_dict.get('priority', 'normal')),
-                estimated_cpu_percent=task_dict.get('estimated_cpu_percent', 50.0),
-                estimated_memory_mb=task_dict.get('estimated_memory_mb', 1000.0),
-                estimated_duration_minutes=task_dict.get('estimated_duration_minutes', 10.0),
-                metadata=task_dict.get('metadata'),
+                task_id=task_dict["task_id"],
+                task_type=TaskType(task_dict.get("task_type", "general")),
+                priority=SchedulingPriority(task_dict.get("priority", "normal")),
+                estimated_cpu_percent=task_dict.get("estimated_cpu_percent", 50.0),
+                estimated_memory_mb=task_dict.get("estimated_memory_mb", 1000.0),
+                estimated_duration_minutes=task_dict.get("estimated_duration_minutes", 10.0),
+                metadata=task_dict.get("metadata"),
             )
             scheduled_tasks.append(scheduled)
 
@@ -247,7 +269,7 @@ class CapacityScheduler:
         scheduled_tasks.sort(
             key=lambda t: (
                 priority_order.get(t.priority, 4),
-                t.recommended_start_time or datetime.max
+                t.recommended_start_time or datetime.max,
             )
         )
 
@@ -277,12 +299,14 @@ class CapacityScheduler:
             if idle_hour <= current_hour:
                 start_time += timedelta(days=1)
 
-            windows.append({
-                'start_time': start_time,
-                'hour': idle_hour,
-                'expected_cpu_available': insights.capacity_headroom,
-                'suitable_for': ['TEST', 'BUILD', 'BATCH_PROCESSING'],
-            })
+            windows.append(
+                {
+                    "start_time": start_time,
+                    "hour": idle_hour,
+                    "expected_cpu_available": insights.capacity_headroom,
+                    "suitable_for": ["TEST", "BUILD", "BATCH_PROCESSING"],
+                }
+            )
 
         return windows
 
@@ -290,7 +314,7 @@ class CapacityScheduler:
         self,
         batch_tasks: List[Dict[str, Any]],
         earliest_start: Optional[datetime] = None,
-        latest_finish: Optional[datetime] = None
+        latest_finish: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Suggest optimal schedule for batch tasks.
@@ -311,32 +335,31 @@ class CapacityScheduler:
 
         # Filter windows within time constraints
         valid_windows = [
-            w for w in idle_windows
-            if earliest_start <= w['start_time'] <= latest_finish
+            w for w in idle_windows if earliest_start <= w["start_time"] <= latest_finish
         ]
 
         if not valid_windows:
             return {
-                'can_schedule': False,
-                'reason': 'No idle windows available in the requested timeframe',
-                'recommended_action': 'Extend deadline or reduce task count',
+                "can_schedule": False,
+                "reason": "No idle windows available in the requested timeframe",
+                "recommended_action": "Extend deadline or reduce task count",
             }
 
         # Estimate total duration
-        total_duration = sum(t.get('estimated_duration_minutes', 10.0) for t in batch_tasks)
+        total_duration = sum(t.get("estimated_duration_minutes", 10.0) for t in batch_tasks)
 
         # Find best window (earliest with enough capacity)
         best_window = valid_windows[0]
 
         return {
-            'can_schedule': True,
-            'recommended_start': best_window['start_time'],
-            'window_hour': best_window['hour'],
-            'total_duration_minutes': total_duration,
-            'estimated_finish': best_window['start_time'] + timedelta(minutes=total_duration),
-            'capacity_available': best_window['expected_cpu_available'],
-            'task_count': len(batch_tasks),
-            'reasoning': f"Idle window at {best_window['hour']:02d}:00 with {best_window['expected_cpu_available']:.0f}% capacity available",
+            "can_schedule": True,
+            "recommended_start": best_window["start_time"],
+            "window_hour": best_window["hour"],
+            "total_duration_minutes": total_duration,
+            "estimated_finish": best_window["start_time"] + timedelta(minutes=total_duration),
+            "capacity_available": best_window["expected_cpu_available"],
+            "task_count": len(batch_tasks),
+            "reasoning": f"Idle window at {best_window['hour']:02d}:00 with {best_window['expected_cpu_available']:.0f}% capacity available",
         }
 
     def detect_task_type_from_description(self, description: str) -> TaskType:
@@ -352,27 +375,44 @@ class CapacityScheduler:
         description_lower = description.lower()
 
         # Test-related
-        if any(keyword in description_lower for keyword in ['test', 'pytest', 'unittest', 'spec', 'coverage']):
+        if any(
+            keyword in description_lower
+            for keyword in ["test", "pytest", "unittest", "spec", "coverage"]
+        ):
             return TaskType.TEST
 
         # Build-related
-        if any(keyword in description_lower for keyword in ['build', 'compile', 'webpack', 'docker', 'package']):
+        if any(
+            keyword in description_lower
+            for keyword in ["build", "compile", "webpack", "docker", "package"]
+        ):
             return TaskType.BUILD
 
         # Deploy-related
-        if any(keyword in description_lower for keyword in ['deploy', 'release', 'publish', 'ship']):
+        if any(
+            keyword in description_lower for keyword in ["deploy", "release", "publish", "ship"]
+        ):
             return TaskType.DEPLOY
 
         # AI-related
-        if any(keyword in description_lower for keyword in ['ai', 'ml', 'model', 'inference', 'llm', 'claude']):
+        if any(
+            keyword in description_lower
+            for keyword in ["ai", "ml", "model", "inference", "llm", "claude"]
+        ):
             return TaskType.AI_INFERENCE
 
         # Batch-related
-        if any(keyword in description_lower for keyword in ['batch', 'bulk', 'migration', 'import', 'export']):
+        if any(
+            keyword in description_lower
+            for keyword in ["batch", "bulk", "migration", "import", "export"]
+        ):
             return TaskType.BATCH_PROCESSING
 
         # Heavy computation
-        if any(keyword in description_lower for keyword in ['analyze', 'process', 'compute', 'calculate', 'benchmark']):
+        if any(
+            keyword in description_lower
+            for keyword in ["analyze", "process", "compute", "calculate", "benchmark"]
+        ):
             return TaskType.HEAVY_COMPUTATION
 
         return TaskType.GENERAL

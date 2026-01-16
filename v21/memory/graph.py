@@ -47,7 +47,8 @@ class GraphMemory:
     def _init_schema(self):
         """Initialize database schema."""
         with self._connect() as conn:
-            conn.executescript("""
+            conn.executescript(
+                """
                 -- Nodes table
                 CREATE TABLE IF NOT EXISTS nodes (
                     id TEXT PRIMARY KEY,
@@ -94,16 +95,12 @@ class GraphMemory:
                     INSERT INTO nodes_fts(nodes_fts, id, name) VALUES('delete', old.id, old.name);
                     INSERT INTO nodes_fts(id, name) VALUES (new.id, new.name);
                 END;
-            """)
+            """
+            )
 
     # === Node Operations ===
 
-    def add_node(
-        self,
-        type: MemoryType,
-        name: str,
-        data: Dict[str, Any] = None
-    ) -> Node:
+    def add_node(self, type: MemoryType, name: str, data: Dict[str, Any] = None) -> Node:
         """Add a node to the graph.
 
         Args:
@@ -129,7 +126,7 @@ class GraphMemory:
                     json.dumps(node.data),
                     node.created_at.isoformat(),
                     node.updated_at.isoformat(),
-                )
+                ),
             )
 
         return node
@@ -137,9 +134,7 @@ class GraphMemory:
     def get_node(self, node_id: str) -> Optional[Node]:
         """Get a node by ID."""
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM nodes WHERE id = ?", (node_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
 
             if row:
                 return self._row_to_node(row)
@@ -154,7 +149,7 @@ class GraphMemory:
                 UPDATE nodes SET data = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (json.dumps(data), now, node_id)
+                (json.dumps(data), now, node_id),
             )
 
         return self.get_node(node_id)
@@ -172,7 +167,7 @@ class GraphMemory:
         self,
         type: Optional[MemoryType] = None,
         name_contains: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Node]:
         """Find nodes by type and/or name."""
         query = "SELECT * FROM nodes WHERE 1=1"
@@ -203,7 +198,7 @@ class GraphMemory:
                 WHERE nodes_fts MATCH ?
                 LIMIT ?
                 """,
-                (query, limit)
+                (query, limit),
             ).fetchall()
             return [self._row_to_node(row) for row in rows]
 
@@ -215,7 +210,7 @@ class GraphMemory:
         to_id: str,
         relation: RelationType,
         weight: float = 1.0,
-        data: Dict[str, Any] = None
+        data: Dict[str, Any] = None,
     ) -> Edge:
         """Add an edge (relationship) between nodes.
 
@@ -230,11 +225,7 @@ class GraphMemory:
             Created Edge object
         """
         edge = Edge.create(
-            from_id=from_id,
-            to_id=to_id,
-            relation=relation,
-            weight=weight,
-            data=data
+            from_id=from_id, to_id=to_id, relation=relation, weight=weight, data=data
         )
 
         with self._connect() as conn:
@@ -251,7 +242,7 @@ class GraphMemory:
                     edge.weight,
                     json.dumps(edge.data),
                     edge.created_at.isoformat(),
-                )
+                ),
             )
 
         return edge
@@ -260,7 +251,7 @@ class GraphMemory:
         self,
         from_id: Optional[str] = None,
         to_id: Optional[str] = None,
-        relation: Optional[RelationType] = None
+        relation: Optional[RelationType] = None,
     ) -> List[Edge]:
         """Get edges matching criteria."""
         query = "SELECT * FROM edges WHERE 1=1"
@@ -295,7 +286,7 @@ class GraphMemory:
         node_id: str,
         relation: Optional[RelationType] = None,
         direction: str = "outgoing",
-        depth: int = 1
+        depth: int = 1,
     ) -> List[GraphQueryResult]:
         """Get nodes related to a given node.
 
@@ -329,23 +320,20 @@ class GraphMemory:
                     node = self.get_node(next_id)
                     if node:
                         new_path = path + [edge]
-                        results.append(GraphQueryResult(
-                            node=node,
-                            path=new_path,
-                            distance=len(new_path),
-                            relevance=self._calculate_relevance(new_path)
-                        ))
+                        results.append(
+                            GraphQueryResult(
+                                node=node,
+                                path=new_path,
+                                distance=len(new_path),
+                                relevance=self._calculate_relevance(new_path),
+                            )
+                        )
                         traverse(next_id, current_depth + 1, new_path)
 
         traverse(node_id, 1, [])
         return sorted(results, key=lambda r: (-r.relevance, r.distance))
 
-    def find_path(
-        self,
-        from_id: str,
-        to_id: str,
-        max_depth: int = 5
-    ) -> Optional[List[Edge]]:
+    def find_path(self, from_id: str, to_id: str, max_depth: int = 5) -> Optional[List[Edge]]:
         """Find shortest path between two nodes (BFS)."""
         if from_id == to_id:
             return []
@@ -376,7 +364,7 @@ class GraphMemory:
             node_id=project_id,
             relation=RelationType.USES,
             direction="outgoing",
-            depth=1
+            depth=1,
         )
         return [r.node for r in results if r.node.type == MemoryType.PATTERN]
 
@@ -386,7 +374,7 @@ class GraphMemory:
             node_id=pattern_id,
             relation=RelationType.SIMILAR_TO,
             direction="both",
-            depth=1
+            depth=1,
         )
         return [r.node for r in results if r.node.type == MemoryType.PATTERN]
 
@@ -396,7 +384,7 @@ class GraphMemory:
             node_id=pattern_id,
             relation=RelationType.VALIDATES,
             direction="incoming",
-            depth=1
+            depth=1,
         )
         return [r.node for r in results if r.node.type == MemoryType.OUTCOME]
 
@@ -409,9 +397,7 @@ class GraphMemory:
             edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
 
             nodes_by_type = {}
-            for row in conn.execute(
-                "SELECT type, COUNT(*) as count FROM nodes GROUP BY type"
-            ):
+            for row in conn.execute("SELECT type, COUNT(*) as count FROM nodes GROUP BY type"):
                 nodes_by_type[row["type"]] = row["count"]
 
             edges_by_relation = {}

@@ -5,7 +5,6 @@ import stat
 from pathlib import Path
 from typing import Optional
 
-
 POST_COMMIT_HOOK = """#!/bin/bash
 # Cortex V2 Automated Outcome Detection
 # Installed by: cortex2 hooks install
@@ -85,9 +84,7 @@ class GitHookInstaller:
                 return False
 
         # Write hook
-        hook_content = POST_COMMIT_HOOK.format(
-            cortex_path=str(self.cortex_path)
-        )
+        hook_content = POST_COMMIT_HOOK.format(cortex_path=str(self.cortex_path))
 
         post_commit_path.write_text(hook_content)
 

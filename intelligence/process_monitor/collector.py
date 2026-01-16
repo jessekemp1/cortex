@@ -2,15 +2,17 @@
 Process data collector using psutil.
 """
 
-import psutil
 import subprocess
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import psutil
+
 from .models import (
-    ProcessSnapshot,
-    ResourceMetric,
     ProcessCategory,
+    ProcessSnapshot,
     ProcessStatus,
+    ResourceMetric,
 )
 
 
@@ -19,28 +21,60 @@ class ProcessCollector:
 
     # Process categorization patterns
     AI_TOOL_PATTERNS = [
-        "claude", "ollama", "copilot", "cursor", "anthropic",
-        "openai", "gpt", "chatgpt", "codeium", "tabnine"
+        "claude",
+        "ollama",
+        "copilot",
+        "cursor",
+        "anthropic",
+        "openai",
+        "gpt",
+        "chatgpt",
+        "codeium",
+        "tabnine",
     ]
 
     DEV_SERVICE_PATTERNS = [
-        "uvicorn", "streamlit", "postgres", "node", "expo",
-        "fastapi", "django", "flask", "npm", "yarn", "pnpm"
+        "uvicorn",
+        "streamlit",
+        "postgres",
+        "node",
+        "expo",
+        "fastapi",
+        "django",
+        "flask",
+        "npm",
+        "yarn",
+        "pnpm",
     ]
 
     BACKGROUND_PATTERNS = [
-        "launchd", "batch", "cron", "cortex",
-        "com.claude", "com.nightlytests"
+        "launchd",
+        "batch",
+        "cron",
+        "cortex",
+        "com.claude",
+        "com.nightlytests",
     ]
 
     CONTAINER_PATTERNS = [
-        "docker", "colima", "containerd", "qemu",
-        "com.docker", "docker-compose"
+        "docker",
+        "colima",
+        "containerd",
+        "qemu",
+        "com.docker",
+        "docker-compose",
     ]
 
     BUILD_PATTERNS = [
-        "pytest", "tsc", "webpack", "vite", "rollup",
-        "cargo", "go build", "javac", "rustc"
+        "pytest",
+        "tsc",
+        "webpack",
+        "vite",
+        "rollup",
+        "cargo",
+        "go build",
+        "javac",
+        "rustc",
     ]
 
     def __init__(self):
@@ -56,31 +90,45 @@ class ProcessCollector:
         """
         snapshots = []
 
-        for proc in psutil.process_iter(['pid', 'name', 'status', 'cpu_percent',
-                                         'memory_info', 'create_time', 'cmdline',
-                                         'username', 'num_threads']):
+        for proc in psutil.process_iter(
+            [
+                "pid",
+                "name",
+                "status",
+                "cpu_percent",
+                "memory_info",
+                "create_time",
+                "cmdline",
+                "username",
+                "num_threads",
+            ]
+        ):
             try:
                 info = proc.info
 
                 # Skip kernel processes
-                if info['pid'] == 0:
+                if info["pid"] == 0:
                     continue
 
                 # Get process details
-                pid = info['pid']
-                name = info['name'] or 'unknown'
-                status = self._map_status(info['status'])
+                pid = info["pid"]
+                name = info["name"] or "unknown"
+                status = self._map_status(info["status"])
 
                 # Get CPU and memory
-                cpu_percent = info['cpu_percent'] or 0.0
-                memory_mb = (info['memory_info'].rss / 1024 / 1024) if info['memory_info'] else 0.0
+                cpu_percent = info["cpu_percent"] or 0.0
+                memory_mb = (info["memory_info"].rss / 1024 / 1024) if info["memory_info"] else 0.0
 
                 # Get start time
-                start_time = datetime.fromtimestamp(info['create_time']) if info['create_time'] else datetime.now()
+                start_time = (
+                    datetime.fromtimestamp(info["create_time"])
+                    if info["create_time"]
+                    else datetime.now()
+                )
 
                 # Get command
-                cmdline = info['cmdline'] or []
-                command = ' '.join(cmdline) if cmdline else name
+                cmdline = info["cmdline"] or []
+                command = " ".join(cmdline) if cmdline else name
 
                 # Categorize process
                 category = self._categorize_process(name, command)
@@ -105,8 +153,8 @@ class ProcessCollector:
                     command=command[:500],  # Limit command length
                     port=port,
                     parent_pid=parent_pid,
-                    username=info['username'],
-                    num_threads=info['num_threads'] or 1,
+                    username=info["username"],
+                    num_threads=info["num_threads"] or 1,
                 )
 
                 snapshots.append(snapshot)
@@ -142,11 +190,21 @@ class ProcessCollector:
         # Get category-specific metrics
         snapshots = self.collect_snapshot()
         ai_tool_cpu = sum(p.cpu_percent for p in snapshots if p.category == ProcessCategory.AI_TOOL)
-        ai_tool_memory = sum(p.memory_mb for p in snapshots if p.category == ProcessCategory.AI_TOOL)
-        dev_service_cpu = sum(p.cpu_percent for p in snapshots if p.category == ProcessCategory.DEV_SERVICE)
-        dev_service_memory = sum(p.memory_mb for p in snapshots if p.category == ProcessCategory.DEV_SERVICE)
-        docker_cpu = sum(p.cpu_percent for p in snapshots if p.category == ProcessCategory.CONTAINER)
-        docker_memory = sum(p.memory_mb for p in snapshots if p.category == ProcessCategory.CONTAINER)
+        ai_tool_memory = sum(
+            p.memory_mb for p in snapshots if p.category == ProcessCategory.AI_TOOL
+        )
+        dev_service_cpu = sum(
+            p.cpu_percent for p in snapshots if p.category == ProcessCategory.DEV_SERVICE
+        )
+        dev_service_memory = sum(
+            p.memory_mb for p in snapshots if p.category == ProcessCategory.DEV_SERVICE
+        )
+        docker_cpu = sum(
+            p.cpu_percent for p in snapshots if p.category == ProcessCategory.CONTAINER
+        )
+        docker_memory = sum(
+            p.memory_mb for p in snapshots if p.category == ProcessCategory.CONTAINER
+        )
 
         return ResourceMetric(
             timestamp=datetime.now(),
@@ -188,33 +246,35 @@ class ProcessCollector:
         try:
             # Check if Docker is running
             result = subprocess.run(
-                ['docker', 'ps', '--format', '{{.ID}}:{{.Names}}:{{.Status}}'],
+                ["docker", "ps", "--format", "{{.ID}}:{{.Names}}:{{.Status}}"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
                 containers = []
-                for line in result.stdout.strip().split('\n'):
+                for line in result.stdout.strip().split("\n"):
                     if line:
-                        parts = line.split(':')
+                        parts = line.split(":")
                         if len(parts) >= 3:
-                            containers.append({
-                                'id': parts[0],
-                                'name': parts[1],
-                                'status': parts[2],
-                            })
+                            containers.append(
+                                {
+                                    "id": parts[0],
+                                    "name": parts[1],
+                                    "status": parts[2],
+                                }
+                            )
 
                 return {
-                    'available': True,
-                    'container_count': len(containers),
-                    'containers': containers,
+                    "available": True,
+                    "container_count": len(containers),
+                    "containers": containers,
                 }
         except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
             pass
 
-        return {'available': False}
+        return {"available": False}
 
     def _categorize_process(self, name: str, command: str) -> ProcessCategory:
         """
@@ -231,32 +291,39 @@ class ProcessCollector:
         command_lower = command.lower()
 
         # Check AI tools
-        if any(pattern in name_lower or pattern in command_lower
-               for pattern in self.AI_TOOL_PATTERNS):
+        if any(
+            pattern in name_lower or pattern in command_lower for pattern in self.AI_TOOL_PATTERNS
+        ):
             return ProcessCategory.AI_TOOL
 
         # Check dev services
-        if any(pattern in name_lower or pattern in command_lower
-               for pattern in self.DEV_SERVICE_PATTERNS):
+        if any(
+            pattern in name_lower or pattern in command_lower
+            for pattern in self.DEV_SERVICE_PATTERNS
+        ):
             return ProcessCategory.DEV_SERVICE
 
         # Check background agents
-        if any(pattern in name_lower or pattern in command_lower
-               for pattern in self.BACKGROUND_PATTERNS):
+        if any(
+            pattern in name_lower or pattern in command_lower
+            for pattern in self.BACKGROUND_PATTERNS
+        ):
             return ProcessCategory.BACKGROUND_AGENT
 
         # Check containers
-        if any(pattern in name_lower or pattern in command_lower
-               for pattern in self.CONTAINER_PATTERNS):
+        if any(
+            pattern in name_lower or pattern in command_lower for pattern in self.CONTAINER_PATTERNS
+        ):
             return ProcessCategory.CONTAINER
 
         # Check build tools
-        if any(pattern in name_lower or pattern in command_lower
-               for pattern in self.BUILD_PATTERNS):
+        if any(
+            pattern in name_lower or pattern in command_lower for pattern in self.BUILD_PATTERNS
+        ):
             return ProcessCategory.BUILD_TOOL
 
         # System processes
-        if name_lower.startswith(('kernel', 'system', 'launchd')):
+        if name_lower.startswith(("kernel", "system", "launchd")):
             return ProcessCategory.SYSTEM
 
         return ProcessCategory.OTHER
@@ -291,9 +358,9 @@ class ProcessCollector:
             Port number or None
         """
         try:
-            connections = proc.connections(kind='inet')
+            connections = proc.connections(kind="inet")
             for conn in connections:
-                if conn.status == 'LISTEN' and conn.laddr:
+                if conn.status == "LISTEN" and conn.laddr:
                     return conn.laddr.port
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
@@ -339,9 +406,9 @@ class ProcessCollector:
         snapshots = self.collect_snapshot()
         return [s for s in snapshots if s.status == ProcessStatus.ZOMBIE]
 
-    def get_high_resource_processes(self,
-                                     cpu_threshold: float = 50.0,
-                                     memory_mb_threshold: float = 1000.0) -> List[ProcessSnapshot]:
+    def get_high_resource_processes(
+        self, cpu_threshold: float = 50.0, memory_mb_threshold: float = 1000.0
+    ) -> List[ProcessSnapshot]:
         """
         Get processes using high resources.
 
@@ -354,6 +421,7 @@ class ProcessCollector:
         """
         snapshots = self.collect_snapshot()
         return [
-            s for s in snapshots
+            s
+            for s in snapshots
             if s.cpu_percent > cpu_threshold or s.memory_mb > memory_mb_threshold
         ]

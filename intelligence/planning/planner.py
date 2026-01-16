@@ -3,15 +3,15 @@ Planner - Converts recommendations into executable plans.
 """
 
 import uuid
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from intelligence.planning.models import (
     Plan,
-    PlanStep,
+    PlanPriority,
     PlanStatus,
+    PlanStep,
     StepStatus,
-    PlanPriority
 )
 
 
@@ -32,7 +32,7 @@ class Planner:
         recommendations: List[Any],
         title: str = None,
         description: str = None,
-        priority: PlanPriority = PlanPriority.MEDIUM
+        priority: PlanPriority = PlanPriority.MEDIUM,
     ) -> Plan:
         """
         Create a plan from a list of recommendations.
@@ -63,8 +63,8 @@ class Planner:
             description = "Plan to execute:\n" + "\n".join(f"- {t}" for t in rec_titles)
 
         # Determine overall priority from recommendations
-        if hasattr(recommendations[0], 'priority'):
-            max_priority = max(r.priority for r in recommendations if hasattr(r, 'priority'))
+        if hasattr(recommendations[0], "priority"):
+            max_priority = max(r.priority for r in recommendations if hasattr(r, "priority"))
             if max_priority >= 90:
                 priority = PlanPriority.CRITICAL
             elif max_priority >= 70:
@@ -97,7 +97,7 @@ class Planner:
         description: str,
         steps_config: List[Dict[str, Any]],
         priority: PlanPriority = PlanPriority.MEDIUM,
-        tags: List[str] = None
+        tags: List[str] = None,
     ) -> Plan:
         """
         Create a custom plan from step configurations.
@@ -123,24 +123,20 @@ class Planner:
 
         for i, step_config in enumerate(steps_config):
             step = PlanStep(
-                id=step_config.get('id', f"step-{i+1}"),
-                title=step_config['title'],
-                description=step_config.get('description', ''),
-                estimated_time=step_config.get('estimated_time'),
-                dependencies=step_config.get('dependencies', []),
-                files=step_config.get('files', []),
-                validation=step_config.get('validation'),
-                notes=step_config.get('notes', ''),
+                id=step_config.get("id", f"step-{i+1}"),
+                title=step_config["title"],
+                description=step_config.get("description", ""),
+                estimated_time=step_config.get("estimated_time"),
+                dependencies=step_config.get("dependencies", []),
+                files=step_config.get("files", []),
+                validation=step_config.get("validation"),
+                notes=step_config.get("notes", ""),
             )
             plan.add_step(step)
 
         return plan
 
-    def _recommendation_to_steps(
-        self,
-        recommendation: Any,
-        prefix: str = ""
-    ) -> List[PlanStep]:
+    def _recommendation_to_steps(self, recommendation: Any, prefix: str = "") -> List[PlanStep]:
         """
         Convert a single recommendation to plan steps.
 
@@ -154,7 +150,7 @@ class Planner:
         steps = []
 
         # If recommendation already has steps, use them
-        if hasattr(recommendation, 'steps') and recommendation.steps:
+        if hasattr(recommendation, "steps") and recommendation.steps:
             for i, step_desc in enumerate(recommendation.steps):
                 step_id = f"{prefix}.{i+1}" if prefix else f"step-{i+1}"
                 steps.append(
@@ -163,7 +159,7 @@ class Planner:
                         title=f"{recommendation.title} - Step {i+1}",
                         description=step_desc,
                         estimated_time=self._estimate_step_time(step_desc),
-                        files=recommendation.files if hasattr(recommendation, 'files') else [],
+                        files=(recommendation.files if hasattr(recommendation, "files") else []),
                     )
                 )
         else:
@@ -173,9 +169,13 @@ class Planner:
                 PlanStep(
                     id=step_id,
                     title=recommendation.title,
-                    description=recommendation.description if hasattr(recommendation, 'description') else recommendation.title,
+                    description=(
+                        recommendation.description
+                        if hasattr(recommendation, "description")
+                        else recommendation.title
+                    ),
                     estimated_time=self._estimate_step_time(recommendation.title),
-                    files=recommendation.files if hasattr(recommendation, 'files') else [],
+                    files=(recommendation.files if hasattr(recommendation, "files") else []),
                 )
             )
 
@@ -195,20 +195,20 @@ class Planner:
         desc_lower = description.lower()
 
         # Keywords indicating complexity/time
-        if any(word in desc_lower for word in ['refactor', 'migrate', 'redesign', 'rebuild']):
+        if any(word in desc_lower for word in ["refactor", "migrate", "redesign", "rebuild"]):
             return 120  # 2 hours
-        elif any(word in desc_lower for word in ['implement', 'create', 'add', 'build']):
-            return 60   # 1 hour
-        elif any(word in desc_lower for word in ['update', 'modify', 'change', 'fix']):
-            return 30   # 30 minutes
-        elif any(word in desc_lower for word in ['test', 'verify', 'validate']):
-            return 15   # 15 minutes
+        elif any(word in desc_lower for word in ["implement", "create", "add", "build"]):
+            return 60  # 1 hour
+        elif any(word in desc_lower for word in ["update", "modify", "change", "fix"]):
+            return 30  # 30 minutes
+        elif any(word in desc_lower for word in ["test", "verify", "validate"]):
+            return 15  # 15 minutes
         else:
-            return 45   # Default: 45 minutes
+            return 45  # Default: 45 minutes
 
     def _generate_plan_id(self) -> str:
         """Generate a unique plan ID."""
-        timestamp = datetime.now().strftime('%Y%m%d')
+        timestamp = datetime.now().strftime("%Y%m%d")
         unique = str(uuid.uuid4())[:8]
         return f"plan-{timestamp}-{unique}"
 
@@ -294,6 +294,7 @@ class Planner:
         days_needed = total_hours / hours_per_day
 
         from datetime import timedelta
+
         completion_date = datetime.now() + timedelta(days=days_needed)
 
         return completion_date

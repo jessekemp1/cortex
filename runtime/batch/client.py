@@ -108,9 +108,7 @@ class AnthropicBatchClient:
                     "succeeded": batch.request_counts.succeeded,
                     "errored": batch.request_counts.errored,
                 },
-                "results_url": (
-                    batch.results_url if hasattr(batch, "results_url") else None
-                ),
+                "results_url": (batch.results_url if hasattr(batch, "results_url") else None),
                 "error": None,
             }
         except Exception as e:
@@ -150,9 +148,7 @@ class AnthropicBatchClient:
             return results
 
         except Exception as e:
-            logger.error(
-                "batch_results_download_failed", batch_id=batch_id, error=str(e)
-            )
+            logger.error("batch_results_download_failed", batch_id=batch_id, error=str(e))
             raise
 
     # --- Simulation Methods ---

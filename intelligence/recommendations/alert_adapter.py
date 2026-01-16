@@ -5,15 +5,16 @@ Converts alerts from the Warning System (Layer 3) to the format expected
 by the Smart Recommendation Generator (Layer 4).
 """
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List
-import uuid
 
 
 @dataclass
 class AdaptedAlert:
     """Layer 4 compatible alert format."""
+
     id: str
     type: str
     severity: str
@@ -36,10 +37,18 @@ class AdaptedAlert:
         alert_id = str(uuid.uuid4())
 
         # Convert AlertType enum to string
-        alert_type = layer3_alert.alert_type.value if hasattr(layer3_alert.alert_type, 'value') else str(layer3_alert.alert_type)
+        alert_type = (
+            layer3_alert.alert_type.value
+            if hasattr(layer3_alert.alert_type, "value")
+            else str(layer3_alert.alert_type)
+        )
 
         # Convert AlertSeverity enum to string
-        severity = layer3_alert.severity.value if hasattr(layer3_alert.severity, 'value') else str(layer3_alert.severity)
+        severity = (
+            layer3_alert.severity.value
+            if hasattr(layer3_alert.severity, "value")
+            else str(layer3_alert.severity)
+        )
 
         # Combine title and message for richer context
         full_message = f"{layer3_alert.title}\n{layer3_alert.message}"
@@ -48,8 +57,12 @@ class AdaptedAlert:
         context = {
             "title": layer3_alert.title,
             "metric_type": layer3_alert.metric_type,
-            "created_at": layer3_alert.created_at.isoformat() if isinstance(layer3_alert.created_at, datetime) else str(layer3_alert.created_at),
-            **layer3_alert.metadata  # Include all metadata from Layer 3
+            "created_at": (
+                layer3_alert.created_at.isoformat()
+                if isinstance(layer3_alert.created_at, datetime)
+                else str(layer3_alert.created_at)
+            ),
+            **layer3_alert.metadata,  # Include all metadata from Layer 3
         }
 
         return cls(
@@ -58,7 +71,7 @@ class AdaptedAlert:
             severity=severity,
             message=full_message,
             project_id=layer3_alert.project,
-            context=context
+            context=context,
         )
 
 

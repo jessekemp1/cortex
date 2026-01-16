@@ -1,6 +1,5 @@
-import re
-
 import json
+import re
 
 
 class AgentFactory:
@@ -42,7 +41,6 @@ class AgentFactory:
         """Generate the Python script for the agent."""
         # In a real implementation, this might use an LLM to generate code.
         # For now, we use a template that prints the intent.
-
 
         return f'''
 import structlog

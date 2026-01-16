@@ -185,9 +185,7 @@ class BriefingScheduler:
     def _is_cron_available(self) -> bool:
         """Check if cron is available on the system."""
         try:
-            result = subprocess.run(
-                ["which", "crontab"], capture_output=True, timeout=2
-            )
+            result = subprocess.run(["which", "crontab"], capture_output=True, timeout=2)
             return result.returncode == 0
         except Exception:
             return False
@@ -221,11 +219,7 @@ class BriefingScheduler:
             current_crontab = result.stdout if result.returncode == 0 else ""
 
             # Remove existing cortex briefing lines
-            lines = [
-                line
-                for line in current_crontab.split("\n")
-                if "cortex briefing" not in line
-            ]
+            lines = [line for line in current_crontab.split("\n") if "cortex briefing" not in line]
 
             # Add new line
             lines.append("# Cortex Daily Briefing")
@@ -377,9 +371,7 @@ if __name__ == "__main__":
         type=str,
         help="Schedule briefing with cron expression (e.g., '0 8 * * *')",
     )
-    parser.add_argument(
-        "--unschedule", action="store_true", help="Remove scheduled briefing"
-    )
+    parser.add_argument("--unschedule", action="store_true", help="Remove scheduled briefing")
     parser.add_argument("--run", action="store_true", help="Run briefing now")
     parser.add_argument("--status", action="store_true", help="Show schedule status")
     parser.add_argument("--output-file", type=str, help="File to write briefing to")
@@ -389,9 +381,7 @@ if __name__ == "__main__":
     scheduler = BriefingScheduler()
 
     if args.schedule:
-        scheduler.schedule_briefing(
-            cron_expression=args.schedule, output_file=args.output_file
-        )
+        scheduler.schedule_briefing(cron_expression=args.schedule, output_file=args.output_file)
     elif args.unschedule:
         scheduler.unschedule_briefing()
     elif args.run:

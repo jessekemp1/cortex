@@ -9,19 +9,19 @@ Usage:
     print(f"Detected {report.signals_detected} work signals")
 """
 
+from .absorber import WorkAbsorber
+from .correlator import DriftAnalyzer, PlanCorrelator
 from .models import (
-    WorkSignal,
-    WorkItem,
-    ProgressEntry,
-    PlanDrift,
     AbsorptionReport,
+    DriftType,
+    PlanDrift,
+    ProgressEntry,
+    WorkItem,
+    WorkSignal,
     WorkSignalType,
     WorkStatus,
-    DriftType,
 )
 from .storage import WorkAbsorberStorage
-from .absorber import WorkAbsorber
-from .correlator import PlanCorrelator, DriftAnalyzer
 
 __all__ = [
     # Core

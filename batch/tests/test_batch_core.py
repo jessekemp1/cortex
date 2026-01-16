@@ -158,9 +158,7 @@ class TestBatchFallback:
 
         with patch.dict(os.environ, {"CORTEX_BATCH_RESEARCH_ENABLED": "true"}):
             with pytest.raises(Exception, match="Sequential error"):
-                BatchFallback.process_with_fallback(
-                    [], batch_func, sequential_func, "research"
-                )
+                BatchFallback.process_with_fallback([], batch_func, sequential_func, "research")
 
     def test_fallback_disabled_no_fallback(self):
         """Test no fallback when fallback is disabled"""
@@ -179,9 +177,7 @@ class TestBatchFallback:
             },
         ):
             with pytest.raises(Exception, match="Batch error"):
-                BatchFallback.process_with_fallback(
-                    [], batch_func, sequential_func, "research"
-                )
+                BatchFallback.process_with_fallback([], batch_func, sequential_func, "research")
 
 
 class TestBatchRequest:
@@ -298,9 +294,7 @@ class TestIntegration:
         def sequential_func(items):
             return {"source": "sequential"}
 
-        result = BatchFallback.process_with_fallback(
-            [], batch_func, sequential_func, "research"
-        )
+        result = BatchFallback.process_with_fallback([], batch_func, sequential_func, "research")
 
         assert result["source"] == "batch"
 

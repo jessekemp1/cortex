@@ -8,11 +8,11 @@ Formats StrategistResponse objects into human-readable output.
 import json
 
 try:
+    from .orchestrator import SystemHealth  # noqa: F401
     from .orchestrator import (
         ContextPrediction,
         Recommendation,
         StrategistResponse,
-        SystemHealth,  # noqa: F401
     )
 except ImportError:
     from orchestrator import (
@@ -132,9 +132,7 @@ class CortexFormatter:
             lines.append("🎯 NEXT ACTION")
             lines.append("────────────────")
             lines.append(
-                CortexFormatter._format_recommendation(
-                    response.next_action, detailed=True
-                )
+                CortexFormatter._format_recommendation(response.next_action, detailed=True)
             )
             lines.append("")
         else:
@@ -160,7 +158,11 @@ class CortexFormatter:
             if workflow.rationale:
                 lines.append(f"Rationale: {workflow.rationale}")
             if workflow.confidence > 0:
-                conf_icon = "🟢" if workflow.confidence >= 0.8 else "🟡" if workflow.confidence >= 0.6 else "⚪"
+                conf_icon = (
+                    "🟢"
+                    if workflow.confidence >= 0.8
+                    else "🟡" if workflow.confidence >= 0.6 else "⚪"
+                )
                 lines.append(f"Confidence: {conf_icon} {workflow.confidence:.0%}")
             lines.append("")
 
@@ -171,9 +173,7 @@ class CortexFormatter:
             lines.append("────────────────────────────────────────────────────────────")
 
             for i, rec in enumerate(response.alternative_actions, 2):
-                lines.append(
-                    f"{i}. {CortexFormatter._format_recommendation(rec, detailed=False)}"
-                )
+                lines.append(f"{i}. {CortexFormatter._format_recommendation(rec, detailed=False)}")
                 lines.append("")
 
         # Context Predictions
@@ -184,13 +184,9 @@ class CortexFormatter:
 
             for pred in response.context_predictions[:3]:  # Show top 3
                 confidence_icon = (
-                    "🟢"
-                    if pred.confidence >= 0.8
-                    else "🟡" if pred.confidence >= 0.6 else "⚪"
+                    "🟢" if pred.confidence >= 0.8 else "🟡" if pred.confidence >= 0.6 else "⚪"
                 )
-                lines.append(
-                    f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)"
-                )
+                lines.append(f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)")
                 lines.append(f"   {pred.description}")
                 # Show file path on its own line for clickability
                 if hasattr(pred, "file_path") and pred.file_path:
@@ -203,19 +199,38 @@ class CortexFormatter:
     @staticmethod
     def _format_recommendation(rec: Recommendation, detailed: bool = True) -> str:
         """Format a single recommendation with enhanced traceability."""
+        # Handle priority as int, enum, or string
+        priority = rec.priority
+        if isinstance(priority, int):
+            priority_str = "high" if priority > 70 else "medium" if priority > 40 else "low"
+        elif hasattr(priority, "value"):
+            priority_str = priority.value.lower()
+        else:
+            priority_str = str(priority).lower()
+
         priority_icon = (
-            "🔴"
-            if rec.priority == "high"
-            else "🟡" if rec.priority == "medium" else "⚪"
+            "🔴" if priority_str == "high" else "🟡" if priority_str == "medium" else "⚪"
         )
-        priority_label = rec.priority.upper()
+        priority_label = priority_str.upper()
+
+        # Get rationale/description before the if/else
+        rationale = getattr(rec, "rationale", None) or getattr(rec, "description", "No details")
+
+        # Handle confidence as enum or float
+        conf = rec.confidence
+        if hasattr(conf, "value"):
+            conf_str = conf.value.upper()
+        elif isinstance(conf, (int, float)):
+            conf_str = f"{conf:.0%}"
+        else:
+            conf_str = str(conf)
 
         lines = []
 
         if detailed:
             lines.append(f"[{priority_label}] {rec.title}")
             lines.append("")
-            lines.append(f"Why: {rec.rationale}")
+            lines.append(f"Why: {rationale}")
             lines.append("")
 
             # Enhanced Traceability (Golden Spec: Solution-Outcome Alignment)
@@ -226,21 +241,23 @@ class CortexFormatter:
                     lines.append(f"  • {factor}: {weight:.0%}")
                 lines.append("")
             else:
-                # Fallback: Extract traceability from rationale
-                # Show priority, impact, and confidence as decision factors
+                # Fallback: Show priority, impact, and confidence as decision factors
                 lines.append("Decision Factors:")
-                if rec.priority == "high":
+                if priority_str == "high":
                     lines.append("  • Priority: High (weight: 40%)")
-                lines.append(f"  • Impact: {rec.estimated_impact} (weight: 30%)")
-                lines.append(f"  • Confidence: {rec.confidence:.0%} (weight: 30%)")
+                lines.append(
+                    f"  • Impact: {getattr(rec, 'estimated_impact', 'Unknown')} (weight: 30%)"
+                )
+                lines.append(f"  • Confidence: {conf_str} (weight: 30%)")
                 lines.append("")
 
-            lines.append(f"Effort: {rec.estimated_effort}")
-            lines.append(f"Impact: {rec.estimated_impact}")
-            lines.append(f"Confidence: {rec.confidence:.0%}")
+            lines.append(f"Effort: {getattr(rec, 'estimated_effort', 'Unknown')}")
+            lines.append(f"Impact: {getattr(rec, 'estimated_impact', 'Unknown')}")
+            lines.append(f"Confidence: {conf_str}")
             lines.append("")
 
-            if rec.description:
+            description = getattr(rec, "description", "")
+            if description:
                 # Extract next steps from description if present
                 desc_lines = rec.description.split("\n")
                 next_steps_started = False
@@ -250,26 +267,21 @@ class CortexFormatter:
                         lines.append("Next Steps:")
                     elif next_steps_started and line.strip().startswith("•"):
                         lines.append(f"  {line.strip()}")
-                    elif (
-                        next_steps_started
-                        and line.strip()
-                        and not line.strip().startswith("•")
-                    ):
+                    elif next_steps_started and line.strip() and not line.strip().startswith("•"):
                         # End of next steps
                         break
 
-            if rec.related_projects:
-                lines.append(f"Related Projects: {', '.join(rec.related_projects)}")
+            related_projects = getattr(rec, "related_projects", None) or []
+            if related_projects:
+                lines.append(f"Related Projects: {', '.join(related_projects)}")
 
-            if rec.related_goals:
-                lines.append(f"Related Goals: {', '.join(rec.related_goals)}")
+            related_goals = getattr(rec, "related_goals", None) or []
+            if related_goals:
+                lines.append(f"Related Goals: {', '.join(related_goals)}")
         else:
             lines.append(f"{priority_icon} [{priority_label}] {rec.title}")
-            lines.append(
-                f"   {rec.rationale[:100]}..."
-                if len(rec.rationale) > 100
-                else f"   {rec.rationale}"
-            )
+            summary = rationale[:100] + "..." if len(rationale) > 100 else rationale
+            lines.append(f"   {summary}")
 
         return "\n".join(lines)
 
@@ -285,8 +297,7 @@ class CortexFormatter:
                 else None
             ),
             "alternative_actions": [
-                CortexFormatter._recommendation_to_dict(rec)
-                for rec in response.alternative_actions
+                CortexFormatter._recommendation_to_dict(rec) for rec in response.alternative_actions
             ],
             "context_predictions": [
                 CortexFormatter._context_prediction_to_dict(pred)
@@ -298,19 +309,40 @@ class CortexFormatter:
     @staticmethod
     def _recommendation_to_dict(rec: Recommendation) -> dict:
         """Convert Recommendation to dict."""
+        # Handle priority and confidence as enum or other types
+        priority = rec.priority
+        if isinstance(priority, int):
+            priority_str = "high" if priority > 70 else "medium" if priority > 40 else "low"
+        elif hasattr(priority, "value"):
+            priority_str = priority.value
+        else:
+            priority_str = str(priority)
+
+        conf = rec.confidence
+        if hasattr(conf, "value"):
+            conf_val = conf.value
+        elif isinstance(conf, (int, float)):
+            conf_val = conf
+        else:
+            conf_val = str(conf)
+
+        rec_type = getattr(rec, "type", "unknown")
+        if hasattr(rec_type, "value"):
+            rec_type = rec_type.value
+
         return {
-            "id": rec.id,
-            "type": rec.type,
-            "priority": rec.priority,
+            "id": getattr(rec, "id", "unknown"),
+            "type": rec_type,
+            "priority": priority_str,
             "title": rec.title,
-            "description": rec.description,
-            "rationale": rec.rationale,
-            "estimated_effort": rec.estimated_effort,
-            "estimated_impact": rec.estimated_impact,
-            "confidence": rec.confidence,
-            "related_projects": rec.related_projects,
-            "related_goals": rec.related_goals,
-            "prerequisites": rec.prerequisites,
+            "description": getattr(rec, "description", ""),
+            "rationale": getattr(rec, "rationale", None) or getattr(rec, "description", ""),
+            "estimated_effort": getattr(rec, "estimated_effort", None),
+            "estimated_impact": getattr(rec, "estimated_impact", None),
+            "confidence": conf_val,
+            "related_projects": getattr(rec, "related_projects", []),
+            "related_goals": getattr(rec, "related_goals", []),
+            "prerequisites": getattr(rec, "prerequisites", []),
         }
 
     @staticmethod

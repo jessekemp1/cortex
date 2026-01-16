@@ -10,7 +10,6 @@ Provides a full morning briefing integrating:
 from typing import Any, Dict
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 
@@ -51,8 +50,9 @@ class BriefingAgent(BaseAgent):
         """
         try:
             # Import cortex briefing module
-            from cortex.briefing import generate_daily_briefing, BriefingData
             from dataclasses import asdict
+
+            from cortex.briefing import BriefingData, generate_daily_briefing
 
             briefing: BriefingData = generate_daily_briefing()
 

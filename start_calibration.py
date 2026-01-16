@@ -4,11 +4,12 @@ Cortex Calibration Starter - Month 1, Week 1
 Quick script to record your first development task predictions
 """
 
-import sys
-import json
 import argparse
+import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
 from metrics_tracker import MetricsTracker
 
 CURRENT_TASK_FILE = Path.home() / ".claude" / "portfolio" / "current_task.json"
@@ -39,7 +40,7 @@ def start_task_prediction():
     confidence = float(input("Confidence (0.50-0.95): "))
 
     print("\nWill you use Cortex for this task? (spec search, patterns, lessons)")
-    use_cortex = input("Use Cortex? (y/n): ").lower() == 'y'
+    use_cortex = input("Use Cortex? (y/n): ").lower() == "y"
 
     # Generate prediction ID
     prediction_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -51,7 +52,7 @@ def start_task_prediction():
         predicted_outcome="success",
         confidence=confidence,
         predicted_time=baseline_min,
-        project=project
+        project=project,
     )
 
     print(f"\n✅ Prediction recorded: {prediction_id}")
@@ -71,7 +72,7 @@ def start_task_prediction():
         "baseline_min": baseline_min,
         "use_cortex": use_cortex,
         "project": project,
-        "started_at": datetime.now().isoformat()
+        "started_at": datetime.now().isoformat(),
     }
 
     CURRENT_TASK_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -117,7 +118,7 @@ def show_calibration_stats():
     print(f"Pending: {cal_data['pending_count']}")
     print()
 
-    if cal_stats['total_predictions'] == 0:
+    if cal_stats["total_predictions"] == 0:
         print("No completed predictions yet.")
         print("Complete some tasks to see calibration stats!")
         return
@@ -127,23 +128,23 @@ def show_calibration_stats():
     print(f"  Avg confidence: {cal_stats['avg_confidence']*100:.1f}%")
     print(f"  Calibration error: {cal_stats['calibration_error']*100:.1f}%")
 
-    if cal_stats['calibration_error'] < 0.15:
+    if cal_stats["calibration_error"] < 0.15:
         print(f"  Status: ✅ Well calibrated")
-    elif cal_stats['calibration_error'] < 0.25:
+    elif cal_stats["calibration_error"] < 0.25:
         print(f"  Status: ⚠️ Moderate calibration error")
     else:
         print(f"  Status: ❌ Poor calibration")
     print()
 
-    if time_stats['count'] > 0:
+    if time_stats["count"] > 0:
         print("Time Estimation:")
         print(f"  Mean error: {time_stats['mean_error_pct']:.1f}%")
         print(f"  Underestimates: {time_stats['underestimates']}")
         print(f"  Overestimates: {time_stats['overestimates']}")
 
-        if time_stats['underestimates'] > time_stats['overestimates'] * 1.5:
+        if time_stats["underestimates"] > time_stats["overestimates"] * 1.5:
             print(f"  Bias: ⚠️ You tend to underestimate")
-        elif time_stats['overestimates'] > time_stats['underestimates'] * 1.5:
+        elif time_stats["overestimates"] > time_stats["underestimates"] * 1.5:
             print(f"  Bias: ⚠️ You tend to overestimate")
         else:
             print(f"  Bias: ✅ Relatively balanced")
@@ -158,18 +159,18 @@ def show_analysis():
 
     print("\n=== DETAILED CALIBRATION ANALYSIS ===")
 
-    if cal_stats['total_predictions'] == 0:
+    if cal_stats["total_predictions"] == 0:
         print("No completed predictions to analyze.")
         print("Complete at least 10 tasks to see meaningful analysis.")
         return
 
     # Confidence bucket analysis
     print("\nCalibration Curve (Confidence Buckets):")
-    buckets = cal_stats.get('by_confidence_bucket', {})
+    buckets = cal_stats.get("by_confidence_bucket", {})
     if buckets:
         for bucket_range, stats in sorted(buckets.items()):
-            pred_count = stats['predictions']
-            accuracy = stats['accuracy'] * 100
+            pred_count = stats["predictions"]
+            accuracy = stats["accuracy"] * 100
             print(f"  {bucket_range}: {pred_count} predictions, {accuracy:.0f}% accuracy")
 
     print()
@@ -178,17 +179,25 @@ def show_analysis():
 
     # Recommendations
     print("\n📊 Recommendations:")
-    if cal_stats['total_predictions'] < 20:
-        print(f"  - Record {20 - cal_stats['total_predictions']} more predictions to reach Week 1-2 goal")
+    if cal_stats["total_predictions"] < 20:
+        print(
+            f"  - Record {20 - cal_stats['total_predictions']} more predictions to reach Week 1-2 goal"
+        )
 
-    if cal_stats['calibration_error'] > 0.20:
-        print(f"  - Adjust your confidence levels (currently off by {cal_stats['calibration_error']*100:.0f}%)")
+    if cal_stats["calibration_error"] > 0.20:
+        print(
+            f"  - Adjust your confidence levels (currently off by {cal_stats['calibration_error']*100:.0f}%)"
+        )
 
-    if time_stats['count'] > 5:
-        if time_stats['mean_error_pct'] > 40:
-            print(f"  - Time estimates off by {time_stats['mean_error_pct']:.0f}% on average - need improvement")
-        elif time_stats['mean_error_pct'] > 25:
-            print(f"  - Time estimates off by {time_stats['mean_error_pct']:.0f}% - getting better!")
+    if time_stats["count"] > 5:
+        if time_stats["mean_error_pct"] > 40:
+            print(
+                f"  - Time estimates off by {time_stats['mean_error_pct']:.0f}% on average - need improvement"
+            )
+        elif time_stats["mean_error_pct"] > 25:
+            print(
+                f"  - Time estimates off by {time_stats['mean_error_pct']:.0f}% - getting better!"
+            )
         else:
             print(f"  - Time estimates are good ({time_stats['mean_error_pct']:.0f}% error)")
 
@@ -197,9 +206,9 @@ def show_analysis():
 
 def main():
     parser = argparse.ArgumentParser(description="Cortex Calibration Tracking")
-    parser.add_argument('--list-pending', action='store_true', help='List pending predictions')
-    parser.add_argument('--stats', action='store_true', help='Show calibration statistics')
-    parser.add_argument('--analyze', action='store_true', help='Show detailed analysis')
+    parser.add_argument("--list-pending", action="store_true", help="List pending predictions")
+    parser.add_argument("--stats", action="store_true", help="Show calibration statistics")
+    parser.add_argument("--analyze", action="store_true", help="Show detailed analysis")
 
     args = parser.parse_args()
 

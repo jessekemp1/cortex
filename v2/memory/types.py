@@ -8,15 +8,16 @@ Memory types:
 - Fact: General knowledge (API rate limit is 1000/min)
 """
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-import uuid
 
 
 @dataclass
 class TypedMemory:
     """Base class for all typed memories."""
+
     id: str
     title: str
     content: str
@@ -56,6 +57,7 @@ class Pattern(TypedMemory):
 
     Example: "Use Redis for session caching in FastAPI"
     """
+
     problem: str = ""
     solution: str = ""
     context: str = ""  # When to use this pattern
@@ -70,7 +72,7 @@ class Pattern(TypedMemory):
         solution: str,
         context: str = "",
         projects: List[str] = None,
-        tags: List[str] = None
+        tags: List[str] = None,
     ) -> "Pattern":
         """Create a new pattern."""
         return cls(
@@ -86,13 +88,15 @@ class Pattern(TypedMemory):
 
     def to_dict(self) -> Dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "problem": self.problem,
-            "solution": self.solution,
-            "context": self.context,
-            "anti_patterns": self.anti_patterns,
-            "outcome_ids": self.outcome_ids,
-        })
+        d.update(
+            {
+                "problem": self.problem,
+                "solution": self.solution,
+                "context": self.context,
+                "anti_patterns": self.anti_patterns,
+                "outcome_ids": self.outcome_ids,
+            }
+        )
         return d
 
 
@@ -102,6 +106,7 @@ class Incident(TypedMemory):
 
     Example: "Production outage caused by Redis connection exhaustion"
     """
+
     what_happened: str = ""
     root_cause: str = ""
     resolution: str = ""
@@ -116,7 +121,7 @@ class Incident(TypedMemory):
         root_cause: str,
         resolution: str,
         severity: str = "minor",
-        projects: List[str] = None
+        projects: List[str] = None,
     ) -> "Incident":
         """Create a new incident."""
         return cls(
@@ -132,13 +137,15 @@ class Incident(TypedMemory):
 
     def to_dict(self) -> Dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "what_happened": self.what_happened,
-            "root_cause": self.root_cause,
-            "resolution": self.resolution,
-            "prevention": self.prevention,
-            "severity": self.severity,
-        })
+        d.update(
+            {
+                "what_happened": self.what_happened,
+                "root_cause": self.root_cause,
+                "resolution": self.resolution,
+                "prevention": self.prevention,
+                "severity": self.severity,
+            }
+        )
         return d
 
 
@@ -148,6 +155,7 @@ class Skill(TypedMemory):
 
     Example: "How to deploy VortexV2 to production"
     """
+
     steps: List[str] = field(default_factory=list)
     prerequisites: List[str] = field(default_factory=list)
     estimated_time: str = ""  # "30 minutes", "2 hours"
@@ -161,7 +169,7 @@ class Skill(TypedMemory):
         prerequisites: List[str] = None,
         estimated_time: str = "",
         difficulty: str = "medium",
-        projects: List[str] = None
+        projects: List[str] = None,
     ) -> "Skill":
         """Create a new skill."""
         steps_text = "\n".join(f"{i+1}. {step}" for i, step in enumerate(steps))
@@ -178,12 +186,14 @@ class Skill(TypedMemory):
 
     def to_dict(self) -> Dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "steps": self.steps,
-            "prerequisites": self.prerequisites,
-            "estimated_time": self.estimated_time,
-            "difficulty": self.difficulty,
-        })
+        d.update(
+            {
+                "steps": self.steps,
+                "prerequisites": self.prerequisites,
+                "estimated_time": self.estimated_time,
+                "difficulty": self.difficulty,
+            }
+        )
         return d
 
 
@@ -193,6 +203,7 @@ class Decision(TypedMemory):
 
     Example: "Chose PostgreSQL over MySQL for VortexV2 database"
     """
+
     question: str = ""  # The decision we faced
     chosen_option: str = ""
     alternatives: List[str] = field(default_factory=list)
@@ -207,7 +218,7 @@ class Decision(TypedMemory):
         chosen_option: str,
         alternatives: List[str],
         rationale: str,
-        projects: List[str] = None
+        projects: List[str] = None,
     ) -> "Decision":
         """Create a new decision."""
         alt_text = ", ".join(alternatives) if alternatives else "none"
@@ -224,13 +235,15 @@ class Decision(TypedMemory):
 
     def to_dict(self) -> Dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "question": self.question,
-            "chosen_option": self.chosen_option,
-            "alternatives": self.alternatives,
-            "rationale": self.rationale,
-            "outcome": self.outcome,
-        })
+        d.update(
+            {
+                "question": self.question,
+                "chosen_option": self.chosen_option,
+                "alternatives": self.alternatives,
+                "rationale": self.rationale,
+                "outcome": self.outcome,
+            }
+        )
         return d
 
 
@@ -240,6 +253,7 @@ class Goal(TypedMemory):
 
     Example: "Ship VortexV2 production API by end of week"
     """
+
     status: str = "active"  # active, completed, blocked, abandoned
     progress: int = 0  # 0-100 percent
     deadline: Optional[str] = None  # ISO date string
@@ -256,7 +270,7 @@ class Goal(TypedMemory):
         deadline: str = None,
         success_criteria: List[str] = None,
         projects: List[str] = None,
-        progress: int = 0
+        progress: int = 0,
     ) -> "Goal":
         """Create a new goal."""
         return cls(
@@ -271,15 +285,17 @@ class Goal(TypedMemory):
 
     def to_dict(self) -> Dict[str, Any]:
         d = super().to_dict()
-        d.update({
-            "status": self.status,
-            "progress": self.progress,
-            "deadline": self.deadline,
-            "success_criteria": self.success_criteria,
-            "blockers": self.blockers,
-            "parent_goal_id": self.parent_goal_id,
-            "outcome_ids": self.outcome_ids,
-        })
+        d.update(
+            {
+                "status": self.status,
+                "progress": self.progress,
+                "deadline": self.deadline,
+                "success_criteria": self.success_criteria,
+                "blockers": self.blockers,
+                "parent_goal_id": self.parent_goal_id,
+                "outcome_ids": self.outcome_ids,
+            }
+        )
         return d
 
 

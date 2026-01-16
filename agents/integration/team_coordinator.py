@@ -61,8 +61,7 @@ class TeamCoordinator:
         if results["phases_completed"] == results["total_phases"]:
             results["overall_status"] = "completed"
         elif (
-            results["phases_failed"] == 0
-            and results["phases_completed"] < results["total_phases"]
+            results["phases_failed"] == 0 and results["phases_completed"] < results["total_phases"]
         ):
             results["overall_status"] = "in_progress"
 
@@ -84,9 +83,7 @@ class TeamCoordinator:
             # Check dependencies
             if not agent.check_dependencies():
                 phase_result["success"] = False
-                phase_result["message"] = (
-                    f"Dependencies not met for Phase {agent.phase_number}"
-                )
+                phase_result["message"] = f"Dependencies not met for Phase {agent.phase_number}"
                 phase_result["errors"].append(phase_result["message"])
                 return phase_result
 

@@ -2,20 +2,20 @@
 Process metrics tracker with SQLite persistence.
 """
 
-import sqlite3
 import json
+import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import (
+    Anomaly,
+    AnomalyType,
+    ProcessCategory,
     ProcessSnapshot,
     ResourceMetric,
-    Anomaly,
-    ProcessCategory,
-    AnomalyType,
 )
 
 
@@ -46,11 +46,9 @@ class ProcessTracker:
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection."""
-        if not hasattr(self._local, 'conn') or self._local.conn is None:
+        if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(
-                str(self.db_path),
-                check_same_thread=False,
-                timeout=30.0
+                str(self.db_path), check_same_thread=False, timeout=30.0
             )
             # Enable WAL mode for better concurrency
             self._local.conn.execute("PRAGMA journal_mode=WAL")
@@ -75,7 +73,8 @@ class ProcessTracker:
         """Initialize database schema."""
         with self._transaction() as cursor:
             # Resource snapshots table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS resource_snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -90,10 +89,12 @@ class ProcessTracker:
                     docker_cpu REAL DEFAULT 0.0,
                     docker_memory_mb REAL DEFAULT 0.0
                 )
-            """)
+            """
+            )
 
             # Process history table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS process_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -109,10 +110,12 @@ class ProcessTracker:
                     username TEXT,
                     num_threads INTEGER DEFAULT 1
                 )
-            """)
+            """
+            )
 
             # Anomalies table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS anomalies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -123,10 +126,12 @@ class ProcessTracker:
                     description TEXT NOT NULL,
                     metadata TEXT
                 )
-            """)
+            """
+            )
 
             # Patterns table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS patterns (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     pattern_type TEXT NOT NULL,
@@ -135,32 +140,39 @@ class ProcessTracker:
                     last_seen TEXT NOT NULL,
                     metadata TEXT
                 )
-            """)
+            """
+            )
 
             # Create indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_resource_snapshots_timestamp
                 ON resource_snapshots(timestamp)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_process_history_timestamp
                 ON process_history(timestamp)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_process_history_category
                 ON process_history(category)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_anomalies_timestamp
                 ON anomalies(timestamp)
-            """)
+            """
+            )
 
-    def record_snapshot(self,
-                        resource_metric: ResourceMetric,
-                        processes: List[ProcessSnapshot]):
+    def record_snapshot(self, resource_metric: ResourceMetric, processes: List[ProcessSnapshot]):
         """
         Record a snapshot of resources and processes.
 
@@ -170,58 +182,70 @@ class ProcessTracker:
         """
         with self._transaction() as cursor:
             # Insert resource snapshot
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO resource_snapshots (
                     timestamp, total_cpu_percent, available_memory_mb,
                     total_memory_mb, process_count, ai_tool_cpu,
                     ai_tool_memory, dev_service_cpu, dev_service_memory,
                     docker_cpu, docker_memory_mb
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                resource_metric.timestamp.isoformat(),
-                resource_metric.total_cpu_percent,
-                resource_metric.available_memory_mb,
-                resource_metric.total_memory_mb,
-                resource_metric.process_count,
-                resource_metric.ai_tool_cpu,
-                resource_metric.ai_tool_memory,
-                resource_metric.dev_service_cpu,
-                resource_metric.dev_service_memory,
-                resource_metric.docker_cpu,
-                resource_metric.docker_memory_mb,
-            ))
+            """,
+                (
+                    resource_metric.timestamp.isoformat(),
+                    resource_metric.total_cpu_percent,
+                    resource_metric.available_memory_mb,
+                    resource_metric.total_memory_mb,
+                    resource_metric.process_count,
+                    resource_metric.ai_tool_cpu,
+                    resource_metric.ai_tool_memory,
+                    resource_metric.dev_service_cpu,
+                    resource_metric.dev_service_memory,
+                    resource_metric.docker_cpu,
+                    resource_metric.docker_memory_mb,
+                ),
+            )
 
             # Insert process snapshots (sample to avoid bloat)
             # Only store interesting processes: AI tools, dev services, high resource
             interesting_processes = [
-                p for p in processes
-                if p.category in (ProcessCategory.AI_TOOL, ProcessCategory.DEV_SERVICE,
-                                  ProcessCategory.BACKGROUND_AGENT, ProcessCategory.CONTAINER)
+                p
+                for p in processes
+                if p.category
+                in (
+                    ProcessCategory.AI_TOOL,
+                    ProcessCategory.DEV_SERVICE,
+                    ProcessCategory.BACKGROUND_AGENT,
+                    ProcessCategory.CONTAINER,
+                )
                 or p.cpu_percent > 10.0
                 or p.memory_mb > 500.0
             ]
 
             for proc in interesting_processes:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO process_history (
                         timestamp, pid, name, category, cpu_percent,
                         memory_mb, status, command, port, parent_pid,
                         username, num_threads
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    resource_metric.timestamp.isoformat(),
-                    proc.pid,
-                    proc.name,
-                    proc.category.value,
-                    proc.cpu_percent,
-                    proc.memory_mb,
-                    proc.status.value,
-                    proc.command,
-                    proc.port,
-                    proc.parent_pid,
-                    proc.username,
-                    proc.num_threads,
-                ))
+                """,
+                    (
+                        resource_metric.timestamp.isoformat(),
+                        proc.pid,
+                        proc.name,
+                        proc.category.value,
+                        proc.cpu_percent,
+                        proc.memory_mb,
+                        proc.status.value,
+                        proc.command,
+                        proc.port,
+                        proc.parent_pid,
+                        proc.username,
+                        proc.num_threads,
+                    ),
+                )
 
     def record_anomaly(self, anomaly: Anomaly):
         """
@@ -231,20 +255,23 @@ class ProcessTracker:
             anomaly: Anomaly object
         """
         with self._transaction() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO anomalies (
                     timestamp, process_name, process_pid, anomaly_type,
                     severity, description, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                anomaly.timestamp.isoformat(),
-                anomaly.process_name,
-                anomaly.process_pid,
-                anomaly.anomaly_type.value,
-                anomaly.severity,
-                anomaly.description,
-                json.dumps(anomaly.metadata),
-            ))
+            """,
+                (
+                    anomaly.timestamp.isoformat(),
+                    anomaly.process_name,
+                    anomaly.process_pid,
+                    anomaly.anomaly_type.value,
+                    anomaly.severity,
+                    anomaly.description,
+                    json.dumps(anomaly.metadata),
+                ),
+            )
 
     def get_utilization_history(self, hours: int = 24) -> List[ResourceMetric]:
         """
@@ -259,34 +286,35 @@ class ProcessTracker:
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
 
         with self._transaction() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM resource_snapshots
                 WHERE timestamp >= ?
                 ORDER BY timestamp ASC
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
             rows = cursor.fetchall()
 
         return [
             ResourceMetric(
-                timestamp=datetime.fromisoformat(row['timestamp']),
-                total_cpu_percent=row['total_cpu_percent'],
-                available_memory_mb=row['available_memory_mb'],
-                total_memory_mb=row['total_memory_mb'],
-                process_count=row['process_count'],
-                ai_tool_cpu=row['ai_tool_cpu'] or 0.0,
-                ai_tool_memory=row['ai_tool_memory'] or 0.0,
-                dev_service_cpu=row['dev_service_cpu'] or 0.0,
-                dev_service_memory=row['dev_service_memory'] or 0.0,
-                docker_cpu=row['docker_cpu'] or 0.0,
-                docker_memory_mb=row['docker_memory_mb'] or 0.0,
+                timestamp=datetime.fromisoformat(row["timestamp"]),
+                total_cpu_percent=row["total_cpu_percent"],
+                available_memory_mb=row["available_memory_mb"],
+                total_memory_mb=row["total_memory_mb"],
+                process_count=row["process_count"],
+                ai_tool_cpu=row["ai_tool_cpu"] or 0.0,
+                ai_tool_memory=row["ai_tool_memory"] or 0.0,
+                dev_service_cpu=row["dev_service_cpu"] or 0.0,
+                dev_service_memory=row["dev_service_memory"] or 0.0,
+                docker_cpu=row["docker_cpu"] or 0.0,
+                docker_memory_mb=row["docker_memory_mb"] or 0.0,
             )
             for row in rows
         ]
 
-    def get_process_patterns(self,
-                             category: ProcessCategory,
-                             hours: int = 24) -> Dict[str, Any]:
+    def get_process_patterns(self, category: ProcessCategory, hours: int = 24) -> Dict[str, Any]:
         """
         Get process patterns for a category.
 
@@ -300,7 +328,8 @@ class ProcessTracker:
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
 
         with self._transaction() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     name,
                     AVG(cpu_percent) as avg_cpu,
@@ -312,17 +341,19 @@ class ProcessTracker:
                 WHERE category = ? AND timestamp >= ?
                 GROUP BY name
                 ORDER BY avg_cpu DESC
-            """, (category.value, cutoff))
+            """,
+                (category.value, cutoff),
+            )
 
             rows = cursor.fetchall()
 
         return {
-            row['name']: {
-                'avg_cpu': row['avg_cpu'],
-                'avg_memory': row['avg_memory'],
-                'max_cpu': row['max_cpu'],
-                'max_memory': row['max_memory'],
-                'sample_count': row['sample_count'],
+            row["name"]: {
+                "avg_cpu": row["avg_cpu"],
+                "avg_memory": row["avg_memory"],
+                "max_cpu": row["max_cpu"],
+                "max_memory": row["max_memory"],
+                "sample_count": row["sample_count"],
             }
             for row in rows
         }
@@ -340,23 +371,26 @@ class ProcessTracker:
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
 
         with self._transaction() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM anomalies
                 WHERE timestamp >= ?
                 ORDER BY timestamp DESC
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
             rows = cursor.fetchall()
 
         return [
             Anomaly(
-                timestamp=datetime.fromisoformat(row['timestamp']),
-                process_name=row['process_name'],
-                process_pid=row['process_pid'],
-                anomaly_type=AnomalyType(row['anomaly_type']),
-                severity=row['severity'],
-                description=row['description'],
-                metadata=json.loads(row['metadata']) if row['metadata'] else {},
+                timestamp=datetime.fromisoformat(row["timestamp"]),
+                process_name=row["process_name"],
+                process_pid=row["process_pid"],
+                anomaly_type=AnomalyType(row["anomaly_type"]),
+                severity=row["severity"],
+                description=row["description"],
+                metadata=json.loads(row["metadata"]) if row["metadata"] else {},
             )
             for row in rows
         ]
@@ -374,7 +408,8 @@ class ProcessTracker:
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
         with self._transaction() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     CAST(strftime('%H', timestamp) AS INTEGER) as hour,
                     AVG(total_cpu_percent) as avg_cpu,
@@ -383,14 +418,16 @@ class ProcessTracker:
                 WHERE timestamp >= ?
                 GROUP BY hour
                 ORDER BY hour
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
             rows = cursor.fetchall()
 
         return {
-            row['hour']: {
-                'avg_cpu': row['avg_cpu'],
-                'avg_memory_used': row['avg_memory_used'],
+            row["hour"]: {
+                "avg_cpu": row["avg_cpu"],
+                "avg_memory_used": row["avg_memory_used"],
             }
             for row in rows
         }
@@ -409,22 +446,31 @@ class ProcessTracker:
 
         with self._transaction() as cursor:
             # Clean up old snapshots
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM resource_snapshots
                 WHERE timestamp < ?
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
             # Clean up old process history
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM process_history
                 WHERE timestamp < ?
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
             # Clean up old anomalies
-            cursor.execute("""
+            cursor.execute(
+                """
                 DELETE FROM anomalies
                 WHERE timestamp < ?
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -435,25 +481,27 @@ class ProcessTracker:
         """
         with self._transaction() as cursor:
             cursor.execute("SELECT COUNT(*) as count FROM resource_snapshots")
-            snapshot_count = cursor.fetchone()['count']
+            snapshot_count = cursor.fetchone()["count"]
 
             cursor.execute("SELECT COUNT(*) as count FROM process_history")
-            process_count = cursor.fetchone()['count']
+            process_count = cursor.fetchone()["count"]
 
             cursor.execute("SELECT COUNT(*) as count FROM anomalies")
-            anomaly_count = cursor.fetchone()['count']
+            anomaly_count = cursor.fetchone()["count"]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT MIN(timestamp) as oldest, MAX(timestamp) as newest
                 FROM resource_snapshots
-            """)
+            """
+            )
             time_range = cursor.fetchone()
 
         return {
-            'snapshot_count': snapshot_count,
-            'process_history_count': process_count,
-            'anomaly_count': anomaly_count,
-            'oldest_data': time_range['oldest'],
-            'newest_data': time_range['newest'],
-            'db_path': str(self.db_path),
+            "snapshot_count": snapshot_count,
+            "process_history_count": process_count,
+            "anomaly_count": anomaly_count,
+            "oldest_data": time_range["oldest"],
+            "newest_data": time_range["newest"],
+            "db_path": str(self.db_path),
         }

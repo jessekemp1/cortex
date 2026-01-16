@@ -32,9 +32,7 @@ class Phase3Agent(BaseCoordinationAgent):
     """Agent team for Phase 3: Enhanced Integration with Learning"""
 
     def __init__(self, root_dir: Path = None):
-        super().__init__(
-            phase_name="Enhanced Integration", phase_number=3, root_dir=root_dir
-        )
+        super().__init__(phase_name="Enhanced Integration", phase_number=3, root_dir=root_dir)
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
         self.cortex_dir = self.root_dir / "cortex"
         self.integration_dir = self.cortex_dir / "integration"
@@ -103,9 +101,7 @@ class Phase3Agent(BaseCoordinationAgent):
             error_msg = f"Phase 3 execution failed: {str(e)}"
             self.update_progress("execution", "failed", error_msg)
             self.complete_phase(False, error_msg)
-            return AgentResult(
-                success=False, message=error_msg, data={"phase": 3, "error": str(e)}
-            )
+            return AgentResult(success=False, message=error_msg, data={"phase": 3, "error": str(e)})
 
     def _add_learning_to_orchestrator(self):
         """Add learning mechanism to Cortex orchestrator"""

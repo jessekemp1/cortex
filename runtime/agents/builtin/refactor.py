@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 
@@ -70,9 +69,7 @@ class RefactorAgent(BaseAgent):
         if not target_files:
             return AgentResult(success=False, message="No files provided for refactor")
 
-        logger.info(
-            "refactor_request_received", files=target_files, instruction=instruction
-        )
+        logger.info("refactor_request_received", files=target_files, instruction=instruction)
 
         # Construct prompt
         prompt = (

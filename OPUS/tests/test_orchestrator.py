@@ -46,9 +46,7 @@ def test_get_next_action_with_project_filter():
     assert isinstance(response, StrategistResponse)
     # If recommendations exist, they should be filtered
     if response.next_action:
-        assert any(
-            "vortexv2" in proj.lower() for proj in response.next_action.related_projects
-        )
+        assert any("vortexv2" in proj.lower() for proj in response.next_action.related_projects)
 
 
 def test_get_next_action_with_context():

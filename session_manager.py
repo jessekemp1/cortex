@@ -1,10 +1,11 @@
 # ~/Dev/cortex/session_manager.py
 
+import json
 import subprocess
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-import json
+
 
 class SessionManager:
     """
@@ -23,7 +24,7 @@ class SessionManager:
         self.context_cache_path = Path("~/.claude/session/context.json").expanduser()
         self.context_cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def get_context(self, format: str = 'terminal') -> str:
+    def get_context(self, format: str = "terminal") -> str:
         """
         Get current session context
 
@@ -32,7 +33,7 @@ class SessionManager:
         """
         context = self._build_context()
 
-        if format == 'structured':
+        if format == "structured":
             return json.dumps(context, indent=2)
         else:
             return self._format_terminal(context)
@@ -46,12 +47,12 @@ class SessionManager:
 
         # Get git context if in repo
         git_context = {}
-        if project_info['is_git_repo']:
+        if project_info["is_git_repo"]:
             git_context = {
-                'branch': self._get_current_branch(),
-                'recent_commits': self._get_recent_commits(limit=3),
-                'status': self._get_git_status(),
-                'recent_files': self._get_recently_modified_files()
+                "branch": self._get_current_branch(),
+                "recent_commits": self._get_recent_commits(limit=3),
+                "status": self._get_git_status(),
+                "recent_files": self._get_recently_modified_files(),
             }
 
         # Extract goals from recent work
@@ -59,12 +60,12 @@ class SessionManager:
 
         # Build context
         context = {
-            'timestamp': datetime.now().isoformat(),
-            'current_directory': str(current_dir),
-            'project': project_info,
-            'git': git_context,
-            'goals': goals,
-            'focus': self._infer_focus(git_context)
+            "timestamp": datetime.now().isoformat(),
+            "current_directory": str(current_dir),
+            "project": project_info,
+            "git": git_context,
+            "goals": goals,
+            "focus": self._infer_focus(git_context),
         }
 
         # Cache for quick retrieval
@@ -77,29 +78,21 @@ class SessionManager:
         # Walk up until we find .git or hit workspace root
         current = path
         while current >= self.workspace_root:
-            if (current / '.git').exists():
-                return {
-                    'name': current.name,
-                    'path': str(current),
-                    'is_git_repo': True
-                }
+            if (current / ".git").exists():
+                return {"name": current.name, "path": str(current), "is_git_repo": True}
             current = current.parent
 
-        return {
-            'name': 'unknown',
-            'path': str(path),
-            'is_git_repo': False
-        }
+        return {"name": "unknown", "path": str(path), "is_git_repo": False}
 
     def _run_git(self, args: List[str], cwd: str = None) -> str:
         """Run git command and return output"""
         try:
             result = subprocess.run(
-                ['git'] + args,
+                ["git"] + args,
                 cwd=cwd or Path.cwd(),
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             return result.stdout.strip()
         except Exception:
@@ -107,73 +100,78 @@ class SessionManager:
 
     def _get_current_branch(self) -> str:
         """Get current git branch"""
-        return self._run_git(['branch', '--show-current'])
+        return self._run_git(["branch", "--show-current"])
 
     def _get_recent_commits(self, limit: int = 3) -> List[Dict]:
         """Get recent commits"""
-        log_format = '--pretty=format:%h|%an|%ar|%s'
-        output = self._run_git(['log', log_format, f'-{limit}'])
+        log_format = "--pretty=format:%h|%an|%ar|%s"
+        output = self._run_git(["log", log_format, f"-{limit}"])
 
         commits = []
-        for line in output.split('\n'):
+        for line in output.split("\n"):
             if line:
-                parts = line.split('|', 3)
+                parts = line.split("|", 3)
                 if len(parts) == 4:
-                    commits.append({
-                        'hash': parts[0],
-                        'author': parts[1],
-                        'time': parts[2],
-                        'message': parts[3]
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0],
+                            "author": parts[1],
+                            "time": parts[2],
+                            "message": parts[3],
+                        }
+                    )
         return commits
 
     def _get_git_status(self) -> Dict:
         """Get git status summary"""
-        status_output = self._run_git(['status', '--porcelain'])
+        status_output = self._run_git(["status", "--porcelain"])
 
         modified = []
         untracked = []
 
-        for line in status_output.split('\n'):
+        for line in status_output.split("\n"):
             if line:
                 status = line[:2]
                 filepath = line[3:]
 
-                if status == '??':
+                if status == "??":
                     untracked.append(filepath)
                 else:
                     modified.append(filepath)
 
         return {
-            'modified': modified,
-            'untracked': untracked,
-            'is_clean': len(modified) == 0 and len(untracked) == 0
+            "modified": modified,
+            "untracked": untracked,
+            "is_clean": len(modified) == 0 and len(untracked) == 0,
         }
 
     def _get_recently_modified_files(self, days: int = 7) -> List[str]:
         """Get files modified in last N days"""
-        since = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-        output = self._run_git([
-            'log',
-            '--since', since,
-            '--name-only',
-            '--pretty=format:',
-            '--diff-filter=AM'  # Added or Modified
-        ])
+        since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        output = self._run_git(
+            [
+                "log",
+                "--since",
+                since,
+                "--name-only",
+                "--pretty=format:",
+                "--diff-filter=AM",  # Added or Modified
+            ]
+        )
 
-        files = set(line for line in output.split('\n') if line)
+        files = set(line for line in output.split("\n") if line)
         return sorted(files)[:10]  # Top 10
 
     def _extract_goals(self, git_context: Dict) -> List[str]:
         """Extract goals from recent commit messages"""
         goals = []
 
-        if 'recent_commits' in git_context:
-            for commit in git_context['recent_commits']:
-                msg = commit['message']
+        if "recent_commits" in git_context:
+            for commit in git_context["recent_commits"]:
+                msg = commit["message"]
 
                 # Look for goal indicators
-                if any(word in msg.lower() for word in ['add', 'implement', 'build', 'create']):
+                if any(word in msg.lower() for word in ["add", "implement", "build", "create"]):
                     goals.append(f"Continue work on: {msg}")
 
         return goals[:3]  # Top 3 goals
@@ -184,17 +182,17 @@ class SessionManager:
             return "Unknown"
 
         # Recent commits indicate focus
-        if git_context.get('recent_commits'):
-            latest = git_context['recent_commits'][0]['message']
+        if git_context.get("recent_commits"):
+            latest = git_context["recent_commits"][0]["message"]
 
             # Extract focus from commit message
-            if 'test' in latest.lower():
+            if "test" in latest.lower():
                 return "Testing"
-            elif 'fix' in latest.lower() or 'bug' in latest.lower():
+            elif "fix" in latest.lower() or "bug" in latest.lower():
                 return "Bug fixing"
-            elif 'doc' in latest.lower():
+            elif "doc" in latest.lower():
                 return "Documentation"
-            elif 'refactor' in latest.lower():
+            elif "refactor" in latest.lower():
                 return "Refactoring"
             else:
                 return "Feature development"
@@ -208,41 +206,41 @@ class SessionManager:
         output.append("=== Cortex Session Intelligence ===\n")
 
         # Project
-        project = context['project']
+        project = context["project"]
         output.append(f"Project: {project['name']}")
         output.append(f"Path: {project['path']}\n")
 
         # Git status
-        if context['git']:
-            git = context['git']
+        if context["git"]:
+            git = context["git"]
             output.append(f"Branch: {git.get('branch', 'unknown')}")
             output.append(f"Focus: {context.get('focus', 'unknown')}\n")
 
             # Recent work
-            if git.get('recent_commits'):
+            if git.get("recent_commits"):
                 output.append("Recent commits:")
-                for commit in git['recent_commits'][:3]:
+                for commit in git["recent_commits"][:3]:
                     output.append(f"  [{commit['hash']}] {commit['message']} ({commit['time']})")
                 output.append("")
 
             # Status
-            status = git.get('status', {})
-            if not status.get('is_clean'):
+            status = git.get("status", {})
+            if not status.get("is_clean"):
                 output.append(f"Modified files: {len(status.get('modified', []))}")
                 output.append(f"Untracked files: {len(status.get('untracked', []))}\n")
 
         # Goals
-        if context.get('goals'):
+        if context.get("goals"):
             output.append("Active goals:")
-            for goal in context['goals']:
+            for goal in context["goals"]:
                 output.append(f"  • {goal}")
             output.append("")
 
         output.append("===================================")
 
-        return '\n'.join(output)
+        return "\n".join(output)
 
     def _cache_context(self, context: Dict):
         """Cache context for quick retrieval"""
-        with open(self.context_cache_path, 'w') as f:
+        with open(self.context_cache_path, "w") as f:
             json.dump(context, f, indent=2)

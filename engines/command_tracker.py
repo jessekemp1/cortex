@@ -17,6 +17,7 @@ from typing import Optional
 
 class CommandType(Enum):
     """Categories of slash commands."""
+
     # Core workflow
     INVESTIGATE = "investigate"
     PLAN = "plan"
@@ -82,6 +83,7 @@ COMMAND_PATTERNS = [
 @dataclass
 class CommandExecution:
     """Record of a command execution."""
+
     command: CommandType
     timestamp: datetime
     session_id: str
@@ -94,6 +96,7 @@ class CommandExecution:
 @dataclass
 class WorkflowPattern:
     """A detected workflow pattern (sequence of commands)."""
+
     pattern_id: str
     commands: list[CommandType]
     frequency: int = 1
@@ -133,7 +136,8 @@ class CommandTracker:
         cursor = conn.cursor()
 
         # Command executions table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS command_executions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 command TEXT NOT NULL,
@@ -144,10 +148,12 @@ class CommandTracker:
                 outcome TEXT DEFAULT 'unknown',
                 duration_seconds REAL
             )
-        """)
+        """
+        )
 
         # Workflow patterns table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS workflow_patterns (
                 pattern_id TEXT PRIMARY KEY,
                 commands TEXT NOT NULL,
@@ -159,10 +165,12 @@ class CommandTracker:
                 last_seen TEXT,
                 created_at TEXT
             )
-        """)
+        """
+        )
 
         # Command success rates table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS command_stats (
                 command TEXT PRIMARY KEY,
                 total_executions INTEGER DEFAULT 0,
@@ -170,7 +178,8 @@ class CommandTracker:
                 avg_duration_seconds REAL DEFAULT 0,
                 last_used TEXT
             )
-        """)
+        """
+        )
 
         conn.commit()
         conn.close()
@@ -187,7 +196,7 @@ class CommandTracker:
             match = re.match(pattern, prompt, re.IGNORECASE)
             if match:
                 # Extract arguments (everything after the command)
-                args = prompt[match.end():].strip()
+                args = prompt[match.end() :].strip()
                 return (cmd_type, args)
 
         # Check for generic slash command
@@ -223,26 +232,32 @@ class CommandTracker:
         # Persist to database
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO command_executions
             (command, timestamp, session_id, project, arguments)
             VALUES (?, ?, ?, ?, ?)
-        """, (
-            command.value,
-            execution.timestamp.isoformat(),
-            session_id,
-            project,
-            arguments,
-        ))
+        """,
+            (
+                command.value,
+                execution.timestamp.isoformat(),
+                session_id,
+                project,
+                arguments,
+            ),
+        )
 
         # Update command stats
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO command_stats (command, total_executions, last_used)
             VALUES (?, 1, ?)
             ON CONFLICT(command) DO UPDATE SET
                 total_executions = total_executions + 1,
                 last_used = excluded.last_used
-        """, (command.value, execution.timestamp.isoformat()))
+        """,
+            (command.value, execution.timestamp.isoformat()),
+        )
 
         conn.commit()
         conn.close()
@@ -261,21 +276,27 @@ class CommandTracker:
         cursor = conn.cursor()
 
         # Update most recent execution of this command in session
-        cursor.execute("""
+        cursor.execute(
+            """
             UPDATE command_executions
             SET outcome = ?, duration_seconds = ?
             WHERE session_id = ? AND command = ?
             ORDER BY timestamp DESC
             LIMIT 1
-        """, (outcome, duration_seconds, session_id, command.value))
+        """,
+            (outcome, duration_seconds, session_id, command.value),
+        )
 
         # Update success stats
         if outcome == "success":
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE command_stats
                 SET success_count = success_count + 1
                 WHERE command = ?
-            """, (command.value,))
+            """,
+                (command.value,),
+            )
 
         conn.commit()
         conn.close()
@@ -307,7 +328,8 @@ class CommandTracker:
             # Get project
             project = pattern[0].project or "unknown"
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO workflow_patterns
                 (pattern_id, commands, frequency, success_count, failure_count,
                  total_duration_minutes, projects, last_seen, created_at)
@@ -319,16 +341,18 @@ class CommandTracker:
                     total_duration_minutes = total_duration_minutes + excluded.total_duration_minutes,
                     projects = excluded.projects,
                     last_seen = excluded.last_seen
-            """, (
-                pattern_key,
-                commands_json,
-                1 if success else 0,
-                0 if success else 1,
-                duration,
-                json.dumps([project]),
-                datetime.now().isoformat(),
-                datetime.now().isoformat(),
-            ))
+            """,
+                (
+                    pattern_key,
+                    commands_json,
+                    1 if success else 0,
+                    0 if success else 1,
+                    duration,
+                    json.dumps([project]),
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat(),
+                ),
+            )
 
         conn.commit()
         conn.close()
@@ -345,7 +369,7 @@ class CommandTracker:
         # Sliding window for different pattern lengths
         for length in range(min_length, min(max_length + 1, len(commands) + 1)):
             for i in range(len(commands) - length + 1):
-                window = commands[i:i + length]
+                window = commands[i : i + length]
 
                 # Check if this looks like a workflow (sequential phases)
                 if self._is_workflow_pattern(window):
@@ -369,7 +393,7 @@ class CommandTracker:
 
         if len(phases) >= 2:
             # Should be generally increasing (allows some backtracking)
-            increases = sum(1 for i in range(len(phases) - 1) if phases[i+1] >= phases[i])
+            increases = sum(1 for i in range(len(phases) - 1) if phases[i + 1] >= phases[i])
             return increases >= len(phases) // 2
 
         return True  # Non-workflow commands are still valid patterns
@@ -392,7 +416,8 @@ class CommandTracker:
 
         if current_command:
             # Find patterns that start with or contain current command
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT pattern_id, commands, frequency, success_count,
                        failure_count, total_duration_minutes
                 FROM workflow_patterns
@@ -401,10 +426,13 @@ class CommandTracker:
                     CAST(success_count AS REAL) / (success_count + failure_count + 1) DESC,
                     frequency DESC
                 LIMIT ?
-            """, (f'%"{current_command.value}"%', limit * 2))
+            """,
+                (f'%"{current_command.value}"%', limit * 2),
+            )
         else:
             # Get most successful patterns overall
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT pattern_id, commands, frequency, success_count,
                        failure_count, total_duration_minutes
                 FROM workflow_patterns
@@ -412,7 +440,9 @@ class CommandTracker:
                     CAST(success_count AS REAL) / (success_count + failure_count + 1) DESC,
                     frequency DESC
                 LIMIT ?
-            """, (limit * 2,))
+            """,
+                (limit * 2,),
+            )
 
         rows = cursor.fetchall()
         conn.close()
@@ -435,13 +465,15 @@ class CommandTracker:
                 except ValueError:
                     pass
 
-            suggestions.append({
-                "pattern": " → ".join(f"/{c}" for c in commands),
-                "next_command": f"/{next_cmd}" if next_cmd else None,
-                "success_rate": success_rate,
-                "frequency": freq,
-                "avg_duration_min": duration / freq if freq > 0 else 0,
-            })
+            suggestions.append(
+                {
+                    "pattern": " → ".join(f"/{c}" for c in commands),
+                    "next_command": f"/{next_cmd}" if next_cmd else None,
+                    "success_rate": success_rate,
+                    "frequency": freq,
+                    "avg_duration_min": duration / freq if freq > 0 else 0,
+                }
+            )
 
         # Deduplicate and limit
         seen = set()
@@ -461,11 +493,13 @@ class CommandTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT command, total_executions, success_count, avg_duration_seconds
             FROM command_stats
             ORDER BY total_executions DESC
-        """)
+        """
+        )
 
         rows = cursor.fetchall()
         conn.close()

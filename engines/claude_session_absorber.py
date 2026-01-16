@@ -16,16 +16,16 @@ Integration with Claude Code via hooks:
 - SessionEnd -> SESSION_ENDED
 """
 
+import hashlib
 import json
 import logging
 import sqlite3
-import hashlib
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable
 from threading import Lock
+from typing import Any, Callable, Dict, List, Optional
 
 from .absorber import Signal, SignalSource, SignalType
 
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 class InteractionSignalType(Enum):
     """Extended signal types for Claude Code interactions."""
+
     # Core interaction signals
     PROMPT_RECEIVED = "prompt_received"
     TOOL_STARTED = "tool_started"
@@ -53,6 +54,7 @@ class InteractionSignalType(Enum):
 @dataclass
 class InteractionSignal(Signal):
     """Extended signal with interaction-specific metadata."""
+
     interaction_type: Optional[InteractionSignalType] = None
     session_id: Optional[str] = None
     prompt_hash: Optional[str] = None  # For deduplication/pattern matching
@@ -63,21 +65,26 @@ class InteractionSignal(Signal):
 
     def to_dict(self) -> Dict:
         base = super().to_dict()
-        base.update({
-            "interaction_type": self.interaction_type.value if self.interaction_type else None,
-            "session_id": self.session_id,
-            "prompt_hash": self.prompt_hash,
-            "tool_name": self.tool_name,
-            "tool_success": self.tool_success,
-            "response_length": self.response_length,
-            "context_relevance": self.context_relevance,
-        })
+        base.update(
+            {
+                "interaction_type": (
+                    self.interaction_type.value if self.interaction_type else None
+                ),
+                "session_id": self.session_id,
+                "prompt_hash": self.prompt_hash,
+                "tool_name": self.tool_name,
+                "tool_success": self.tool_success,
+                "response_length": self.response_length,
+                "context_relevance": self.context_relevance,
+            }
+        )
         return base
 
 
 @dataclass
 class InteractionPattern:
     """A detected interaction pattern that can inform future recommendations."""
+
     pattern_id: str
     pattern_type: str  # "prompt_pattern", "tool_sequence", "correction_pattern"
     description: str
@@ -129,7 +136,8 @@ class ClaudeSessionSource(SignalSource):
         cursor = conn.cursor()
 
         # Interactions table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS interactions (
                 id TEXT PRIMARY KEY,
                 timestamp TEXT NOT NULL,
@@ -142,10 +150,12 @@ class ClaudeSessionSource(SignalSource):
                 tool_success INTEGER,
                 processed INTEGER DEFAULT 0
             )
-        """)
+        """
+        )
 
         # Patterns table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS patterns (
                 pattern_id TEXT PRIMARY KEY,
                 pattern_type TEXT NOT NULL,
@@ -156,10 +166,12 @@ class ClaudeSessionSource(SignalSource):
                 examples TEXT,
                 projects TEXT
             )
-        """)
+        """
+        )
 
         # Session summaries for cross-session learning
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS session_summaries (
                 session_id TEXT PRIMARY KEY,
                 project TEXT,
@@ -171,12 +183,19 @@ class ClaudeSessionSource(SignalSource):
                 key_topics TEXT,
                 lessons TEXT
             )
-        """)
+        """
+        )
 
         # Create indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_interactions_session ON interactions(session_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_interactions_type ON interactions(interaction_type)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_interactions_project ON interactions(project)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_session ON interactions(session_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_type ON interactions(interaction_type)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_project ON interactions(project)"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_patterns_type ON patterns(pattern_type)")
 
         conn.commit()
@@ -208,8 +227,9 @@ class ClaudeSessionSource(SignalSource):
 
     # === Hook Receivers ===
 
-    def on_prompt_received(self, session_id: str, prompt: str, cwd: str,
-                           metadata: Optional[Dict] = None) -> InteractionSignal:
+    def on_prompt_received(
+        self, session_id: str, prompt: str, cwd: str, metadata: Optional[Dict] = None
+    ) -> InteractionSignal:
         """
         Called by UserPromptSubmit hook when user sends a prompt.
 
@@ -252,12 +272,14 @@ class ClaudeSessionSource(SignalSource):
 
         # Store and buffer
         self._store_interaction(signal)
-        self._prompt_history.append({
-            "hash": prompt_hash,
-            "prompt": prompt[:500],
-            "timestamp": signal.timestamp,
-            "project": project,
-        })
+        self._prompt_history.append(
+            {
+                "hash": prompt_hash,
+                "prompt": prompt[:500],
+                "timestamp": signal.timestamp,
+                "project": project,
+            }
+        )
 
         # Keep last 100 prompts in memory
         if len(self._prompt_history) > 100:
@@ -268,8 +290,9 @@ class ClaudeSessionSource(SignalSource):
 
         return signal
 
-    def on_tool_started(self, session_id: str, tool_name: str,
-                        tool_input: Dict, cwd: str) -> InteractionSignal:
+    def on_tool_started(
+        self, session_id: str, tool_name: str, tool_input: Dict, cwd: str
+    ) -> InteractionSignal:
         """Called by PreToolUse hook when tool execution starts."""
         import uuid
 
@@ -295,9 +318,15 @@ class ClaudeSessionSource(SignalSource):
 
         return signal
 
-    def on_tool_completed(self, session_id: str, tool_name: str,
-                          tool_input: Dict, tool_response: Dict,
-                          success: bool, cwd: str) -> InteractionSignal:
+    def on_tool_completed(
+        self,
+        session_id: str,
+        tool_name: str,
+        tool_input: Dict,
+        tool_response: Dict,
+        success: bool,
+        cwd: str,
+    ) -> InteractionSignal:
         """
         Called by PostToolUse hook after tool execution completes.
 
@@ -333,8 +362,9 @@ class ClaudeSessionSource(SignalSource):
 
         return signal
 
-    def on_response_completed(self, session_id: str, cwd: str,
-                               metadata: Optional[Dict] = None) -> InteractionSignal:
+    def on_response_completed(
+        self, session_id: str, cwd: str, metadata: Optional[Dict] = None
+    ) -> InteractionSignal:
         """Called by Stop hook when Claude finishes responding."""
         import uuid
 
@@ -359,8 +389,7 @@ class ClaudeSessionSource(SignalSource):
 
         return signal
 
-    def on_session_ended(self, session_id: str, reason: str,
-                         cwd: str) -> InteractionSignal:
+    def on_session_ended(self, session_id: str, reason: str, cwd: str) -> InteractionSignal:
         """
         Called by SessionEnd hook when session terminates.
 
@@ -399,25 +428,48 @@ class ClaudeSessionSource(SignalSource):
 
         # Correction indicators
         correction_phrases = [
-            "no, ", "that's wrong", "actually,", "i meant", "not what i",
-            "try again", "that didn't work", "wrong file", "undo",
-            "revert", "go back", "that broke"
+            "no, ",
+            "that's wrong",
+            "actually,",
+            "i meant",
+            "not what i",
+            "try again",
+            "that didn't work",
+            "wrong file",
+            "undo",
+            "revert",
+            "go back",
+            "that broke",
         ]
         if any(phrase in prompt_lower for phrase in correction_phrases):
             return InteractionSignalType.USER_CORRECTION
 
         # Follow-up indicators (potential ambiguity)
         followup_phrases = [
-            "what about", "can you also", "and then", "but what if",
-            "why did", "explain", "show me", "how does"
+            "what about",
+            "can you also",
+            "and then",
+            "but what if",
+            "why did",
+            "explain",
+            "show me",
+            "how does",
         ]
         if any(phrase in prompt_lower for phrase in followup_phrases):
             return InteractionSignalType.USER_FOLLOWUP
 
         # Approval indicators
         approval_phrases = [
-            "looks good", "perfect", "thanks", "great", "yes",
-            "that works", "commit", "push", "ship it", "done"
+            "looks good",
+            "perfect",
+            "thanks",
+            "great",
+            "yes",
+            "that works",
+            "commit",
+            "push",
+            "ship it",
+            "done",
         ]
         if any(phrase in prompt_lower for phrase in approval_phrases):
             return InteractionSignalType.USER_APPROVAL
@@ -430,21 +482,26 @@ class ClaudeSessionSource(SignalSource):
         conn = sqlite3.connect(str(self.storage_path))
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT payload, project, timestamp
             FROM interactions
             WHERE prompt_hash = ?
             ORDER BY timestamp DESC
             LIMIT 5
-        """, (prompt_hash,))
+        """,
+            (prompt_hash,),
+        )
 
         similar = []
         for row in cursor.fetchall():
-            similar.append({
-                "payload": json.loads(row[0]),
-                "project": row[1],
-                "timestamp": row[2],
-            })
+            similar.append(
+                {
+                    "payload": json.loads(row[0]),
+                    "project": row[1],
+                    "timestamp": row[2],
+                }
+            )
 
         conn.close()
         return similar
@@ -456,8 +513,10 @@ class ClaudeSessionSource(SignalSource):
         conn = sqlite3.connect(str(self.storage_path))
         cursor = conn.cursor()
 
-        cursor.execute("SELECT frequency, success_rate, projects FROM patterns WHERE pattern_id = ?",
-                       (pattern_id,))
+        cursor.execute(
+            "SELECT frequency, success_rate, projects FROM patterns WHERE pattern_id = ?",
+            (pattern_id,),
+        )
         row = cursor.fetchone()
 
         if row:
@@ -469,19 +528,37 @@ class ClaudeSessionSource(SignalSource):
             if project and project not in projects:
                 projects.append(project)
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE patterns
                 SET frequency = ?, success_rate = ?, last_seen = ?, projects = ?
                 WHERE pattern_id = ?
-            """, (freq, new_rate, datetime.now().isoformat(), json.dumps(projects), pattern_id))
+            """,
+                (
+                    freq,
+                    new_rate,
+                    datetime.now().isoformat(),
+                    json.dumps(projects),
+                    pattern_id,
+                ),
+            )
         else:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO patterns (pattern_id, pattern_type, description, frequency,
                                        success_rate, last_seen, projects)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (pattern_id, "tool_usage", f"Usage pattern for {tool_name}",
-                  1, 1.0 if success else 0.0, datetime.now().isoformat(),
-                  json.dumps([project] if project else [])))
+            """,
+                (
+                    pattern_id,
+                    "tool_usage",
+                    f"Usage pattern for {tool_name}",
+                    1,
+                    1.0 if success else 0.0,
+                    datetime.now().isoformat(),
+                    json.dumps([project] if project else []),
+                ),
+            )
 
         conn.commit()
         conn.close()
@@ -492,12 +569,15 @@ class ClaudeSessionSource(SignalSource):
         cursor = conn.cursor()
 
         # Get session interactions
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT interaction_type, tool_name, tool_success, payload, project
             FROM interactions
             WHERE session_id = ?
             ORDER BY timestamp
-        """, (session_id,))
+        """,
+            (session_id,),
+        )
 
         interactions = cursor.fetchall()
         if not interactions:
@@ -514,28 +594,33 @@ class ClaudeSessionSource(SignalSource):
         projects = set(i[4] for i in interactions if i[4])
 
         # Store summary
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO session_summaries
             (session_id, project, start_time, end_time, prompt_count,
              tool_count, success_rate, key_topics, lessons)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            session_id,
-            list(projects)[0] if projects else None,
-            interactions[0][3] if interactions else None,  # First timestamp from payload
-            datetime.now().isoformat(),
-            prompt_count,
-            tool_count,
-            success_rate,
-            json.dumps(list(projects)),
-            json.dumps([]),  # Lessons to be populated by learning system
-        ))
+        """,
+            (
+                session_id,
+                list(projects)[0] if projects else None,
+                (interactions[0][3] if interactions else None),  # First timestamp from payload
+                datetime.now().isoformat(),
+                prompt_count,
+                tool_count,
+                success_rate,
+                json.dumps(list(projects)),
+                json.dumps([]),  # Lessons to be populated by learning system
+            ),
+        )
 
         conn.commit()
         conn.close()
 
-        logger.info(f"Session {session_id} summarized: {prompt_count} prompts, "
-                    f"{tool_count} tools, {success_rate:.1%} success")
+        logger.info(
+            f"Session {session_id} summarized: {prompt_count} prompts, "
+            f"{tool_count} tools, {success_rate:.1%} success"
+        )
 
     # === Utility Methods ===
 
@@ -584,30 +669,34 @@ class ClaudeSessionSource(SignalSource):
         conn = sqlite3.connect(str(self.storage_path))
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO interactions
             (id, timestamp, session_id, interaction_type, project, payload,
              prompt_hash, tool_name, tool_success)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            signal.id,
-            signal.timestamp.isoformat(),
-            signal.session_id,
-            signal.interaction_type.value if signal.interaction_type else None,
-            signal.project,
-            json.dumps(signal.payload),
-            signal.prompt_hash,
-            signal.tool_name,
-            1 if signal.tool_success else 0 if signal.tool_success is False else None,
-        ))
+        """,
+            (
+                signal.id,
+                signal.timestamp.isoformat(),
+                signal.session_id,
+                signal.interaction_type.value if signal.interaction_type else None,
+                signal.project,
+                json.dumps(signal.payload),
+                signal.prompt_hash,
+                signal.tool_name,
+                (1 if signal.tool_success else 0 if signal.tool_success is False else None),
+            ),
+        )
 
         conn.commit()
         conn.close()
 
     # === Query Methods ===
 
-    def get_patterns(self, pattern_type: Optional[str] = None,
-                     min_frequency: int = 3) -> List[InteractionPattern]:
+    def get_patterns(
+        self, pattern_type: Optional[str] = None, min_frequency: int = 3
+    ) -> List[InteractionPattern]:
         """Get detected interaction patterns."""
         conn = sqlite3.connect(str(self.storage_path))
         cursor = conn.cursor()
@@ -629,22 +718,23 @@ class ClaudeSessionSource(SignalSource):
 
         patterns = []
         for row in cursor.fetchall():
-            patterns.append(InteractionPattern(
-                pattern_id=row[0],
-                pattern_type=row[1],
-                description=row[2],
-                frequency=row[3],
-                success_rate=row[4],
-                last_seen=datetime.fromisoformat(row[5]) if row[5] else datetime.now(),
-                examples=json.loads(row[6]) if row[6] else [],
-                projects=json.loads(row[7]) if row[7] else [],
-            ))
+            patterns.append(
+                InteractionPattern(
+                    pattern_id=row[0],
+                    pattern_type=row[1],
+                    description=row[2],
+                    frequency=row[3],
+                    success_rate=row[4],
+                    last_seen=(datetime.fromisoformat(row[5]) if row[5] else datetime.now()),
+                    examples=json.loads(row[6]) if row[6] else [],
+                    projects=json.loads(row[7]) if row[7] else [],
+                )
+            )
 
         conn.close()
         return patterns
 
-    def get_session_history(self, project: Optional[str] = None,
-                            days: int = 30) -> List[Dict]:
+    def get_session_history(self, project: Optional[str] = None, days: int = 30) -> List[Dict]:
         """Get recent session summaries for a project."""
         conn = sqlite3.connect(str(self.storage_path))
         cursor = conn.cursor()
@@ -652,17 +742,23 @@ class ClaudeSessionSource(SignalSource):
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
         if project:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM session_summaries
                 WHERE project = ? AND start_time > ?
                 ORDER BY start_time DESC
-            """, (project, cutoff))
+            """,
+                (project, cutoff),
+            )
         else:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM session_summaries
                 WHERE start_time > ?
                 ORDER BY start_time DESC
-            """, (cutoff,))
+            """,
+                (cutoff,),
+            )
 
         columns = [d[0] for d in cursor.description]
         sessions = [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -689,16 +785,21 @@ class ClaudeSessionSource(SignalSource):
 
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT interaction_type, COUNT(*) as count
             FROM interactions
             WHERE timestamp > ? AND interaction_type IN (?, ?, ?, ?)
             GROUP BY interaction_type
-        """, (cutoff,
-              InteractionSignalType.USER_CORRECTION.value,
-              InteractionSignalType.USER_FOLLOWUP.value,
-              InteractionSignalType.USER_APPROVAL.value,
-              InteractionSignalType.PROMPT_RECEIVED.value))
+        """,
+            (
+                cutoff,
+                InteractionSignalType.USER_CORRECTION.value,
+                InteractionSignalType.USER_FOLLOWUP.value,
+                InteractionSignalType.USER_APPROVAL.value,
+                InteractionSignalType.PROMPT_RECEIVED.value,
+            ),
+        )
 
         stats = dict(cursor.fetchall())
 
@@ -714,5 +815,7 @@ class ClaudeSessionSource(SignalSource):
             "approvals": approvals,
             "correction_rate": corrections / total_prompts if total_prompts > 0 else 0,
             "approval_rate": approvals / total_prompts if total_prompts > 0 else 0,
-            "implicit_success_signal": approvals / (approvals + corrections) if (approvals + corrections) > 0 else 0.5,
+            "implicit_success_signal": (
+                approvals / (approvals + corrections) if (approvals + corrections) > 0 else 0.5
+            ),
         }

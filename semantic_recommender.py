@@ -4,10 +4,12 @@ Semantic Recommender - Interprets high-level goals from plans.
 Parses natural language action plans (ACTION_PLAN.md) to generate
 aligned recommendations for Cortex.
 """
+
 import re
-from pathlib import Path
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 
 @dataclass
 class PlanAction:
@@ -15,6 +17,7 @@ class PlanAction:
     priority: str
     context: str
     steps: List[str]
+
 
 class SemanticRecommender:
     """Interprets strategic plans into tactical recommendations."""
@@ -44,7 +47,11 @@ class SemanticRecommender:
 
         # 1. Extract Priority A Section
         # Matches "### Priority A" until "### Priority B" or end of section "---"
-        priority_a_match = re.search(r"### Priority A.*?(?=### Priority B|---)", content, re.DOTALL | re.IGNORECASE)
+        priority_a_match = re.search(
+            r"### Priority A.*?(?=### Priority B|---)",
+            content,
+            re.DOTALL | re.IGNORECASE,
+        )
 
         if not priority_a_match:
             return []
@@ -66,14 +73,14 @@ class SemanticRecommender:
 
     def _parse_goal_block(self, block: str) -> Optional[Dict[str, Any]]:
         """Parse a single goal block into a recommendation."""
-        lines = block.strip().split('\n')
+        lines = block.strip().split("\n")
         if not lines:
             return None
 
         # Line 1: "**Git Repository Cleanup** 🔴 CRITICAL" -> "Git Repository Cleanup"
         title_line = lines[0]
         title_match = re.search(r"\*\*(.*?)\*\*", title_line)
-        title = title_match.group(1) if title_match else title_line.split('**')[0].strip()
+        title = title_match.group(1) if title_match else title_line.split("**")[0].strip()
 
         # Determine Priority
         is_critical = "CRITICAL" in title_line or "🔴" in title_line
@@ -96,12 +103,12 @@ class SemanticRecommender:
             # Simple heuristic: if it has "✅", it's done.
             line_full = m.group(0)
             if "✅" not in line_full and "[x]" not in line_full:
-                 action_steps.append(step)
+                action_steps.append(step)
 
         if not action_steps:
-             # If no unchecked steps found, maybe the goal is done?
-             # For now, if no steps, we assume it's info only or fully done.
-             return None
+            # If no unchecked steps found, maybe the goal is done?
+            # For now, if no steps, we assume it's info only or fully done.
+            return None
 
         description = "Next steps from Action Plan:\n" + "\n".join(f"• {s}" for s in action_steps)
 
@@ -117,6 +124,6 @@ class SemanticRecommender:
             "confidence": 0.95,
             "rationale": rationale,
             "description": description,
-            "related_projects": [], # Could extract from title
-            "estimated_effort": "Variable"
+            "related_projects": [],  # Could extract from title
+            "estimated_effort": "Variable",
         }
