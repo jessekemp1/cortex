@@ -15,13 +15,12 @@ Usage:
 
 import argparse
 import json
-import sys
-from pathlib import Path
-from datetime import datetime
 
 # Import batch_scheduler directly to avoid __init__ dependency issues
 import sys
+from datetime import datetime
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent / "batch"))
 from batch_scheduler import BatchScheduler, create_batch_plan_from_cortex_plan
 
@@ -35,7 +34,7 @@ def schedule_task(args):
         description=args.description or args.title,
         prompt=args.prompt,
         priority=args.priority,
-        deadline_hours=args.deadline_hours
+        deadline_hours=args.deadline_hours,
     )
 
     print(f"✅ Scheduled batch task: {task.id}")
@@ -68,9 +67,11 @@ def list_tasks(args):
     print("=" * 90)
 
     for task in tasks:
-        tokens = (task.actual_input_tokens + task.actual_output_tokens
-                 if task.status == "completed"
-                 else task.estimated_input_tokens + task.estimated_output_tokens)
+        tokens = (
+            task.actual_input_tokens + task.actual_output_tokens
+            if task.status == "completed"
+            else task.estimated_input_tokens + task.estimated_output_tokens
+        )
 
         print(f"{task.id:<25} {task.title[:38]:<40} {task.status:<12} {tokens:>8,}")
 
@@ -137,7 +138,9 @@ def show_stats(args):
     print(f"💰 Cost Analysis:")
     print(f"  Real-time cost:       ${stats['estimated_real_time_cost']:.2f}")
     print(f"  Batch cost:           ${stats['estimated_batch_cost']:.2f}")
-    print(f"  Savings:              ${stats['estimated_savings']:.2f} ({stats['savings_percentage']:.0f}%)")
+    print(
+        f"  Savings:              ${stats['estimated_savings']:.2f} ({stats['savings_percentage']:.0f}%)"
+    )
 
 
 def convert_plan(args):
@@ -150,7 +153,9 @@ def convert_plan(args):
         print(f"✅ Created {len(batch_tasks)} batch tasks from plan: {args.plan_id}")
         print()
 
-        total_tokens = sum(t.estimated_input_tokens + t.estimated_output_tokens for t in batch_tasks)
+        total_tokens = sum(
+            t.estimated_input_tokens + t.estimated_output_tokens for t in batch_tasks
+        )
         print(f"Total estimated tokens: {total_tokens:,}")
         print()
 
@@ -181,14 +186,22 @@ def main():
     schedule_parser.add_argument("--prompt", required=True, help="Prompt for Claude")
     schedule_parser.add_argument("--description", help="Task description")
     schedule_parser.add_argument("--priority", choices=["low", "normal", "high"], default="normal")
-    schedule_parser.add_argument("--deadline-hours", type=int, default=48,
-                                help="Hours until results needed (default: 48)")
+    schedule_parser.add_argument(
+        "--deadline-hours",
+        type=int,
+        default=48,
+        help="Hours until results needed (default: 48)",
+    )
     schedule_parser.set_defaults(func=schedule_task)
 
     # List command
     list_parser = subparsers.add_parser("list", help="List batch tasks")
-    list_parser.add_argument("--status", choices=["pending", "submitted", "completed", "all"],
-                            default="all", help="Filter by status")
+    list_parser.add_argument(
+        "--status",
+        choices=["pending", "submitted", "completed", "all"],
+        default="all",
+        help="Filter by status",
+    )
     list_parser.add_argument("--days", type=int, help="Days to look back for completed tasks")
     list_parser.set_defaults(func=list_tasks)
 

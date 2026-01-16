@@ -3,16 +3,17 @@
 import json
 import re
 import subprocess
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import uuid
 
 
 class OutcomeType(Enum):
     """Types of detected outcomes."""
+
     SUCCESS = "success"
     FAILURE = "failure"
     PARTIAL = "partial"
@@ -22,6 +23,7 @@ class OutcomeType(Enum):
 
 class OutcomeSource(Enum):
     """Sources of outcome detection."""
+
     GIT_COMMIT = "git_commit"
     GIT_MERGE = "git_merge"
     CI_PIPELINE = "ci_pipeline"
@@ -32,6 +34,7 @@ class OutcomeSource(Enum):
 @dataclass
 class DetectedOutcome:
     """An automatically detected outcome."""
+
     id: str
     source: OutcomeSource
     outcome_type: OutcomeType
@@ -125,10 +128,11 @@ class OutcomeDetector:
     def _save_outcomes(self):
         """Save outcomes to storage."""
         with open(self.outcomes_file, "w") as f:
-            json.dump({
-                "version": "2.0",
-                "outcomes": [o.to_dict() for o in self._outcomes]
-            }, f, indent=2)
+            json.dump(
+                {"version": "2.0", "outcomes": [o.to_dict() for o in self._outcomes]},
+                f,
+                indent=2,
+            )
 
     # === Git-based Detection ===
 
@@ -139,7 +143,7 @@ class OutcomeDetector:
         branch: str,
         files_changed: int,
         project: Optional[str] = None,
-        repo_path: Optional[Path] = None
+        repo_path: Optional[Path] = None,
     ) -> DetectedOutcome:
         """Record an outcome from a git commit.
 
@@ -178,7 +182,7 @@ class OutcomeDetector:
                 "message": message,
                 "branch": branch,
                 "files_changed": files_changed,
-            }
+            },
         )
 
         self._outcomes.append(outcome)
@@ -195,20 +199,17 @@ class OutcomeDetector:
 
         # Check success patterns
         success_matches = sum(
-            1 for pattern in self.SUCCESS_PATTERNS
-            if re.search(pattern, message_lower)
+            1 for pattern in self.SUCCESS_PATTERNS if re.search(pattern, message_lower)
         )
 
         # Check failure patterns
         failure_matches = sum(
-            1 for pattern in self.FAILURE_PATTERNS
-            if re.search(pattern, message_lower)
+            1 for pattern in self.FAILURE_PATTERNS if re.search(pattern, message_lower)
         )
 
         # Check partial patterns
         partial_matches = sum(
-            1 for pattern in self.PARTIAL_PATTERNS
-            if re.search(pattern, message_lower)
+            1 for pattern in self.PARTIAL_PATTERNS if re.search(pattern, message_lower)
         )
 
         # Determine outcome based on matches
@@ -224,10 +225,7 @@ class OutcomeDetector:
         return OutcomeType.UNKNOWN, 0.3
 
     def detect_from_git_log(
-        self,
-        repo_path: Path,
-        since_days: int = 7,
-        limit: int = 50
+        self, repo_path: Path, since_days: int = 7, limit: int = 50
     ) -> List[DetectedOutcome]:
         """Detect outcomes from recent git history.
 
@@ -239,15 +237,18 @@ class OutcomeDetector:
         try:
             result = subprocess.run(
                 [
-                    "git", "-C", str(repo_path), "log",
+                    "git",
+                    "-C",
+                    str(repo_path),
+                    "log",
                     f"--since={since_days} days ago",
                     f"--max-count={limit}",
                     "--pretty=format:%H|%s|%D",
-                    "--name-only"
+                    "--name-only",
                 ],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -268,7 +269,7 @@ class OutcomeDetector:
                             message=msg,
                             branch=branch,
                             files_changed=len(current_files),
-                            repo_path=repo_path
+                            repo_path=repo_path,
                         )
                         outcomes.append(outcome)
 
@@ -286,7 +287,7 @@ class OutcomeDetector:
                     message=msg,
                     branch=branch,
                     files_changed=len(current_files),
-                    repo_path=repo_path
+                    repo_path=repo_path,
                 )
                 outcomes.append(outcome)
 
@@ -323,7 +324,7 @@ class OutcomeDetector:
         conclusion: str,
         commit: str,
         branch: str,
-        duration_ms: Optional[int] = None
+        duration_ms: Optional[int] = None,
     ) -> DetectedOutcome:
         """Record an outcome from CI/CD pipeline.
 
@@ -365,7 +366,7 @@ class OutcomeDetector:
                 "commit": commit,
                 "branch": branch,
                 "duration_ms": duration_ms,
-            }
+            },
         )
 
         self._outcomes.append(outcome)
@@ -382,7 +383,7 @@ class OutcomeDetector:
         skipped: int = 0,
         duration_seconds: float = 0,
         commit: Optional[str] = None,
-        test_framework: str = "unknown"
+        test_framework: str = "unknown",
     ) -> DetectedOutcome:
         """Record an outcome from test execution.
 
@@ -425,7 +426,7 @@ class OutcomeDetector:
                 "duration_seconds": duration_seconds,
                 "commit": commit,
                 "test_framework": test_framework,
-            }
+            },
         )
 
         self._outcomes.append(outcome)
@@ -435,9 +436,7 @@ class OutcomeDetector:
     # === Pattern Correlation ===
 
     def correlate_to_pattern(
-        self,
-        outcome: DetectedOutcome,
-        graph_memory: "GraphMemory"
+        self, outcome: DetectedOutcome, graph_memory: "GraphMemory"
     ) -> Optional[str]:
         """Try to correlate an outcome to a known pattern.
 
@@ -452,8 +451,7 @@ class OutcomeDetector:
 
         # Get project node
         project_nodes = graph_memory.find_nodes(
-            type=MemoryType.PROJECT,
-            name_contains=outcome.project
+            type=MemoryType.PROJECT, name_contains=outcome.project
         )
 
         if not project_nodes:
@@ -479,7 +477,7 @@ class OutcomeDetector:
         outcome_node = graph_memory.add_node(
             type=MemoryType.OUTCOME,
             name=f"Outcome: {outcome.outcome_type.value} for {outcome.project}",
-            data=outcome.to_dict()
+            data=outcome.to_dict(),
         )
 
         graph_memory.add_edge(
@@ -487,7 +485,7 @@ class OutcomeDetector:
             to_id=best_pattern.id,
             relation=RelationType.VALIDATES,
             weight=outcome.confidence,
-            data={"outcome_type": outcome.outcome_type.value}
+            data={"outcome_type": outcome.outcome_type.value},
         )
 
         self._save_outcomes()
@@ -500,7 +498,7 @@ class OutcomeDetector:
         project: Optional[str] = None,
         days: int = 7,
         outcome_type: Optional[OutcomeType] = None,
-        source: Optional[OutcomeSource] = None
+        source: Optional[OutcomeSource] = None,
     ) -> List[DetectedOutcome]:
         """Get recent detected outcomes.
 
@@ -530,11 +528,7 @@ class OutcomeDetector:
 
         return sorted(results, key=lambda o: o.timestamp, reverse=True)
 
-    def get_outcome_stats(
-        self,
-        project: Optional[str] = None,
-        days: int = 30
-    ) -> Dict[str, Any]:
+    def get_outcome_stats(self, project: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
         """Get outcome statistics.
 
         Args:
@@ -569,6 +563,6 @@ class OutcomeDetector:
             "total": len(outcomes),
             "by_type": by_type,
             "by_source": by_source,
-            "success_rate": success_count / total_definitive if total_definitive > 0 else 0,
+            "success_rate": (success_count / total_definitive if total_definitive > 0 else 0),
             "avg_confidence": total_confidence / len(outcomes),
         }

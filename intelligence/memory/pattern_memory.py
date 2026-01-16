@@ -113,9 +113,7 @@ class PatternMemory:
 
         return similar_work
 
-    def get_relevant_patterns(
-        self, context: str, limit: int = 10
-    ) -> List[SimilarWork]:
+    def get_relevant_patterns(self, context: str, limit: int = 10) -> List[SimilarWork]:
         """
         Get relevant patterns for current context.
 
@@ -147,9 +145,7 @@ class PatternMemory:
 
         return patterns
 
-    def suggest_from_history(
-        self, task: str, current_project: str, limit: int = 3
-    ) -> List[str]:
+    def suggest_from_history(self, task: str, current_project: str, limit: int = 3) -> List[str]:
         """
         Suggest next steps based on past patterns.
 
@@ -196,9 +192,7 @@ class PatternMemory:
         print(f"Reindexing {len(git_repos)} projects...")
 
         # Index all projects
-        all_patterns = self.indexer.index_all_projects(
-            git_repos, since_months=since_months
-        )
+        all_patterns = self.indexer.index_all_projects(git_repos, since_months=since_months)
 
         # Save to cache
         self.indexer.save_patterns(all_patterns)
@@ -327,13 +321,13 @@ def main():
         print(f"Projects indexed: {stats['projects']}")
         print(f"Cache exists: {stats['cache_exists']}")
 
-        if stats['cache_exists']:
+        if stats["cache_exists"]:
             print(f"Cache path: {stats['cache_path']}")
 
-        if stats['pattern_types']:
+        if stats["pattern_types"]:
             print("\nPattern types:")
             for ptype, count in sorted(
-                stats['pattern_types'].items(), key=lambda x: x[1], reverse=True
+                stats["pattern_types"].items(), key=lambda x: x[1], reverse=True
             ):
                 print(f"  {ptype}: {count}")
 

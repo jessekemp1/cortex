@@ -7,9 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 # Add local-orchestrator to path for AgentResult import
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent.parent / "local-orchestrator")
-)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "local-orchestrator"))
 
 try:
     from orchestrator_models import AgentResult
@@ -30,9 +28,7 @@ except ImportError:
 class BaseCoordinationAgent(ABC):
     """Base class for coordination agents that manage integration phases"""
 
-    def __init__(
-        self, phase_name: str, phase_number: int, root_dir: Optional[Path] = None
-    ):
+    def __init__(self, phase_name: str, phase_number: int, root_dir: Optional[Path] = None):
         """
         Initialize coordination agent.
 

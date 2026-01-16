@@ -101,10 +101,7 @@ class BaseDomainExpert(ABC):
         """
         project_lower = self.project_name.lower()
         return project_lower in str(cwd).lower() or (
-            task and any(
-                keyword in task.lower()
-                for keyword in self._get_domain_keywords()
-            )
+            task and any(keyword in task.lower() for keyword in self._get_domain_keywords())
         )
 
     def _get_domain_keywords(self) -> List[str]:

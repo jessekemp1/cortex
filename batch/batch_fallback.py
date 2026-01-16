@@ -54,9 +54,7 @@ class BatchFallback:
 
         # Step 2: Try batch processing
         try:
-            logger.info(
-                f"{feature_display}: Processing {len(items)} items via batch API"
-            )
+            logger.info(f"{feature_display}: Processing {len(items)} items via batch API")
             result = batch_processor(items)
             logger.info(f"{feature_display}: Batch completed successfully")
             return result
@@ -69,9 +67,7 @@ class BatchFallback:
 
             # Step 3: Fall back to sequential
             if not BatchConfig.should_fallback_on_error():
-                logger.error(
-                    f"{feature_display}: Fallback disabled, re-raising exception"
-                )
+                logger.error(f"{feature_display}: Fallback disabled, re-raising exception")
                 raise
 
             try:
@@ -88,9 +84,7 @@ class BatchFallback:
                 raise
 
     @staticmethod
-    def safe_batch_call(
-        batch_func: Callable, sequential_func: Callable, *args, **kwargs
-    ) -> Any:
+    def safe_batch_call(batch_func: Callable, sequential_func: Callable, *args, **kwargs) -> Any:
         """
         Wrapper for single function call with batch/sequential fallback.
 

@@ -25,9 +25,70 @@ from formatter import CortexFormatter
 
 from briefing import format_briefing, format_briefing_json, generate_daily_briefing
 from feedback import FeedbackLogger
-
 from learning import LearningSystem
 from orchestrator import CortexOrchestrator
+
+# Model selection intelligence (Week 1)
+try:
+    from datetime import timedelta
+
+    from intelligence.model_selection import (
+        ContextAwareModelRecommender,
+        OrchestrationContext,
+    )
+
+    MODEL_SELECTION_AVAILABLE = True
+except ImportError:
+    MODEL_SELECTION_AVAILABLE = False
+
+
+def get_model_recommendation(recommendation, budget=5.00):
+    """
+    Generate model recommendation for a task.
+
+    Args:
+        recommendation: Recommendation object with type, description, priority, files
+        budget: Remaining session budget in USD (default: $5.00)
+
+    Returns:
+        Dict with model, reasoning, cost, confidence
+    """
+    if not MODEL_SELECTION_AVAILABLE:
+        return None
+
+    try:
+        recommender = ContextAwareModelRecommender()
+
+        # Create orchestration context
+        context = OrchestrationContext(
+            remaining_budget=budget,
+            remaining_time=timedelta(hours=2),  # Default 2 hour session
+            task_priority=recommendation.priority,
+            project=(
+                recommendation.related_projects[0] if recommendation.related_projects else "cortex"
+            ),
+            files=recommendation.files or [],
+        )
+
+        # Get recommendation
+        model_rec = recommender.recommend(
+            task_description=recommendation.description,
+            task_type=recommendation.type,
+            context=context,
+        )
+
+        # Convert to dict for serialization
+        return {
+            "model": model_rec.model,
+            "reasoning": model_rec.reasoning,
+            "confidence": model_rec.confidence,
+            "estimated_cost_usd": model_rec.estimated_cost_usd,
+            "estimated_tokens": model_rec.estimated_tokens,
+            "alternatives": (model_rec.alternatives[:2] if model_rec.alternatives else []),
+        }
+    except Exception as e:
+        # Fail gracefully - model selection is optional
+        return {"error": str(e)}
 
 
 def cmd_next(args):
@@ -41,9 +102,33 @@ def cmd_next(args):
             limit=args.limit,
         )
 
+        # Add model recommendations to response (Week 1 integration)
+        if MODEL_SELECTION_AVAILABLE and response.next_action:
+            model_rec = get_model_recommendation(response.next_action)
+            if model_rec and "error" not in model_rec:
+                response.next_action.model_recommendation = model_rec
+
         formatter = CortexFormatter()
         output = formatter.format_response(response, json_output=args.json)
         print(output)
+
+        # Display model recommendation (non-JSON mode)
+        if not args.json and MODEL_SELECTION_AVAILABLE and response.next_action:
+            model_rec = getattr(response.next_action, "model_recommendation", None)
+            if model_rec and "error" not in model_rec:
+                print("\n📊 Recommended Model")
+                print("─" * 50)
+                print(
+                    f"Model: {model_rec['model'].upper()} (confidence: {model_rec['confidence']:.0%})"
+                )
+                print(
+                    f"Cost: ~${model_rec['estimated_cost_usd']:.4f} (~{model_rec['estimated_tokens']} tokens)"
+                )
+                print(f"\nReasoning: {model_rec['reasoning']}")
+                if model_rec.get("alternatives"):
+                    print("\nAlternatives:")
+                    for alt in model_rec["alternatives"]:
+                        print(f"  • {alt['model']}: ${alt['estimated_cost']:.4f} - {alt['note']}")
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -55,9 +140,7 @@ def cmd_status(args):
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(
-            limit=0
-        )  # Just get state, no recommendations
+        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
 
         state = response.current_state
         health = response.system_health
@@ -124,6 +207,33 @@ def cmd_status(args):
                 print(f"   Missing: {', '.join(missing)}")
         print("")
 
+        # Batch Queue Status (Phase 1: Burn Rate Reduction)
+        try:
+            from batch.batch_scheduler import BatchScheduler
+
+            scheduler = BatchScheduler()
+
+            pending = len(scheduler.get_pending_tasks())
+            submitted = len(scheduler.get_submitted_tasks())
+            stats = scheduler.get_usage_stats(days=7)
+
+            print("💰 BATCH QUEUE (Cost Optimization)")
+            print("────────────────")
+            print(f"Pending: {pending} | Submitted: {submitted}")
+            print(f"Completed (7d): {stats['tasks_completed']}")
+
+            if stats["tasks_completed"] > 0:
+                print(f"Savings: ${stats['estimated_savings']:.2f} (50% discount)")
+                print("Target: 40% of work via batch")
+            else:
+                print("⚠️  No batch usage yet - see /batch-submit")
+                print("💡 Shift reviews, docs, research to batch = 50% savings")
+
+            print("")
+        except Exception:
+            # Batch metrics are optional - don't fail status command
+            pass
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -168,9 +278,7 @@ def cmd_feedback(args):
 
         if not response.next_action:
             print("Error: No recent recommendation found to log feedback for.")
-            print(
-                "Run 'cortex next' or 'cortex briefing' first to get recommendations."
-            )
+            print("Run 'cortex next' or 'cortex briefing' first to get recommendations.")
             sys.exit(1)
 
         rec = response.next_action
@@ -184,18 +292,35 @@ def cmd_feedback(args):
             sys.exit(1)
 
         # Log structured outcome
+        # Handle priority as int, enum, or string
+        priority = rec.priority
+        if isinstance(priority, int):
+            priority_char = "A" if priority > 70 else "B" if priority > 40 else "C"
+        elif hasattr(priority, "value"):
+            priority_char = priority.value[0].upper()
+        elif priority:
+            priority_char = str(priority).upper()[0]
+        else:
+            priority_char = "B"
+
+        # Handle confidence as enum or float
+        confidence = rec.confidence
+        if hasattr(confidence, "value"):
+            confidence = {"high": 0.9, "medium": 0.7, "low": 0.5}.get(confidence.value.lower(), 0.7)
+
         logger.log_outcome(
-            recommendation_id=rec.id,
+            recommendation_id=getattr(rec, "id", "unknown"),
             recommendation_title=rec.title,
-            recommendation_type=rec.type,
-            priority=(
-                rec.priority.upper()[0] if rec.priority else "B"
-            ),  # Convert "high" -> "A", etc.
-            confidence=rec.confidence,
+            recommendation_type=getattr(rec, "type", "unknown"),
+            priority=priority_char,
+            confidence=confidence,
             followed=True,  # Assume followed if providing feedback
             outcome=args.outcome,
             notes=args.notes,
-            context={"projects": rec.related_projects, "goals": rec.related_goals},
+            context={
+                "projects": getattr(rec, "related_projects", []),
+                "goals": getattr(rec, "related_goals", []),
+            },
         )
 
         # Map outcome to emoji
@@ -215,9 +340,7 @@ def cmd_feedback(args):
     else:
         # Legacy interactive feedback
         action_title = args.action_title or "Last Recommendation"
-        useful = (
-            args.useful.lower() in ["yes", "y", "true", "1"] if args.useful else None
-        )
+        useful = args.useful.lower() in ["yes", "y", "true", "1"] if args.useful else None
 
         if useful is None:
             print("Error: Either provide --outcome or --useful")
@@ -231,9 +354,7 @@ def cmd_feedback(args):
             actual_outcome=args.outcome,
         )
 
-        print(
-            f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}"
-        )
+        print(f"✓ Feedback logged: {action_title} - {'Useful' if useful else 'Not Useful'}")
 
 
 def cmd_health(args):
@@ -271,9 +392,7 @@ def cmd_health(args):
             print("")
 
         print("──────────────────────────────────────────────────────")
-        overall = (
-            "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
-        )
+        overall = "✅ All Systems Operational" if health.all_active else "⚠️  Degraded Mode"
         print(f"{overall}")
         print(f"Active: {health.active_count}/4 integrations")
         print("")
@@ -306,6 +425,129 @@ def cmd_briefing(args):
         sys.exit(1)
 
 
+def cmd_v2a_batch(args):
+    """Manage V2a sprint batch jobs."""
+    from pathlib import Path
+
+    try:
+        sys.path.insert(0, str(Path(__file__).parent / "batch"))
+        from v2a_sprint_orchestrator import V2aSprintOrchestrator
+    except ImportError as e:
+        print(f"Error: V2a batch orchestrator not available: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        orchestrator = V2aSprintOrchestrator()
+
+        if args.action == "submit":
+            # Submit all sprints
+            print("Submitting V2a sprint batch jobs...")
+            wave_task_ids = orchestrator.submit_all_sprints()
+            print(
+                f"✓ Submitted {sum(len(ids) for ids in wave_task_ids.values())} tasks across {len(wave_task_ids)} waves"
+            )
+            for wave_id, task_ids in sorted(wave_task_ids.items()):
+                print(f"  {wave_id}: {len(task_ids)} tasks")
+
+        elif args.action == "status":
+            # Show status
+            if args.wave:
+                # Wave-specific status
+                status = orchestrator.queue.get_wave_status(args.wave)
+                print(f"\n📋 {args.wave.upper()} Status")
+                print(f"  Total: {status['total']}")
+                print(f"  Completed: {status['completed']} ({status['progress_pct']:.1f}%)")
+                print(f"  Running: {status['running']}")
+                print(f"  Failed: {status['failed']}")
+                print(f"  Ready: {status['ready']}")
+                print(f"  Blocked: {status['blocked']}")
+            else:
+                # Overall status
+                status = orchestrator.get_overall_status()
+                print("\n📊 V2a Sprint Batch Status")
+                print("=" * 60)
+                print(f"Total Tasks: {status['total_tasks']}")
+                print(f"Completed: {status['completed']}")
+                print(f"Running: {status['running']}")
+                print(f"Failed: {status['failed']}")
+                print(f"Pending: {status['pending']}")
+                print(f"Progress: {status['progress_pct']:.1f}%")
+                print(f"Current Wave: {status['current_wave']}")
+                print(f"Estimated Remaining: {status['estimated_remaining_minutes']:.0f} minutes")
+
+                print("\nPer-Wave Status:")
+                for wave_id in ["wave_1", "wave_2", "wave_3", "wave_4"]:
+                    wave = status["waves"][wave_id]
+                    if wave["completed"] == wave["total"] and wave["total"] > 0:
+                        icon = "✅"
+                    elif wave["running"] > 0:
+                        icon = "🔄"
+                    elif wave["ready"] > 0:
+                        icon = "📋"
+                    else:
+                        icon = "⏸️"
+
+                    print(
+                        f"  {icon} {wave_id}: {wave['completed']}/{wave['total']} complete ({wave['progress_pct']:.0f}%)"
+                    )
+                    if wave["ready"] > 0:
+                        print(f"     Ready: {wave['ready']}")
+                    if wave["blocked"] > 0:
+                        print(f"     Blocked: {wave['blocked']}")
+
+        elif args.action == "retry":
+            # Retry failed tasks
+            if args.wave:
+                retried = orchestrator.retry_failed_tasks(wave_id=args.wave)
+                print(f"✓ Retried {len(retried)} failed tasks in {args.wave}")
+            else:
+                retried = orchestrator.retry_failed_tasks()
+                print(f"✓ Retried {len(retried)} failed tasks across all waves")
+
+        elif args.action == "cancel":
+            # Cancel wave
+            if not args.wave:
+                print("Error: --wave required for cancel action", file=sys.stderr)
+                sys.exit(1)
+
+            cancelled = orchestrator.cancel_wave(args.wave)
+            print(f"✓ Cancelled {len(cancelled)} tasks in {args.wave}")
+
+        elif args.action == "task":
+            # Show task details
+            if not args.task_id:
+                print("Error: --task-id required for task action", file=sys.stderr)
+                sys.exit(1)
+
+            details = orchestrator.get_task_details(args.task_id)
+            if not details:
+                print(f"Error: Task {args.task_id} not found", file=sys.stderr)
+                sys.exit(1)
+
+            print("\n📋 Task Details")
+            print(f"  Task ID: {details['task_id']}")
+            print(f"  Sprint: {details['sprint_id']}")
+            print(f"  Wave: {details['wave_id']}")
+            print(f"  Description: {details['description']}")
+            print(f"  State: {details['state']}")
+            print(f"  Created: {details['created_at']}")
+            if details["started_at"]:
+                print(f"  Started: {details['started_at']}")
+            if details["completed_at"]:
+                print(f"  Completed: {details['completed_at']}")
+            if details["exit_code"] is not None:
+                print(f"  Exit Code: {details['exit_code']}")
+            if details["error_message"]:
+                print(f"  Error: {details['error_message']}")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_git(args):
     """Show Git/GitHub status and recommendations."""
     try:
@@ -320,6 +562,7 @@ def cmd_git(args):
 
         if args.json:
             import json
+
             print(json.dumps(tracker.get_summary(), indent=2, default=str))
             return
 
@@ -336,7 +579,9 @@ def cmd_git(args):
             if recommendations:
                 print("\n### Actionable Recommendations")
                 for rec in recommendations:
-                    priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(rec["priority"], "⚪")
+                    priority_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
+                        rec["priority"], "⚪"
+                    )
                     print(f"{priority_icon} [{rec['type']}] {rec['message']}")
                     if rec.get("action"):
                         print(f"   → {rec['action']}")
@@ -432,6 +677,7 @@ def cmd_schedule(args):
     """Schedule a recommendation or intent as a local-orchestrator agent."""
     from agent_factory import AgentFactory
     from orchestrator import CortexOrchestrator
+
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     # Check if we are in "Team Provisioning" mode
@@ -443,9 +689,7 @@ def cmd_schedule(args):
         if not intent:
             # Fetch recommendation if no intent provided
             try:
-                response = orchestrator.get_next_action(
-                    project_filter=args.project, limit=1
-                )
+                response = orchestrator.get_next_action(project_filter=args.project, limit=1)
                 if response.next_action:
                     recommendation = response.next_action
                     intent = recommendation.action_title
@@ -511,9 +755,17 @@ def cmd_schedule(args):
         success = adapter.register_recommendation(recommendation, schedule)
 
         if success:
-            print(f"✓ Scheduled: {recommendation.action_title}")
+            title = getattr(
+                recommendation,
+                "title",
+                getattr(recommendation, "action_title", "Unknown"),
+            )
+            rationale = getattr(recommendation, "rationale", None) or getattr(
+                recommendation, "description", ""
+            )
+            print(f"✓ Scheduled: {title}")
             print(f"  Schedule: {schedule}")
-            print(f"  Rationale: {recommendation.rationale}")
+            print(f"  Rationale: {rationale}")
         else:
             print("✗ Failed to schedule recommendation.")
             sys.exit(1)
@@ -525,10 +777,11 @@ def cmd_schedule(args):
 
 def cmd_execute(args):
     """Execute a recommendation immediately."""
-    from orchestrator import CortexOrchestrator
+    from cortex.execution.adapter import RecommendationToAgentAdapter
+
     # Import internal orchestrator components
     from cortex.execution.engine import Orchestrator as ExecutionEngine
-    from cortex.execution.adapter import RecommendationToAgentAdapter
+    from orchestrator import CortexOrchestrator
 
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
     feedback_logger = FeedbackLogger()
@@ -554,9 +807,7 @@ def cmd_execute(args):
         if args.index is not None:
             # Execute by index (1-based)
             if args.index < 1 or args.index > len(all_recommendations):
-                print(
-                    f"Error: Index {args.index} out of range (1-{len(all_recommendations)})"
-                )
+                print(f"Error: Index {args.index} out of range (1-{len(all_recommendations)})")
                 sys.exit(1)
             recommendation = all_recommendations[args.index - 1]
         elif args.id:
@@ -571,12 +822,26 @@ def cmd_execute(args):
             recommendation = all_recommendations[0]
 
         # Show what we're executing
+        rec_type = getattr(recommendation, "type", "unknown")
+        if hasattr(rec_type, "value"):
+            rec_type = rec_type.value
+        priority = recommendation.priority
+        if isinstance(priority, int):
+            priority_str = "high" if priority > 70 else "medium" if priority > 40 else "low"
+        elif hasattr(priority, "value"):
+            priority_str = priority.value
+        else:
+            priority_str = str(priority)
+        rationale = getattr(recommendation, "rationale", None) or getattr(
+            recommendation, "description", ""
+        )
         print(f"Executing: {recommendation.title}")
-        print(f"Type: {recommendation.type}")
-        print(f"Priority: {recommendation.priority}")
-        print(f"Rationale: {recommendation.rationale}")
-        if recommendation.description:
-            print(f"\nActions:\n{recommendation.description}")
+        print(f"Type: {rec_type}")
+        print(f"Priority: {priority_str}")
+        print(f"Rationale: {rationale}")
+        description = getattr(recommendation, "description", "")
+        if description:
+            print(f"\nActions:\n{description}")
         print("")
 
         # Initialize internal engine
@@ -584,7 +849,7 @@ def cmd_execute(args):
         adapter = RecommendationToAgentAdapter(engine)
 
         print("Executing...")
-        
+
         # Convert to agent and execute
         agent = adapter.to_agent(recommendation)
         engine.register_agent(agent)
@@ -610,7 +875,11 @@ def cmd_execute(args):
                     notes=result.message,
                     context={
                         "execution_time": result.execution_time,
-                        "timestamp": result.timestamp.isoformat() if hasattr(result.timestamp, "isoformat") else str(result.timestamp),
+                        "timestamp": (
+                            result.timestamp.isoformat()
+                            if hasattr(result.timestamp, "isoformat")
+                            else str(result.timestamp)
+                        ),
                         "data": result.data,
                     },
                 )
@@ -690,7 +959,7 @@ def cmd_learn(args):
             print("────────────────")
             print("Which recommendation types work best?")
             print("")
-            
+
             # Sort by success rate
             sorted_patterns = sorted(
                 metrics.outcome_patterns.items(),
@@ -701,18 +970,14 @@ def cmd_learn(args):
             for rec_type, pattern in sorted_patterns:
                 if pattern["followed"] > 0:
                     print(f"  {rec_type}")
-                    print(
-                        f"    Total: {pattern['total']}, Followed: {pattern['followed']}"
-                    )
+                    print(f"    Total: {pattern['total']}, Followed: {pattern['followed']}")
                     print(f"    Success Rate: {pattern['success_rate']:.1%}")
                     print(f"    Avg Confidence: {pattern['avg_confidence']:.2f}")
                     print("")
         else:
             print("💡 TIP")
             print("────────────────")
-            print(
-                "No outcome patterns yet. Start tracking outcomes to enable learning!"
-            )
+            print("No outcome patterns yet. Start tracking outcomes to enable learning!")
             print("")
             print("Log outcomes with:")
             print("  cortex feedback --outcome <success|partial|failed>")
@@ -724,8 +989,11 @@ def cmd_learn(args):
 
 def cmd_interactions(args):
     """Manage interaction learning system."""
-    from engines.interaction_learner import InteractionLearner, process_interaction_queue
     from engines.claude_session_absorber import ClaudeSessionSource
+    from engines.interaction_learner import (
+        InteractionLearner,
+        process_interaction_queue,
+    )
 
     learner = InteractionLearner()
 
@@ -779,9 +1047,9 @@ def cmd_interactions(args):
             print("No tool data collected yet.")
             return
 
-        sorted_tools = sorted(tool_rates.items(), key=lambda x: x[1]['frequency'], reverse=True)
+        sorted_tools = sorted(tool_rates.items(), key=lambda x: x[1]["frequency"], reverse=True)
         for tool, rates in sorted_tools[:15]:
-            bar_len = int(rates['success_rate'] * 20)
+            bar_len = int(rates["success_rate"] * 20)
             bar = "█" * bar_len + "░" * (20 - bar_len)
             print(f"  {tool:15} {bar} {rates['success_rate']:.0%} ({rates['frequency']} uses)")
         return
@@ -795,7 +1063,8 @@ def cmd_interactions(args):
         print("Add the following to your Claude Code settings.json:")
         print("(Usually at ~/.claude/settings.json)")
         print("")
-        print('''
+        print(
+            """
 {
   "hooks": {
     "UserPromptSubmit": [{
@@ -825,7 +1094,8 @@ def cmd_interactions(args):
     }]
   }
 }
-''')
+"""
+        )
         print("After adding hooks, restart Claude Code to activate.")
         return
 
@@ -846,7 +1116,9 @@ def cmd_interactions(args):
     print(f"📊 IMPLICIT FEEDBACK (last {args.days} days)")
     print("────────────────")
     print(f"  Total prompts analyzed: {fb.get('total_prompts', 0)}")
-    print(f"  Corrections detected: {fb.get('corrections', 0)} ({fb.get('correction_rate', 0):.1%})")
+    print(
+        f"  Corrections detected: {fb.get('corrections', 0)} ({fb.get('correction_rate', 0):.1%})"
+    )
     print(f"  Approvals detected: {fb.get('approvals', 0)} ({fb.get('approval_rate', 0):.1%})")
     print(f"  Implicit success signal: {fb.get('implicit_success_signal', 0.5):.1%}")
     print("")
@@ -891,107 +1163,179 @@ def cmd_batch_status(args):
         f"  Recommendations batch: {'✅ Enabled' if BatchConfig.is_batch_enabled('recommendations') else '❌ Disabled'}"
     )
     print("")
-    print(
-        f"Any batch enabled: {'✅ Yes' if BatchConfig.is_any_batch_enabled() else '❌ No'}"
-    )
+    print(f"Any batch enabled: {'✅ Yes' if BatchConfig.is_any_batch_enabled() else '❌ No'}")
     print("")
     print("  export CORTEX_BATCH_RECOMMENDATIONS_ENABLED=true")
     print("")
 
 
+def cmd_v2a_batch(args):
+    """Manage V2a sprint batch jobs."""
+    from batch.v2a_sprint_orchestrator import V2aSprintOrchestrator
+
+    orchestrator = V2aSprintOrchestrator()
+
+    if args.action == "submit":
+        print("🚀 Submitting V2a sprint batch jobs...")
+        print("")
+
+        wave_task_ids = orchestrator.submit_all_sprints()
+
+        print("✓ All tasks submitted to batch queue!")
+        print("")
+
+        for wave_id in sorted(wave_task_ids.keys()):
+            task_ids = wave_task_ids[wave_id]
+            print(f"  {wave_id}: {len(task_ids)} tasks")
+
+        print("")
+        print("Use 'cortex v2a-batch --action status' to monitor progress")
+
+    elif args.action == "status":
+        print("📊 V2a Sprint Batch Status")
+        print("=" * 60)
+
+        status_data = orchestrator.get_overall_status()
+
+        print(f"Total Tasks: {status_data['total_tasks']}")
+        print(f"Completed: {status_data['completed']}")
+        print(f"Running: {status_data['running']}")
+        print(f"Failed: {status_data['failed']}")
+        print(f"Pending: {status_data['pending']}")
+        print(f"Progress: {status_data['progress_pct']:.1f}%")
+        print(f"Current Wave: {status_data['current_wave']}")
+        print("")
+
+        # Per-wave breakdown
+        print("Per-Wave Status:")
+        for wave_id in ["wave_1", "wave_2", "wave_3", "wave_4"]:
+            wave_status = status_data["waves"].get(wave_id, {})
+            progress = wave_status.get("progress_pct", 0)
+            running = wave_status.get("running", 0)
+
+            if progress == 100:
+                emoji = "✅"
+            elif running > 0:
+                emoji = "🔄"
+            else:
+                emoji = "📋"
+
+            print(
+                f"  {emoji} {wave_id}: {wave_status.get('completed', 0)}/{wave_status.get('total', 0)} complete ({progress:.0f}%)"
+            )
+
+    elif args.action == "retry":
+        print("🔄 Retrying failed tasks...")
+        retried = orchestrator.retry_failed_tasks(wave_id=args.wave)
+
+        if retried:
+            print(f"✓ Retried {len(retried)} tasks")
+        else:
+            print("No failed tasks to retry")
+
+    else:
+        print(f"Unknown action: {args.action}")
+        sys.exit(1)
+
+
 def cmd_notify(args):
     """Send notifications via Chief of Staff persona."""
     from cortex.notify import Notifier
-    
+
     try:
         notifier = Notifier()
         channels = args.channel or ["terminal"]
         if "all" in channels:
             channels = ["terminal", "email"]
-            
+
         message = ""
         title = "Cortex Update"
         context = {}
-        
+
         # Determine content based on type
         if args.type == "morning":
             title = "Morning Briefing"
             print("Generating morning briefing...")
             briefing_data = generate_daily_briefing(Path(args.root))
-            
+
             # Get executive summary for terminal/short message
-            from briefing import get_executive_summary, format_briefing
+            from briefing import format_briefing, get_executive_summary
+
             summary = get_executive_summary(briefing_data)
-            
+
             # Full report for email
             full_report = format_briefing(briefing_data, use_color=False)
             # Convert newlines to HTML breaks for basic email formatting
             html_body = f"<pre>{full_report}</pre>"
             context["html_body"] = html_body
-            
+
             # Use summary as the main message text
             message = summary
             if args.message:
                 message = f"{args.message}\n\n{summary}"
-                
+
         elif args.type == "evening":
             title = "Evening Status"
             # TODO: specialized evening report
             print("Generating evening status...")
             briefing_data = generate_daily_briefing(Path(args.root))
             from briefing import get_executive_summary
+
             summary = get_executive_summary(briefing_data)
             message = f"End of day status. {summary}"
-            
-        else: # custom
+
+        else:  # custom
             if not args.message:
                 print("Error: --message required for custom notifications")
                 sys.exit(1)
             message = args.message
             title = args.title or "Cortex Notification"
-            
+
         print(f"Sending notification via {', '.join(channels)}...")
         print(f"Title: {title}")
         print(f"Message: {message}")
-        
+
         results = notifier.notify(title, message, channels, context)
-        
+
         # Report results
         for channel, success in results.items():
             icon = "✅" if success else "❌"
             print(f"{icon} {channel}: {'Sent' if success else 'Failed'}")
-            
+
     except Exception as e:
         print(f"Error sending notification: {e}", file=sys.stderr)
         sys.exit(1)
 
+
 def cmd_dashboard(args):
     """Show Symbiosis Dashboard (Night Shift & Agents)."""
     from datetime import datetime
-    
+
     # Import internal orchestrator components
     # Import internal orchestrator components
     # Assuming local-orchestrator is in path from main setup
     try:
         from batch_system import BatchManager
-        from history import ExecutionHistory
         from config import STORAGE_PATH
+        from history import ExecutionHistory
     except ImportError:
         # Fallback: try adding local-orchestrator explicitly if not in path
         import sys
-        dev_dir = Path(__file__).parent.parent.parent # .../Dev
+
+        dev_dir = Path(__file__).parent.parent.parent  # .../Dev
         lo_dir = dev_dir / "local-orchestrator"
         if str(lo_dir) not in sys.path:
             sys.path.insert(0, str(lo_dir))
-        
+
         from batch_system import BatchManager
         from storage.history import ExecutionHistory
+
         # config might be module level in local-orchestrator
         try:
-             from config import STORAGE_PATH
+            from config import STORAGE_PATH
         except ImportError:
-             # Define fallback or load from module
-             STORAGE_PATH = "symbiotic.db"
+            # Define fallback or load from module
+            STORAGE_PATH = "symbiotic.db"
 
     try:
         # Initialize directly
@@ -1000,24 +1344,24 @@ def cmd_dashboard(args):
         if not Path(STORAGE_PATH).is_absolute():
             # Find local-orchestrator dir
             # We added it to sys.path earlier, or check relative
-             lo_dir = Path(__file__).parent.parent / "local-orchestrator"
-             db_path = str(lo_dir / STORAGE_PATH)
+            lo_dir = Path(__file__).parent.parent / "local-orchestrator"
+            db_path = str(lo_dir / STORAGE_PATH)
         else:
-             db_path = STORAGE_PATH
-             
+            db_path = STORAGE_PATH
+
         batch_manager = BatchManager(db_path=db_path)
         history = ExecutionHistory(db_path=db_path)
-        
+
         # Get stats
         try:
             # Check queue
             pending_all = batch_manager.get_pending_items(limit=1000)
             active_batches = batch_manager.get_active_batches()
-            
+
             queue = {
                 "pending": len(pending_all),
                 "active_batches": len(active_batches),
-                "batches": active_batches
+                "batches": active_batches,
             }
         except Exception as e:
             queue = {"pending": 0, "active_batches": 0, "batches": [], "error": str(e)}
@@ -1071,9 +1415,7 @@ def cmd_dashboard(args):
             name = agent_id.replace("system_", "").replace("agent_", "")[:24]
             status = run.get("status", "unknown")
             status_icon = (
-                "✅"
-                if status == "completed" or status
-                else "❌" if status == "failed" else "⏳"
+                "✅" if status == "completed" or status else "❌" if status == "failed" else "⏳"
             )
 
             # Timestamp formatting
@@ -1134,9 +1476,7 @@ Examples:
 
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
-    next_parser.add_argument(
-        "project", nargs="?", help="Filter by project name (optional)"
-    )
+    next_parser.add_argument("project", nargs="?", help="Filter by project name (optional)")
     next_parser.add_argument(
         "--with-context", action="store_true", help="Include context predictions"
     )
@@ -1158,21 +1498,16 @@ Examples:
     health_parser.set_defaults(func=cmd_health)
 
     # Feedback command
-    feedback_parser = subparsers.add_parser(
-        "feedback", help="Log feedback for recommendations"
-    )
+    feedback_parser = subparsers.add_parser("feedback", help="Log feedback for recommendations")
     feedback_parser.add_argument(
         "--action-title", type=str, help="Title of the action/recommendation"
     )
-    feedback_parser.add_argument(
-        "--action-id", type=str, help="ID of the action (if available)"
-    )
+    feedback_parser.add_argument("--action-id", type=str, help="ID of the action (if available)")
     feedback_parser.add_argument(
         "--useful", type=str, required=False, help="Was it useful? (yes/no)"
     )
     feedback_parser.add_argument("--notes", type=str, help="Optional notes")
-    feedback_parser.add_argument(
-        "--outcome", type=str, help="What actually happened?")
+    feedback_parser.add_argument("--outcome", type=str, help="What actually happened?")
     feedback_parser.add_argument(
         "--stats",
         type=str,
@@ -1180,31 +1515,25 @@ Examples:
         const="summary",
         help="Show feedback statistics (use 'recent' for recent entries)",
     )
-    feedback_parser.add_argument(
-        "--log", type=str, help="Quick log entry (general note)"
-    )
+    feedback_parser.add_argument("--log", type=str, help="Quick log entry (general note)")
     feedback_parser.set_defaults(func=cmd_feedback)
 
     # Notify command
     notify_parser = subparsers.add_parser("notify", help="Send notifications")
     notify_parser.add_argument(
-        "--type", 
-        choices=["morning", "evening", "custom"], 
+        "--type",
+        choices=["morning", "evening", "custom"],
         default="custom",
-        help="Type of notification"
+        help="Type of notification",
     )
     notify_parser.add_argument(
-        "--channel", 
-        action="append", 
+        "--channel",
+        action="append",
         choices=["terminal", "email", "all"],
-        help="Notification channels (can specify multiple)"
+        help="Notification channels (can specify multiple)",
     )
-    notify_parser.add_argument(
-        "--message", type=str, help="Custom message content"
-    )
-    notify_parser.add_argument(
-        "--title", type=str, help="Custom notification title"
-    )
+    notify_parser.add_argument("--message", type=str, help="Custom message content")
+    notify_parser.add_argument("--title", type=str, help="Custom notification title")
     notify_parser.set_defaults(func=cmd_notify)
 
     # Check command (Golden Spec Validator)
@@ -1262,9 +1591,7 @@ Examples:
                     print(f"  • {rec}")
             print("\n" + "─" * 40 + "\n")
 
-    check_parser = subparsers.add_parser(
-        "check", help="Check project compliance with Golden Spec"
-    )
+    check_parser = subparsers.add_parser("check", help="Check project compliance with Golden Spec")
     check_parser.add_argument("project", nargs="?", help="Project to check")
     check_parser.set_defaults(func=cmd_check)
 
@@ -1293,19 +1620,13 @@ Examples:
             print(f"Error drafting spec: {e}", file=sys.stderr)
             sys.exit(1)
 
-    draft_parser = subparsers.add_parser(
-        "draft", help="Draft a new Golden Spec from intent"
-    )
+    draft_parser = subparsers.add_parser("draft", help="Draft a new Golden Spec from intent")
     draft_parser.add_argument("intent", help="The intent or goal of the project")
-    draft_parser.add_argument(
-        "--project", help="Project name (optional, defaults to current dir)"
-    )
+    draft_parser.add_argument("--project", help="Project name (optional, defaults to current dir)")
     draft_parser.set_defaults(func=cmd_draft)
 
     # Learn command
-    learn_parser = subparsers.add_parser(
-        "learn", help="Show learning metrics and patterns"
-    )
+    learn_parser = subparsers.add_parser("learn", help="Show learning metrics and patterns")
     learn_parser.set_defaults(func=cmd_learn)
 
     # Interactions command (Real-time feedback loop)
@@ -1313,24 +1634,23 @@ Examples:
         "interactions", help="Manage interaction learning (real-time feedback loop)"
     )
     interactions_parser.add_argument(
-        "--process", action="store_true",
-        help="Process queued interactions from Claude Code sessions"
+        "--process",
+        action="store_true",
+        help="Process queued interactions from Claude Code sessions",
     )
     interactions_parser.add_argument(
-        "--patterns", action="store_true",
-        help="Show detected interaction patterns"
+        "--patterns", action="store_true", help="Show detected interaction patterns"
     )
     interactions_parser.add_argument(
-        "--tools", action="store_true",
-        help="Show tool success rates from interactions"
+        "--tools", action="store_true", help="Show tool success rates from interactions"
     )
     interactions_parser.add_argument(
-        "--setup", action="store_true",
-        help="Show instructions to set up interaction capture hooks"
+        "--setup",
+        action="store_true",
+        help="Show instructions to set up interaction capture hooks",
     )
     interactions_parser.add_argument(
-        "--days", type=int, default=7,
-        help="Number of days to analyze (default: 7)"
+        "--days", type=int, default=7, help="Number of days to analyze (default: 7)"
     )
     interactions_parser.set_defaults(func=cmd_interactions)
 
@@ -1340,10 +1660,21 @@ Examples:
     )
     batch_api_status_parser.set_defaults(func=cmd_batch_status)
 
-    # Dashboard command (Symbiosis Engine)
-    dashboard_parser = subparsers.add_parser(
-        "dashboard", help="Show Symbiosis Engine Dashboard"
+    # V2a Batch command
+    v2a_batch_parser = subparsers.add_parser("v2a-batch", help="Manage V2a sprint batch jobs")
+    v2a_batch_parser.add_argument(
+        "action",
+        choices=["submit", "status", "retry", "cancel", "task"],
+        help="Action to perform",
     )
+    v2a_batch_parser.add_argument(
+        "--wave", type=str, help="Wave ID (wave_1, wave_2, wave_3, wave_4)"
+    )
+    v2a_batch_parser.add_argument("--task-id", type=str, help="Task ID for task action")
+    v2a_batch_parser.set_defaults(func=cmd_v2a_batch)
+
+    # Dashboard command (Symbiosis Engine)
+    dashboard_parser = subparsers.add_parser("dashboard", help="Show Symbiosis Engine Dashboard")
     dashboard_parser.set_defaults(func=cmd_dashboard)
 
     # Briefing command
@@ -1355,16 +1686,19 @@ Examples:
         default="text",
         help="Output format (default: text)",
     )
-    briefing_parser.add_argument(
-        "--no-color", action="store_true", help="Disable color output"
-    )
+    briefing_parser.add_argument("--no-color", action="store_true", help="Disable color output")
     briefing_parser.set_defaults(func=cmd_briefing)
 
     # Git command
     git_parser = subparsers.add_parser("git", help="Show Git/GitHub status")
     git_parser.add_argument("--json", action="store_true", help="Output JSON format")
     git_parser.add_argument("--brief", action="store_true", help="Show brief summary")
-    git_parser.add_argument("--recommendations", "-r", action="store_true", help="Include actionable recommendations")
+    git_parser.add_argument(
+        "--recommendations",
+        "-r",
+        action="store_true",
+        help="Include actionable recommendations",
+    )
     git_parser.set_defaults(func=cmd_git)
 
     # Sync command
@@ -1380,9 +1714,15 @@ Examples:
     sync_parser.set_defaults(func=cmd_sync)
 
     # Docs command - sync documentation to Claude Projects for mobile access
-    docs_parser = subparsers.add_parser("docs", help="Sync docs to Claude Projects for mobile access")
-    docs_parser.add_argument("--init", action="store_true", help="First-time setup (configure session key)")
-    docs_parser.add_argument("--status", "-s", action="store_true", help="Show what would be synced")
+    docs_parser = subparsers.add_parser(
+        "docs", help="Sync docs to Claude Projects for mobile access"
+    )
+    docs_parser.add_argument(
+        "--init", action="store_true", help="First-time setup (configure session key)"
+    )
+    docs_parser.add_argument(
+        "--status", "-s", action="store_true", help="Show what would be synced"
+    )
     docs_parser.add_argument("--add-source", metavar="PATH", help="Add a new doc source directory")
     docs_parser.add_argument("--source-name", metavar="NAME", help="Name for added source")
     docs_parser.add_argument("--force", action="store_true", help="Force full re-upload")
@@ -1411,9 +1751,7 @@ Examples:
     schedule_parser.set_defaults(func=cmd_schedule)
 
     # Execute command
-    execute_parser = subparsers.add_parser(
-        "execute", help="Execute a recommendation immediately"
-    )
+    execute_parser = subparsers.add_parser("execute", help="Execute a recommendation immediately")
     execute_parser.add_argument(
         "index",
         nargs="?",
@@ -1432,16 +1770,19 @@ Examples:
     # Goal, Task, Blocker, Progress commands
     try:
         from goal_commands import register_goal_commands
+
         register_goal_commands(subparsers)
     except Exception as e:
         import sys as _sys
+
         print(f"Goal command registration failed: {e}", file=_sys.stderr)
 
     # Skills commands
     import asyncio
-    
+
     try:
         from skills import registry
+
         SKILLS_AVAILABLE = True
     except ImportError:
         registry = None
@@ -1459,6 +1800,7 @@ Examples:
         if not SKILLS_AVAILABLE:
             print("Skills module not available.")
             return
+
         async def run():
             result = await registry.execute_skill(args.skill_name, **vars(args))
             if result:
@@ -1469,6 +1811,7 @@ Examples:
                 for skill in registry.get_all():
                     print(f"  - {skill.name}")
                 sys.exit(1)
+
         asyncio.run(run())
 
     def cmd_skill_info(args):
@@ -1488,42 +1831,47 @@ Examples:
         if not SKILLS_AVAILABLE:
             print("Skills module not available.")
             return
+
         async def run():
             results = await registry.execute_scheduled()
             print(f"\nExecuted {len(results)} scheduled skills")
             for result in results:
                 print(f"  - {result.summary}")
+
         asyncio.run(run())
 
     # Skill subcommands
-    skill_parser = subparsers.add_parser('skill', help='Manage and execute skills')
-    skill_subparsers = skill_parser.add_subparsers(dest='skill_command', help='Skill commands')
+    skill_parser = subparsers.add_parser("skill", help="Manage and execute skills")
+    skill_subparsers = skill_parser.add_subparsers(dest="skill_command", help="Skill commands")
 
     # skill list
-    skill_list_parser = skill_subparsers.add_parser('list', help='List all skills')
+    skill_list_parser = skill_subparsers.add_parser("list", help="List all skills")
     skill_list_parser.set_defaults(func=cmd_skill_list)
 
     # skill run
-    skill_run_parser = skill_subparsers.add_parser('run', help='Run a skill')
-    skill_run_parser.add_argument('skill_name', help='Name of skill to run')
-    skill_run_parser.add_argument('--scope', type=str, help='Validation scope (for forecasting skill)')
-    skill_run_parser.add_argument('--symbol', type=str, help='Symbol (for trading skill)')
-    skill_run_parser.add_argument('--days', type=int, help='Days (for trading skill)')
-    skill_run_parser.add_argument('--directory', type=str, help='Directory (for audio skill)')
+    skill_run_parser = skill_subparsers.add_parser("run", help="Run a skill")
+    skill_run_parser.add_argument("skill_name", help="Name of skill to run")
+    skill_run_parser.add_argument(
+        "--scope", type=str, help="Validation scope (for forecasting skill)"
+    )
+    skill_run_parser.add_argument("--symbol", type=str, help="Symbol (for trading skill)")
+    skill_run_parser.add_argument("--days", type=int, help="Days (for trading skill)")
+    skill_run_parser.add_argument("--directory", type=str, help="Directory (for audio skill)")
     skill_run_parser.set_defaults(func=cmd_skill_run)
 
     # skill info
-    skill_info_parser = skill_subparsers.add_parser('info', help='Show skill information')
-    skill_info_parser.add_argument('skill_name', help='Name of skill')
+    skill_info_parser = skill_subparsers.add_parser("info", help="Show skill information")
+    skill_info_parser.add_argument("skill_name", help="Name of skill")
     skill_info_parser.set_defaults(func=cmd_skill_info)
 
     # skill schedule
-    skill_schedule_parser = skill_subparsers.add_parser('schedule', help='Run scheduled skills')
+    skill_schedule_parser = skill_subparsers.add_parser("schedule", help="Run scheduled skills")
     skill_schedule_parser.set_defaults(func=cmd_skill_schedule)
 
     # Process monitoring commands
     try:
         from intelligence.process_monitor import ProcessMonitor
+
         PROCESS_MONITOR_AVAILABLE = True
     except ImportError:
         PROCESS_MONITOR_AVAILABLE = False
@@ -1543,8 +1891,12 @@ Examples:
         print("")
         print("💻 SYSTEM RESOURCES")
         print("────────────────")
-        print(f"CPU Usage:     {status['cpu_percent']:.1f}% ({status['cpu_available']:.1f}% available)")
-        print(f"Memory Usage:  {status['memory_usage_percent']:.1f}% ({status['memory_available_mb']:.0f} MB available)")
+        print(
+            f"CPU Usage:     {status['cpu_percent']:.1f}% ({status['cpu_available']:.1f}% available)"
+        )
+        print(
+            f"Memory Usage:  {status['memory_usage_percent']:.1f}% ({status['memory_available_mb']:.0f} MB available)"
+        )
         print(f"Processes:     {status['process_count']}")
         print("")
         print("🤖 AI TOOLS & SERVICES")
@@ -1576,7 +1928,7 @@ Examples:
         print("╚══════════════════════════════════════════════════════╝")
         print("")
 
-        if waste_summary['total_waste_items'] == 0:
+        if waste_summary["total_waste_items"] == 0:
             print("✅ No resource waste detected!")
             return
 
@@ -1586,15 +1938,15 @@ Examples:
         print("")
 
         # Group by type
-        for waste_type, count in waste_summary['by_type'].items():
+        for waste_type, count in waste_summary["by_type"].items():
             print(f"  {waste_type}: {count}")
         print("")
 
         # Show details
         print("DETAILS")
         print("────────────────")
-        for item in waste_summary['items'][:10]:  # Show top 10
-            auto_marker = "🤖" if item['auto_actionable'] else "👁️"
+        for item in waste_summary["items"][:10]:  # Show top 10
+            auto_marker = "🤖" if item["auto_actionable"] else "👁️"
             print(f"{auto_marker} {item['process_name']}")
             print(f"   Type: {item['waste_type']}")
             print(f"   Cost: {item['resource_cost']}")
@@ -1650,7 +2002,7 @@ Examples:
         print("")
 
         # Utilization patterns
-        util = insights['utilization']
+        util = insights["utilization"]
         print("📊 UTILIZATION PATTERNS")
         print("────────────────")
         print(f"Peak Hours:     {', '.join(f'{h:02d}:00' for h in util['peak_hours'])}")
@@ -1659,20 +2011,24 @@ Examples:
         print("")
 
         # AI tools
-        if insights['ai_tools']:
+        if insights["ai_tools"]:
             print("🤖 AI TOOL USAGE")
             print("────────────────")
-            for tool in insights['ai_tools']:
+            for tool in insights["ai_tools"]:
                 print(f"{tool['tool_name']}:")
                 print(f"  Usage: {tool['usage_hours']:.1f}h | Idle: {tool['idle_hours']:.1f}h")
-                print(f"  Avg CPU: {tool['avg_cpu']:.1f}% | Avg Memory: {tool['avg_memory']:.0f} MB")
+                print(
+                    f"  Avg CPU: {tool['avg_cpu']:.1f}% | Avg Memory: {tool['avg_memory']:.0f} MB"
+                )
             print("")
 
         # Dev patterns
-        dev = insights['dev_patterns']
+        dev = insights["dev_patterns"]
         print("💻 DEVELOPMENT PATTERNS")
         print("────────────────")
-        print(f"Active Coding Hours: {', '.join(f'{h:02d}:00' for h in dev['active_coding_hours'][:5])}")
+        print(
+            f"Active Coding Hours: {', '.join(f'{h:02d}:00' for h in dev['active_coding_hours'][:5])}"
+        )
         print(f"Build Frequency:     {dev['build_frequency']:.1f} builds/day")
 
     # === Batch Command Functions ===
@@ -1683,6 +2039,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         task = monitor.batch_queue.add_task(
@@ -1690,7 +2047,7 @@ Examples:
             task_type=args.task_type,
             description=args.description or args.command,
             priority=args.priority,
-            estimated_duration_minutes=args.duration
+            estimated_duration_minutes=args.duration,
         )
 
         print("✅ Task added to queue")
@@ -1707,13 +2064,11 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor, TaskState
+
         monitor = ProcessMonitor()
 
         state_filter = TaskState(args.state) if args.state else None
-        tasks = monitor.batch_queue.get_task_history(
-            limit=args.limit,
-            state=state_filter
-        )
+        tasks = monitor.batch_queue.get_task_history(limit=args.limit, state=state_filter)
 
         if not tasks:
             print("No tasks found")
@@ -1726,13 +2081,13 @@ Examples:
 
         for task in tasks:
             state_icon = {
-                'pending': '⏳',
-                'scheduled': '📅',
-                'running': '▶️ ',
-                'completed': '✅',
-                'failed': '❌',
-                'cancelled': '🚫'
-            }.get(task.state.value, '•')
+                "pending": "⏳",
+                "scheduled": "📅",
+                "running": "▶️ ",
+                "completed": "✅",
+                "failed": "❌",
+                "cancelled": "🚫",
+            }.get(task.state.value, "•")
 
             print(f"{state_icon} {task.description}")
             print(f"   ID: {task.task_id}")
@@ -1758,6 +2113,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         stats = monitor.batch_queue.get_queue_stats()
@@ -1779,15 +2135,15 @@ Examples:
         print()
 
         # Success rate
-        success_rate = stats.get('success_rate', 0)
+        success_rate = stats.get("success_rate", 0)
         print(f"✅ SUCCESS RATE: {success_rate:.1%}")
         print()
 
         # Average durations
-        if stats.get('avg_duration_by_type'):
+        if stats.get("avg_duration_by_type"):
             print("⏱️  AVERAGE DURATION BY TYPE")
             print("────────────────")
-            for task_type, avg_duration in stats['avg_duration_by_type'].items():
+            for task_type, avg_duration in stats["avg_duration_by_type"].items():
                 print(f"{task_type:20} {avg_duration:.1f}s")
             print()
 
@@ -1795,7 +2151,9 @@ Examples:
         executor_status = monitor.batch_executor.get_status()
         print("🔄 EXECUTOR STATUS")
         print("────────────────")
-        print(f"Running tasks:     {executor_status['running_tasks']}/{executor_status['max_concurrent']}")
+        print(
+            f"Running tasks:     {executor_status['running_tasks']}/{executor_status['max_concurrent']}"
+        )
         print(f"Shutdown:          {'Yes' if executor_status['shutdown'] else 'No'}")
 
     def cmd_batch_schedule(args):
@@ -1805,6 +2163,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         print("Scheduling pending tasks...")
@@ -1814,9 +2173,9 @@ Examples:
         print(f"Scheduled: {results['scheduled']}")
         print()
 
-        if results['scheduled'] > 0:
+        if results["scheduled"] > 0:
             print("Scheduled tasks:")
-            for task_info in results['tasks']:
+            for task_info in results["tasks"]:
                 print(f"✅ {task_info['description']}")
                 print(f"   Time: {task_info['scheduled_time']}")
                 print(f"   Reason: {task_info['reason']}")
@@ -1829,6 +2188,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         print("Processing scheduled tasks...")
@@ -1839,9 +2199,9 @@ Examples:
         print(f"Deferred: {results['deferred']}")
         print()
 
-        if results['tasks']:
-            for task_info in results['tasks']:
-                if task_info['status'] == 'executing':
+        if results["tasks"]:
+            for task_info in results["tasks"]:
+                if task_info["status"] == "executing":
                     print(f"▶️  {task_info['description']}")
                     print("   Status: Executing")
                 else:
@@ -1857,6 +2217,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         success = monitor.batch_queue.cancel_task(args.task_id)
@@ -1874,6 +2235,7 @@ Examples:
             sys.exit(1)
 
         from intelligence.process_monitor import ProcessMonitor
+
         monitor = ProcessMonitor()
 
         task = monitor.batch_queue.get_task(args.task_id)
@@ -1939,15 +2301,12 @@ Examples:
         daemon = BatchDaemon(
             queue=monitor.batch_queue,
             executor=monitor.batch_executor,
-            process_monitor=monitor
+            process_monitor=monitor,
         )
 
-        result = daemon.start(
-            interval_seconds=args.interval,
-            foreground=not args.background
-        )
+        result = daemon.start(interval_seconds=args.interval, foreground=not args.background)
 
-        if result['success']:
+        if result["success"]:
             if args.background:
                 print("✓ Daemon started in background")
                 print(f"  PID: {result['pid']}")
@@ -1971,10 +2330,10 @@ Examples:
         daemon = BatchDaemon()
         result = daemon.stop()
 
-        if result['success']:
+        if result["success"]:
             print("✓ Daemon stopped")
             print(f"  PID: {result['pid']}")
-            if result.get('forced'):
+            if result.get("forced"):
                 print("  (force killed)")
         else:
             print(f"✗ {result['error']}")
@@ -1991,106 +2350,150 @@ Examples:
         daemon = BatchDaemon()
         status = daemon.status()
 
-        if status['running']:
+        if status["running"]:
             print("✓ Daemon is running")
             print(f"  PID: {status['pid']}")
             print(f"  Uptime: {status['uptime']}")
             print(f"  Started: {status['started_at']}")
-            if 'cpu_percent' in status:
+            if "cpu_percent" in status:
                 print(f"  CPU: {status['cpu_percent']:.1f}%")
-            if 'memory_mb' in status:
+            if "memory_mb" in status:
                 print(f"  Memory: {status['memory_mb']:.1f} MB")
             print(f"  Log file: {status['log_file']}")
         else:
             print("✗ Daemon is not running")
-            if 'pid' in status:
+            if "pid" in status:
                 print(f"  (stale PID: {status['pid']})")
 
     # Process subcommands
-    process_parser = subparsers.add_parser('process', help='Process monitoring and optimization')
-    process_subparsers = process_parser.add_subparsers(dest='process_command', help='Process commands')
+    process_parser = subparsers.add_parser("process", help="Process monitoring and optimization")
+    process_subparsers = process_parser.add_subparsers(
+        dest="process_command", help="Process commands"
+    )
 
     # process status
-    process_status_parser = process_subparsers.add_parser('status', help='Show current process status')
+    process_status_parser = process_subparsers.add_parser(
+        "status", help="Show current process status"
+    )
     process_status_parser.set_defaults(func=cmd_process_status)
 
     # process waste
-    process_waste_parser = process_subparsers.add_parser('waste', help='Show detected resource waste')
+    process_waste_parser = process_subparsers.add_parser(
+        "waste", help="Show detected resource waste"
+    )
     process_waste_parser.set_defaults(func=cmd_process_waste)
 
     # process optimize
-    process_optimize_parser = process_subparsers.add_parser('optimize', help='Show optimization suggestions')
+    process_optimize_parser = process_subparsers.add_parser(
+        "optimize", help="Show optimization suggestions"
+    )
     process_optimize_parser.set_defaults(func=cmd_process_optimize)
 
     # process insights
-    process_insights_parser = process_subparsers.add_parser('insights', help='Show utilization insights')
-    process_insights_parser.add_argument('--days', type=int, default=7, help='Number of days to analyze (default: 7)')
+    process_insights_parser = process_subparsers.add_parser(
+        "insights", help="Show utilization insights"
+    )
+    process_insights_parser.add_argument(
+        "--days", type=int, default=7, help="Number of days to analyze (default: 7)"
+    )
     process_insights_parser.set_defaults(func=cmd_process_insights)
 
     # === Batch Scheduling Commands ===
-    batch_parser = subparsers.add_parser('batch', help='Batch task scheduling and execution')
-    batch_subparsers = batch_parser.add_subparsers(dest='batch_command', help='Batch commands')
+    batch_parser = subparsers.add_parser("batch", help="Batch task scheduling and execution")
+    batch_subparsers = batch_parser.add_subparsers(dest="batch_command", help="Batch commands")
 
     # batch add
-    batch_add_parser = batch_subparsers.add_parser('add', help='Add a task to the batch queue')
-    batch_add_parser.add_argument('command', help='Command to execute')
-    batch_add_parser.add_argument('--type', dest='task_type', default='general', help='Task type (test, build, deploy, etc.)')
-    batch_add_parser.add_argument('--description', default='', help='Task description')
-    batch_add_parser.add_argument('--priority', default='normal', choices=['immediate', 'high', 'normal', 'low'], help='Task priority')
-    batch_add_parser.add_argument('--duration', type=float, default=10.0, help='Estimated duration in minutes')
+    batch_add_parser = batch_subparsers.add_parser("add", help="Add a task to the batch queue")
+    batch_add_parser.add_argument("command", help="Command to execute")
+    batch_add_parser.add_argument(
+        "--type",
+        dest="task_type",
+        default="general",
+        help="Task type (test, build, deploy, etc.)",
+    )
+    batch_add_parser.add_argument("--description", default="", help="Task description")
+    batch_add_parser.add_argument(
+        "--priority",
+        default="normal",
+        choices=["immediate", "high", "normal", "low"],
+        help="Task priority",
+    )
+    batch_add_parser.add_argument(
+        "--duration", type=float, default=10.0, help="Estimated duration in minutes"
+    )
     batch_add_parser.set_defaults(func=cmd_batch_add)
 
     # batch list
-    batch_list_parser = batch_subparsers.add_parser('list', help='List batch tasks')
-    batch_list_parser.add_argument('--state', choices=['pending', 'scheduled', 'running', 'completed', 'failed', 'cancelled'], help='Filter by state')
-    batch_list_parser.add_argument('--limit', type=int, default=20, help='Maximum tasks to show')
+    batch_list_parser = batch_subparsers.add_parser("list", help="List batch tasks")
+    batch_list_parser.add_argument(
+        "--state",
+        choices=["pending", "scheduled", "running", "completed", "failed", "cancelled"],
+        help="Filter by state",
+    )
+    batch_list_parser.add_argument("--limit", type=int, default=20, help="Maximum tasks to show")
     batch_list_parser.set_defaults(func=cmd_batch_list)
 
     # batch status
-    batch_status_parser = batch_subparsers.add_parser('status', help='Show batch queue status')
+    batch_status_parser = batch_subparsers.add_parser("status", help="Show batch queue status")
     batch_status_parser.set_defaults(func=cmd_batch_queue_status)
 
     # batch schedule
-    batch_schedule_parser = batch_subparsers.add_parser('schedule', help='Schedule pending tasks')
+    batch_schedule_parser = batch_subparsers.add_parser("schedule", help="Schedule pending tasks")
     batch_schedule_parser.set_defaults(func=cmd_batch_schedule)
 
     # batch run
-    batch_run_parser = batch_subparsers.add_parser('run', help='Execute scheduled tasks')
+    batch_run_parser = batch_subparsers.add_parser("run", help="Execute scheduled tasks")
     batch_run_parser.set_defaults(func=cmd_batch_run)
 
     # batch cancel
-    batch_cancel_parser = batch_subparsers.add_parser('cancel', help='Cancel a task')
-    batch_cancel_parser.add_argument('task_id', help='Task ID to cancel')
+    batch_cancel_parser = batch_subparsers.add_parser("cancel", help="Cancel a task")
+    batch_cancel_parser.add_argument("task_id", help="Task ID to cancel")
     batch_cancel_parser.set_defaults(func=cmd_batch_cancel)
 
     # batch logs
-    batch_logs_parser = batch_subparsers.add_parser('logs', help='Show task execution logs')
-    batch_logs_parser.add_argument('task_id', help='Task ID')
+    batch_logs_parser = batch_subparsers.add_parser("logs", help="Show task execution logs")
+    batch_logs_parser.add_argument("task_id", help="Task ID")
     batch_logs_parser.set_defaults(func=cmd_batch_logs)
 
     # batch daemon - nested subparser
-    batch_daemon_parser = batch_subparsers.add_parser('daemon', help='Daemon management')
-    daemon_subparsers = batch_daemon_parser.add_subparsers(dest='daemon_command', help='Daemon commands')
+    batch_daemon_parser = batch_subparsers.add_parser("daemon", help="Daemon management")
+    daemon_subparsers = batch_daemon_parser.add_subparsers(
+        dest="daemon_command", help="Daemon commands"
+    )
 
     # daemon start
-    daemon_start_parser = daemon_subparsers.add_parser('start', help='Start the batch scheduler daemon')
-    daemon_start_parser.add_argument('--interval', type=int, default=60, help='Task check interval in seconds (default: 60)')
-    daemon_start_parser.add_argument('--background', action='store_true', help='Run in background (default: foreground)')
+    daemon_start_parser = daemon_subparsers.add_parser(
+        "start", help="Start the batch scheduler daemon"
+    )
+    daemon_start_parser.add_argument(
+        "--interval",
+        type=int,
+        default=60,
+        help="Task check interval in seconds (default: 60)",
+    )
+    daemon_start_parser.add_argument(
+        "--background",
+        action="store_true",
+        help="Run in background (default: foreground)",
+    )
     daemon_start_parser.set_defaults(func=cmd_batch_daemon_start)
 
     # daemon stop
-    daemon_stop_parser = daemon_subparsers.add_parser('stop', help='Stop the batch scheduler daemon')
+    daemon_stop_parser = daemon_subparsers.add_parser(
+        "stop", help="Stop the batch scheduler daemon"
+    )
     daemon_stop_parser.set_defaults(func=cmd_batch_daemon_stop)
 
     # daemon status
-    daemon_status_parser = daemon_subparsers.add_parser('status', help='Show daemon status')
+    daemon_status_parser = daemon_subparsers.add_parser("status", help="Show daemon status")
     daemon_status_parser.set_defaults(func=cmd_batch_daemon_status)
 
     # === Work Absorber Commands ===
     def cmd_work_absorb(args):
         """Run work absorption cycle."""
-        from work_absorber import WorkAbsorber
         from datetime import datetime, timedelta
+
+        from work_absorber import WorkAbsorber
 
         absorber = WorkAbsorber()
 
@@ -2102,7 +2505,7 @@ Examples:
             except ValueError:
                 # Try days ago format
                 try:
-                    days = int(args.since.rstrip('d'))
+                    days = int(args.since.rstrip("d"))
                     since = datetime.now() - timedelta(days=days)
                 except ValueError:
                     print(f"Invalid date format: {args.since}")
@@ -2127,7 +2530,9 @@ Examples:
         if report.by_project:
             print("\nBy project:")
             for project, stats in sorted(report.by_project.items()):
-                print(f"  {project}: {stats.get('signals', 0)} signals, {stats.get('work_items', 0)} items")
+                print(
+                    f"  {project}: {stats.get('signals', 0)} signals, {stats.get('work_items', 0)} items"
+                )
 
         if report.errors:
             print(f"\n⚠ Errors ({len(report.errors)}):")
@@ -2186,15 +2591,19 @@ Examples:
 
         print(f"Work items ({len(items)}):\n")
 
-        for item in items[:args.limit]:
+        for item in items[: args.limit]:
             icon = "✓" if item.status.value == "correlated" else "○"
             print(f"{icon} [{item.project}] {item.title}")
-            print(f"  Status: {item.status.value} | Signals: {item.signal_count} | Files: {len(item.files_touched)}")
+            print(
+                f"  Status: {item.status.value} | Signals: {item.signal_count} | Files: {len(item.files_touched)}"
+            )
             if item.plan_step_id:
                 print(f"  Plan: {item.plan_step_id} ({item.correlation_confidence:.0%} confidence)")
             if item.scope:
                 print(f"  Scope: {item.scope}")
-            print(f"  Time: {item.first_seen.strftime('%Y-%m-%d %H:%M')} - {item.last_activity.strftime('%Y-%m-%d %H:%M')}")
+            print(
+                f"  Time: {item.first_seen.strftime('%Y-%m-%d %H:%M')} - {item.last_activity.strftime('%Y-%m-%d %H:%M')}"
+            )
             print()
 
     def cmd_work_drift(args):
@@ -2236,15 +2645,18 @@ Examples:
         # Show drifts
         print("Drifts:")
         for drift in summary["drifts"]:
-            severity_icon = {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(drift.severity, "○")
+            severity_icon = {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(
+                drift.severity, "○"
+            )
             print(f"\n{severity_icon} [{drift.drift_type.value}] {drift.description}")
             print(f"  Project: {drift.project} | ID: {drift.id}")
             print(f"  Suggested: {drift.suggested_action}")
 
     def cmd_work_report(args):
         """Generate work absorption report."""
-        from work_absorber import WorkAbsorber
         from datetime import datetime, timedelta
+
+        from work_absorber import WorkAbsorber
 
         absorber = WorkAbsorber()
         since = datetime.now() - timedelta(days=args.days)
@@ -2287,38 +2699,55 @@ Examples:
                 print(f"  - {item.title} ({item.project})")
 
     # Work absorber subparsers
-    work_parser = subparsers.add_parser('work', help='Work absorber - track progress across projects')
-    work_subparsers = work_parser.add_subparsers(dest='work_command', help='Work commands')
+    work_parser = subparsers.add_parser(
+        "work", help="Work absorber - track progress across projects"
+    )
+    work_subparsers = work_parser.add_subparsers(dest="work_command", help="Work commands")
 
     # work absorb
-    work_absorb_parser = work_subparsers.add_parser('absorb', help='Run absorption cycle')
-    work_absorb_parser.add_argument('--project', '-p', help='Specific project to absorb')
-    work_absorb_parser.add_argument('--since', '-s', help='Start date (YYYY-MM-DD or Nd for N days ago)')
-    work_absorb_parser.add_argument('--full', action='store_true', help='Full rescan (ignore checkpoints)')
+    work_absorb_parser = work_subparsers.add_parser("absorb", help="Run absorption cycle")
+    work_absorb_parser.add_argument("--project", "-p", help="Specific project to absorb")
+    work_absorb_parser.add_argument(
+        "--since", "-s", help="Start date (YYYY-MM-DD or Nd for N days ago)"
+    )
+    work_absorb_parser.add_argument(
+        "--full", action="store_true", help="Full rescan (ignore checkpoints)"
+    )
     work_absorb_parser.set_defaults(func=cmd_work_absorb)
 
     # work status
-    work_status_parser = work_subparsers.add_parser('status', help='Show absorber status')
+    work_status_parser = work_subparsers.add_parser("status", help="Show absorber status")
     work_status_parser.set_defaults(func=cmd_work_status)
 
     # work items
-    work_items_parser = work_subparsers.add_parser('items', help='List work items')
-    work_items_parser.add_argument('--project', '-p', help='Filter by project')
-    work_items_parser.add_argument('--status', '-s', choices=['detected', 'absorbed', 'correlated', 'orphaned'], help='Filter by status')
-    work_items_parser.add_argument('--days', '-d', type=int, default=7, help='Days to look back (default: 7)')
-    work_items_parser.add_argument('--limit', '-l', type=int, default=20, help='Max items to show (default: 20)')
+    work_items_parser = work_subparsers.add_parser("items", help="List work items")
+    work_items_parser.add_argument("--project", "-p", help="Filter by project")
+    work_items_parser.add_argument(
+        "--status",
+        "-s",
+        choices=["detected", "absorbed", "correlated", "orphaned"],
+        help="Filter by status",
+    )
+    work_items_parser.add_argument(
+        "--days", "-d", type=int, default=7, help="Days to look back (default: 7)"
+    )
+    work_items_parser.add_argument(
+        "--limit", "-l", type=int, default=20, help="Max items to show (default: 20)"
+    )
     work_items_parser.set_defaults(func=cmd_work_items)
 
     # work drift
-    work_drift_parser = work_subparsers.add_parser('drift', help='Show plan drift')
-    work_drift_parser.add_argument('--project', '-p', help='Filter by project')
-    work_drift_parser.add_argument('--resolve', '-r', help='Resolve drift by ID')
-    work_drift_parser.add_argument('--notes', '-n', help='Resolution notes')
+    work_drift_parser = work_subparsers.add_parser("drift", help="Show plan drift")
+    work_drift_parser.add_argument("--project", "-p", help="Filter by project")
+    work_drift_parser.add_argument("--resolve", "-r", help="Resolve drift by ID")
+    work_drift_parser.add_argument("--notes", "-n", help="Resolution notes")
     work_drift_parser.set_defaults(func=cmd_work_drift)
 
     # work report
-    work_report_parser = work_subparsers.add_parser('report', help='Generate absorption report')
-    work_report_parser.add_argument('--days', '-d', type=int, default=7, help='Days to include (default: 7)')
+    work_report_parser = work_subparsers.add_parser("report", help="Generate absorption report")
+    work_report_parser.add_argument(
+        "--days", "-d", type=int, default=7, help="Days to include (default: 7)"
+    )
     work_report_parser.set_defaults(func=cmd_work_report)
 
     # === V2 Prime Commands ===
@@ -2326,12 +2755,13 @@ Examples:
     def cmd_v2_status(args):
         """Show V2 Prime system status."""
         from bridge import CortexBridge
+
         bridge = CortexBridge()
         status = bridge.get_v2_status()
 
-        print("+" + "="*54 + "+")
+        print("+" + "=" * 54 + "+")
         print("|          CORTEX V2 PRIME - SYSTEM STATUS             |")
-        print("+" + "="*54 + "+")
+        print("+" + "=" * 54 + "+")
         print()
 
         # Engine status
@@ -2376,13 +2806,19 @@ Examples:
                         print(f"    {sev}: {by_sev[sev]}")
             print()
 
-        v2_status = "[OK] V2 Prime Operational" if status.get("v2_available") else "[--] V2 Prime Unavailable"
+        v2_status = (
+            "[OK] V2 Prime Operational"
+            if status.get("v2_available")
+            else "[--] V2 Prime Unavailable"
+        )
         print(f"{v2_status}")
 
     def cmd_graph_query(args):
         """Query the context graph."""
-        from bridge import CortexBridge
         import json
+
+        from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         if args.node_type:
@@ -2394,8 +2830,10 @@ Examples:
 
     def cmd_graph_add(args):
         """Add a node to the graph."""
-        from bridge import CortexBridge
         import json
+
+        from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         data = {}
@@ -2413,8 +2851,10 @@ Examples:
 
     def cmd_graph_related(args):
         """Get related nodes."""
-        from bridge import CortexBridge
         import json
+
+        from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         result = bridge.get_related_nodes(args.node_id, args.edge_type)
@@ -2422,8 +2862,10 @@ Examples:
 
     def cmd_graph_import(args):
         """Import portfolio data into graph."""
-        from bridge import CortexBridge
         from pathlib import Path
+
+        from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         if not bridge.synthesis:
@@ -2443,11 +2885,14 @@ Examples:
         # Show updated stats
         stats = bridge.get_graph_stats()
         print()
-        print(f"Graph now has {stats.get('total_nodes', 0)} nodes and {stats.get('total_edges', 0)} edges")
+        print(
+            f"Graph now has {stats.get('total_nodes', 0)} nodes and {stats.get('total_edges', 0)} edges"
+        )
 
     def cmd_interventions_list(args):
         """List pending interventions."""
         from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         interventions = bridge.get_pending_interventions()
@@ -2472,13 +2917,18 @@ Examples:
             print(f"    Type: {i.get('type')}")
             print(f"    ID: {i.get('id')}")
             if i.get("description"):
-                desc = i["description"][:80] + "..." if len(i.get("description", "")) > 80 else i.get("description", "")
+                desc = (
+                    i["description"][:80] + "..."
+                    if len(i.get("description", "")) > 80
+                    else i.get("description", "")
+                )
                 print(f"    {desc}")
             print()
 
     def cmd_interventions_ack(args):
         """Acknowledge an intervention."""
         from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         result = bridge.acknowledge_intervention(args.id)
@@ -2490,6 +2940,7 @@ Examples:
     def cmd_interventions_suppress(args):
         """Suppress an intervention."""
         from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         result = bridge.suppress_intervention(args.id, args.hours)
@@ -2500,13 +2951,18 @@ Examples:
 
     def cmd_iap_send(args):
         """Send an IAP message."""
-        from bridge import CortexBridge
         import json
+
+        from bridge import CortexBridge
+
         bridge = CortexBridge()
 
         message = {
             "message_type": args.type,
-            "payload": {"query": args.payload, "query_type": args.query_type or "context"},
+            "payload": {
+                "query": args.payload,
+                "query_type": args.query_type or "context",
+            },
         }
 
         result = bridge.handle_iap_message(message)
@@ -2534,10 +2990,12 @@ Examples:
     def cmd_runtime_status(args):
         """Show runtime status."""
         import json as json_mod
+
         try:
-            from cortex.runtime.config import get_config
-            import urllib.request
             import urllib.error
+            import urllib.request
+
+            from cortex.runtime.config import get_config
 
             config = get_config()
             url = f"http://{config.host}:{config.port}/api/v1/runtime/health"
@@ -2564,10 +3022,12 @@ Examples:
     def cmd_runtime_agents(args):
         """List registered agents."""
         import json as json_mod
+
         try:
-            from cortex.runtime.config import get_config
-            import urllib.request
             import urllib.error
+            import urllib.request
+
+            from cortex.runtime.config import get_config
 
             config = get_config()
             url = f"http://{config.host}:{config.port}/api/v1/runtime/agents"
@@ -2575,7 +3035,7 @@ Examples:
             try:
                 with urllib.request.urlopen(url, timeout=5) as response:
                     data = json_mod.loads(response.read().decode())
-                    agents = data.get('agents', [])
+                    agents = data.get("agents", [])
 
                     if args.json:
                         print(json_mod.dumps(data, indent=2))
@@ -2587,9 +3047,11 @@ Examples:
                         print("  No agents registered")
                     else:
                         for agent in agents:
-                            status_icon = "●" if agent.get('status') == 'idle' else "○"
-                            schedule = agent.get('schedule', 'manual')
-                            print(f"  {status_icon} {agent['agent_id']}: {agent.get('name', 'Unnamed')}")
+                            status_icon = "●" if agent.get("status") == "idle" else "○"
+                            schedule = agent.get("schedule", "manual")
+                            print(
+                                f"  {status_icon} {agent['agent_id']}: {agent.get('name', 'Unnamed')}"
+                            )
                             print(f"      Schedule: {schedule}")
             except urllib.error.URLError:
                 print("Runtime is not running.")
@@ -2601,24 +3063,28 @@ Examples:
     def cmd_runtime_trigger(args):
         """Manually trigger an agent."""
         import json as json_mod
+
         try:
-            from cortex.runtime.config import get_config
-            import urllib.request
             import urllib.error
+            import urllib.request
+
+            from cortex.runtime.config import get_config
 
             config = get_config()
-            url = f"http://{config.host}:{config.port}/api/v1/runtime/agents/{args.agent_id}/trigger"
+            url = (
+                f"http://{config.host}:{config.port}/api/v1/runtime/agents/{args.agent_id}/trigger"
+            )
 
-            req = urllib.request.Request(url, method='POST', data=b'{}')
-            req.add_header('Content-Type', 'application/json')
+            req = urllib.request.Request(url, method="POST", data=b"{}")
+            req.add_header("Content-Type", "application/json")
 
             try:
                 with urllib.request.urlopen(req, timeout=30) as response:
                     data = json_mod.loads(response.read().decode())
                     print(f"Triggered agent: {args.agent_id}")
-                    if data.get('success'):
+                    if data.get("success"):
                         print("Result: Success")
-                        if data.get('result'):
+                        if data.get("result"):
                             print(f"Output: {json_mod.dumps(data['result'], indent=2)}")
                     else:
                         print(f"Result: Failed - {data.get('error', 'Unknown error')}")
@@ -2635,19 +3101,21 @@ Examples:
     def cmd_runtime_history(args):
         """Show execution history."""
         import json as json_mod
+
         try:
-            from cortex.runtime.config import get_config
-            import urllib.request
             import urllib.error
+            import urllib.request
+
+            from cortex.runtime.config import get_config
 
             config = get_config()
-            limit = args.limit if hasattr(args, 'limit') else 20
+            limit = args.limit if hasattr(args, "limit") else 20
             url = f"http://{config.host}:{config.port}/api/v1/runtime/history?limit={limit}"
 
             try:
                 with urllib.request.urlopen(url, timeout=5) as response:
                     data = json_mod.loads(response.read().decode())
-                    executions = data.get('executions', [])
+                    executions = data.get("executions", [])
 
                     if args.json:
                         print(json_mod.dumps(data, indent=2))
@@ -2659,25 +3127,28 @@ Examples:
                         print("  No execution history")
                     else:
                         for exec_item in executions:
-                            status = "✓" if exec_item.get('success') else "✗"
-                            agent_id = exec_item.get('agent_id', 'unknown')
-                            start_time = exec_item.get('start_time', '')[:19]  # Truncate to datetime
-                            duration = exec_item.get('duration_seconds', 0)
+                            status = "✓" if exec_item.get("success") else "✗"
+                            agent_id = exec_item.get("agent_id", "unknown")
+                            start_time = exec_item.get("start_time", "")[
+                                :19
+                            ]  # Truncate to datetime
+                            duration = exec_item.get("duration_seconds", 0)
                             print(f"  {status} [{start_time}] {agent_id} ({duration:.1f}s)")
             except urllib.error.URLError:
                 # Try direct database access if runtime not running
                 print("Runtime not running. Querying history database directly...")
                 try:
                     from cortex.runtime.storage.history import ExecutionHistory
+
                     history = ExecutionHistory()
                     executions = history.get_recent_executions(limit=limit)
 
                     print("─" * 70)
                     for exec_item in executions:
-                        status = "✓" if exec_item.get('success') else "✗"
-                        agent_id = exec_item.get('agent_id', 'unknown')
-                        start_time = exec_item.get('start_time', '')[:19]
-                        duration = exec_item.get('duration_seconds', 0)
+                        status = "✓" if exec_item.get("success") else "✗"
+                        agent_id = exec_item.get("agent_id", "unknown")
+                        start_time = exec_item.get("start_time", "")[:19]
+                        duration = exec_item.get("duration_seconds", 0)
                         print(f"  {status} [{start_time}] {agent_id} ({duration:.1f}s)")
                 except Exception as db_err:
                     print(f"Could not access history: {db_err}")
@@ -2687,96 +3158,115 @@ Examples:
             sys.exit(1)
 
     # V2 Prime subparser
-    v2_parser = subparsers.add_parser('v2', help='V2 Prime system commands')
-    v2_subparsers = v2_parser.add_subparsers(dest='v2_command', help='V2 commands')
+    v2_parser = subparsers.add_parser("v2", help="V2 Prime system commands")
+    v2_subparsers = v2_parser.add_subparsers(dest="v2_command", help="V2 commands")
 
     # v2 status
-    v2_status_parser = v2_subparsers.add_parser('status', help='Show V2 Prime system status')
+    v2_status_parser = v2_subparsers.add_parser("status", help="Show V2 Prime system status")
     v2_status_parser.set_defaults(func=cmd_v2_status)
 
     # Graph subparser
-    graph_parser = subparsers.add_parser('graph', help='Context graph operations')
-    graph_subparsers = graph_parser.add_subparsers(dest='graph_command', help='Graph commands')
+    graph_parser = subparsers.add_parser("graph", help="Context graph operations")
+    graph_subparsers = graph_parser.add_subparsers(dest="graph_command", help="Graph commands")
 
     # graph query
-    graph_query_parser = graph_subparsers.add_parser('query', help='Query the context graph')
-    graph_query_parser.add_argument('--type', '-t', dest='node_type', help='Node type to query (project, pattern, lesson, goal)')
+    graph_query_parser = graph_subparsers.add_parser("query", help="Query the context graph")
+    graph_query_parser.add_argument(
+        "--type",
+        "-t",
+        dest="node_type",
+        help="Node type to query (project, pattern, lesson, goal)",
+    )
     graph_query_parser.set_defaults(func=cmd_graph_query)
 
     # graph add
-    graph_add_parser = graph_subparsers.add_parser('add', help='Add a node to the graph')
-    graph_add_parser.add_argument('node_type', help='Node type (project, pattern, lesson, goal)')
-    graph_add_parser.add_argument('name', help='Node name')
-    graph_add_parser.add_argument('--data', '-d', help='Node data as JSON string')
+    graph_add_parser = graph_subparsers.add_parser("add", help="Add a node to the graph")
+    graph_add_parser.add_argument("node_type", help="Node type (project, pattern, lesson, goal)")
+    graph_add_parser.add_argument("name", help="Node name")
+    graph_add_parser.add_argument("--data", "-d", help="Node data as JSON string")
     graph_add_parser.set_defaults(func=cmd_graph_add)
 
     # graph related
-    graph_related_parser = graph_subparsers.add_parser('related', help='Get related nodes')
-    graph_related_parser.add_argument('node_id', help='Node ID to find relations for')
-    graph_related_parser.add_argument('--edge-type', '-e', dest='edge_type', help='Edge type filter')
+    graph_related_parser = graph_subparsers.add_parser("related", help="Get related nodes")
+    graph_related_parser.add_argument("node_id", help="Node ID to find relations for")
+    graph_related_parser.add_argument(
+        "--edge-type", "-e", dest="edge_type", help="Edge type filter"
+    )
     graph_related_parser.set_defaults(func=cmd_graph_related)
 
     # graph import
-    graph_import_parser = graph_subparsers.add_parser('import', help='Import portfolio data into graph')
+    graph_import_parser = graph_subparsers.add_parser(
+        "import", help="Import portfolio data into graph"
+    )
     graph_import_parser.set_defaults(func=cmd_graph_import)
 
     # Interventions subparser
-    int_parser = subparsers.add_parser('interventions', help='Intervention management')
-    int_subparsers = int_parser.add_subparsers(dest='int_command', help='Intervention commands')
+    int_parser = subparsers.add_parser("interventions", help="Intervention management")
+    int_subparsers = int_parser.add_subparsers(dest="int_command", help="Intervention commands")
 
     # interventions list
-    int_list_parser = int_subparsers.add_parser('list', help='List pending interventions')
+    int_list_parser = int_subparsers.add_parser("list", help="List pending interventions")
     int_list_parser.set_defaults(func=cmd_interventions_list)
 
     # interventions ack
-    int_ack_parser = int_subparsers.add_parser('ack', help='Acknowledge an intervention')
-    int_ack_parser.add_argument('id', help='Intervention ID')
+    int_ack_parser = int_subparsers.add_parser("ack", help="Acknowledge an intervention")
+    int_ack_parser.add_argument("id", help="Intervention ID")
     int_ack_parser.set_defaults(func=cmd_interventions_ack)
 
     # interventions suppress
-    int_suppress_parser = int_subparsers.add_parser('suppress', help='Suppress an intervention')
-    int_suppress_parser.add_argument('id', help='Intervention ID')
-    int_suppress_parser.add_argument('--hours', type=int, default=24, help='Hours to suppress (default: 24)')
+    int_suppress_parser = int_subparsers.add_parser("suppress", help="Suppress an intervention")
+    int_suppress_parser.add_argument("id", help="Intervention ID")
+    int_suppress_parser.add_argument(
+        "--hours", type=int, default=24, help="Hours to suppress (default: 24)"
+    )
     int_suppress_parser.set_defaults(func=cmd_interventions_suppress)
 
     # IAP subparser
-    iap_parser = subparsers.add_parser('iap', help='Inter-Agent Protocol commands')
-    iap_subparsers = iap_parser.add_subparsers(dest='iap_command', help='IAP commands')
+    iap_parser = subparsers.add_parser("iap", help="Inter-Agent Protocol commands")
+    iap_subparsers = iap_parser.add_subparsers(dest="iap_command", help="IAP commands")
 
     # iap send
-    iap_send_parser = iap_subparsers.add_parser('send', help='Send an IAP message')
-    iap_send_parser.add_argument('type', choices=['query', 'handoff', 'ack'], help='Message type')
-    iap_send_parser.add_argument('payload', help='Message payload')
-    iap_send_parser.add_argument('--query-type', '-q', dest='query_type', help='Query type for query messages')
+    iap_send_parser = iap_subparsers.add_parser("send", help="Send an IAP message")
+    iap_send_parser.add_argument("type", choices=["query", "handoff", "ack"], help="Message type")
+    iap_send_parser.add_argument("payload", help="Message payload")
+    iap_send_parser.add_argument(
+        "--query-type", "-q", dest="query_type", help="Query type for query messages"
+    )
     iap_send_parser.set_defaults(func=cmd_iap_send)
 
     # Runtime subparser
-    runtime_parser = subparsers.add_parser('runtime', help='Runtime executor management')
-    runtime_subparsers = runtime_parser.add_subparsers(dest='runtime_command', help='Runtime commands')
+    runtime_parser = subparsers.add_parser("runtime", help="Runtime executor management")
+    runtime_subparsers = runtime_parser.add_subparsers(
+        dest="runtime_command", help="Runtime commands"
+    )
 
     # runtime start
-    runtime_start_parser = runtime_subparsers.add_parser('start', help='Start the runtime daemon')
+    runtime_start_parser = runtime_subparsers.add_parser("start", help="Start the runtime daemon")
     runtime_start_parser.set_defaults(func=cmd_runtime_start)
 
     # runtime status
-    runtime_status_parser = runtime_subparsers.add_parser('status', help='Show runtime status')
-    runtime_status_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_status_parser = runtime_subparsers.add_parser("status", help="Show runtime status")
+    runtime_status_parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     runtime_status_parser.set_defaults(func=cmd_runtime_status)
 
     # runtime agents
-    runtime_agents_parser = runtime_subparsers.add_parser('agents', help='List registered agents')
-    runtime_agents_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_agents_parser = runtime_subparsers.add_parser("agents", help="List registered agents")
+    runtime_agents_parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     runtime_agents_parser.set_defaults(func=cmd_runtime_agents)
 
     # runtime trigger
-    runtime_trigger_parser = runtime_subparsers.add_parser('trigger', help='Manually trigger an agent')
-    runtime_trigger_parser.add_argument('agent_id', help='Agent ID to trigger')
+    runtime_trigger_parser = runtime_subparsers.add_parser(
+        "trigger", help="Manually trigger an agent"
+    )
+    runtime_trigger_parser.add_argument("agent_id", help="Agent ID to trigger")
     runtime_trigger_parser.set_defaults(func=cmd_runtime_trigger)
 
     # runtime history
-    runtime_history_parser = runtime_subparsers.add_parser('history', help='Show execution history')
-    runtime_history_parser.add_argument('--limit', '-n', type=int, default=20, help='Number of entries to show')
-    runtime_history_parser.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    runtime_history_parser = runtime_subparsers.add_parser("history", help="Show execution history")
+    runtime_history_parser.add_argument(
+        "--limit", "-n", type=int, default=20, help="Number of entries to show"
+    )
+    runtime_history_parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     runtime_history_parser.set_defaults(func=cmd_runtime_history)
 
     args = parser.parse_args()

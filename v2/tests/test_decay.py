@@ -1,11 +1,11 @@
 """Tests for temporal decay."""
 
-import pytest
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
 
-from cortex.v2.memory.decay import TemporalDecay, DecayResult
+import pytest
+from cortex.v2.memory.decay import DecayResult, TemporalDecay
 from cortex.v2.memory.types import Pattern
 
 
@@ -29,7 +29,7 @@ def old_pattern():
         confidence=0.8,
         created_at=created,
         last_used=created,
-        use_count=0
+        use_count=0,
     )
 
 
@@ -47,7 +47,7 @@ def new_pattern():
         confidence=0.8,
         created_at=now,
         last_used=now,
-        use_count=0
+        use_count=0,
     )
 
 
@@ -65,7 +65,7 @@ def used_pattern():
         confidence=0.8,
         created_at=created,
         last_used=created,
-        use_count=10  # Used 10 times
+        use_count=10,  # Used 10 times
     )
 
 
@@ -78,7 +78,7 @@ class TestTemporalDecay:
             memory_type="pattern",
             created_at=new_pattern.created_at,
             last_used=new_pattern.last_used,
-            use_count=new_pattern.use_count
+            use_count=new_pattern.use_count,
         )
         assert factor >= 0.99  # Should be essentially 1.0
 
@@ -88,7 +88,7 @@ class TestTemporalDecay:
             memory_type="pattern",
             created_at=old_pattern.created_at,
             last_used=old_pattern.last_used,
-            use_count=old_pattern.use_count
+            use_count=old_pattern.use_count,
         )
         # At exactly half-life (180 days), should be ~0.5
         assert 0.45 <= factor <= 0.55
@@ -100,7 +100,7 @@ class TestTemporalDecay:
             memory_type="pattern",
             created_at=used_pattern.created_at,
             last_used=used_pattern.last_used,
-            use_count=used_pattern.use_count
+            use_count=used_pattern.use_count,
         )
 
         # Same age, no uses
@@ -108,7 +108,7 @@ class TestTemporalDecay:
             memory_type="pattern",
             created_at=used_pattern.created_at,
             last_used=used_pattern.last_used,
-            use_count=0
+            use_count=0,
         )
 
         assert used_factor > unused_factor
@@ -121,23 +121,17 @@ class TestTemporalDecay:
 
         # Pattern: 180 days half-life -> ~50%
         pattern_decay = decay.calculate_decay(
-            memory_type="pattern",
-            created_at=created,
-            last_used=created
+            memory_type="pattern", created_at=created, last_used=created
         )
 
         # Incident: 90 days half-life -> ~25% at 180 days
         incident_decay = decay.calculate_decay(
-            memory_type="incident",
-            created_at=created,
-            last_used=created
+            memory_type="incident", created_at=created, last_used=created
         )
 
         # Decision: 730 days half-life -> ~83% at 180 days
         decision_decay = decay.calculate_decay(
-            memory_type="decision",
-            created_at=created,
-            last_used=created
+            memory_type="decision", created_at=created, last_used=created
         )
 
         # Incident should decay faster than pattern
@@ -153,7 +147,7 @@ class TestTemporalDecay:
 
         # All should have effective_confidence set
         for m in result:
-            assert hasattr(m, 'effective_confidence')
+            assert hasattr(m, "effective_confidence")
             assert 0 <= m.effective_confidence <= 1
 
         # New pattern should be first (highest effective_confidence)
@@ -173,7 +167,7 @@ class TestTemporalDecay:
             confidence=0.8,
             created_at=very_old,
             last_used=very_old,
-            use_count=0
+            use_count=0,
         )
 
         fresh_pattern = Pattern(
@@ -186,7 +180,7 @@ class TestTemporalDecay:
             confidence=0.8,
             created_at=datetime.utcnow(),
             last_used=datetime.utcnow(),
-            use_count=0
+            use_count=0,
         )
 
         stale = decay.get_stale_memories([stale_pattern, fresh_pattern])
@@ -243,9 +237,7 @@ class TestTemporalDecay:
 
         created = datetime.utcnow() - timedelta(days=30)
         factor = custom_decay.calculate_decay(
-            memory_type="pattern",
-            created_at=created,
-            last_used=created
+            memory_type="pattern", created_at=created, last_used=created
         )
 
         # At 30 days with 30-day half-life, should be ~50%
@@ -267,7 +259,7 @@ class TestDecayIntegration:
                 title="Fresh Caching Pattern",
                 problem="Slow API",
                 solution="Use cache",
-                projects=["Test"]
+                projects=["Test"],
             )
 
             # Add an old pattern (manually set dates)
@@ -275,7 +267,7 @@ class TestDecayIntegration:
                 title="Old Caching Pattern",
                 problem="Slow API",
                 solution="Use cache",
-                projects=["Test"]
+                projects=["Test"],
             )
             old.created_at = datetime.utcnow() - timedelta(days=365)
             old.last_used = datetime.utcnow() - timedelta(days=365)

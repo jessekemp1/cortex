@@ -3,7 +3,8 @@ Test complete 5-layer Cortex Intelligence Stack.
 """
 
 from pathlib import Path
-from recommendation_engine import RecommendationEngine, Recommendation
+
+from recommendation_engine import Recommendation, RecommendationEngine
 
 
 def test_layer1_project_profiling():
@@ -11,9 +12,7 @@ def test_layer1_project_profiling():
     print("🧪 Testing Layer 1: Project Analysis\n")
 
     engine = RecommendationEngine(
-        project_path=Path.cwd(),
-        enable_learning=True,
-        enable_patterns=False
+        project_path=Path.cwd(), enable_learning=True, enable_patterns=False
     )
 
     print("1️⃣ Getting project profile...")
@@ -33,9 +32,9 @@ def test_layer1_project_profiling():
     tech_stack = engine.get_tech_stack()
     if tech_stack:
         print(f"   ✅ Languages: {', '.join(tech_stack['languages'])}")
-        if tech_stack['frameworks']:
+        if tech_stack["frameworks"]:
             print(f"   • Frameworks: {', '.join(tech_stack['frameworks'])}")
-        if tech_stack['databases']:
+        if tech_stack["databases"]:
             print(f"   • Databases: {', '.join(tech_stack['databases'])}")
     else:
         print(f"   ⚠️  Tech stack not available")
@@ -58,16 +57,11 @@ def test_layer2_pattern_memory():
     print("🧪 Testing Layer 2: Pattern Memory\n")
 
     engine = RecommendationEngine(
-        project_path=Path.cwd(),
-        enable_learning=False,
-        enable_patterns=True
+        project_path=Path.cwd(), enable_learning=False, enable_patterns=True
     )
 
     print("1️⃣ Finding similar work...")
-    similar = engine.find_similar_work(
-        task="add test coverage for authentication",
-        limit=3
-    )
+    similar = engine.find_similar_work(task="add test coverage for authentication", limit=3)
 
     if similar:
         print(f"   ✅ Found {len(similar)} similar work items")
@@ -78,10 +72,7 @@ def test_layer2_pattern_memory():
         print(f"   ⚠️  No similar work found (pattern memory may be empty)")
 
     print("\n2️⃣ Getting relevant patterns...")
-    patterns = engine.get_relevant_patterns(
-        context="authentication error handling",
-        limit=3
-    )
+    patterns = engine.get_relevant_patterns(context="authentication error handling", limit=3)
 
     if patterns:
         print(f"   ✅ Found {len(patterns)} relevant patterns")
@@ -121,9 +112,7 @@ def test_layer4_recommendations():
     print("🧪 Testing Layer 4: Smart Recommendations\n")
 
     engine = RecommendationEngine(
-        project_path=Path.cwd(),
-        enable_learning=True,
-        enable_patterns=True
+        project_path=Path.cwd(), enable_learning=True, enable_patterns=True
     )
 
     print("1️⃣ Generating recommendations...")
@@ -136,7 +125,7 @@ def test_layer4_recommendations():
                 description="Add more tests",
                 priority=70,
                 confidence=0.8,
-                files=["auth.py"]
+                files=["auth.py"],
             )
         ]
 
@@ -147,7 +136,7 @@ def test_layer4_recommendations():
         print(f"   ✅ Created {len(enriched)} recommendations")
         for rec in enriched:
             print(f"   • {rec.title}")
-            if hasattr(rec, 'metadata') and rec.metadata and 'similar_work' in rec.metadata:
+            if hasattr(rec, "metadata") and rec.metadata and "similar_work" in rec.metadata:
                 print(f"     ↳ Similar work found in {len(rec.metadata['similar_work'])} projects")
 
     except Exception as e:
@@ -171,15 +160,12 @@ def test_layer5_planning():
             description="Increase test coverage",
             priority=80,
             confidence=0.9,
-            steps=["Write test cases", "Run tests", "Verify coverage"]
+            steps=["Write test cases", "Run tests", "Verify coverage"],
         )
     ]
 
     try:
-        plan = engine.create_plan(
-            recommendations=recs,
-            title="Test Improvement Plan"
-        )
+        plan = engine.create_plan(recommendations=recs, title="Test Improvement Plan")
 
         print(f"   ✅ Plan created: {plan.id}")
         print(f"   • Steps: {len(plan.steps)}")
@@ -203,9 +189,7 @@ def test_full_integration():
     print()
 
     engine = RecommendationEngine(
-        project_path=Path.cwd(),
-        enable_learning=True,
-        enable_patterns=True
+        project_path=Path.cwd(), enable_learning=True, enable_patterns=True
     )
 
     print("Layer 1: Project Analysis")
@@ -246,4 +230,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()

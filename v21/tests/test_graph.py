@@ -1,11 +1,11 @@
 """Tests for graph memory system."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
 from cortex.v2.memory.graph import GraphMemory
-from cortex.v2.memory.models import MemoryType, RelationType, Node, Edge
+from cortex.v2.memory.models import Edge, MemoryType, Node, RelationType
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ class TestGraphMemory:
         node = graph.add_node(
             type=MemoryType.PATTERN,
             name="Redis Caching Pattern",
-            data={"problem": "Slow API responses"}
+            data={"problem": "Slow API responses"},
         )
 
         assert node.id.startswith("pattern_")
@@ -39,10 +39,7 @@ class TestGraphMemory:
 
     def test_get_node(self, graph):
         """Test retrieving a node."""
-        node = graph.add_node(
-            type=MemoryType.PROJECT,
-            name="VortexV2"
-        )
+        node = graph.add_node(type=MemoryType.PROJECT, name="VortexV2")
 
         retrieved = graph.get_node(node.id)
         assert retrieved is not None
@@ -77,10 +74,7 @@ class TestGraphMemory:
         pattern = graph.add_node(type=MemoryType.PATTERN, name="Redis Caching")
 
         edge = graph.add_edge(
-            from_id=project.id,
-            to_id=pattern.id,
-            relation=RelationType.USES,
-            weight=0.9
+            from_id=project.id, to_id=pattern.id, relation=RelationType.USES, weight=0.9
         )
 
         assert edge.id.startswith("edge_")

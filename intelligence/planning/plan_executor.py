@@ -3,11 +3,11 @@ PlanExecutor - Tracks and manages plan execution.
 """
 
 import json
-from pathlib import Path
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from intelligence.planning.models import Plan, PlanStep, PlanStatus, StepStatus
+from intelligence.planning.models import Plan, PlanStatus, PlanStep, StepStatus
 
 
 class PlanExecutor:
@@ -51,7 +51,7 @@ class PlanExecutor:
         if not plan_file.exists():
             raise FileNotFoundError(f"Plan not found: {plan_id}")
 
-        with open(plan_file, 'r') as f:
+        with open(plan_file, "r") as f:
             data = json.load(f)
 
         return self._dict_to_plan(data)
@@ -65,7 +65,7 @@ class PlanExecutor:
         """
         plan_file = self.storage_path / f"{plan.id}.json"
 
-        with open(plan_file, 'w') as f:
+        with open(plan_file, "w") as f:
             json.dump(plan.to_dict(), f, indent=2)
 
     def start_plan(self, plan: Plan):
@@ -128,7 +128,9 @@ class PlanExecutor:
             step.notes += f"\nCompleted: {notes}"
 
         # Check if all steps are completed
-        if all(s.status in [StepStatus.COMPLETED, StepStatus.SKIPPED] for s in self.active_plan.steps):
+        if all(
+            s.status in [StepStatus.COMPLETED, StepStatus.SKIPPED] for s in self.active_plan.steps
+        ):
             self.active_plan.complete()
 
         self.save_plan(self.active_plan)
@@ -200,9 +202,7 @@ class PlanExecutor:
             Progress dictionary
         """
         if not self.active_plan:
-            return {
-                'error': 'No active plan'
-            }
+            return {"error": "No active plan"}
 
         return self.active_plan.get_progress()
 
@@ -220,24 +220,26 @@ class PlanExecutor:
 
         for plan_file in self.storage_path.glob("*.json"):
             try:
-                with open(plan_file, 'r') as f:
+                with open(plan_file, "r") as f:
                     data = json.load(f)
 
-                if status_filter is None or data['status'] == status_filter.value:
-                    plans.append({
-                        'id': data['id'],
-                        'title': data['title'],
-                        'status': data['status'],
-                        'priority': data['priority'],
-                        'created_at': data['created_at'],
-                        'progress': data.get('progress', {}),
-                    })
+                if status_filter is None or data["status"] == status_filter.value:
+                    plans.append(
+                        {
+                            "id": data["id"],
+                            "title": data["title"],
+                            "status": data["status"],
+                            "priority": data["priority"],
+                            "created_at": data["created_at"],
+                            "progress": data.get("progress", {}),
+                        }
+                    )
             except Exception:
                 # Skip invalid plan files
                 continue
 
         # Sort by creation date (newest first)
-        plans.sort(key=lambda p: p['created_at'], reverse=True)
+        plans.sort(key=lambda p: p["created_at"], reverse=True)
 
         return plans
 
@@ -275,39 +277,51 @@ class PlanExecutor:
 
         # Parse steps
         steps = []
-        for step_data in data['steps']:
+        for step_data in data["steps"]:
             step = PlanStep(
-                id=step_data['id'],
-                title=step_data['title'],
-                description=step_data['description'],
-                status=StepStatus(step_data['status']),
-                estimated_time=step_data.get('estimated_time'),
-                actual_time=step_data.get('actual_time'),
-                dependencies=step_data.get('dependencies', []),
-                files=step_data.get('files', []),
-                validation=step_data.get('validation'),
-                notes=step_data.get('notes', ''),
-                started_at=datetime.fromisoformat(step_data['started_at']) if step_data.get('started_at') else None,
-                completed_at=datetime.fromisoformat(step_data['completed_at']) if step_data.get('completed_at') else None,
-                metadata=step_data.get('metadata', {}),
+                id=step_data["id"],
+                title=step_data["title"],
+                description=step_data["description"],
+                status=StepStatus(step_data["status"]),
+                estimated_time=step_data.get("estimated_time"),
+                actual_time=step_data.get("actual_time"),
+                dependencies=step_data.get("dependencies", []),
+                files=step_data.get("files", []),
+                validation=step_data.get("validation"),
+                notes=step_data.get("notes", ""),
+                started_at=(
+                    datetime.fromisoformat(step_data["started_at"])
+                    if step_data.get("started_at")
+                    else None
+                ),
+                completed_at=(
+                    datetime.fromisoformat(step_data["completed_at"])
+                    if step_data.get("completed_at")
+                    else None
+                ),
+                metadata=step_data.get("metadata", {}),
             )
             steps.append(step)
 
         # Create plan
         plan = Plan(
-            id=data['id'],
-            title=data['title'],
-            description=data['description'],
-            priority=PlanPriority(data['priority']),
-            status=PlanStatus(data['status']),
+            id=data["id"],
+            title=data["title"],
+            description=data["description"],
+            priority=PlanPriority(data["priority"]),
+            status=PlanStatus(data["status"]),
             steps=steps,
-            created_at=datetime.fromisoformat(data['created_at']),
-            started_at=datetime.fromisoformat(data['started_at']) if data.get('started_at') else None,
-            completed_at=datetime.fromisoformat(data['completed_at']) if data.get('completed_at') else None,
-            estimated_total_time=data.get('estimated_total_time'),
-            actual_total_time=data.get('actual_total_time'),
-            tags=data.get('tags', []),
-            metadata=data.get('metadata', {}),
+            created_at=datetime.fromisoformat(data["created_at"]),
+            started_at=(
+                datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None
+            ),
+            completed_at=(
+                datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
+            ),
+            estimated_total_time=data.get("estimated_total_time"),
+            actual_total_time=data.get("actual_total_time"),
+            tags=data.get("tags", []),
+            metadata=data.get("metadata", {}),
         )
 
         return plan

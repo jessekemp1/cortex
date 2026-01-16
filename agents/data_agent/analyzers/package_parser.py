@@ -54,26 +54,26 @@ class PackageParser:
             file_path = self.project_path / "requirements.txt"
 
         result = {
-            "file": str(file_path.relative_to(self.project_path)) if file_path.exists() else None,
+            "file": (str(file_path.relative_to(self.project_path)) if file_path.exists() else None),
             "packages": [],
-            "error": None
+            "error": None,
         }
 
         if not file_path.exists():
             return result
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
 
                     # Skip comments and empty lines
-                    if not line or line.startswith('#'):
+                    if not line or line.startswith("#"):
                         continue
 
                     # Remove inline comments
-                    if '#' in line:
-                        line = line[:line.index('#')].strip()
+                    if "#" in line:
+                        line = line[: line.index("#")].strip()
 
                     # Parse package spec
                     # Format: package[extras]==version
@@ -91,27 +91,29 @@ class PackageParser:
                         "extras": None,
                         "source": None,
                         "line": line_num,
-                        "raw": line
+                        "raw": line,
                     }
 
                     # Check for VCS or file URLs
-                    if line.startswith(('git+', 'hg+', 'svn+', 'bzr+', 'file://')):
+                    if line.startswith(("git+", "hg+", "svn+", "bzr+", "file://")):
                         package_info["source"] = "vcs"
                         # Extract package name from URL if possible
-                        if '@' in line:
+                        if "@" in line:
                             # git+https://...@branch#egg=package_name
-                            if '#egg=' in line:
-                                package_info["name"] = line.split('#egg=')[1].split('-')[0]
+                            if "#egg=" in line:
+                                package_info["name"] = line.split("#egg=")[1].split("-")[0]
                             else:
                                 # Try to extract from URL
-                                parts = line.split('/')
+                                parts = line.split("/")
                                 if parts:
-                                    package_info["name"] = parts[-1].split('@')[0].replace('.git', '')
+                                    package_info["name"] = (
+                                        parts[-1].split("@")[0].replace(".git", "")
+                                    )
                     else:
                         # Regular package spec
                         # Extract extras: package[extras]
-                        if '[' in line and ']' in line:
-                            match = re.match(r'^([^\[]+)\[([^\]]+)\](.*)$', line)
+                        if "[" in line and "]" in line:
+                            match = re.match(r"^([^\[]+)\[([^\]]+)\](.*)$", line)
                             if match:
                                 package_info["name"] = match.group(1).strip()
                                 package_info["extras"] = match.group(2).strip()
@@ -123,13 +125,13 @@ class PackageParser:
 
                         # Extract name and version
                         # Split on ==, >=, <=, >, <, ~=, !=
-                        version_pattern = r'(==|>=|<=|>|<|~=|!=)'
+                        version_pattern = r"(==|>=|<=|>|<|~=|!=)"
                         parts = re.split(version_pattern, version_part, 1)
 
                         if parts:
                             package_info["name"] = parts[0].strip()
                             if len(parts) > 1:
-                                package_info["version_spec"] = ''.join(parts[1:]).strip()
+                                package_info["version_spec"] = "".join(parts[1:]).strip()
 
                     if package_info["name"]:
                         result["packages"].append(package_info)
@@ -157,10 +159,10 @@ class PackageParser:
             file_path = self.project_path / "pyproject.toml"
 
         result = {
-            "file": str(file_path.relative_to(self.project_path)) if file_path.exists() else None,
+            "file": (str(file_path.relative_to(self.project_path)) if file_path.exists() else None),
             "packages": [],
             "dev_packages": [],
-            "error": None
+            "error": None,
         }
 
         if not file_path.exists():
@@ -171,7 +173,7 @@ class PackageParser:
             return result
 
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 data = tomli.load(f)
 
             # PEP 621 format: [project] dependencies
@@ -204,7 +206,7 @@ class PackageParser:
                         package_info = {
                             "name": name,
                             "version_spec": None,
-                            "extras": None
+                            "extras": None,
                         }
 
                         if isinstance(spec, str):
@@ -224,7 +226,7 @@ class PackageParser:
                             package_info = {
                                 "name": name,
                                 "version_spec": None,
-                                "extras": None
+                                "extras": None,
                             }
 
                             if isinstance(spec, str):
@@ -251,15 +253,11 @@ class PackageParser:
             requests[security]==2.28.0
             requests>=2.28.0,<3.0.0
         """
-        package_info = {
-            "name": None,
-            "version_spec": None,
-            "extras": None
-        }
+        package_info = {"name": None, "version_spec": None, "extras": None}
 
         # Extract extras: package[extras]
-        if '[' in dep_string and ']' in dep_string:
-            match = re.match(r'^([^\[]+)\[([^\]]+)\](.*)$', dep_string)
+        if "[" in dep_string and "]" in dep_string:
+            match = re.match(r"^([^\[]+)\[([^\]]+)\](.*)$", dep_string)
             if match:
                 package_info["name"] = match.group(1).strip()
                 package_info["extras"] = match.group(2).strip()
@@ -271,13 +269,13 @@ class PackageParser:
 
         # Extract name and version
         # Split on version operators
-        version_pattern = r'(==|>=|<=|>|<|~=|!=)'
+        version_pattern = r"(==|>=|<=|>|<|~=|!=)"
         parts = re.split(version_pattern, version_part, 1)
 
         if parts:
             package_info["name"] = parts[0].strip()
             if len(parts) > 1:
-                package_info["version_spec"] = ''.join(parts[1:]).strip()
+                package_info["version_spec"] = "".join(parts[1:]).strip()
 
         return package_info if package_info["name"] else None
 
@@ -299,35 +297,30 @@ class PackageParser:
             file_path = self.project_path / "package.json"
 
         result = {
-            "file": str(file_path.relative_to(self.project_path)) if file_path.exists() else None,
+            "file": (str(file_path.relative_to(self.project_path)) if file_path.exists() else None),
             "packages": [],
             "dev_packages": [],
-            "error": None
+            "error": None,
         }
 
         if not file_path.exists():
             return result
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # Dependencies
             if "dependencies" in data:
                 for name, version in data["dependencies"].items():
-                    result["packages"].append({
-                        "name": name,
-                        "version_spec": version
-                    })
+                    result["packages"].append({"name": name, "version_spec": version})
 
             # Dev dependencies
             if "devDependencies" in data:
                 for name, version in data["devDependencies"].items():
-                    result["dev_packages"].append({
-                        "name": name,
-                        "version_spec": version,
-                        "dev": True
-                    })
+                    result["dev_packages"].append(
+                        {"name": name, "version_spec": version, "dev": True}
+                    )
 
         except Exception as e:
             result["error"] = str(e)
@@ -344,11 +337,7 @@ class PackageParser:
             - by_file: Dict mapping file type to parsed results
             - errors: List[str]
         """
-        result = {
-            "all_packages": set(),
-            "by_file": {},
-            "errors": []
-        }
+        result = {"all_packages": set(), "by_file": {}, "errors": []}
 
         # Try requirements.txt
         req_result = self.parse_requirements_txt()
@@ -389,4 +378,3 @@ class PackageParser:
         result["all_packages"] = sorted(result["all_packages"])
 
         return result
-

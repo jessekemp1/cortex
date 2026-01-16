@@ -61,7 +61,7 @@ class SessionManager:
             # Extract goals and focus from commits and files
             active_goals = self._extract_goals(project_path)
             current_focus = self._determine_focus(recent_work, project_path)
-            
+
             # Extract keywords from commit messages and current focus
             keywords = self._extract_keywords_from_commits(project_path)
             if current_focus:
@@ -77,9 +77,9 @@ class SessionManager:
                 recent_work=recent_work,
                 active_goals=active_goals,
                 current_focus=current_focus,
-                last_updated=datetime.now().isoformat()
+                last_updated=datetime.now().isoformat(),
             )
-            
+
             # Store keywords in context metadata (extend recent_work with keywords)
             # Note: SessionContext model doesn't have keywords field, so we'll store in recent_work metadata
             if keywords and recent_work:
@@ -88,14 +88,19 @@ class SessionManager:
                     recent_work[0]["keywords"] = keywords
 
             # Cache for next time
-            self.cache_file.write_text(json.dumps({
-                "project": context.project,
-                "working_directory": context.working_directory,
-                "recent_work": context.recent_work,
-                "active_goals": context.active_goals,
-                "current_focus": context.current_focus,
-                "last_updated": context.last_updated
-            }, indent=2))
+            self.cache_file.write_text(
+                json.dumps(
+                    {
+                        "project": context.project,
+                        "working_directory": context.working_directory,
+                        "recent_work": context.recent_work,
+                        "active_goals": context.active_goals,
+                        "current_focus": context.current_focus,
+                        "last_updated": context.last_updated,
+                    },
+                    indent=2,
+                )
+            )
 
             return context
 
@@ -123,7 +128,7 @@ class SessionManager:
                 cwd=project_path,
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=2,
             )
 
             if result.returncode != 0:
@@ -135,13 +140,15 @@ class SessionManager:
                     continue
                 parts = line.split("|")
                 if len(parts) >= 4:
-                    commits.append({
-                        "hash": parts[0],
-                        "summary": parts[1],
-                        "time": parts[2],
-                        "author": parts[3],
-                        "commit": parts[1]  # Backward compat
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0],
+                            "summary": parts[1],
+                            "time": parts[2],
+                            "author": parts[3],
+                            "commit": parts[1],  # Backward compat
+                        }
+                    )
 
             return commits
 
@@ -167,12 +174,20 @@ class SessionManager:
                     stripped = line.strip()
 
                     # Track section headers to know context
-                    if stripped.startswith('#'):
+                    if stripped.startswith("#"):
                         current_section = stripped.lower()
                         # Enable goal extraction in relevant sections
-                        in_goal_section = any(keyword in current_section for keyword in [
-                            'future work', 'next steps', 'todo', 'priority', 'remaining', 'pending'
-                        ])
+                        in_goal_section = any(
+                            keyword in current_section
+                            for keyword in [
+                                "future work",
+                                "next steps",
+                                "todo",
+                                "priority",
+                                "remaining",
+                                "pending",
+                            ]
+                        )
                         continue
 
                     # Only extract goals from relevant sections
@@ -188,17 +203,17 @@ class SessionManager:
                             if len(goals) >= 5:
                                 break
                     # Look for numbered items (1., 2., etc.)
-                    elif stripped and stripped[0].isdigit() and '.' in stripped[:4]:
-                        parts = stripped.split('.', 1)
+                    elif stripped and stripped[0].isdigit() and "." in stripped[:4]:
+                        parts = stripped.split(".", 1)
                         if len(parts) > 1:
                             goal = parts[1].strip()
                             # Remove markdown formatting like **text**
-                            goal = goal.replace('**', '').strip()
+                            goal = goal.replace("**", "").strip()
                             # Remove time estimates in parentheses
-                            if '(' in goal and goal.endswith(')'):
-                                goal = goal[:goal.rindex('(')].strip()
+                            if "(" in goal and goal.endswith(")"):
+                                goal = goal[: goal.rindex("(")].strip()
                             # Skip if this looks like a sub-item (starts with -)
-                            if goal.startswith('-'):
+                            if goal.startswith("-"):
                                 continue
                             if goal and len(goal) < 100:
                                 goals.append(goal)
@@ -212,20 +227,22 @@ class SessionManager:
             goals = ["Continue development", "Address recent changes"]
 
         return goals[:5]
-    
+
     def _extract_keywords_from_commits(self, project_path: Path, limit: int = 10) -> List[str]:
         """Extract keywords from recent commit messages."""
         try:
             from cortex.context_intelligence import ContextIntelligence
+
             context_intel = ContextIntelligence(root_dir=self.root_dir)
             return context_intel.extract_keywords_from_commits(project_path, limit=limit)
         except Exception:
             return []
-    
+
     def _extract_keywords_from_text(self, text: str) -> List[str]:
         """Extract keywords from text."""
         try:
             from cortex.context_intelligence import ContextIntelligence
+
             context_intel = ContextIntelligence(root_dir=self.root_dir)
             return context_intel.extract_keywords_from_task(text)
         except Exception:
@@ -243,7 +260,7 @@ class SessionManager:
         # Remove common prefixes
         for prefix in ["feat:", "fix:", "chore:", "docs:", "refactor:", "test:"]:
             if latest.lower().startswith(prefix):
-                latest = latest[len(prefix):].strip()
+                latest = latest[len(prefix) :].strip()
 
         # Capitalize first letter
         if latest:

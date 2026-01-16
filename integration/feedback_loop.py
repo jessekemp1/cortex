@@ -31,9 +31,7 @@ class FeedbackLoop:
             root_dir: Root directory of workspace
         """
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
-        self.analyzer = (
-            ExecutionHistoryAnalyzer(root_dir) if ExecutionHistoryAnalyzer else None
-        )
+        self.analyzer = ExecutionHistoryAnalyzer(root_dir) if ExecutionHistoryAnalyzer else None
         self.integration = (
             CortexLocalOrchestratorIntegration(root_dir)
             if CortexLocalOrchestratorIntegration
@@ -42,7 +40,7 @@ class FeedbackLoop:
 
     def _get_confidence_value(self, confidence) -> float:
         """Convert confidence to float, handling both enum and numeric types."""
-        if hasattr(confidence, 'value'):
+        if hasattr(confidence, "value"):
             # Enum (e.g., Confidence.HIGH -> "high")
             conf_map = {"high": 0.9, "medium": 0.7, "low": 0.5}
             return conf_map.get(confidence.value.lower(), 0.7)
@@ -70,9 +68,7 @@ class FeedbackLoop:
         action_title = getattr(
             recommendation, "title", getattr(recommendation, "action_title", "unknown")
         )
-        action_type = (
-            f"cortex_{action_title.lower().replace(' ', '_').replace('-', '_')}"
-        )
+        action_type = f"cortex_{action_title.lower().replace(' ', '_').replace('-', '_')}"
 
         # Get success rate
         success_rate = self.analyzer.get_success_rate(action_type)
@@ -80,7 +76,7 @@ class FeedbackLoop:
         # Get current priority (handle both string and Priority enum)
         current_priority = getattr(recommendation, "priority", "medium")
         # Convert enum to string if needed
-        if hasattr(current_priority, 'value'):
+        if hasattr(current_priority, "value"):
             current_priority = current_priority.value
         elif not isinstance(current_priority, str):
             current_priority = str(current_priority)
@@ -97,9 +93,7 @@ class FeedbackLoop:
         if success_rate > 0.8:
             # Very successful, increase priority
             if current_idx < len(priority_values) - 1:
-                adjusted_priority = priority_values[
-                    min(current_idx + 1, len(priority_values) - 1)
-                ]
+                adjusted_priority = priority_values[min(current_idx + 1, len(priority_values) - 1)]
             else:
                 adjusted_priority = current_priority
         elif success_rate < 0.3:
@@ -141,9 +135,8 @@ class FeedbackLoop:
             prerequisites=getattr(recommendation, "prerequisites", []),
             related_goals=getattr(recommendation, "related_goals", []),
             related_projects=getattr(recommendation, "related_projects", []),
-            confidence=self._get_confidence_value(
-                getattr(recommendation, "confidence", 0.8)
-            ) * success_rate,  # Adjust confidence
+            confidence=self._get_confidence_value(getattr(recommendation, "confidence", 0.8))
+            * success_rate,  # Adjust confidence
         )
 
         return adjusted

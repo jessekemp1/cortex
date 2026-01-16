@@ -5,12 +5,13 @@ Data models for the Cortex Planning system.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class PlanStatus(Enum):
     """Status of a plan."""
+
     DRAFT = "draft"
     ACTIVE = "active"
     COMPLETED = "completed"
@@ -20,6 +21,7 @@ class PlanStatus(Enum):
 
 class StepStatus(Enum):
     """Status of a plan step."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -29,10 +31,11 @@ class StepStatus(Enum):
 
 class PlanPriority(Enum):
     """Priority level of a plan."""
+
     CRITICAL = 1  # Must do now
-    HIGH = 2      # Should do soon
-    MEDIUM = 3    # Important but not urgent
-    LOW = 4       # Nice to have
+    HIGH = 2  # Should do soon
+    MEDIUM = 3  # Important but not urgent
+    LOW = 4  # Nice to have
 
 
 @dataclass
@@ -54,6 +57,7 @@ class PlanStep:
         started_at: When step was started
         completed_at: When step was completed
     """
+
     id: str
     title: str
     description: str
@@ -116,6 +120,7 @@ class Plan:
         tags: Categorization tags
         metadata: Additional metadata
     """
+
     id: str
     title: str
     description: str
@@ -151,12 +156,12 @@ class Plan:
         """Cancel the plan."""
         self.status = PlanStatus.CANCELLED
         if reason:
-            self.metadata['cancellation_reason'] = reason
+            self.metadata["cancellation_reason"] = reason
 
     def block(self, reason: str):
         """Block the plan."""
         self.status = PlanStatus.BLOCKED
-        self.metadata['block_reason'] = reason
+        self.metadata["block_reason"] = reason
 
     def get_next_step(self) -> Optional[PlanStep]:
         """Get the next step that can be executed."""
@@ -176,20 +181,18 @@ class Plan:
         blocked = sum(1 for s in self.steps if s.status == StepStatus.BLOCKED)
 
         return {
-            'total_steps': total,
-            'completed': completed,
-            'in_progress': in_progress,
-            'blocked': blocked,
-            'pending': total - completed - in_progress - blocked,
-            'completion_pct': (completed / total * 100) if total > 0 else 0,
-            'estimated_time_remaining': self._calculate_time_remaining(),
+            "total_steps": total,
+            "completed": completed,
+            "in_progress": in_progress,
+            "blocked": blocked,
+            "pending": total - completed - in_progress - blocked,
+            "completion_pct": (completed / total * 100) if total > 0 else 0,
+            "estimated_time_remaining": self._calculate_time_remaining(),
         }
 
     def _recalculate_estimates(self):
         """Recalculate total estimated time."""
-        self.estimated_total_time = sum(
-            s.estimated_time for s in self.steps if s.estimated_time
-        )
+        self.estimated_total_time = sum(s.estimated_time for s in self.steps if s.estimated_time)
 
     def _calculate_time_remaining(self) -> Optional[int]:
         """Calculate estimated time remaining."""
@@ -203,37 +206,37 @@ class Plan:
     def to_dict(self) -> Dict[str, Any]:
         """Convert plan to dictionary for serialization."""
         return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'priority': self.priority.value,
-            'status': self.status.value,
-            'steps': [
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "priority": self.priority.value,
+            "status": self.status.value,
+            "steps": [
                 {
-                    'id': s.id,
-                    'title': s.title,
-                    'description': s.description,
-                    'status': s.status.value,
-                    'estimated_time': s.estimated_time,
-                    'actual_time': s.actual_time,
-                    'dependencies': s.dependencies,
-                    'files': s.files,
-                    'validation': s.validation,
-                    'notes': s.notes,
-                    'started_at': s.started_at.isoformat() if s.started_at else None,
-                    'completed_at': s.completed_at.isoformat() if s.completed_at else None,
-                    'metadata': s.metadata,
+                    "id": s.id,
+                    "title": s.title,
+                    "description": s.description,
+                    "status": s.status.value,
+                    "estimated_time": s.estimated_time,
+                    "actual_time": s.actual_time,
+                    "dependencies": s.dependencies,
+                    "files": s.files,
+                    "validation": s.validation,
+                    "notes": s.notes,
+                    "started_at": s.started_at.isoformat() if s.started_at else None,
+                    "completed_at": (s.completed_at.isoformat() if s.completed_at else None),
+                    "metadata": s.metadata,
                 }
                 for s in self.steps
             ],
-            'created_at': self.created_at.isoformat(),
-            'started_at': self.started_at.isoformat() if self.started_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'estimated_total_time': self.estimated_total_time,
-            'actual_total_time': self.actual_total_time,
-            'tags': self.tags,
-            'metadata': self.metadata,
-            'progress': self.get_progress(),
+            "created_at": self.created_at.isoformat(),
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": (self.completed_at.isoformat() if self.completed_at else None),
+            "estimated_total_time": self.estimated_total_time,
+            "actual_total_time": self.actual_total_time,
+            "tags": self.tags,
+            "metadata": self.metadata,
+            "progress": self.get_progress(),
         }
 
     def to_markdown(self) -> str:
@@ -254,23 +257,27 @@ class Plan:
         ]
 
         progress = self.get_progress()
-        lines.extend([
-            f"- **Completed:** {progress['completed']}/{progress['total_steps']} steps ({progress['completion_pct']:.1f}%)",
-            f"- **In Progress:** {progress['in_progress']}",
-            f"- **Blocked:** {progress['blocked']}",
-            f"- **Pending:** {progress['pending']}",
-        ])
+        lines.extend(
+            [
+                f"- **Completed:** {progress['completed']}/{progress['total_steps']} steps ({progress['completion_pct']:.1f}%)",
+                f"- **In Progress:** {progress['in_progress']}",
+                f"- **Blocked:** {progress['blocked']}",
+                f"- **Pending:** {progress['pending']}",
+            ]
+        )
 
         if self.estimated_total_time:
             lines.append(f"- **Estimated Time:** {self.estimated_total_time} minutes")
-        if progress['estimated_time_remaining']:
+        if progress["estimated_time_remaining"]:
             lines.append(f"- **Time Remaining:** {progress['estimated_time_remaining']} minutes")
 
-        lines.extend([
-            "",
-            "## Steps",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Steps",
+                "",
+            ]
+        )
 
         for i, step in enumerate(self.steps, 1):
             status_icon = {

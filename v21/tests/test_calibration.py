@@ -1,12 +1,12 @@
 """Tests for ML confidence calibration."""
 
-import pytest
 from datetime import datetime
 
+import pytest
 from cortex.v2.learning.calibration import (
+    CalibrationResult,
     ConfidenceCalibrator,
     OutcomeStats,
-    CalibrationResult
 )
 
 
@@ -44,7 +44,7 @@ class TestConfidenceCalibrator:
         confidence, certainty = calibrator.calculate_confidence(stats)
 
         assert confidence == 0.5  # Prior mean
-        assert certainty == 0.0   # No data, no certainty
+        assert certainty == 0.0  # No data, no certainty
 
     def test_low_data_stays_near_prior(self, calibrator):
         """Few outcomes should stay close to prior."""
@@ -115,10 +115,7 @@ class TestConfidenceCalibrator:
 
     def test_calculate_from_counts_convenience(self):
         """Static method should work for quick calculations."""
-        conf, cert = ConfidenceCalibrator.calculate_from_counts(
-            successes=30,
-            failures=10
-        )
+        conf, cert = ConfidenceCalibrator.calculate_from_counts(successes=30, failures=10)
 
         assert 0.70 < conf < 0.80
         assert cert == 1.0
@@ -148,7 +145,7 @@ class TestCalibrationResults:
             new_confidence=0.75,
             delta=0.25,
             outcome_stats=OutcomeStats(successes=10, failures=2, total=12),
-            certainty=1.0
+            certainty=1.0,
         )
 
         assert result.delta == 0.25
@@ -164,16 +161,12 @@ class TestCalibrationResults:
         print(f"New pattern: {conf:.0%} confidence, {cert:.0%} certainty")
 
         # Scenario 2: Pattern used once, succeeded
-        conf, cert = calibrator.calculate_confidence(
-            OutcomeStats(successes=1, failures=0, total=1)
-        )
+        conf, cert = calibrator.calculate_confidence(OutcomeStats(successes=1, failures=0, total=1))
         assert 0.5 < conf < 0.6  # Slight boost, but low certainty
         print(f"1 success: {conf:.0%} confidence, {cert:.0%} certainty")
 
         # Scenario 3: Pattern used 5 times, all succeeded
-        conf, cert = calibrator.calculate_confidence(
-            OutcomeStats(successes=5, failures=0, total=5)
-        )
+        conf, cert = calibrator.calculate_confidence(OutcomeStats(successes=5, failures=0, total=5))
         assert conf > 0.6
         print(f"5 successes: {conf:.0%} confidence, {cert:.0%} certainty")
 

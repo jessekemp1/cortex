@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import structlog
-
 from cortex.runtime.config import get_config
 
 logger = structlog.get_logger()
@@ -252,9 +251,7 @@ class ExecutionHistory:
         cursor = conn.cursor()
 
         # Total executions
-        cursor.execute(
-            "SELECT COUNT(*) FROM executions WHERE agent_id = ?", (agent_id,)
-        )
+        cursor.execute("SELECT COUNT(*) FROM executions WHERE agent_id = ?", (agent_id,))
         total = cursor.fetchone()[0]
 
         # Successful executions

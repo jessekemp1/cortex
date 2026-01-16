@@ -8,14 +8,14 @@ Updates PLAN.md and other planning files with:
 - Overall plan progress percentage
 """
 
-import re
 import json
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from .models import WorkItem, ProgressEntry, WorkStatus
+from .models import ProgressEntry, WorkItem, WorkStatus
 from .storage import WorkAbsorberStorage
 
 logger = logging.getLogger(__name__)
@@ -160,7 +160,9 @@ class PlanProgressSync:
                         # Add progress notes
                         step.setdefault("progress_notes", [])
                         for entry in entries:
-                            note = f"{entry.timestamp.strftime('%Y-%m-%d')}: {entry.evidence_summary}"
+                            note = (
+                                f"{entry.timestamp.strftime('%Y-%m-%d')}: {entry.evidence_summary}"
+                            )
                             if note not in step["progress_notes"]:
                                 step["progress_notes"].append(note)
                                 updated = True
@@ -252,8 +254,9 @@ class PlanProgressSync:
 
             for item in correlated_items:
                 # Check if work item matches this checkbox
-                if self._text_matches(item.title, text) or \
-                   self._text_matches(item.description, text):
+                if self._text_matches(item.title, text) or self._text_matches(
+                    item.description, text
+                ):
                     # Mark as completed
                     result["completed"] += 1
                     result["changes"].append(f"Completed: {text[:50]}")
@@ -274,7 +277,7 @@ class PlanProgressSync:
                 content = re.sub(
                     r"<!-- Last synced: .+? -->",
                     f"<!-- Last synced: {datetime.now().strftime('%Y-%m-%d %H:%M')} -->",
-                    content
+                    content,
                 )
             else:
                 # Add at end of file
@@ -359,19 +362,23 @@ class PlanProgressSync:
         correlated = [i for i in items if i.plan_step_id]
         orphaned = [i for i in items if not i.plan_step_id]
 
-        lines.extend([
-            f"- **Total work items:** {len(items)}",
-            f"- **Correlated to plans:** {len(correlated)}",
-            f"- **Unplanned work:** {len(orphaned)}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"- **Total work items:** {len(items)}",
+                f"- **Correlated to plans:** {len(correlated)}",
+                f"- **Unplanned work:** {len(orphaned)}",
+                "",
+            ]
+        )
 
         # Correlated work
         if correlated:
-            lines.extend([
-                "### Planned Work Completed",
-                "",
-            ])
+            lines.extend(
+                [
+                    "### Planned Work Completed",
+                    "",
+                ]
+            )
             for item in correlated[:20]:
                 lines.append(f"- [x] **{item.title}** ({item.project})")
                 lines.append(f"  - Plan step: {item.plan_step_id}")
@@ -380,10 +387,12 @@ class PlanProgressSync:
 
         # Unplanned work
         if orphaned:
-            lines.extend([
-                "### Unplanned Work",
-                "",
-            ])
+            lines.extend(
+                [
+                    "### Unplanned Work",
+                    "",
+                ]
+            )
             for item in orphaned[:20]:
                 lines.append(f"- [ ] **{item.title}** ({item.project})")
                 lines.append(f"  - Scope: {item.scope or 'unknown'}")

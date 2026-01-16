@@ -11,7 +11,6 @@ from typing import Dict, List, Optional
 
 import structlog
 from anthropic import Anthropic
-
 from cortex.runtime.config import get_config
 
 logger = structlog.get_logger()
@@ -194,9 +193,7 @@ class BatchManager:
         conn.close()
         return [dict(row) for row in rows]
 
-    def update_batch_status(
-        self, batch_id: str, status: str, result_file_id: Optional[str] = None
-    ):
+    def update_batch_status(self, batch_id: str, status: str, result_file_id: Optional[str] = None):
         """Update status of a batch.
 
         Args:
@@ -324,9 +321,7 @@ class BatchManager:
                 continue
 
             try:
-                logger.info(
-                    "submitting_batch_chunk", batch_index=i, num_items=len(requests)
-                )
+                logger.info("submitting_batch_chunk", batch_index=i, num_items=len(requests))
 
                 batch_response = client.messages.batches.create(requests=requests)
 
@@ -346,9 +341,7 @@ class BatchManager:
                 submitted_batch_ids.append(batch_id)
 
             except Exception as e:
-                logger.error(
-                    "batch_submission_failed", error=str(e), num_items=len(requests)
-                )
+                logger.error("batch_submission_failed", error=str(e), num_items=len(requests))
                 raise
 
         return submitted_batch_ids

@@ -53,9 +53,7 @@ class ExecutionHistoryAnalyzer:
 
         try:
             # Get recent executions for this action
-            executions = self.history.get_recent_executions(
-                limit=1000, agent_id=action_type
-            )
+            executions = self.history.get_recent_executions(limit=1000, agent_id=action_type)
 
             if not executions:
                 return 0.5  # No data, return neutral
@@ -95,9 +93,7 @@ class ExecutionHistoryAnalyzer:
             return 0.0
 
         try:
-            executions = self.history.get_recent_executions(
-                limit=1000, agent_id=action_type
-            )
+            executions = self.history.get_recent_executions(limit=1000, agent_id=action_type)
 
             if not executions:
                 return 0.0
@@ -145,9 +141,7 @@ class ExecutionHistoryAnalyzer:
             return 0
 
         try:
-            executions = self.history.get_recent_executions(
-                limit=1000, agent_id=action_type
-            )
+            executions = self.history.get_recent_executions(limit=1000, agent_id=action_type)
 
             cutoff_date = datetime.now() - timedelta(days=days)
             recent = [
@@ -166,9 +160,7 @@ class ExecutionHistoryAnalyzer:
             return 0
 
         try:
-            executions = self.history.get_recent_executions(
-                limit=1000, agent_id=action_type
-            )
+            executions = self.history.get_recent_executions(limit=1000, agent_id=action_type)
 
             cutoff_date = datetime.now() - timedelta(days=days)
             recent = [

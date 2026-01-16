@@ -22,7 +22,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ LEARNING_STATE = Path.home() / ".cortex" / "interaction_learning_state.json"
 @dataclass
 class ImplicitOutcome:
     """An outcome derived from implicit feedback signals."""
+
     outcome_id: str
     derived_from: str  # "correction", "approval", "tool_failure", "session_success"
     confidence: float  # How confident are we in this outcome?
@@ -55,6 +56,7 @@ class ImplicitOutcome:
 @dataclass
 class LearningInsight:
     """A learning insight derived from interaction patterns."""
+
     insight_id: str
     insight_type: str  # "pattern", "calibration", "recommendation"
     title: str
@@ -180,8 +182,7 @@ class InteractionLearner:
             "sessions_analyzed": len(by_session),
         }
 
-    def _analyze_session(self, session_id: str,
-                         interactions: List[Dict]) -> List[ImplicitOutcome]:
+    def _analyze_session(self, session_id: str, interactions: List[Dict]) -> List[ImplicitOutcome]:
         """
         Analyze a session's interactions to derive implicit outcomes.
 
@@ -192,6 +193,7 @@ class InteractionLearner:
         - Session completion without issues (positive signal)
         """
         import uuid
+
         outcomes = []
 
         prompts = [i for i in interactions if i.get("type") == "prompt_received"]
@@ -203,32 +205,36 @@ class InteractionLearner:
 
             # Detection: User correction
             if self._is_correction(prompt):
-                outcomes.append(ImplicitOutcome(
-                    outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
-                    derived_from="correction",
-                    confidence=0.8,
-                    outcome_type="failed",
-                    context={
-                        "session_id": session_id,
-                        "prompt_index": i,
-                        "prompt_snippet": prompt[:200],
-                        "project": prompt_data.get("cwd", "").split("/")[-1],
-                    },
-                ))
+                outcomes.append(
+                    ImplicitOutcome(
+                        outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
+                        derived_from="correction",
+                        confidence=0.8,
+                        outcome_type="failed",
+                        context={
+                            "session_id": session_id,
+                            "prompt_index": i,
+                            "prompt_snippet": prompt[:200],
+                            "project": prompt_data.get("cwd", "").split("/")[-1],
+                        },
+                    )
+                )
 
             # Detection: User approval
             elif self._is_approval(prompt):
-                outcomes.append(ImplicitOutcome(
-                    outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
-                    derived_from="approval",
-                    confidence=0.9,
-                    outcome_type="success",
-                    context={
-                        "session_id": session_id,
-                        "prompt_index": i,
-                        "project": prompt_data.get("cwd", "").split("/")[-1],
-                    },
-                ))
+                outcomes.append(
+                    ImplicitOutcome(
+                        outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
+                        derived_from="approval",
+                        confidence=0.9,
+                        outcome_type="success",
+                        context={
+                            "session_id": session_id,
+                            "prompt_index": i,
+                            "project": prompt_data.get("cwd", "").split("/")[-1],
+                        },
+                    )
+                )
 
         # Analyze tool outcomes
         tool_failures = [t for t in tools if not t.get("success", True)]
@@ -238,60 +244,93 @@ class InteractionLearner:
         if len(tool_failures) > 0 and len(tools) > 2:
             failure_rate = len(tool_failures) / len(tools)
             if failure_rate > 0.3:
-                outcomes.append(ImplicitOutcome(
-                    outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
-                    derived_from="tool_failure_rate",
-                    confidence=0.7,
-                    outcome_type="partial",
-                    context={
-                        "session_id": session_id,
-                        "failure_rate": failure_rate,
-                        "total_tools": len(tools),
-                        "failed_tools": [t.get("tool_name") for t in tool_failures],
-                    },
-                ))
+                outcomes.append(
+                    ImplicitOutcome(
+                        outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
+                        derived_from="tool_failure_rate",
+                        confidence=0.7,
+                        outcome_type="partial",
+                        context={
+                            "session_id": session_id,
+                            "failure_rate": failure_rate,
+                            "total_tools": len(tools),
+                            "failed_tools": [t.get("tool_name") for t in tool_failures],
+                        },
+                    )
+                )
 
         # Session ended normally with mostly successful tools
         ended = any(i.get("type") == "session_ended" for i in interactions)
         if ended and len(tool_successes) > len(tool_failures):
-            outcomes.append(ImplicitOutcome(
-                outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
-                derived_from="session_success",
-                confidence=0.6,  # Lower confidence - session ending normally is weak signal
-                outcome_type="success",
-                context={
-                    "session_id": session_id,
-                    "tool_count": len(tools),
-                    "success_rate": len(tool_successes) / max(len(tools), 1),
-                },
-            ))
+            outcomes.append(
+                ImplicitOutcome(
+                    outcome_id=f"imp_{uuid.uuid4().hex[:8]}",
+                    derived_from="session_success",
+                    confidence=0.6,  # Lower confidence - session ending normally is weak signal
+                    outcome_type="success",
+                    context={
+                        "session_id": session_id,
+                        "tool_count": len(tools),
+                        "success_rate": len(tool_successes) / max(len(tools), 1),
+                    },
+                )
+            )
 
         return outcomes
 
     def _is_correction(self, prompt: str) -> bool:
         """Detect if prompt indicates a correction."""
         correction_phrases = [
-            "no, ", "that's wrong", "actually,", "i meant", "not what i",
-            "try again", "that didn't work", "wrong file", "undo",
-            "revert", "go back", "that broke", "you misunderstood",
-            "that's not right", "fix that", "redo", "don't do",
+            "no, ",
+            "that's wrong",
+            "actually,",
+            "i meant",
+            "not what i",
+            "try again",
+            "that didn't work",
+            "wrong file",
+            "undo",
+            "revert",
+            "go back",
+            "that broke",
+            "you misunderstood",
+            "that's not right",
+            "fix that",
+            "redo",
+            "don't do",
         ]
         return any(phrase in prompt for phrase in correction_phrases)
 
     def _is_approval(self, prompt: str) -> bool:
         """Detect if prompt indicates approval."""
         approval_phrases = [
-            "looks good", "perfect", "thanks", "great", "yes",
-            "that works", "commit", "push", "ship it", "done",
-            "nice", "awesome", "exactly", "correct", "good job",
-            "that's right", "proceed", "continue",
+            "looks good",
+            "perfect",
+            "thanks",
+            "great",
+            "yes",
+            "that works",
+            "commit",
+            "push",
+            "ship it",
+            "done",
+            "nice",
+            "awesome",
+            "exactly",
+            "correct",
+            "good job",
+            "that's right",
+            "proceed",
+            "continue",
         ]
         return any(phrase in prompt for phrase in approval_phrases)
 
-    def _generate_insights(self, session_id: str,
-                           interactions: List[Dict]) -> List[LearningInsight]:
+    def _generate_insights(
+        self, session_id: str, interactions: List[Dict]
+    ) -> List[LearningInsight]:
         """Generate learning insights from session patterns."""
         import uuid
+
         insights = []
 
         tools = [i for i in interactions if i.get("type") == "tool_completed"]
@@ -310,40 +349,46 @@ class InteractionLearner:
             if count >= 3:
                 failure_rate = tool_failures.get(tool_name, 0) / count
                 if failure_rate > 0.4:
-                    insights.append(LearningInsight(
-                        insight_id=f"ins_{uuid.uuid4().hex[:8]}",
-                        insight_type="pattern",
-                        title=f"High failure rate for {tool_name}",
-                        description=f"{tool_name} failed {failure_rate:.0%} of the time in this session",
-                        confidence=0.75,
-                        evidence={
-                            "tool_name": tool_name,
-                            "total_uses": count,
-                            "failures": tool_failures.get(tool_name, 0),
-                        },
-                        actionable=True,
-                        suggested_action=f"Review {tool_name} usage patterns and common failure causes",
-                    ))
+                    insights.append(
+                        LearningInsight(
+                            insight_id=f"ins_{uuid.uuid4().hex[:8]}",
+                            insight_type="pattern",
+                            title=f"High failure rate for {tool_name}",
+                            description=f"{tool_name} failed {failure_rate:.0%} of the time in this session",
+                            confidence=0.75,
+                            evidence={
+                                "tool_name": tool_name,
+                                "total_uses": count,
+                                "failures": tool_failures.get(tool_name, 0),
+                            },
+                            actionable=True,
+                            suggested_action=f"Review {tool_name} usage patterns and common failure causes",
+                        )
+                    )
 
         # Prompt pattern insights
         prompts = [i for i in interactions if i.get("type") == "prompt_received"]
-        correction_count = sum(1 for p in prompts if self._is_correction(p.get("prompt", "").lower()))
+        correction_count = sum(
+            1 for p in prompts if self._is_correction(p.get("prompt", "").lower())
+        )
 
         if len(prompts) >= 3 and correction_count / len(prompts) > 0.2:
-            insights.append(LearningInsight(
-                insight_id=f"ins_{uuid.uuid4().hex[:8]}",
-                insight_type="calibration",
-                title="High correction rate detected",
-                description=f"{correction_count}/{len(prompts)} prompts were corrections",
-                confidence=0.8,
-                evidence={
-                    "total_prompts": len(prompts),
-                    "corrections": correction_count,
-                    "session_id": session_id,
-                },
-                actionable=True,
-                suggested_action="Consider being more careful with assumptions and asking clarifying questions",
-            ))
+            insights.append(
+                LearningInsight(
+                    insight_id=f"ins_{uuid.uuid4().hex[:8]}",
+                    insight_type="calibration",
+                    title="High correction rate detected",
+                    description=f"{correction_count}/{len(prompts)} prompts were corrections",
+                    confidence=0.8,
+                    evidence={
+                        "total_prompts": len(prompts),
+                        "corrections": correction_count,
+                        "session_id": session_id,
+                    },
+                    actionable=True,
+                    suggested_action="Consider being more careful with assumptions and asking clarifying questions",
+                )
+            )
 
         return insights
 
@@ -445,8 +490,7 @@ class InteractionLearner:
             logger.error(f"Failed to get learning summary: {e}")
             return {"error": str(e)}
 
-    def get_recommendations_for_session(self, project: str,
-                                         recent_prompts: List[str]) -> List[str]:
+    def get_recommendations_for_session(self, project: str, recent_prompts: List[str]) -> List[str]:
         """
         Get recommendations based on learned patterns for current session.
 

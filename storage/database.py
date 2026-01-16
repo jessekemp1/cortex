@@ -1,10 +1,12 @@
 """Cortex Knowledge Database - SQLite-based persistent storage."""
+
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from .models import Goal, Task, Blocker, Progress, Status, TaskStatus, Priority
+
+from .models import Blocker, Goal, Priority, Progress, Status, Task, TaskStatus
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS goals (
@@ -88,10 +90,18 @@ class CortexDB:
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO goals (id, title, priority, status, project, success_criteria, deadline, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (goal.id, goal.title,
-                 goal.priority.value if isinstance(goal.priority, Priority) else goal.priority,
-                 goal.status.value if isinstance(goal.status, Status) else goal.status,
-                 goal.project, goal.success_criteria, goal.deadline, goal.created_at, goal.updated_at))
+                (
+                    goal.id,
+                    goal.title,
+                    (goal.priority.value if isinstance(goal.priority, Priority) else goal.priority),
+                    (goal.status.value if isinstance(goal.status, Status) else goal.status),
+                    goal.project,
+                    goal.success_criteria,
+                    goal.deadline,
+                    goal.created_at,
+                    goal.updated_at,
+                ),
+            )
         return goal
 
     def get_goal(self, goal_id: str) -> Optional[Goal]:
@@ -101,7 +111,12 @@ class CortexDB:
                 return Goal.from_dict(dict(row))
         return None
 
-    def list_goals(self, priority: Optional[str] = None, status: Optional[str] = None, project: Optional[str] = None) -> List[Goal]:
+    def list_goals(
+        self,
+        priority: Optional[str] = None,
+        status: Optional[str] = None,
+        project: Optional[str] = None,
+    ) -> List[Goal]:
         query = "SELECT * FROM goals WHERE 1=1"
         params = []
         if priority:
@@ -142,9 +157,17 @@ class CortexDB:
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT INTO tasks (id, goal_id, title, status, source, source_file, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (task.id, task.goal_id, task.title,
-                 task.status.value if isinstance(task.status, TaskStatus) else task.status,
-                 task.source, task.source_file, task.created_at, task.completed_at))
+                (
+                    task.id,
+                    task.goal_id,
+                    task.title,
+                    (task.status.value if isinstance(task.status, TaskStatus) else task.status),
+                    task.source,
+                    task.source_file,
+                    task.created_at,
+                    task.completed_at,
+                ),
+            )
         return task
 
     def get_task(self, task_id: str) -> Optional[Task]:
@@ -180,7 +203,9 @@ class CortexDB:
         return self.get_task(task_id)
 
     def complete_task(self, task_id: str) -> Optional[Task]:
-        return self.update_task(task_id, status="completed", completed_at=datetime.now().isoformat())
+        return self.update_task(
+            task_id, status="completed", completed_at=datetime.now().isoformat()
+        )
 
     def delete_task(self, task_id: str) -> bool:
         with self._get_connection() as conn:
@@ -192,7 +217,15 @@ class CortexDB:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 "INSERT INTO blockers (goal_id, project, description, resolved, created_at, resolved_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (blocker.goal_id, blocker.project, blocker.description, 1 if blocker.resolved else 0, blocker.created_at, blocker.resolved_at))
+                (
+                    blocker.goal_id,
+                    blocker.project,
+                    blocker.description,
+                    1 if blocker.resolved else 0,
+                    blocker.created_at,
+                    blocker.resolved_at,
+                ),
+            )
             blocker.id = cursor.lastrowid
         return blocker
 
@@ -203,7 +236,12 @@ class CortexDB:
                 return Blocker.from_dict(dict(row))
         return None
 
-    def list_blockers(self, project: Optional[str] = None, goal_id: Optional[str] = None, include_resolved: bool = False) -> List[Blocker]:
+    def list_blockers(
+        self,
+        project: Optional[str] = None,
+        goal_id: Optional[str] = None,
+        include_resolved: bool = False,
+    ) -> List[Blocker]:
         query = "SELECT * FROM blockers WHERE 1=1"
         params = []
         if not include_resolved:
@@ -221,7 +259,10 @@ class CortexDB:
 
     def resolve_blocker(self, blocker_id: int) -> Optional[Blocker]:
         with self._get_connection() as conn:
-            conn.execute("UPDATE blockers SET resolved = 1, resolved_at = ? WHERE id = ?", (datetime.now().isoformat(), blocker_id))
+            conn.execute(
+                "UPDATE blockers SET resolved = 1, resolved_at = ? WHERE id = ?",
+                (datetime.now().isoformat(), blocker_id),
+            )
         return self.get_blocker(blocker_id)
 
     def delete_blocker(self, blocker_id: int) -> bool:
@@ -234,11 +275,23 @@ class CortexDB:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 "INSERT INTO progress (goal_id, task_id, action, notes, timestamp) VALUES (?, ?, ?, ?, ?)",
-                (progress.goal_id, progress.task_id, progress.action, progress.notes, progress.timestamp))
+                (
+                    progress.goal_id,
+                    progress.task_id,
+                    progress.action,
+                    progress.notes,
+                    progress.timestamp,
+                ),
+            )
             progress.id = cursor.lastrowid
         return progress
 
-    def list_progress(self, goal_id: Optional[str] = None, task_id: Optional[str] = None, limit: int = 50) -> List[Progress]:
+    def list_progress(
+        self,
+        goal_id: Optional[str] = None,
+        task_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Progress]:
         query = "SELECT * FROM progress WHERE 1=1"
         params = []
         if goal_id:
@@ -255,12 +308,16 @@ class CortexDB:
     def get_goal_summary(self) -> dict:
         with self._get_connection() as conn:
             priority_counts = {}
-            for row in conn.execute("SELECT priority, COUNT(*) as count FROM goals GROUP BY priority"):
+            for row in conn.execute(
+                "SELECT priority, COUNT(*) as count FROM goals GROUP BY priority"
+            ):
                 priority_counts[row["priority"]] = row["count"]
             status_counts = {}
             for row in conn.execute("SELECT status, COUNT(*) as count FROM goals GROUP BY status"):
                 status_counts[row["status"]] = row["count"]
-            blocker_count = conn.execute("SELECT COUNT(*) as count FROM blockers WHERE resolved = 0").fetchone()["count"]
+            blocker_count = conn.execute(
+                "SELECT COUNT(*) as count FROM blockers WHERE resolved = 0"
+            ).fetchone()["count"]
             return {
                 "by_priority": priority_counts,
                 "by_status": status_counts,
@@ -285,6 +342,7 @@ class CortexDB:
 
 
 _db: Optional[CortexDB] = None
+
 
 def get_db() -> CortexDB:
     global _db

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     import anthropic
+
     ANTHROPIC_AVAILABLE = True
 except ImportError:
     ANTHROPIC_AVAILABLE = False
@@ -25,9 +26,7 @@ class EmbeddingsClient:
             api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
         """
         if not ANTHROPIC_AVAILABLE:
-            raise ImportError(
-                "anthropic SDK not installed. Install with: pip install anthropic"
-            )
+            raise ImportError("anthropic SDK not installed. Install with: pip install anthropic")
 
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
@@ -65,15 +64,14 @@ class EmbeddingsClient:
         try:
             # Try Anthropic embeddings API if available
             # Check if client has embeddings attribute
-            if hasattr(self.client, 'embeddings'):
+            if hasattr(self.client, "embeddings"):
                 try:
-                    response = self.client.embeddings.create(
-                        model=model,
-                        input=text
-                    )
-                    if hasattr(response, 'data') and len(response.data) > 0:
+                    response = self.client.embeddings.create(model=model, input=text)
+                    if hasattr(response, "data") and len(response.data) > 0:
                         embedding = response.data[0].embedding
-                        logger.debug(f"Generated embedding via Anthropic API: {len(embedding)} dimensions")
+                        logger.debug(
+                            f"Generated embedding via Anthropic API: {len(embedding)} dimensions"
+                        )
                         return embedding
                 except AttributeError:
                     # Anthropic embeddings API not available yet
@@ -93,19 +91,20 @@ class EmbeddingsClient:
     def _generate_hash_embedding(self, text: str) -> List[float]:
         """Generate hash-based embedding as fallback."""
         import hashlib
+
         hash_obj = hashlib.sha256(text.encode())
         hash_bytes = hash_obj.digest()
 
         embedding = []
         for i in range(0, len(hash_bytes), 4):
-            chunk = hash_bytes[i:i+4]
-            value = int.from_bytes(chunk, byteorder='big')
+            chunk = hash_bytes[i : i + 4]
+            value = int.from_bytes(chunk, byteorder="big")
             normalized = (value / (2**32)) * 2 - 1
             embedding.append(normalized)
 
         # Pad to 768 dimensions (standard embedding size)
         while len(embedding) < 768:
-            embedding.extend(embedding[:min(768 - len(embedding), len(embedding))])
+            embedding.extend(embedding[: min(768 - len(embedding), len(embedding))])
 
         return embedding[:768]
 
@@ -134,7 +133,7 @@ class EmbeddingsClient:
         import time
 
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
             retry_count = 0
             batch_embeddings = []
 
@@ -146,7 +145,9 @@ class EmbeddingsClient:
                             embedding = self.generate_embedding(text)
                             batch_embeddings.append(embedding)
                         except Exception as e:
-                            logger.warning(f"Failed to generate embedding for text: {e}. Using fallback.")
+                            logger.warning(
+                                f"Failed to generate embedding for text: {e}. Using fallback."
+                            )
                             # Use hash-based fallback for this text
                             batch_embeddings.append(self._generate_hash_embedding(text))
 
@@ -162,8 +163,10 @@ class EmbeddingsClient:
                         all_embeddings.extend(batch_embeddings)
                     else:
                         # Exponential backoff
-                        wait_time = 2 ** retry_count
-                        logger.warning(f"Batch failed, retrying in {wait_time}s (attempt {retry_count}/{max_retries})")
+                        wait_time = 2**retry_count
+                        logger.warning(
+                            f"Batch failed, retrying in {wait_time}s (attempt {retry_count}/{max_retries})"
+                        )
                         time.sleep(wait_time)
 
             # Rate limiting: small delay between batches to avoid overwhelming API
@@ -175,7 +178,7 @@ class EmbeddingsClient:
     def get_embedding_dimension(self) -> int:
         """
         Get the dimension of embeddings returned by this client.
-        
+
         Returns:
             Embedding dimension (768 for hash-based, may vary for API-based)
         """
@@ -184,13 +187,13 @@ class EmbeddingsClient:
     def is_api_available(self) -> bool:
         """
         Check if real embeddings API is available (vs hash-based fallback).
-        
+
         Returns:
             True if API embeddings are available, False if using fallback
         """
         try:
             # Check if client has embeddings attribute
-            if hasattr(self.client, 'embeddings'):
+            if hasattr(self.client, "embeddings"):
                 return True
             return False
         except Exception:
@@ -199,7 +202,7 @@ class EmbeddingsClient:
     def get_embedding_info(self) -> Dict[str, Any]:
         """
         Get information about the embedding service.
-        
+
         Returns:
             Dict with embedding service information
         """
@@ -208,4 +211,3 @@ class EmbeddingsClient:
             "dimension": self.get_embedding_dimension(),
             "client_type": "anthropic" if ANTHROPIC_AVAILABLE else "unavailable",
         }
-

@@ -1,41 +1,44 @@
 """
 Test optimized scan_workspace with directory exclusions.
 """
-from pathlib import Path
+
 import time
+from pathlib import Path
 
 # Directories to skip (common large directories)
 SKIP_DIRS = {
-    'node_modules',
-    'venv',
-    '.venv',
-    'env',
-    '.git',
-    '__pycache__',
-    '.pytest_cache',
-    'dist',
-    'build',
-    '.next',
-    '.nuxt',
-    'target',
-    'bower_components',
-    '.tox',
-    '.eggs',
-    '*.egg-info',
-    '.mypy_cache',
-    '.ruff_cache',
-    'htmlcov',
-    '.coverage',
+    "node_modules",
+    "venv",
+    ".venv",
+    "env",
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "target",
+    "bower_components",
+    ".tox",
+    ".eggs",
+    "*.egg-info",
+    ".mypy_cache",
+    ".ruff_cache",
+    "htmlcov",
+    ".coverage",
 }
+
 
 def optimized_rglob(root: Path, pattern: str):
     """Optimized recursive glob that skips common large directories."""
+
     def _walk(path: Path):
         try:
             for item in path.iterdir():
                 if item.is_dir():
                     # Skip excluded directories
-                    if item.name in SKIP_DIRS or item.name.startswith('.'):
+                    if item.name in SKIP_DIRS or item.name.startswith("."):
                         continue
                     # Recurse into directory
                     yield from _walk(item)
@@ -43,12 +46,12 @@ def optimized_rglob(root: Path, pattern: str):
                     yield item
         except PermissionError:
             pass  # Skip directories we can't read
-    
+
     # Check root for matches
     for item in root.iterdir():
         if item.match(pattern):
             yield item
-    
+
     # Recurse
     yield from _walk(root)
 
@@ -72,16 +75,16 @@ def optimized_scan():
 
 
 if __name__ == "__main__":
-    print("="*60)
+    print("=" * 60)
     print("PERFORMANCE COMPARISON")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Test optimized version
     print("\n1. OPTIMIZED SCAN (with exclusions):")
     opt_projects, opt_time = optimized_scan()
     print(f"   Projects found: {len(opt_projects)}")
     print(f"   Scan time: {opt_time:.3f}s")
-    
+
     # Test original version (with timeout)
     print("\n2. ORIGINAL SCAN (no exclusions):")
     print("   Running with 20s timeout...")
@@ -89,17 +92,17 @@ if __name__ == "__main__":
         orig_projects, orig_time = original_scan()
         print(f"   Projects found: {len(orig_projects)}")
         print(f"   Scan time: {orig_time:.3f}s")
-        
+
         # Compare
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("COMPARISON")
-        print("="*60)
+        print("=" * 60)
         improvement = orig_time / opt_time
         print(f"Speed improvement: {improvement:.1f}x faster")
         print(f"Time saved: {orig_time - opt_time:.3f}s")
     except KeyboardInterrupt:
         print("   ⏱️  Timeout (>20s)")
-    
+
     # Verify same projects found
     print("\n3. VERIFICATION:")
     print(f"   Projects found: {len(opt_projects)}")

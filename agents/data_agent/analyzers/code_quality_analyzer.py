@@ -19,7 +19,7 @@ class CodeQualityAnalyzer:
     def analyze_quality(self) -> Dict[str, Any]:
         """
         Analyze code quality metrics.
-        
+
         Returns:
             Dict with quality metrics, test coverage, and code smells
         """
@@ -33,21 +33,29 @@ class CodeQualityAnalyzer:
     def _analyze_test_coverage(self) -> Dict[str, Any]:
         """Analyze test coverage."""
         # Count test files
-        test_files = list(self.project_path.rglob("test_*.py")) + \
-                    list(self.project_path.rglob("*_test.py")) + \
-                    list(self.project_path.rglob("tests/**/*.py"))
-        
+        test_files = (
+            list(self.project_path.rglob("test_*.py"))
+            + list(self.project_path.rglob("*_test.py"))
+            + list(self.project_path.rglob("tests/**/*.py"))
+        )
+
         # Count source files
-        source_files = [f for f in self.project_path.rglob("*.py")
-                        if not any(part in str(f) for part in ["test", "tests", "__pycache__"])]
-        
+        source_files = [
+            f
+            for f in self.project_path.rglob("*.py")
+            if not any(part in str(f) for part in ["test", "tests", "__pycache__"])
+        ]
+
         # Try to read actual coverage report
         coverage_report = self._read_coverage_report()
-        
+
         test_file_count = len(test_files)
         source_file_count = len(source_files)
-        estimated_coverage = min((test_file_count / source_file_count * 100) if source_file_count > 0 else 0, 100)
-        
+        estimated_coverage = min(
+            (test_file_count / source_file_count * 100) if source_file_count > 0 else 0,
+            100,
+        )
+
         return {
             "test_files": test_file_count,
             "source_files": source_file_count,
@@ -65,13 +73,14 @@ class CodeQualityAnalyzer:
             self.project_path / ".coverage",
             self.project_path / "coverage.xml",
         ]
-        
+
         for coverage_file in coverage_files:
             if coverage_file.exists():
                 if coverage_file.suffix == ".xml":
                     # Parse XML coverage report
                     try:
                         import xml.etree.ElementTree as ET
+
                         tree = ET.parse(coverage_file)
                         root = tree.getroot()
                         # Extract coverage percentage
@@ -83,7 +92,7 @@ class CodeQualityAnalyzer:
                             }
                     except Exception:
                         pass
-        
+
         return {}
 
     def _detect_code_smells(self) -> List[Dict[str, Any]]:
@@ -95,42 +104,48 @@ class CodeQualityAnalyzer:
             try:
                 content = py_file.read_text()
                 tree = ast.parse(content, filename=str(py_file))
-                
+
                 # Long functions
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
                         lines = len(node.body) if node.body else 0
                         if lines > 50:
-                            smells.append({
-                                "type": "long_function",
-                                "file": str(py_file.relative_to(self.project_path)),
-                                "function": node.name,
-                                "lines": lines,
-                                "severity": "medium",
-                            })
-                
+                            smells.append(
+                                {
+                                    "type": "long_function",
+                                    "file": str(py_file.relative_to(self.project_path)),
+                                    "function": node.name,
+                                    "lines": lines,
+                                    "severity": "medium",
+                                }
+                            )
+
                 # Deep nesting
                 max_depth = self._calculate_max_nesting(tree)
                 if max_depth > 4:
-                    smells.append({
-                        "type": "deep_nesting",
-                        "file": str(py_file.relative_to(self.project_path)),
-                        "max_depth": max_depth,
-                        "severity": "medium",
-                    })
-                
+                    smells.append(
+                        {
+                            "type": "deep_nesting",
+                            "file": str(py_file.relative_to(self.project_path)),
+                            "max_depth": max_depth,
+                            "severity": "medium",
+                        }
+                    )
+
                 # Too many parameters
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
                         param_count = len(node.args.args)
                         if param_count > 7:
-                            smells.append({
-                                "type": "too_many_parameters",
-                                "file": str(py_file.relative_to(self.project_path)),
-                                "function": node.name,
-                                "parameter_count": param_count,
-                                "severity": "low",
-                            })
+                            smells.append(
+                                {
+                                    "type": "too_many_parameters",
+                                    "file": str(py_file.relative_to(self.project_path)),
+                                    "function": node.name,
+                                    "parameter_count": param_count,
+                                    "severity": "low",
+                                }
+                            )
 
             except Exception as e:
                 logger.debug(f"Failed to analyze {py_file}: {e}")
@@ -140,7 +155,7 @@ class CodeQualityAnalyzer:
     def _calculate_complexity(self) -> Dict[str, Any]:
         """Calculate code complexity metrics."""
         python_files = list(self.project_path.rglob("*.py"))[:50]
-        
+
         total_lines = 0
         total_functions = 0
         total_classes = 0
@@ -150,9 +165,9 @@ class CodeQualityAnalyzer:
             try:
                 content = py_file.read_text()
                 tree = ast.parse(content, filename=str(py_file))
-                
+
                 total_lines += len(content.split("\n"))
-                
+
                 for node in ast.walk(tree):
                     if isinstance(node, ast.FunctionDef):
                         total_functions += 1
@@ -179,7 +194,7 @@ class CodeQualityAnalyzer:
     def _calculate_code_metrics(self) -> Dict[str, Any]:
         """Calculate basic code metrics."""
         python_files = list(self.project_path.rglob("*.py"))
-        
+
         metrics = {
             "total_files": len(python_files),
             "total_lines": 0,
@@ -194,7 +209,7 @@ class CodeQualityAnalyzer:
                 lines = len(py_file.read_text().split("\n"))
                 file_sizes.append(lines)
                 metrics["total_lines"] += lines
-                
+
                 if lines > metrics["largest_file_size"]:
                     metrics["largest_file_size"] = lines
                     metrics["largest_file"] = str(py_file.relative_to(self.project_path))
@@ -213,7 +228,7 @@ class CodeQualityAnalyzer:
         def visit(node: ast.AST, depth: int):
             nonlocal max_depth
             max_depth = max(max_depth, depth)
-            
+
             for child in ast.iter_child_nodes(node):
                 # Increase depth for control flow nodes
                 if isinstance(child, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
@@ -227,11 +242,12 @@ class CodeQualityAnalyzer:
     def _calculate_function_complexity(self, node: ast.FunctionDef) -> int:
         """Calculate cyclomatic complexity of a function."""
         complexity = 1  # Base complexity
-        
+
         for child in ast.walk(node):
-            if isinstance(child, (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.ExceptHandler)):
+            if isinstance(
+                child,
+                (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.ExceptHandler),
+            ):
                 complexity += 1
-        
+
         return complexity
-
-

@@ -60,8 +60,21 @@ except ImportError:
 # V2 Prime: Engine imports
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
-    from cortex.engines.synthesis import SynthesisCore, ContextGraph, Node, NodeType, Edge, EdgeType
-    from cortex.engines.broker import ActionBroker, Intervention, InterventionType, Severity
+    from cortex.engines.broker import (
+        ActionBroker,
+        Intervention,
+        InterventionType,
+        Severity,
+    )
+    from cortex.engines.synthesis import (
+        ContextGraph,
+        Edge,
+        EdgeType,
+        Node,
+        NodeType,
+        SynthesisCore,
+    )
+
     V2_PRIME_AVAILABLE = True
 except ImportError:
     V2_PRIME_AVAILABLE = False
@@ -72,7 +85,14 @@ except ImportError:
 
 # V2 Prime: Protocol imports
 try:
-    from cortex.protocols.iap import IAPHandler, IAPMessage, MessageType, Agent, AgentRole
+    from cortex.protocols.iap import (
+        Agent,
+        AgentRole,
+        IAPHandler,
+        IAPMessage,
+        MessageType,
+    )
+
     IAP_AVAILABLE = True
 except ImportError:
     IAP_AVAILABLE = False
@@ -88,9 +108,7 @@ class CortexBridge:
         self.root_dir = Path(root_dir)
 
         # Initialize sub-systems
-        self.context_intel = (
-            ContextIntelligence(self.root_dir) if ContextIntelligence else None
-        )
+        self.context_intel = ContextIntelligence(self.root_dir) if ContextIntelligence else None
         self.orchestrator = (
             CortexLocalOrchestratorIntegration(self.root_dir)
             if CortexLocalOrchestratorIntegration
@@ -115,7 +133,7 @@ class CortexBridge:
     def _init_v2_prime(self) -> None:
         """Initialize V2 Prime engines."""
         self.v2_available = V2_PRIME_AVAILABLE
-        
+
         if not V2_PRIME_AVAILABLE:
             self.absorber = None
             self.synthesis = None
@@ -126,25 +144,23 @@ class CortexBridge:
         try:
             # Engine A: Context Absorber
             self.absorber = ContextAbsorber(self.root_dir)
-            
+
             # Engine B: Synthesis Core with Context Graph
             self.graph = ContextGraph()
             self.synthesis = SynthesisCore(self.graph)
-            
+
             # Engine C: Action Broker
             self.broker = ActionBroker()
-            
+
             # IAP Handler
             if IAP_AVAILABLE:
-                self.iap = IAPHandler(
-                    synthesis_core=self.synthesis,
-                    action_broker=self.broker
-                )
+                self.iap = IAPHandler(synthesis_core=self.synthesis, action_broker=self.broker)
             else:
                 self.iap = None
 
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f"V2 Prime init failed: {e}")
             self.absorber = None
             self.synthesis = None
@@ -169,6 +185,7 @@ class CortexBridge:
 
         try:
             from cortex.engines.synthesis import NodeType
+
             node_type_enum = NodeType(node_type)
             nodes = self.synthesis.graph.get_nodes_by_type(node_type_enum)
             return [n.to_dict() for n in nodes]
@@ -193,6 +210,7 @@ class CortexBridge:
 
         try:
             from cortex.engines.synthesis import EdgeType
+
             edge_type_enum = EdgeType(edge_type) if edge_type else None
             nodes = self.synthesis.graph.get_related(node_id, edge_type_enum)
             return [n.to_dict() for n in nodes]
@@ -206,7 +224,7 @@ class CortexBridge:
         node_type: str,
         name: str,
         data: Dict[str, Any],
-        node_id: Optional[str] = None
+        node_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Add a node to the context graph.
@@ -224,9 +242,10 @@ class CortexBridge:
             return {"error": "V2 Prime Synthesis Core not available"}
 
         try:
-            from cortex.engines.synthesis import Node, NodeType
             import uuid
-            
+
+            from cortex.engines.synthesis import Node, NodeType
+
             nid = node_id or f"{node_type}:{uuid.uuid4().hex[:8]}"
             node = Node(
                 id=nid,
@@ -240,11 +259,7 @@ class CortexBridge:
             return {"error": str(e)}
 
     def add_graph_edge(
-        self,
-        source_id: str,
-        target_id: str,
-        edge_type: str,
-        weight: float = 1.0
+        self, source_id: str, target_id: str, edge_type: str, weight: float = 1.0
     ) -> Dict[str, Any]:
         """
         Add an edge to the context graph.
@@ -263,6 +278,7 @@ class CortexBridge:
 
         try:
             from cortex.engines.synthesis import Edge, EdgeType
+
             edge = Edge(
                 source_id=source_id,
                 target_id=target_id,
@@ -367,13 +383,16 @@ class CortexBridge:
 
         try:
             from cortex.protocols.iap import IAPMessage
+
             message = IAPMessage.from_dict(message_dict)
             response = self.iap.handle_message(message)
             return response.to_dict()
         except Exception as e:
             return {"error": str(e)}
 
-    def register_agent(self, agent_id: str, role: str, capabilities: List[str] = None) -> Dict[str, Any]:
+    def register_agent(
+        self, agent_id: str, role: str, capabilities: List[str] = None
+    ) -> Dict[str, Any]:
         """
         Register an agent for IAP communication.
 
@@ -390,6 +409,7 @@ class CortexBridge:
 
         try:
             from cortex.protocols.iap import Agent, AgentRole
+
             agent = Agent(
                 id=agent_id,
                 role=AgentRole(role),
@@ -515,9 +535,7 @@ class CortexBridge:
 
     # --- 3. Execution Bridge ---
 
-    def trigger_action(
-        self, agent_id: str, payload: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
+    def trigger_action(self, agent_id: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Trigger an automated agent via Local Orchestrator.
 
@@ -658,10 +676,7 @@ class CortexBridge:
             return {"error": str(e)}
 
     def get_project_health(
-        self,
-        project: str,
-        days: int = 7,
-        force_refresh: bool = False
+        self, project: str, days: int = 7, force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
         Get health score for a specific project.
@@ -754,7 +769,10 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.get_dependency_analysis(project)
         except Exception as e:
@@ -779,7 +797,10 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.get_dependency_health(project)
         except Exception as e:
@@ -805,7 +826,10 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.find_circular_dependencies(project)
         except Exception as e:
@@ -816,7 +840,7 @@ class CortexBridge:
         project: str,
         format: str = "ascii",
         include_stdlib: bool = False,
-        include_external: bool = True
+        include_external: bool = True,
     ) -> Dict[str, Any]:
         """
         Export dependency graph in specified format.
@@ -839,8 +863,12 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
-            from cortex.agents.data_agent.analyzers.dependency_mapper import DependencyMapper
+            from cortex.agents.data_agent.analyzers.dependency_mapper import (
+                DependencyMapper,
+            )
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
 
             analyzer = ProjectAnalyzer()
             project_path = analyzer.projects.get(project)
@@ -851,13 +879,11 @@ class CortexBridge:
 
             if format == "dot":
                 graph = mapper.export_to_dot(
-                    include_stdlib=include_stdlib,
-                    include_external=include_external
+                    include_stdlib=include_stdlib, include_external=include_external
                 )
             elif format == "mermaid":
                 graph = mapper.export_to_mermaid(
-                    include_stdlib=include_stdlib,
-                    include_external=include_external
+                    include_stdlib=include_stdlib, include_external=include_external
                 )
             elif format == "ascii":
                 graph = mapper.generate_ascii_tree()
@@ -868,7 +894,7 @@ class CortexBridge:
                 "success": True,
                 "project": project,
                 "format": format,
-                "graph": graph
+                "graph": graph,
             }
         except Exception as e:
             return {"error": str(e)}
@@ -892,7 +918,10 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.get_package_dependencies(project)
         except Exception as e:
@@ -917,15 +946,17 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.compare_package_dependencies(project)
         except Exception as e:
             return {"error": str(e)}
 
     def analyze_portfolio_dependencies(
-        self,
-        project_filter: Optional[str] = None
+        self, project_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze dependencies across entire portfolio.
@@ -945,7 +976,10 @@ class CortexBridge:
             return {"error": "Portfolio memory not available"}
 
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer()
             return analyzer.analyze_portfolio_dependencies(project_filter=project_filter)
         except Exception as e:
@@ -959,7 +993,7 @@ class CortexBridge:
         project: str,
         query_type: str = "spec",
         use_cache: bool = True,
-        parallel: bool = True
+        parallel: bool = True,
     ) -> Dict[str, Any]:
         """
         Query unified intelligence API with enhanced features.
@@ -997,18 +1031,13 @@ class CortexBridge:
                 project=project,
                 query_type=query_type_enum,
                 use_cache=use_cache,
-                parallel=parallel
+                parallel=parallel,
             )
             return result.to_dict()
         except Exception as e:
             return {"error": str(e)}
 
-    def find_similar_work(
-        self,
-        domain: str,
-        project: str,
-        limit: int = 5
-    ) -> List[Dict[str, Any]]:
+    def find_similar_work(self, domain: str, project: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Find similar work across portfolio.
 
@@ -1029,16 +1058,14 @@ class CortexBridge:
 
         try:
             from dataclasses import asdict
+
             similar = self.spec_kb.find_similar(domain, k=limit, project_filter=project)
             return [asdict(s) for s in similar]
         except Exception as e:
             return [{"error": str(e)}]
 
     def search_specs(
-        self,
-        query: str,
-        project: Optional[str] = None,
-        limit: int = 5
+        self, query: str, project: Optional[str] = None, limit: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Search indexed specifications (alias for find_similar_work for API compatibility).
@@ -1060,8 +1087,9 @@ class CortexBridge:
 
         try:
             # Try intelligence version first (ChromaDB-based)
-            if hasattr(self.spec_kb, 'find_similar'):
+            if hasattr(self.spec_kb, "find_similar"):
                 from dataclasses import asdict
+
                 similar = self.spec_kb.find_similar(query, k=limit, project_filter=project)
                 # Transform SimilarWork dataclass to expected format
                 results = []
@@ -1079,7 +1107,7 @@ class CortexBridge:
                     results.append(result)
                 return results
             # Fallback to simple hash-based version
-            elif hasattr(self.spec_kb, 'search'):
+            elif hasattr(self.spec_kb, "search"):
                 results = self.spec_kb.search(query, project=project, limit=limit)
                 # Simple version already returns dicts with spec_name
                 return results
@@ -1108,11 +1136,12 @@ class CortexBridge:
         try:
             # Load SessionContext dataclass
             from dataclasses import asdict
+
             session_ctx = self.session_mgr.load_session_context()
-            
+
             if not session_ctx:
                 return {"error": "No session context available"}
-            
+
             if format == "terminal":
                 # Format for terminal display
                 context_dict = asdict(session_ctx)
@@ -1120,7 +1149,7 @@ class CortexBridge:
                 lines = [
                     f"Project: {context_dict.get('project', 'unknown')}",
                     f"Focus: {context_dict.get('current_focus', 'unknown')}",
-                    f"Goals: {', '.join(context_dict.get('active_goals', []))}"
+                    f"Goals: {', '.join(context_dict.get('active_goals', []))}",
                 ]
                 return {"context": "\n".join(lines), "format": "terminal"}
             else:
@@ -1130,25 +1159,20 @@ class CortexBridge:
                 result = {
                     "project": {
                         "name": context_dict.get("project", "unknown"),
-                        "path": context_dict.get("working_directory", "")
+                        "path": context_dict.get("working_directory", ""),
                     },
-                    "git": {
-                        "recent_commits": context_dict.get("recent_work", [])
-                    },
+                    "git": {"recent_commits": context_dict.get("recent_work", [])},
                     "goals": context_dict.get("active_goals", []),
                     "focus": context_dict.get("current_focus", "unknown"),
                     "working_directory": context_dict.get("working_directory", ""),
-                    "last_updated": context_dict.get("last_updated", "")
+                    "last_updated": context_dict.get("last_updated", ""),
                 }
                 return result
         except Exception as e:
             return {"error": str(e)}
 
     def index_spec(
-        self,
-        spec_path: str,
-        project: str,
-        domain: Optional[str] = None
+        self, spec_path: str, project: str, domain: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Index a spec in knowledge base.
@@ -1172,7 +1196,7 @@ class CortexBridge:
             metadata = {
                 "project": project,
                 "domain": domain,
-                "indexed_at": datetime.now().isoformat()
+                "indexed_at": datetime.now().isoformat(),
             }
 
             spec_id = self.spec_kb.index_spec(Path(spec_path), metadata)
@@ -1180,7 +1204,7 @@ class CortexBridge:
             return {
                 "success": True,
                 "spec_id": spec_id,
-                "message": f"Spec indexed: {spec_path}"
+                "message": f"Spec indexed: {spec_path}",
             }
         except Exception as e:
             return {"error": str(e)}
@@ -1201,6 +1225,7 @@ class CortexBridge:
         """
         try:
             from cortex.recommendations import RecommendationEngine
+
             engine = RecommendationEngine(self.root_dir)
             return engine.get_full_report()
         except Exception as e:
@@ -1220,6 +1245,7 @@ class CortexBridge:
         """
         try:
             from cortex.recommendations import RecommendationEngine
+
             engine = RecommendationEngine(self.root_dir)
             return engine.get_recommended_next_action()
         except Exception as e:
@@ -1240,6 +1266,7 @@ class CortexBridge:
         """
         try:
             from cortex.recommendations import RecommendationEngine
+
             engine = RecommendationEngine(self.root_dir)
             return engine.get_risk_alerts()
         except Exception as e:
@@ -1263,6 +1290,7 @@ class CortexBridge:
         """
         try:
             from cortex.recommendations import RecommendationEngine
+
             engine = RecommendationEngine(self.root_dir)
             return engine.get_priority_projects(limit=limit)
         except Exception as e:
@@ -1270,10 +1298,7 @@ class CortexBridge:
 
     # --- Batch API Methods ---
 
-    def submit_research_batch(
-        self,
-        research_items: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def submit_research_batch(self, research_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Submit a batch of research discovery requests.
 
@@ -1294,6 +1319,7 @@ class CortexBridge:
         """
         try:
             from cortex.batch.research_batcher import ResearchBatcher
+
             batcher = ResearchBatcher()
             return batcher.process_batch(research_items)
         except ImportError as e:
@@ -1301,10 +1327,7 @@ class CortexBridge:
         except Exception as e:
             return {"error": str(e)}
 
-    def submit_briefing_batch(
-        self,
-        contexts: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def submit_briefing_batch(self, contexts: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Submit a batch of briefing generation requests.
 
@@ -1325,9 +1348,13 @@ class CortexBridge:
             >>> result = bridge.submit_briefing_batch(contexts)
         """
         try:
-            from cortex.batch.briefing_batcher import BriefingContext, RecommendationBatcher
+            from cortex.batch.briefing_batcher import (
+                BriefingContext,
+                RecommendationBatcher,
+            )
+
             batcher = RecommendationBatcher(root_dir=self.root_dir)
-            
+
             # Convert dicts to BriefingContext objects
             briefing_contexts = [
                 BriefingContext(
@@ -1335,11 +1362,11 @@ class CortexBridge:
                     system_health=ctx.get("system_health", {}),
                     execution_history=ctx.get("execution_history", {}),
                     goals_context=ctx.get("goals_context", {}),
-                    context_id=ctx.get("context_id", f"briefing_{i}")
+                    context_id=ctx.get("context_id", f"briefing_{i}"),
                 )
                 for i, ctx in enumerate(contexts)
             ]
-            
+
             return batcher.process_batch(briefing_contexts)
         except ImportError as e:
             return {"error": f"BriefingBatcher not available: {e}"}
@@ -1362,6 +1389,7 @@ class CortexBridge:
         """
         try:
             from cortex.batch.batch_api_client import BatchAPIClient
+
             client = BatchAPIClient()
             return client.get_batch_status(batch_id)
         except ImportError as e:
@@ -1372,10 +1400,7 @@ class CortexBridge:
     # --- 6. Planning Bridge ---
 
     def create_plan(
-        self,
-        project: str,
-        title: str = None,
-        auto_generate: bool = True
+        self, project: str, title: str = None, auto_generate: bool = True
     ) -> Dict[str, Any]:
         """
         Create an execution plan from recommendations.
@@ -1389,8 +1414,8 @@ class CortexBridge:
             Plan summary
         """
         try:
-            from recommendation_engine import RecommendationEngine
             from intelligence.planning import PlanPriority
+            from recommendation_engine import RecommendationEngine
 
             # Initialize recommendation engine for the project
             project_path = self.root_dir / project
@@ -1401,9 +1426,7 @@ class CortexBridge:
 
             # Create plan
             plan = engine.create_plan(
-                title=title,
-                priority=PlanPriority.MEDIUM,
-                auto_generate=auto_generate
+                title=title, priority=PlanPriority.MEDIUM, auto_generate=auto_generate
             )
 
             return {
@@ -1412,7 +1435,7 @@ class CortexBridge:
                 "title": plan.title,
                 "steps": len(plan.steps),
                 "estimated_time": plan.estimated_total_time,
-                "message": f"Plan created: {plan.id}"
+                "message": f"Plan created: {plan.id}",
             }
 
         except Exception as e:
@@ -1439,11 +1462,7 @@ class CortexBridge:
 
             plans = executor.list_plans(status_filter=status_filter)
 
-            return {
-                "success": True,
-                "plans": plans,
-                "count": len(plans)
-            }
+            return {"success": True, "plans": plans, "count": len(plans)}
 
         except Exception as e:
             return {"error": str(e)}
@@ -1466,15 +1485,9 @@ class CortexBridge:
             plan = executor.load_plan(plan_id)
 
             if format == "markdown":
-                return {
-                    "success": True,
-                    "markdown": plan.to_markdown()
-                }
+                return {"success": True, "markdown": plan.to_markdown()}
             else:
-                return {
-                    "success": True,
-                    "plan": plan.to_dict()
-                }
+                return {"success": True, "plan": plan.to_dict()}
 
         except Exception as e:
             return {"error": str(e)}
@@ -1502,11 +1515,15 @@ class CortexBridge:
                 "success": True,
                 "plan_id": plan.id,
                 "status": plan.status.value,
-                "next_step": {
-                    "id": next_step.id,
-                    "title": next_step.title,
-                    "description": next_step.description
-                } if next_step else None
+                "next_step": (
+                    {
+                        "id": next_step.id,
+                        "title": next_step.title,
+                        "description": next_step.description,
+                    }
+                    if next_step
+                    else None
+                ),
             }
 
         except Exception as e:
@@ -1536,12 +1553,16 @@ class CortexBridge:
                 "success": True,
                 "step_id": step_id,
                 "progress": progress,
-                "next_step": {
-                    "id": next_step.id,
-                    "title": next_step.title,
-                    "description": next_step.description
-                } if next_step else None,
-                "completed": progress.get('completion_pct') == 100
+                "next_step": (
+                    {
+                        "id": next_step.id,
+                        "title": next_step.title,
+                        "description": next_step.description,
+                    }
+                    if next_step
+                    else None
+                ),
+                "completed": progress.get("completion_pct") == 100,
             }
 
         except Exception as e:
@@ -1560,10 +1581,7 @@ class CortexBridge:
             executor = PlanExecutor()
             progress = executor.get_progress()
 
-            return {
-                "success": True,
-                "progress": progress
-            }
+            return {"success": True, "progress": progress}
 
         except Exception as e:
             return {"error": str(e)}
@@ -1592,8 +1610,9 @@ class CortexBridge:
             >>> report = bridge.absorb_work(project="cortex")
         """
         try:
-            from work_absorber import WorkAbsorber
             from datetime import datetime
+
+            from work_absorber import WorkAbsorber
 
             absorber = WorkAbsorber()
 
@@ -1798,7 +1817,9 @@ class CortexBridge:
 
     # --- 7. Layer 1: Project Analysis Bridge ---
 
-    def get_warnings(self, project: Optional[str] = None, severity: Optional[str] = None) -> Dict[str, Any]:
+    def get_warnings(
+        self, project: Optional[str] = None, severity: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Get warnings for project(s).
 
@@ -1818,12 +1839,15 @@ class CortexBridge:
                 return {"error": "Portfolio memory not available"}
 
             warnings = self.portfolio.get_warnings(project=project, severity=severity)
-            
+
             # Categorize warnings
-            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.agents.data_agent.analyzers.warning_generator import (
+                WarningGenerator,
+            )
+
             generator = WarningGenerator()
             categorized = generator.categorize_warnings(warnings)
-            
+
             return {
                 "success": True,
                 "total_warnings": len(warnings),
@@ -1854,8 +1878,10 @@ class CortexBridge:
             >>> warnings = bridge.generate_warnings("cortex")
         """
         try:
-            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
             from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+            from cortex.agents.data_agent.analyzers.warning_generator import (
+                WarningGenerator,
+            )
 
             project_path = self.root_dir / project
             if not project_path.exists():
@@ -1897,49 +1923,70 @@ class CortexBridge:
             A list of warning dictionaries.
         """
         try:
-            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.agents.data_agent.analyzers.warning_generator import (
+                WarningGenerator,
+            )
             from cortex.intelligence.monitoring.metric_tracker import MetricTracker
             from cortex.intelligence.monitoring.trend_analyzer import TrendAnalyzer
 
             metric_tracker = MetricTracker()
             trend_analyzer = TrendAnalyzer(metric_tracker)
             warning_generator = WarningGenerator()
-            
+
             # Get trends from TrendAnalyzer
             all_trends = trend_analyzer.get_all_trends(project_name, days)
-            
+
             # Convert Trend objects to dict format for WarningGenerator
             trends = []
             for metric_type, trend in all_trends.items():
                 if trend.alert_level.value != "none":
-                    trends.append({
-                        "metric": metric_type,
-                        "direction": "decreasing" if trend.direction.value == "degrading" else ("increasing" if trend.direction.value == "improving" else "stable"),
-                        "current_value": trend.end_value,
-                        "velocity": trend.rate,
-                        "is_concerning": trend.alert_level.value in ["warning", "critical"],
-                        "severity": "critical" if trend.alert_level.value == "critical" else ("high" if trend.alert_level.value == "warning" else "medium"),
-                    })
-            
+                    trends.append(
+                        {
+                            "metric": metric_type,
+                            "direction": (
+                                "decreasing"
+                                if trend.direction.value == "degrading"
+                                else (
+                                    "increasing"
+                                    if trend.direction.value == "improving"
+                                    else "stable"
+                                )
+                            ),
+                            "current_value": trend.end_value,
+                            "velocity": trend.rate,
+                            "is_concerning": trend.alert_level.value in ["warning", "critical"],
+                            "severity": (
+                                "critical"
+                                if trend.alert_level.value == "critical"
+                                else ("high" if trend.alert_level.value == "warning" else "medium")
+                            ),
+                        }
+                    )
+
             # Get health data if available
             health_data = None
             try:
-                from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+                from cortex.agents.data_agent.analyzers.health_tracker import (
+                    HealthTracker,
+                )
+
                 project_path = self.root_dir / project_name
                 if project_path.exists():
                     health_tracker = HealthTracker()
                     health_data = health_tracker.get_project_health(project_path)
             except Exception:
                 pass
-            
+
             # Generate warnings
             warnings = warning_generator.generate_warnings(project_name, trends, health_data)
-            
+
             return warnings
         except Exception as e:
             return [{"error": str(e)}]
 
-    def get_warning_dashboard(self, project_name: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+    def get_warning_dashboard(
+        self, project_name: Optional[str] = None, days: int = 30
+    ) -> Dict[str, Any]:
         """
         Get a dashboard of warnings, optionally filtered by project.
 
@@ -1951,14 +1998,16 @@ class CortexBridge:
             A dictionary representing the warning dashboard.
         """
         try:
-            from cortex.agents.data_agent.analyzers.warning_generator import WarningGenerator
+            from cortex.agents.data_agent.analyzers.warning_generator import (
+                WarningGenerator,
+            )
             from cortex.intelligence.monitoring.metric_tracker import MetricTracker
             from cortex.intelligence.monitoring.trend_analyzer import TrendAnalyzer
 
             metric_tracker = MetricTracker()
             trend_analyzer = TrendAnalyzer(metric_tracker)
             warning_generator = WarningGenerator()
-            
+
             # Get all projects or just the specified one
             if project_name:
                 projects = [project_name]
@@ -1970,51 +2019,75 @@ class CortexBridge:
                 if not projects:
                     return {
                         "total_warnings": 0,
-                        "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+                        "by_severity": {
+                            "critical": 0,
+                            "high": 0,
+                            "medium": 0,
+                            "low": 0,
+                        },
                         "by_type": {},
                         "by_project": {},
                         "warnings": [],
                     }
-            
+
             all_warnings = []
             by_project = {}
-            
+
             for proj in projects:
                 # Get trends for this project
                 all_trends = trend_analyzer.get_all_trends(proj, days)
-                
+
                 # Convert Trend objects to dict format
                 trends = []
                 for metric_type, trend in all_trends.items():
                     if trend.alert_level.value != "none":
-                        trends.append({
-                            "metric": metric_type,
-                            "direction": "decreasing" if trend.direction.value == "degrading" else ("increasing" if trend.direction.value == "improving" else "stable"),
-                            "current_value": trend.end_value,
-                            "velocity": trend.rate,
-                            "is_concerning": trend.alert_level.value in ["warning", "critical"],
-                            "severity": "critical" if trend.alert_level.value == "critical" else ("high" if trend.alert_level.value == "warning" else "medium"),
-                        })
-                
+                        trends.append(
+                            {
+                                "metric": metric_type,
+                                "direction": (
+                                    "decreasing"
+                                    if trend.direction.value == "degrading"
+                                    else (
+                                        "increasing"
+                                        if trend.direction.value == "improving"
+                                        else "stable"
+                                    )
+                                ),
+                                "current_value": trend.end_value,
+                                "velocity": trend.rate,
+                                "is_concerning": trend.alert_level.value in ["warning", "critical"],
+                                "severity": (
+                                    "critical"
+                                    if trend.alert_level.value == "critical"
+                                    else (
+                                        "high" if trend.alert_level.value == "warning" else "medium"
+                                    )
+                                ),
+                            }
+                        )
+
                 # Get health data if available
                 health_data = None
                 try:
-                    from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+                    from cortex.agents.data_agent.analyzers.health_tracker import (
+                        HealthTracker,
+                    )
+
                     project_path = self.root_dir / proj
                     if project_path.exists():
                         health_tracker = HealthTracker()
                         health_data = health_tracker.get_project_health(project_path)
                 except Exception:
                     pass
-                
+
                 # Generate warnings for this project
                 project_warnings = warning_generator.generate_warnings(proj, trends, health_data)
                 all_warnings.extend(project_warnings)
                 by_project[proj] = project_warnings
-            
+
             # Categorize all warnings
             categorized = warning_generator.categorize_warnings(all_warnings)
-            
+
             return {
                 "total_warnings": len(all_warnings),
                 "by_severity": {
@@ -2059,7 +2132,10 @@ class CortexBridge:
             A dictionary containing the project's deep analysis profile.
         """
         try:
-            from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
+            from cortex.agents.data_agent.analyzers.project_analyzer import (
+                ProjectAnalyzer,
+            )
+
             analyzer = ProjectAnalyzer(self.root_dir)
             return analyzer.analyze_project_deep(project_name, quick)
         except Exception as e:
@@ -2095,19 +2171,18 @@ class CortexBridge:
                     "languages": list(profile.tech_stack.languages),
                     "frameworks": list(profile.tech_stack.frameworks),
                     "databases": list(profile.tech_stack.databases),
-                    "tools": list(profile.tech_stack.tools)
+                    "tools": list(profile.tech_stack.tools),
                 },
                 "test_coverage": {
                     "test_files": profile.test_coverage.test_files,
                     "source_files": profile.test_coverage.source_files,
                     "estimated_coverage": profile.test_coverage.estimated_coverage,
-                    "is_low": profile.test_coverage.is_low
+                    "is_low": profile.test_coverage.is_low,
                 },
                 "critical_files": [
-                    {"path": cf.path, "reason": cf.reason}
-                    for cf in profile.critical_files[:5]
+                    {"path": cf.path, "reason": cf.reason} for cf in profile.critical_files[:5]
                 ],
-                "warnings": profile.warnings
+                "warnings": profile.warnings,
             }
 
         except Exception as e:
@@ -2141,7 +2216,7 @@ class CortexBridge:
                 "success": True,
                 "task": task,
                 "similar_work": similar,
-                "count": len(similar)
+                "count": len(similar),
             }
 
         except Exception as e:
@@ -2150,40 +2225,32 @@ class CortexBridge:
     # --- 9. Smart Recommendations Bridge ---
 
     def get_smart_recommendations(
-        self,
-        project: str,
-        limit: int = 10,
-        context: Optional[Dict[str, Any]] = None
+        self, project: str, limit: int = 10, context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Get smart, prioritized recommendations for a project.
-        
+
         Args:
             project: Project name
             limit: Maximum recommendations to return
             context: Optional context dictionary
-            
+
         Returns:
             Dictionary with prioritized recommendations
         """
         try:
             from recommendation_engine import RecommendationEngine
-            
+
             project_path = self.root_dir / project
             if not project_path.exists():
                 project_path = self.root_dir
-            
+
             engine = RecommendationEngine(
-                project_path=project_path,
-                enable_learning=True,
-                enable_patterns=True
+                project_path=project_path, enable_learning=True, enable_patterns=True
             )
-            
-            recommendations = engine.generate_recommendations(
-                context=context,
-                limit=limit
-            )
-            
+
+            recommendations = engine.generate_recommendations(context=context, limit=limit)
+
             # Convert to dict format
             rec_dicts = []
             for rec in recommendations:
@@ -2193,69 +2260,189 @@ class CortexBridge:
                     "description": rec.description,
                     "priority": rec.priority,
                     "confidence": rec.confidence,
-                    "calculated_priority": rec.metadata.get("calculated_priority", 0.5) if rec.metadata else 0.5,
+                    "calculated_priority": (
+                        rec.metadata.get("calculated_priority", 0.5) if rec.metadata else 0.5
+                    ),
                     "files": rec.files or [],
                     "steps": rec.steps or [],
-                    "rationale": rec.metadata.get("rationale", "") if rec.metadata else "",
+                    "rationale": (rec.metadata.get("rationale", "") if rec.metadata else ""),
                     "pattern": rec.metadata.get("pattern", "") if rec.metadata else "",
-                    "pattern_success_rate": rec.metadata.get("pattern_success_rate", 0.0) if rec.metadata else 0.0,
+                    "pattern_success_rate": (
+                        rec.metadata.get("pattern_success_rate", 0.0) if rec.metadata else 0.0
+                    ),
                 }
                 rec_dicts.append(rec_dict)
-            
+
             return {
                 "success": True,
                 "project": project,
                 "recommendations": rec_dicts,
                 "count": len(rec_dicts),
                 "summary": {
-                    "high_priority": sum(1 for r in rec_dicts if r.get("calculated_priority", 0) > 0.7),
+                    "high_priority": sum(
+                        1 for r in rec_dicts if r.get("calculated_priority", 0) > 0.7
+                    ),
                     "pattern_based": sum(1 for r in rec_dicts if r.get("pattern", "")),
-                }
+                },
             }
-            
+
         except Exception as e:
             return {"error": str(e)}
 
-    def get_recommendation_dashboard(
-        self,
-        project: str,
-        limit: int = 10
-    ) -> Dict[str, Any]:
+    def get_recommendation_dashboard(self, project: str, limit: int = 10) -> Dict[str, Any]:
         """
         Get recommendation dashboard with prioritized recommendations, health, and context.
-        
+
         Args:
             project: Project name
             limit: Maximum recommendations to return
-            
+
         Returns:
             Dashboard dictionary with recommendations, health, alerts, and patterns
         """
         try:
             from recommendation_engine import RecommendationEngine
-            
+
             project_path = self.root_dir / project
             if not project_path.exists():
                 project_path = self.root_dir
-            
+
             engine = RecommendationEngine(
-                project_path=project_path,
-                enable_learning=True,
-                enable_patterns=True
+                project_path=project_path, enable_learning=True, enable_patterns=True
             )
-            
-            dashboard = engine.get_recommendation_dashboard(
-                project=project,
-                limit=limit
-            )
-            
-            return {
-                "success": True,
-                **dashboard
-            }
-            
+
+            dashboard = engine.get_recommendation_dashboard(project=project, limit=limit)
+
+            return {"success": True, **dashboard}
+
         except Exception as e:
             return {"error": str(e)}
+
+    # ==================== Rule Tracking Methods ====================
+
+    def log_rule_event(
+        self, rule_name: str, event_type: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Log a rule adherence event for Cortex learning.
+
+        Args:
+            rule_name: Name of the rule (e.g., "read_before_edit", "file_references", "unnecessary_questions")
+            event_type: Type of event ("violation", "adherence", "warning")
+            context: Additional context (tool, file, project, etc.)
+
+        Returns:
+            Dict with success status and event_id
+        """
+        from datetime import datetime
+
+        # Rule events file
+        rule_events_file = Path.home() / ".cortex" / "rule_events.jsonl"
+        rule_events_file.parent.mkdir(parents=True, exist_ok=True)
+
+        event_id = f"rule_{rule_name}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+
+        event = {
+            "event_id": event_id,
+            "timestamp": datetime.now().isoformat(),
+            "rule_name": rule_name,
+            "event_type": event_type,
+            "context": context or {},
+            "project": context.get("project", "unknown") if context else "unknown",
+            "session_id": context.get("session_id") if context else None,
+        }
+
+        try:
+            with open(rule_events_file, "a") as f:
+                f.write(json.dumps(event) + "\n")
+
+            return {
+                "success": True,
+                "event_id": event_id,
+                "rule_name": rule_name,
+                "event_type": event_type,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def get_rule_correlations(
+        self, rule_name: Optional[str] = None, days: int = 30
+    ) -> Dict[str, Any]:
+        """
+        Get correlations between rule violations and session outcomes.
+
+        Args:
+            rule_name: Optional filter by specific rule
+            days: Number of days to analyze
+
+        Returns:
+            Dict with rule correlations and patterns
+        """
+        from collections import defaultdict
+        from datetime import datetime, timedelta
+
+        rule_events_file = Path.home() / ".cortex" / "rule_events.jsonl"
+        outcomes_file = Path.home() / ".cortex" / "outcomes.jsonl"
+
+        # Load rule events
+        rule_events = []
+        if rule_events_file.exists():
+            cutoff = datetime.now() - timedelta(days=days)
+            with open(rule_events_file, "r") as f:
+                for line in f:
+                    try:
+                        event = json.loads(line.strip())
+                        event_time = datetime.fromisoformat(event["timestamp"])
+                        if event_time >= cutoff:
+                            if rule_name is None or event["rule_name"] == rule_name:
+                                rule_events.append(event)
+                    except (json.JSONDecodeError, KeyError, ValueError):
+                        continue
+
+        # Load outcomes for correlation
+        outcomes = []
+        if outcomes_file.exists():
+            with open(outcomes_file, "r") as f:
+                for line in f:
+                    try:
+                        outcome = json.loads(line.strip())
+                        outcomes.append(outcome)
+                    except json.JSONDecodeError:
+                        continue
+
+        # Analyze correlations
+        by_rule = defaultdict(lambda: {"violations": 0, "adherences": 0, "warnings": 0})
+        for event in rule_events:
+            rule = event["rule_name"]
+            event_type = event["event_type"]
+            if event_type == "violation":
+                by_rule[rule]["violations"] += 1
+            elif event_type == "adherence":
+                by_rule[rule]["adherences"] += 1
+            elif event_type == "warning":
+                by_rule[rule]["warnings"] += 1
+
+        # Calculate adherence rates
+        correlations = {}
+        for rule, counts in by_rule.items():
+            total = counts["violations"] + counts["adherences"]
+            adherence_rate = counts["adherences"] / total if total > 0 else 0.0
+            correlations[rule] = {
+                "total_events": total + counts["warnings"],
+                "violations": counts["violations"],
+                "adherences": counts["adherences"],
+                "warnings": counts["warnings"],
+                "adherence_rate": round(adherence_rate, 3),
+            }
+
+        return {
+            "success": True,
+            "days_analyzed": days,
+            "total_events": len(rule_events),
+            "rules_tracked": list(correlations.keys()),
+            "correlations": correlations,
+            "outcomes_count": len(outcomes),
+        }
 
 
 def main():
@@ -2304,7 +2491,9 @@ def main():
     intel_parser = subparsers.add_parser("intelligence", help="Query unified intelligence")
     intel_parser.add_argument("request", help="User request")
     intel_parser.add_argument("--project", required=True, help="Project name")
-    intel_parser.add_argument("--type", default="spec", help="Query type (spec/impl/analysis/research)")
+    intel_parser.add_argument(
+        "--type", default="spec", help="Query type (spec/impl/analysis/research)"
+    )
 
     # similar-work
     similar_parser = subparsers.add_parser("similar-work", help="Find similar work")
@@ -2314,8 +2503,15 @@ def main():
 
     # session-context
     session_parser = subparsers.add_parser("session-context", help="Get session context")
-    session_parser.add_argument("--format", choices=["json", "terminal", "compact"], default="json", help="Output format")
-    session_parser.add_argument("--max-chars", type=int, default=450, help="Max characters for compact format")
+    session_parser.add_argument(
+        "--format",
+        choices=["json", "terminal", "compact"],
+        default="json",
+        help="Output format",
+    )
+    session_parser.add_argument(
+        "--max-chars", type=int, default=450, help="Max characters for compact format"
+    )
 
     # index-spec
     index_parser = subparsers.add_parser("index-spec", help="Index a spec")
@@ -2357,12 +2553,21 @@ def main():
 
     # plan list
     list_plans_parser = plan_sub.add_parser("list", help="List all plans")
-    list_plans_parser.add_argument("--status", choices=["draft", "active", "completed", "cancelled"], help="Filter by status")
+    list_plans_parser.add_argument(
+        "--status",
+        choices=["draft", "active", "completed", "cancelled"],
+        help="Filter by status",
+    )
 
     # plan show
     show_plan_parser = plan_sub.add_parser("show", help="Show plan details")
     show_plan_parser.add_argument("plan_id", help="Plan ID")
-    show_plan_parser.add_argument("--format", choices=["json", "markdown"], default="markdown", help="Output format")
+    show_plan_parser.add_argument(
+        "--format",
+        choices=["json", "markdown"],
+        default="markdown",
+        help="Output format",
+    )
 
     # plan start
     start_plan_parser = plan_sub.add_parser("start", help="Start plan execution")
@@ -2377,27 +2582,42 @@ def main():
     plan_sub.add_parser("progress", help="Show active plan progress")
 
     # profile - Project profiling (Layer 1)
-    profile_parser = subparsers.add_parser("profile", help="Analyze project structure and tech stack")
+    profile_parser = subparsers.add_parser(
+        "profile", help="Analyze project structure and tech stack"
+    )
     profile_parser.add_argument("project", help="Project name")
 
     # patterns - Pattern search (Layer 2)
-    patterns_parser = subparsers.add_parser("patterns", help="Find similar work from other projects")
+    patterns_parser = subparsers.add_parser(
+        "patterns", help="Find similar work from other projects"
+    )
     patterns_parser.add_argument("project", help="Current project name")
     patterns_parser.add_argument("task", help="Task description")
     patterns_parser.add_argument("--limit", type=int, default=5, help="Maximum results")
 
+    # mine-anti-patterns - Extract anti-patterns from failed outcomes
+    mine_parser = subparsers.add_parser(
+        "mine-anti-patterns", help="Extract anti-patterns from failed outcomes"
+    )
+    mine_parser.add_argument("--days", type=int, default=30, help="Days to analyze")
+    mine_parser.add_argument("--dry-run", action="store_true", help="Don't write to files")
+
     # batch
     batch_parser = subparsers.add_parser("batch", help="Batch API operations")
     batch_sub = batch_parser.add_subparsers(dest="batch_command", help="Batch subcommand")
-    
+
     # batch research
     batch_research_parser = batch_sub.add_parser("research", help="Submit research batch")
-    batch_research_parser.add_argument("--file", required=True, help="JSON file with research items")
-    
+    batch_research_parser.add_argument(
+        "--file", required=True, help="JSON file with research items"
+    )
+
     # batch briefing
     batch_briefing_parser = batch_sub.add_parser("briefing", help="Submit briefing batch")
-    batch_briefing_parser.add_argument("--file", required=True, help="JSON file with briefing contexts")
-    
+    batch_briefing_parser.add_argument(
+        "--file", required=True, help="JSON file with briefing contexts"
+    )
+
     # batch status
     batch_status_parser = batch_sub.add_parser("status", help="Get batch status")
     batch_status_parser.add_argument("batch_id", help="Batch ID to check")
@@ -2405,7 +2625,7 @@ def main():
     # recommendations - Smart recommendations
     rec_parser = subparsers.add_parser("recommendations", help="Get smart recommendations")
     rec_sub = rec_parser.add_subparsers(dest="rec_command", help="Recommendation command")
-    
+
     # recommendations report - full smart recommendations report
     rec_report_parser = rec_sub.add_parser("report", help="Get full recommendations report")
 
@@ -2427,30 +2647,28 @@ def main():
     # recommendations dashboard (legacy)
     rec_dashboard_parser = rec_sub.add_parser("dashboard", help="Get recommendation dashboard")
     rec_dashboard_parser.add_argument("project", help="Project name")
-    rec_dashboard_parser.add_argument("--limit", type=int, default=10, help="Maximum recommendations")
+    rec_dashboard_parser.add_argument(
+        "--limit", type=int, default=10, help="Maximum recommendations"
+    )
 
     args = parser.parse_args()
     bridge = CortexBridge()
 
     if args.command == "context":
-        print(
-            json.dumps(bridge.get_context(args.query, project=args.project), indent=2)
-        )
+        print(json.dumps(bridge.get_context(args.query, project=args.project), indent=2))
     elif args.command == "inject":
-        success = bridge.inject_recommendation(
-            args.title, args.rationale, priority=args.priority
-        )
+        success = bridge.inject_recommendation(args.title, args.rationale, priority=args.priority)
         print(json.dumps({"success": success}))
     elif args.command == "trigger":
         print(json.dumps(bridge.trigger_action(args.agent)))
     elif args.command == "portfolio":
         if args.subcommand == "patterns":
-            result = bridge.get_patterns(pattern_type=getattr(args, 'type', None))
+            result = bridge.get_patterns(pattern_type=getattr(args, "type", None))
             print(json.dumps(result, indent=2))
         elif args.subcommand == "lessons":
             result = bridge.get_lessons(
-                project=getattr(args, 'project', None),
-                pattern=getattr(args, 'pattern', None)
+                project=getattr(args, "project", None),
+                pattern=getattr(args, "pattern", None),
             )
             print(json.dumps(result, indent=2))
         elif args.subcommand == "project":
@@ -2462,38 +2680,40 @@ def main():
         else:
             port_parser.print_help()
     elif args.command == "intelligence":
-        result = bridge.query_intelligence(args.request, args.project, getattr(args, 'type', 'spec'))
+        result = bridge.query_intelligence(
+            args.request, args.project, getattr(args, "type", "spec")
+        )
         print(json.dumps(result, indent=2, default=str))
     elif args.command == "similar-work":
-        result = bridge.find_similar_work(args.domain, args.project, getattr(args, 'limit', 5))
+        result = bridge.find_similar_work(args.domain, args.project, getattr(args, "limit", 5))
         print(json.dumps(result, indent=2, default=str))
     elif args.command == "session-context":
         result = bridge.get_session_context()
-        format_type = getattr(args, 'format', 'json')
+        format_type = getattr(args, "format", "json")
 
         # Handle compact format for inject_context hook (<450 chars)
-        if format_type == 'compact':
-            if 'error' in result:
+        if format_type == "compact":
+            if "error" in result:
                 # Fallback to empty context
                 print("")
                 sys.exit(0)
 
-            max_chars = getattr(args, 'max_chars', 450)
+            max_chars = getattr(args, "max_chars", 450)
             parts = []
 
             # Project
-            project = result.get('project', 'Unknown')
+            project = result.get("project", "Unknown")
             parts.append(f"Project: {project}")
 
             # Focus (truncate if needed)
-            focus = result.get('current_focus', 'No active focus')
+            focus = result.get("current_focus", "No active focus")
             if len(focus) > 50:
                 focus = focus[:47] + "..."
             parts.append(f"Focus: {focus}")
 
             # First goal if available
-            if result.get('active_goals'):
-                goal = result['active_goals'][0]
+            if result.get("active_goals"):
+                goal = result["active_goals"][0]
                 if len(goal) > 40:
                     goal = goal[:37] + "..."
                 parts.append(f"Goal: {goal}")
@@ -2503,37 +2723,39 @@ def main():
 
             # Enforce max_chars limit
             if len(compact) > max_chars:
-                compact = compact[:max_chars-3] + "..."
+                compact = compact[: max_chars - 3] + "..."
 
             print(compact)
 
         # Handle terminal format for shell startup display
-        elif format_type == 'terminal':
-            if 'error' in result:
+        elif format_type == "terminal":
+            if "error" in result:
                 # Fail silently for startup hook
                 sys.exit(0)
 
             print("\n🧠 Cortex Session Intelligence\n")
 
             # Handle nested project structure
-            project_info = result.get('project', {})
+            project_info = result.get("project", {})
             if isinstance(project_info, dict):
-                project_name = project_info.get('name', 'Unknown')
+                project_name = project_info.get("name", "Unknown")
             else:
                 project_name = project_info
             print(f"📂 Project: {project_name}")
 
-            print(f"🎯 Focus: {result.get('focus', result.get('current_focus', 'No active focus'))}")
+            print(
+                f"🎯 Focus: {result.get('focus', result.get('current_focus', 'No active focus'))}"
+            )
 
             # Handle goals (could be in 'goals' or 'active_goals')
-            goals = result.get('goals', result.get('active_goals', []))
+            goals = result.get("goals", result.get("active_goals", []))
             if goals:
                 goals_display = goals[:3]  # Show max 3 goals
                 print(f"✅ Goals: {', '.join(goals_display)}")
 
             # Handle recent work (could be in git.recent_commits or recent_work)
-            git_info = result.get('git', {})
-            recent_commits = git_info.get('recent_commits', result.get('recent_work', []))
+            git_info = result.get("git", {})
+            recent_commits = git_info.get("recent_commits", result.get("recent_work", []))
             if recent_commits:
                 print("\n📝 Recent Work:")
                 for work in recent_commits[:3]:  # Show max 3 items
@@ -2544,7 +2766,7 @@ def main():
             # JSON format (default)
             print(json.dumps(result, indent=2, default=str))
     elif args.command == "index-spec":
-        result = bridge.index_spec(args.path, args.project, getattr(args, 'domain', None))
+        result = bridge.index_spec(args.path, args.project, getattr(args, "domain", None))
         print(json.dumps(result, indent=2, default=str))
     elif args.command == "health":
         import subprocess
@@ -2553,45 +2775,66 @@ def main():
         cortex_root = Path(__file__).parent
 
         if args.health_command == "summary":
-            subprocess.run([
-                sys.executable, "-m", "agents.data_agent.cli",
-                "summary", str(getattr(args, 'days', 7))
-            ], cwd=cortex_root)
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agents.data_agent.cli",
+                    "summary",
+                    str(getattr(args, "days", 7)),
+                ],
+                cwd=cortex_root,
+            )
         elif args.health_command == "project":
-            subprocess.run([
-                sys.executable, "-m", "agents.data_agent.cli",
-                "project", args.name, str(getattr(args, 'days', 7))
-            ], cwd=cortex_root)
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agents.data_agent.cli",
+                    "project",
+                    args.name,
+                    str(getattr(args, "days", 7)),
+                ],
+                cwd=cortex_root,
+            )
         elif args.health_command == "compare":
-            subprocess.run([
-                sys.executable, "-m", "agents.data_agent.cli",
-                "compare", args.project1, args.project2, str(getattr(args, 'days', 7))
-            ], cwd=cortex_root)
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agents.data_agent.cli",
+                    "compare",
+                    args.project1,
+                    args.project2,
+                    str(getattr(args, "days", 7)),
+                ],
+                cwd=cortex_root,
+            )
         elif args.health_command == "trends":
-            subprocess.run([
-                sys.executable, "-m", "agents.data_agent.cli",
-                "trends", args.name
-            ], cwd=cortex_root)
+            subprocess.run(
+                [sys.executable, "-m", "agents.data_agent.cli", "trends", args.name],
+                cwd=cortex_root,
+            )
         else:
             health_parser.print_help()
     elif args.command == "plan":
         if args.plan_command == "create":
-            result = bridge.create_plan(args.project, title=getattr(args, 'title', None))
+            result = bridge.create_plan(args.project, title=getattr(args, "title", None))
             print(json.dumps(result, indent=2))
         elif args.plan_command == "list":
-            result = bridge.list_plans(status=getattr(args, 'status', None))
+            result = bridge.list_plans(status=getattr(args, "status", None))
             print(json.dumps(result, indent=2))
         elif args.plan_command == "show":
-            result = bridge.get_plan(args.plan_id, format=getattr(args, 'format', 'json'))
-            if getattr(args, 'format', 'json') == "markdown":
-                print(result.get('markdown', 'No plan found'))
+            result = bridge.get_plan(args.plan_id, format=getattr(args, "format", "json"))
+            if getattr(args, "format", "json") == "markdown":
+                print(result.get("markdown", "No plan found"))
             else:
                 print(json.dumps(result, indent=2))
         elif args.plan_command == "start":
             result = bridge.start_plan(args.plan_id)
             print(json.dumps(result, indent=2))
         elif args.plan_command == "complete":
-            result = bridge.complete_step(args.step_id, notes=getattr(args, 'notes', ''))
+            result = bridge.complete_step(args.step_id, notes=getattr(args, "notes", ""))
             print(json.dumps(result, indent=2))
         elif args.plan_command == "progress":
             result = bridge.get_plan_progress()
@@ -2602,8 +2845,17 @@ def main():
         result = bridge.get_project_profile(args.project)
         print(json.dumps(result, indent=2))
     elif args.command == "patterns":
-        result = bridge.find_similar_work(args.project, args.task, limit=getattr(args, 'limit', 5))
+        result = bridge.find_similar_work(args.project, args.task, limit=getattr(args, "limit", 5))
         print(json.dumps(result, indent=2))
+    elif args.command == "mine-anti-patterns":
+        import subprocess
+
+        cmd = ["python3", "/Users/jesse.kemp/Dev/.claude/scripts/mine_anti_patterns.py"]
+        cmd.extend(["--days", str(getattr(args, "days", 30))])
+        if getattr(args, "dry_run", False):
+            cmd.append("--dry-run")
+        result = subprocess.run(cmd, capture_output=False)
+        sys.exit(result.returncode)
     elif args.command == "recommendations":
         if args.rec_command == "report":
             result = bridge.get_recommendations()
@@ -2611,41 +2863,47 @@ def main():
         elif args.rec_command == "next":
             result = bridge.get_next_action()
             # Pretty print for terminal
-            print(f"\n🎯 Recommended Next Action")
+            print("\n🎯 Recommended Next Action")
             print(f"   Priority: {result.get('priority', 'Unknown')}")
             print(f"   Action: {result.get('action', 'Unknown')}")
-            if result.get('project'):
+            if result.get("project"):
                 print(f"   Project: {result['project']}")
             print()
         elif args.rec_command == "alerts":
             alerts = bridge.get_risk_alerts()
-            if not alerts or (len(alerts) == 1 and 'error' in alerts[0]):
+            if not alerts or (len(alerts) == 1 and "error" in alerts[0]):
                 print("\n✅ No risk alerts\n")
             else:
                 print(f"\n⚠️  Risk Alerts ({len(alerts)})")
                 for alert in alerts:
-                    icon = "🔴" if alert.get("severity") == "HIGH" else "🟡" if alert.get("severity") == "MEDIUM" else "🟢"
-                    print(f"   {icon} [{alert.get('severity', 'Unknown')}] {alert.get('message', 'Unknown')}")
+                    icon = (
+                        "🔴"
+                        if alert.get("severity") == "HIGH"
+                        else "🟡" if alert.get("severity") == "MEDIUM" else "🟢"
+                    )
+                    print(
+                        f"   {icon} [{alert.get('severity', 'Unknown')}] {alert.get('message', 'Unknown')}"
+                    )
                     print(f"      → {alert.get('recommendation', '')}")
                 print()
         elif args.rec_command == "priorities":
-            priorities = bridge.get_priority_projects(limit=getattr(args, 'limit', 5))
+            priorities = bridge.get_priority_projects(limit=getattr(args, "limit", 5))
             print(f"\n📋 Priority Projects ({len(priorities)})")
             for i, p in enumerate(priorities, 1):
-                health = f" [{p.get('health_score')}/100]" if p.get('health_score') else ""
-                print(f"   {i}. [{p.get('priority', 'Unknown')}] {p.get('project', 'Unknown')}{health}")
+                health = f" [{p.get('health_score')}/100]" if p.get("health_score") else ""
+                print(
+                    f"   {i}. [{p.get('priority', 'Unknown')}] {p.get('project', 'Unknown')}{health}"
+                )
                 print(f"      {p.get('reason', '')}")
             print()
         elif args.rec_command == "get":
             result = bridge.get_smart_recommendations(
-                args.project,
-                limit=getattr(args, 'limit', 10)
+                args.project, limit=getattr(args, "limit", 10)
             )
             print(json.dumps(result, indent=2))
         elif args.rec_command == "dashboard":
             result = bridge.get_recommendation_dashboard(
-                args.project,
-                limit=getattr(args, 'limit', 10)
+                args.project, limit=getattr(args, "limit", 10)
             )
             print(json.dumps(result, indent=2))
         else:
@@ -2653,13 +2911,13 @@ def main():
     elif args.command == "batch":
         if args.batch_command == "research":
             # Load research items from JSON file
-            with open(args.file, 'r') as f:
+            with open(args.file, "r") as f:
                 research_items = json.load(f)
             result = bridge.submit_research_batch(research_items)
             print(json.dumps(result, indent=2))
         elif args.batch_command == "briefing":
             # Load briefing contexts from JSON file
-            with open(args.file, 'r') as f:
+            with open(args.file, "r") as f:
                 contexts = json.load(f)
             result = bridge.submit_briefing_batch(contexts)
             print(json.dumps(result, indent=2))

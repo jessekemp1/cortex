@@ -55,11 +55,7 @@ def main():
             followed=True,
             outcome="success",
             notes="Example workflow - simulated success",
-            context={
-                "project": (
-                    rec.related_projects[0] if rec.related_projects else "unknown"
-                )
-            },
+            context={"project": (rec.related_projects[0] if rec.related_projects else "unknown")},
         )
         print("✓ Outcome logged")
         print()
@@ -80,9 +76,7 @@ def main():
     if metrics.confidence_calibration:
         print("STEP 4: Confidence Calibration")
         print("-" * 60)
-        for bucket, rate in sorted(
-            metrics.confidence_calibration.items(), reverse=True
-        ):
+        for bucket, rate in sorted(metrics.confidence_calibration.items(), reverse=True):
             if rate > 0:
                 print(f"  {bucket}: {rate:.1%}")
         print()

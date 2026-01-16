@@ -49,10 +49,11 @@ Format as markdown with clear sections."""
         self.batch_client = BatchAPIClient()
         self.results_dir = Path.home() / ".cortex" / "research_results"
         self.results_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Try to initialize portfolio memory for result storage
         try:
             from cortex.portfolio_memory import PortfolioMemory
+
             self.portfolio = PortfolioMemory()
         except Exception:
             self.portfolio = None
@@ -112,14 +113,20 @@ Format as markdown with clear sections."""
                 # Extract key insights for aggregation
                 insights = self._extract_insights(processed_result.get("report", ""))
                 if insights:
-                    aggregated_insights.append({
-                        "item_id": item_id,
-                        "topic": next(
-                            (item.get("topic", "") for item in research_items if item.get("id") == item_id),
-                            ""
-                        ),
-                        "insights": insights,
-                    })
+                    aggregated_insights.append(
+                        {
+                            "item_id": item_id,
+                            "topic": next(
+                                (
+                                    item.get("topic", "")
+                                    for item in research_items
+                                    if item.get("id") == item_id
+                                ),
+                                "",
+                            ),
+                            "insights": insights,
+                        }
+                    )
             elif processed_result.get("status") == "error":
                 error_count += 1
 
@@ -142,9 +149,7 @@ Format as markdown with clear sections."""
             "aggregated_summary": summary,
         }
 
-    def _build_batch_requests(
-        self, research_items: List[Dict[str, Any]]
-    ) -> List[BatchRequest]:
+    def _build_batch_requests(self, research_items: List[Dict[str, Any]]) -> List[BatchRequest]:
         """Convert research items to batch requests"""
         requests = []
 
@@ -218,9 +223,7 @@ Format as markdown with clear sections."""
             }
 
         else:
-            logger.warning(
-                f"Research item {item_id} has unknown status: {result.status}"
-            )
+            logger.warning(f"Research item {item_id} has unknown status: {result.status}")
 
             return {
                 "id": item_id,
@@ -277,29 +280,35 @@ Format as markdown with clear sections."""
     def _extract_insights(self, report: str) -> List[str]:
         """Extract key insights from research report."""
         insights = []
-        
+
         # Look for key sections
         sections = ["Key Findings", "Actionable Insights", "Next Steps"]
         for section in sections:
             if section in report:
                 # Extract bullet points or key lines
-                section_text = report.split(section)[1].split("\n\n")[0] if section in report else ""
-                lines = [line.strip("- ").strip() for line in section_text.split("\n") if line.strip().startswith("-")]
+                section_text = (
+                    report.split(section)[1].split("\n\n")[0] if section in report else ""
+                )
+                lines = [
+                    line.strip("- ").strip()
+                    for line in section_text.split("\n")
+                    if line.strip().startswith("-")
+                ]
                 insights.extend(lines[:3])  # Top 3 from each section
-        
+
         return insights[:10]  # Limit to top 10 insights
 
     def _generate_aggregated_summary(
         self,
         processed_results: Dict[str, Any],
         research_items: List[Dict[str, Any]],
-        aggregated_insights: List[Dict[str, Any]]
+        aggregated_insights: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Generate aggregated summary of batch results."""
         total_items = len(research_items)
         successful = sum(1 for r in processed_results.values() if r.get("status") == "success")
         failed = sum(1 for r in processed_results.values() if r.get("status") == "error")
-        
+
         # Group by priority
         priority_groups = {"high": [], "medium": [], "low": []}
         for item in research_items:
@@ -308,27 +317,22 @@ Format as markdown with clear sections."""
             if item_id in processed_results:
                 result = processed_results[item_id]
                 if result.get("status") == "success":
-                    priority_groups[priority].append({
-                        "topic": item.get("topic", ""),
-                        "status": "success"
-                    })
-        
+                    priority_groups[priority].append(
+                        {"topic": item.get("topic", ""), "status": "success"}
+                    )
+
         return {
             "total_items": total_items,
             "successful": successful,
             "failed": failed,
             "success_rate": round((successful / total_items * 100) if total_items > 0 else 0, 2),
-            "by_priority": {
-                priority: len(items) for priority, items in priority_groups.items()
-            },
+            "by_priority": {priority: len(items) for priority, items in priority_groups.items()},
             "key_insights_count": len(aggregated_insights),
             "generated_at": datetime.now().isoformat(),
         }
 
     def _store_results_in_portfolio(
-        self,
-        processed_results: Dict[str, Any],
-        research_items: List[Dict[str, Any]]
+        self, processed_results: Dict[str, Any], research_items: List[Dict[str, Any]]
     ):
         """Store successful research results in portfolio memory with enhanced metadata."""
         if not self.portfolio:
@@ -342,29 +346,33 @@ Format as markdown with clear sections."""
                     # Find original item
                     original_item = next(
                         (item for item in research_items if item.get("id") == item_id),
-                        None
+                        None,
                     )
                     if original_item:
                         # Extract insights
                         insights = self._extract_insights(result.get("report", ""))
-                        findings.append({
-                            "topic": original_item.get("topic", ""),
-                            "report": result.get("report", ""),
-                            "insights": insights,
-                            "priority": original_item.get("priority", "medium"),
-                            "context": original_item.get("context", ""),
-                            "completed_at": result.get("completed_at"),
-                            "result_file": result.get("result_file"),
-                            "metadata": {
-                                "item_id": item_id,
-                                "source": "research_batcher",
-                                "stored_at": datetime.now().isoformat(),
+                        findings.append(
+                            {
+                                "topic": original_item.get("topic", ""),
+                                "report": result.get("report", ""),
+                                "insights": insights,
+                                "priority": original_item.get("priority", "medium"),
+                                "context": original_item.get("context", ""),
+                                "completed_at": result.get("completed_at"),
+                                "result_file": result.get("result_file"),
+                                "metadata": {
+                                    "item_id": item_id,
+                                    "source": "research_batcher",
+                                    "stored_at": datetime.now().isoformat(),
+                                },
                             }
-                        })
+                        )
 
             if findings:
                 # Store in portfolio (could be extended to use a dedicated research storage)
-                logger.info(f"Stored {len(findings)} research findings in portfolio with enhanced metadata")
+                logger.info(
+                    f"Stored {len(findings)} research findings in portfolio with enhanced metadata"
+                )
                 # Note: This could be extended to use a dedicated research storage method
                 # in portfolio_memory if such a method exists
         except Exception as e:

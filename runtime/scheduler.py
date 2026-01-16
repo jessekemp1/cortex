@@ -11,7 +11,6 @@ import structlog
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-
 from cortex.runtime.config import get_config
 
 if TYPE_CHECKING:
@@ -67,14 +66,10 @@ class TaskScheduler:
         trigger = self._parse_schedule(schedule)
 
         # Add job to scheduler
-        job = self.scheduler.add_job(
-            func=func, trigger=trigger, id=job_id, replace_existing=True
-        )
+        job = self.scheduler.add_job(func=func, trigger=trigger, id=job_id, replace_existing=True)
 
         self.jobs[agent_id] = job
-        logger.info(
-            "job_scheduled", agent_id=agent_id, schedule=schedule, job_id=job_id
-        )
+        logger.info("job_scheduled", agent_id=agent_id, schedule=schedule, job_id=job_id)
 
     def _parse_schedule(self, schedule: str):
         """Parse schedule string into APScheduler trigger.
@@ -132,7 +127,7 @@ class TaskScheduler:
             {
                 "agent_id": agent_id,
                 "job_id": job.id,
-                "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                "next_run": (job.next_run_time.isoformat() if job.next_run_time else None),
             }
             for agent_id, job in self.jobs.items()
         ]

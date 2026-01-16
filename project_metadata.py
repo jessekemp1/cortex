@@ -4,61 +4,59 @@ Read and parse .claude/project.yaml files from the AI-first workspace.
 This module provides the consumption layer for project metadata created
 during migrations.
 """
+
 import os
-import yaml
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Iterator
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, Iterator, List, Optional
+
+import yaml
 
 # Directories to skip during workspace scanning for performance
 # These are common large directories that won't contain real .claude/project.yaml files
 SKIP_DIRS = {
     # Dependencies
-    'node_modules',      # Node.js dependencies
-    'venv',             # Python virtual environment
-    '.venv',            # Python virtual environment (alternate name)
-    'env',              # Python virtual environment (alternate name)
-    'bower_components', # Bower dependencies
-
+    "node_modules",  # Node.js dependencies
+    "venv",  # Python virtual environment
+    ".venv",  # Python virtual environment (alternate name)
+    "env",  # Python virtual environment (alternate name)
+    "bower_components",  # Bower dependencies
     # Version control
-    '.git',             # Git repository data
-
+    ".git",  # Git repository data
     # Build artifacts
-    'dist',             # Build output
-    'build',            # Build output
-    '.next',            # Next.js build
-    '.nuxt',            # Nuxt.js build
-    'target',           # Rust/Java build output
-    '.tox',             # Tox test environments
-    '.eggs',            # Python eggs
-
+    "dist",  # Build output
+    "build",  # Build output
+    ".next",  # Next.js build
+    ".nuxt",  # Nuxt.js build
+    "target",  # Rust/Java build output
+    ".tox",  # Tox test environments
+    ".eggs",  # Python eggs
     # Caches
-    '__pycache__',      # Python bytecode cache
-    '.pytest_cache',    # Pytest cache
-    '.mypy_cache',      # MyPy type checker cache
-    '.ruff_cache',      # Ruff linter cache
-    'htmlcov',          # Coverage HTML reports
-    '.coverage',        # Coverage data
-
+    "__pycache__",  # Python bytecode cache
+    ".pytest_cache",  # Pytest cache
+    ".mypy_cache",  # MyPy type checker cache
+    ".ruff_cache",  # Ruff linter cache
+    "htmlcov",  # Coverage HTML reports
+    ".coverage",  # Coverage data
     # Data directories (often huge)
-    'data',             # Data files
-    'logs',             # Log files
-    'results',          # Results/output files
-    'outputs',          # Output files
-    'artifacts',        # Build/test artifacts
-
+    "data",  # Data files
+    "logs",  # Log files
+    "results",  # Results/output files
+    "outputs",  # Output files
+    "artifacts",  # Build/test artifacts
     # Workspace organization
-    '_tools',           # Tools and templates directory
-    'templates',        # Template files directory
-    '_meta',            # Meta documentation directory
-    'archive',          # Archived projects
+    "_tools",  # Tools and templates directory
+    "templates",  # Template files directory
+    "_meta",  # Meta documentation directory
+    "archive",  # Archived projects
 }
 
 
 @dataclass
 class CommonTask:
     """A documented common task from project.yaml."""
+
     name: str
     complexity: str
     steps: List[str]
@@ -67,6 +65,7 @@ class CommonTask:
 @dataclass
 class ProjectMetadata:
     """Complete project metadata from .claude/project.yaml."""
+
     name: str
     domain: str
     status: str
@@ -133,11 +132,13 @@ class ProjectMetadataReader:
         # Parse common tasks
         common_tasks = []
         for task in data.get("common_tasks", []):
-            common_tasks.append(CommonTask(
-                name=task.get("name", ""),
-                complexity=task.get("complexity", "unknown"),
-                steps=task.get("steps", [])
-            ))
+            common_tasks.append(
+                CommonTask(
+                    name=task.get("name", ""),
+                    complexity=task.get("complexity", "unknown"),
+                    steps=task.get("steps", []),
+                )
+            )
 
         metadata = ProjectMetadata(
             name=data.get("name", project_path.name),

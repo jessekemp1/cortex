@@ -190,21 +190,12 @@ class CortexOrchestrator:
         # Initialize tools (gracefully handle missing tools)
         self.project_scanner = ProjectScanner(str(root_dir)) if ProjectScanner else None
         self.goal_parser = GoalParser() if GoalParser else None
-        self.recommendation_engine = (
-            RecommendationEngine() if RecommendationEngine else None
-        )
-        self.context_intel = (
-            ContextIntelligence(root_dir) if ContextIntelligence else None
-        )
+        self.recommendation_engine = RecommendationEngine() if RecommendationEngine else None
+        self.context_intel = ContextIntelligence(root_dir) if ContextIntelligence else None
 
         # Optional local-orchestrator integration
-        if (
-            LOCAL_ORCHESTRATOR_INTEGRATION_AVAILABLE
-            and CortexLocalOrchestratorIntegration
-        ):
-            self.local_orchestrator_integration = CortexLocalOrchestratorIntegration(
-                root_dir
-            )
+        if LOCAL_ORCHESTRATOR_INTEGRATION_AVAILABLE and CortexLocalOrchestratorIntegration:
+            self.local_orchestrator_integration = CortexLocalOrchestratorIntegration(root_dir)
         else:
             self.local_orchestrator_integration = None
 
@@ -258,9 +249,7 @@ class CortexOrchestrator:
         if self.project_scanner:
             try:
                 repos = self.project_scanner.find_git_repos()
-                git_projects = [
-                    self.project_scanner.analyze_project(repo) for repo in repos
-                ]
+                git_projects = [self.project_scanner.analyze_project(repo) for repo in repos]
             except Exception as e:
                 print(f"Warning: Could not scan git projects: {e}", file=sys.stderr)
 
@@ -275,10 +264,18 @@ class CortexOrchestrator:
         if self.recommendation_engine:
             try:
                 # Build context from project activity
-                context = {
-                    "project_activity": project_activity,
-                    "goals": [g.to_dict() if hasattr(g, 'to_dict') else g for g in goals] if goals else [],
-                } if project_activity else None
+                context = (
+                    {
+                        "project_activity": project_activity,
+                        "goals": (
+                            [g.to_dict() if hasattr(g, "to_dict") else g for g in goals]
+                            if goals
+                            else []
+                        ),
+                    }
+                    if project_activity
+                    else None
+                )
 
                 recommendations = self.recommendation_engine.generate_recommendations(
                     context=context,
@@ -301,30 +298,32 @@ class CortexOrchestrator:
                         rec.confidence = adjusted_confidence
 
                         # Enhance rationale with learning insight (if rationale exists)
-                        rationale = getattr(rec, 'rationale', None) or getattr(rec, 'description', '')
+                        rationale = getattr(rec, "rationale", None) or getattr(
+                            rec, "description", ""
+                        )
                         if rationale and "previous outcomes" not in rationale.lower():
-                            if hasattr(rec, 'rationale') and rec.rationale is not None:
+                            if hasattr(rec, "rationale") and rec.rationale is not None:
                                 rec.rationale = f"{rec.rationale} ({explanation})"
-                            elif hasattr(rec, 'description'):
+                            elif hasattr(rec, "description"):
                                 rec.description = f"{rec.description} ({explanation})"
 
                         adjusted_recommendations.append(rec)
                     recommendations = adjusted_recommendations
 
             except Exception as e:
-                print(
-                    f"Warning: Could not generate recommendations: {e}", file=sys.stderr
-                )
+                print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
 
         # 4. Filter by project if specified
         if project_filter and recommendations:
             project_lower = project_filter.lower()
             filtered = []
             for r in recommendations:
-                related = getattr(r, 'related_projects', None) or []
+                related = getattr(r, "related_projects", None) or []
                 if any(project_lower in proj.lower() for proj in related):
                     filtered.append(r)
-            recommendations = filtered if filtered else recommendations[:1]  # Fallback to first if none match
+            recommendations = (
+                filtered if filtered else recommendations[:1]
+            )  # Fallback to first if none match
 
         # 5. Get context predictions if requested
         context_predictions = []
@@ -355,15 +354,11 @@ class CortexOrchestrator:
                 print(f"Warning: Could not discover tasks: {e}", file=sys.stderr)
 
         # 7. Build current state summary
-        current_state = self._build_current_state(
-            project_activity, goals, discovered_tasks
-        )
+        current_state = self._build_current_state(project_activity, goals, discovered_tasks)
 
         # 8. Extract next action and alternatives
         next_action = recommendations[0] if recommendations else None
-        alternative_actions = (
-            recommendations[1 : limit + 1] if len(recommendations) > 1 else []
-        )
+        alternative_actions = recommendations[1 : limit + 1] if len(recommendations) > 1 else []
 
         # 9. Build system health status (Golden Spec: Dependency Transparency)
         system_health = SystemHealth(
@@ -562,17 +557,13 @@ class CortexOrchestrator:
         blockers = []
 
         # Check for .env.example without .env
-        if (project_path / ".env.example").exists() and not (
-            project_path / ".env"
-        ).exists():
+        if (project_path / ".env.example").exists() and not (project_path / ".env").exists():
             blockers.append("Missing .env file")
 
         # Check for requirements.txt without venv
         if (project_path / "requirements.txt").exists():
             # Check standard venv names
-            has_venv = any(
-                (project_path / d).exists() for d in ["venv", ".venv", "env", ".env"]
-            )
+            has_venv = any((project_path / d).exists() for d in ["venv", ".venv", "env", ".env"])
             if not has_venv:
                 blockers.append("No virtualenv detected")
 

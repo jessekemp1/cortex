@@ -4,6 +4,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+
 from metrics_tracker import MetricsTracker
 
 CURRENT_TASK_FILE = Path.home() / ".claude" / "portfolio" / "current_task.json"
@@ -49,9 +50,7 @@ def complete_current_task():
 
     # Record outcome
     success = tracker.record_outcome(
-        prediction_id=prediction_id,
-        actual_outcome=outcome,
-        actual_time=actual_min
+        prediction_id=prediction_id, actual_outcome=outcome, actual_time=actual_min
     )
 
     if not success:
@@ -65,7 +64,7 @@ def complete_current_task():
             time_without_cortex=baseline_min,
             time_with_cortex=actual_min,
             project=project,
-            notes=notes
+            notes=notes,
         )
 
     # Calculate accuracy

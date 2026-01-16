@@ -5,22 +5,24 @@ Data models for process monitoring system.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 
 class ProcessCategory(str, Enum):
     """Category for process classification."""
-    AI_TOOL = "ai_tool"                    # Claude, Ollama, Copilot, etc.
-    DEV_SERVICE = "dev_service"            # Uvicorn, Streamlit, Postgres, etc.
+
+    AI_TOOL = "ai_tool"  # Claude, Ollama, Copilot, etc.
+    DEV_SERVICE = "dev_service"  # Uvicorn, Streamlit, Postgres, etc.
     BACKGROUND_AGENT = "background_agent"  # LaunchAgents, batch jobs, cron
-    CONTAINER = "container"                # Docker, Colima
-    BUILD_TOOL = "build_tool"              # pytest, npm, expo, etc.
-    SYSTEM = "system"                      # System processes
-    OTHER = "other"                        # Uncategorized
+    CONTAINER = "container"  # Docker, Colima
+    BUILD_TOOL = "build_tool"  # pytest, npm, expo, etc.
+    SYSTEM = "system"  # System processes
+    OTHER = "other"  # Uncategorized
 
 
 class ProcessStatus(str, Enum):
     """Process status."""
+
     RUNNING = "running"
     SLEEPING = "sleeping"
     ZOMBIE = "zombie"
@@ -30,6 +32,7 @@ class ProcessStatus(str, Enum):
 
 class AnomalyType(str, Enum):
     """Types of process anomalies."""
+
     CPU_SPIKE = "cpu_spike"
     MEMORY_LEAK = "memory_leak"
     ZOMBIE_PROCESS = "zombie_process"
@@ -40,6 +43,7 @@ class AnomalyType(str, Enum):
 
 class WasteType(str, Enum):
     """Types of resource waste."""
+
     IDLE_SERVICE = "idle_service"
     ORPHANED_CONTAINER = "orphaned_container"
     ZOMBIE_PROCESS = "zombie_process"
@@ -50,6 +54,7 @@ class WasteType(str, Enum):
 @dataclass
 class ProcessSnapshot:
     """Snapshot of a single process at a point in time."""
+
     pid: int
     name: str
     category: ProcessCategory
@@ -84,6 +89,7 @@ class ProcessSnapshot:
 @dataclass
 class ResourceMetric:
     """System-wide resource metrics at a point in time."""
+
     timestamp: datetime
     total_cpu_percent: float
     available_memory_mb: float
@@ -131,6 +137,7 @@ class ResourceMetric:
 @dataclass
 class Anomaly:
     """Detected process anomaly."""
+
     timestamp: datetime
     process_name: str
     process_pid: int
@@ -155,6 +162,7 @@ class Anomaly:
 @dataclass
 class WasteItem:
     """Identified resource waste."""
+
     process_name: str
     process_pid: int
     waste_type: WasteType
@@ -179,6 +187,7 @@ class WasteItem:
 @dataclass
 class UtilizationInsights:
     """System utilization pattern insights."""
+
     peak_hours: List[int]  # Hours of day with highest utilization
     idle_hours: List[int]  # Hours of day with lowest utilization
     avg_cpu_by_hour: Dict[int, float]  # Average CPU by hour of day
@@ -199,6 +208,7 @@ class UtilizationInsights:
 @dataclass
 class AIToolInsights:
     """AI tool usage insights."""
+
     tool_name: str
     usage_hours: float  # Total hours active
     idle_hours: float  # Total hours idle but running
@@ -221,6 +231,7 @@ class AIToolInsights:
 @dataclass
 class DevPatterns:
     """Development workflow patterns."""
+
     active_coding_hours: List[int]  # Hours when coding activity is high
     testing_hours: List[int]  # Hours when tests are frequently run
     build_frequency: float  # Average builds per day
@@ -239,6 +250,7 @@ class DevPatterns:
 @dataclass
 class Optimization:
     """Resource optimization suggestion."""
+
     title: str
     description: str
     priority: str  # CRITICAL, HIGH, MEDIUM, LOW
@@ -263,6 +275,7 @@ class Optimization:
 @dataclass
 class CapacityForecast:
     """Capacity forecast for task scheduling."""
+
     task_type: str  # TEST, BUILD, DEPLOY, AI_INFERENCE, etc.
     best_time_to_run: datetime
     expected_duration_minutes: float

@@ -4,8 +4,8 @@ Base class for signal detectors.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
 
 from ..models import WorkSignal
 

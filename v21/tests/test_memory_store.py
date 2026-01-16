@@ -1,11 +1,11 @@
 """Tests for typed memory store."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
 from cortex.v2.memory.store import TypedMemoryStore
-from cortex.v2.memory.types import Pattern, Incident, Skill, Decision
+from cortex.v2.memory.types import Decision, Incident, Pattern, Skill
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ class TestTypedMemoryStore:
             title="Redis Caching",
             problem="Slow API responses",
             solution="Use Redis for caching",
-            projects=["VortexV2"]
+            projects=["VortexV2"],
         )
 
         result = store.add(pattern)
@@ -38,7 +38,7 @@ class TestTypedMemoryStore:
             title="Deploy to Production",
             steps=["Run tests", "Build image", "Push to registry", "Deploy"],
             prerequisites=["All tests passing", "Staging verified"],
-            projects=["VortexV2"]
+            projects=["VortexV2"],
         )
 
         result = store.add(skill)
@@ -53,7 +53,7 @@ class TestTypedMemoryStore:
             root_cause="Connection pool limit too low",
             resolution="Increased pool size from 10 to 50",
             severity="major",
-            projects=["VortexV2"]
+            projects=["VortexV2"],
         )
 
         result = store.add(incident)
@@ -67,7 +67,7 @@ class TestTypedMemoryStore:
             chosen_option="PostgreSQL",
             alternatives=["MySQL", "MongoDB"],
             rationale="Better JSON support and PostGIS for geo queries",
-            projects=["VortexV2"]
+            projects=["VortexV2"],
         )
 
         result = store.add(decision)
@@ -75,11 +75,7 @@ class TestTypedMemoryStore:
 
     def test_get_memory(self, store):
         """Test retrieving a memory by ID."""
-        pattern = Pattern.create(
-            title="Test Pattern",
-            problem="Test",
-            solution="Test"
-        )
+        pattern = Pattern.create(title="Test Pattern", problem="Test", solution="Test")
         store.add(pattern)
 
         retrieved = store.get(pattern.id)
@@ -88,11 +84,7 @@ class TestTypedMemoryStore:
 
     def test_delete_memory(self, store):
         """Test deleting a memory."""
-        pattern = Pattern.create(
-            title="Test",
-            problem="Test",
-            solution="Test"
-        )
+        pattern = Pattern.create(title="Test", problem="Test", solution="Test")
         store.add(pattern)
         assert len(store.patterns) == 1
 
@@ -116,15 +108,10 @@ class TestTypedMemoryStore:
 
     def test_query_intent_detection_how_to(self, store):
         """Test intent detection for how-to queries."""
-        store.add(Skill.create(
-            title="Deploy Application",
-            steps=["Build", "Test", "Deploy"]
-        ))
-        store.add(Pattern.create(
-            title="Deploy Pattern",
-            problem="Need to deploy",
-            solution="Use CI/CD"
-        ))
+        store.add(Skill.create(title="Deploy Application", steps=["Build", "Test", "Deploy"]))
+        store.add(
+            Pattern.create(title="Deploy Pattern", problem="Need to deploy", solution="Use CI/CD")
+        )
 
         # "How do I" should return skills and patterns
         detected = store._detect_intent("how do i deploy")
@@ -144,18 +131,12 @@ class TestTypedMemoryStore:
 
     def test_query_by_project(self, store):
         """Test filtering by project."""
-        store.add(Pattern.create(
-            title="Pattern A",
-            problem="P",
-            solution="S",
-            projects=["VortexV2"]
-        ))
-        store.add(Pattern.create(
-            title="Pattern B",
-            problem="P",
-            solution="S",
-            projects=["AlphaArena"]
-        ))
+        store.add(
+            Pattern.create(title="Pattern A", problem="P", solution="S", projects=["VortexV2"])
+        )
+        store.add(
+            Pattern.create(title="Pattern B", problem="P", solution="S", projects=["AlphaArena"])
+        )
 
         results = store.query("pattern", projects=["VortexV2"])
         assert len(results) == 1
@@ -163,11 +144,13 @@ class TestTypedMemoryStore:
 
     def test_find_pattern(self, store):
         """Test finding a specific pattern."""
-        store.add(Pattern.create(
-            title="Redis Caching",
-            problem="Slow API responses",
-            solution="Use Redis"
-        ))
+        store.add(
+            Pattern.create(
+                title="Redis Caching",
+                problem="Slow API responses",
+                solution="Use Redis",
+            )
+        )
 
         pattern = store.find_pattern("slow api")
         assert pattern is not None
@@ -175,10 +158,7 @@ class TestTypedMemoryStore:
 
     def test_find_skill(self, store):
         """Test finding a specific skill."""
-        store.add(Skill.create(
-            title="Deploy to Production",
-            steps=["Build", "Deploy"]
-        ))
+        store.add(Skill.create(title="Deploy to Production", steps=["Build", "Deploy"]))
 
         skill = store.find_skill("deploy")
         assert skill is not None

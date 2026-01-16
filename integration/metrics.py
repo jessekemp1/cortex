@@ -39,9 +39,7 @@ class RecommendationMetrics:
         with open(self.metrics_file, "w") as f:
             json.dump(self.metrics, f, indent=2)
 
-    def record_recommendation(
-        self, action_title: str, priority: str, scheduled: bool = False
-    ):
+    def record_recommendation(self, action_title: str, priority: str, scheduled: bool = False):
         """Record a recommendation"""
         entry = {
             "timestamp": datetime.now().isoformat(),
@@ -64,7 +62,5 @@ class RecommendationMetrics:
         return {
             "total": len(recommendations),
             "scheduled": scheduled,
-            "scheduled_rate": (
-                scheduled / len(recommendations) if recommendations else 0.0
-            ),
+            "scheduled_rate": (scheduled / len(recommendations) if recommendations else 0.0),
         }

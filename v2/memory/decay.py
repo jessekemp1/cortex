@@ -7,7 +7,7 @@ Frequently used memories decay slower.
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 if TYPE_CHECKING:
     from .types import TypedMemory
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 @dataclass
 class DecayResult:
     """Result of decay calculation for a memory."""
+
     memory_id: str
     memory_type: str
     decay_factor: float
@@ -39,11 +40,11 @@ class TemporalDecay:
 
     # Half-life in days (relevance drops to 50% after this time)
     DEFAULT_HALF_LIVES: Dict[str, int] = {
-        "pattern": 180,    # 6 months - patterns stay relevant
-        "incident": 90,    # 3 months - incidents fade faster
-        "skill": 365,      # 1 year - skills are durable
-        "decision": 730,   # 2 years - decisions are semi-permanent
-        "fact": 365,       # 1 year - facts may become outdated
+        "pattern": 180,  # 6 months - patterns stay relevant
+        "incident": 90,  # 3 months - incidents fade faster
+        "skill": 365,  # 1 year - skills are durable
+        "decision": 730,  # 2 years - decisions are semi-permanent
+        "fact": 365,  # 1 year - facts may become outdated
     }
 
     # Stale threshold - memories below this are candidates for cleanup
@@ -52,7 +53,7 @@ class TemporalDecay:
     def __init__(
         self,
         half_lives: Optional[Dict[str, int]] = None,
-        stale_threshold: float = DEFAULT_STALE_THRESHOLD
+        stale_threshold: float = DEFAULT_STALE_THRESHOLD,
     ):
         """Initialize temporal decay.
 
@@ -68,7 +69,7 @@ class TemporalDecay:
         memory_type: str,
         created_at: datetime,
         last_used: Optional[datetime] = None,
-        use_count: int = 0
+        use_count: int = 0,
     ) -> float:
         """Calculate decay factor for a memory.
 
@@ -100,10 +101,7 @@ class TemporalDecay:
         # Final relevance (capped at 1.0)
         return min(1.0, base_decay + use_boost)
 
-    def calculate_decay_result(
-        self,
-        memory: "TypedMemory"
-    ) -> DecayResult:
+    def calculate_decay_result(self, memory: "TypedMemory") -> DecayResult:
         """Calculate detailed decay result for a memory.
 
         Args:
@@ -117,7 +115,7 @@ class TemporalDecay:
             memory_type=memory_type,
             created_at=memory.created_at,
             last_used=memory.last_used,
-            use_count=memory.use_count
+            use_count=memory.use_count,
         )
 
         days_since_use = max(0, (datetime.utcnow() - memory.last_used).days)
@@ -129,13 +127,11 @@ class TemporalDecay:
             effective_confidence=memory.confidence * decay_factor,
             days_since_use=days_since_use,
             use_count=memory.use_count,
-            is_stale=decay_factor < self.stale_threshold
+            is_stale=decay_factor < self.stale_threshold,
         )
 
     def apply_decay(
-        self,
-        memories: List["TypedMemory"],
-        sort_by_relevance: bool = True
+        self, memories: List["TypedMemory"], sort_by_relevance: bool = True
     ) -> List["TypedMemory"]:
         """Apply decay to a list of memories.
 
@@ -154,7 +150,7 @@ class TemporalDecay:
                 memory_type=memory_type,
                 created_at=memory.created_at,
                 last_used=memory.last_used,
-                use_count=memory.use_count
+                use_count=memory.use_count,
             )
             # Set effective confidence (original * decay)
             memory.effective_confidence = memory.confidence * decay_factor
@@ -165,9 +161,7 @@ class TemporalDecay:
         return memories
 
     def get_stale_memories(
-        self,
-        memories: List["TypedMemory"],
-        threshold: Optional[float] = None
+        self, memories: List["TypedMemory"], threshold: Optional[float] = None
     ) -> List["TypedMemory"]:
         """Find memories that have decayed below threshold.
 
@@ -187,7 +181,7 @@ class TemporalDecay:
                 memory_type=memory_type,
                 created_at=memory.created_at,
                 last_used=memory.last_used,
-                use_count=memory.use_count
+                use_count=memory.use_count,
             )
             if decay < threshold:
                 stale.append(memory)
@@ -203,10 +197,7 @@ class TemporalDecay:
         memory.last_used = datetime.utcnow()
         memory.use_count += 1
 
-    def get_decay_stats(
-        self,
-        memories: List["TypedMemory"]
-    ) -> Dict:
+    def get_decay_stats(self, memories: List["TypedMemory"]) -> Dict:
         """Get statistics about decay across memories.
 
         Args:
@@ -221,7 +212,7 @@ class TemporalDecay:
                 "stale_count": 0,
                 "stale_percentage": 0.0,
                 "avg_decay": 0.0,
-                "by_type": {}
+                "by_type": {},
             }
 
         by_type: Dict[str, List[float]] = {}
@@ -233,7 +224,7 @@ class TemporalDecay:
                 memory_type=memory_type,
                 created_at=memory.created_at,
                 last_used=memory.last_used,
-                use_count=memory.use_count
+                use_count=memory.use_count,
             )
 
             if memory_type not in by_type:
@@ -258,14 +249,11 @@ class TemporalDecay:
                     "max_decay": max(decays),
                 }
                 for t, decays in by_type.items()
-            }
+            },
         }
 
     def estimate_days_until_stale(
-        self,
-        memory_type: str,
-        current_decay: float = 1.0,
-        use_count: int = 0
+        self, memory_type: str, current_decay: float = 1.0, use_count: int = 0
     ) -> int:
         """Estimate days until a memory becomes stale.
 

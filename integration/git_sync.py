@@ -8,12 +8,12 @@ Provides safe git sync operations:
 - Full sync workflow
 """
 
-import subprocess
 import logging
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SyncResult:
     """Result of a sync operation."""
+
     success: bool
     operation: str
     message: str
@@ -30,6 +31,7 @@ class SyncResult:
 @dataclass
 class SyncStatus:
     """Preview of what sync operations would do."""
+
     current_branch: str
     is_on_main: bool
     has_uncommitted: bool
@@ -66,7 +68,7 @@ class GitSynchronizer:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
             return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
         except subprocess.TimeoutExpired:
@@ -82,6 +84,7 @@ class GitSynchronizer:
         success, stdout, _ = self._run_git(["status", "--porcelain"])
         if not success:
             return False, 0
+
         # Ignore untracked (??) and submodule changes (lowercase in first 2 chars like ' m')
         def is_real_change(line):
             if not line.strip() or line.startswith("??"):
@@ -91,6 +94,7 @@ class GitSynchronizer:
             if any(c.islower() for c in status):
                 return False
             return True
+
         lines = [l for l in stdout.split("\n") if is_real_change(l)]
         return len(lines) > 0, len(lines)
 
@@ -98,9 +102,9 @@ class GitSynchronizer:
         branch = branch or self._get_current_branch()
         if branch == "main":
             return 0, 0
-        success, stdout, _ = self._run_git([
-            "rev-list", "--left-right", "--count", f"main...{branch}"
-        ])
+        success, stdout, _ = self._run_git(
+            ["rev-list", "--left-right", "--count", f"main...{branch}"]
+        )
         if success and stdout:
             parts = stdout.split()
             if len(parts) == 2:
@@ -109,10 +113,14 @@ class GitSynchronizer:
 
     def _get_stale_branches(self, days: int = 7) -> List[str]:
         stale = []
-        success, stdout, _ = self._run_git([
-            "for-each-ref", "--sort=-committerdate",
-            "--format=%(refname:short)|%(committerdate:unix)", "refs/heads/"
-        ])
+        success, stdout, _ = self._run_git(
+            [
+                "for-each-ref",
+                "--sort=-committerdate",
+                "--format=%(refname:short)|%(committerdate:unix)",
+                "refs/heads/",
+            ]
+        )
         if not success:
             return stale
 
@@ -141,9 +149,13 @@ class GitSynchronizer:
 
     def _get_gone_branches(self) -> List[str]:
         gone = []
-        success, stdout, _ = self._run_git([
-            "for-each-ref", "--format=%(refname:short) %(upstream:track)", "refs/heads/"
-        ])
+        success, stdout, _ = self._run_git(
+            [
+                "for-each-ref",
+                "--format=%(refname:short) %(upstream:track)",
+                "refs/heads/",
+            ]
+        )
         if success:
             for line in stdout.split("\n"):
                 if "[gone]" in line:
@@ -173,11 +185,17 @@ class GitSynchronizer:
             actions.append("Already in sync")
 
         return SyncStatus(
-            current_branch=current, is_on_main=(current == "main"),
-            has_uncommitted=has_uncommitted, uncommitted_count=uncommitted_count,
-            behind_main=behind, ahead_of_main=ahead, stale_branches=stale,
-            merged_branches=merged, unmerged_stale=unmerged,
-            remote_deleted=gone, actions_needed=actions
+            current_branch=current,
+            is_on_main=(current == "main"),
+            has_uncommitted=has_uncommitted,
+            uncommitted_count=uncommitted_count,
+            behind_main=behind,
+            ahead_of_main=ahead,
+            stale_branches=stale,
+            merged_branches=merged,
+            unmerged_stale=unmerged,
+            remote_deleted=gone,
+            actions_needed=actions,
         )
 
     def fetch_all(self, prune: bool = True) -> SyncResult:
@@ -185,8 +203,12 @@ class GitSynchronizer:
         if prune:
             args.append("--prune")
         success, stdout, stderr = self._run_git(args)
-        return SyncResult(success, "fetch",
-            "Fetched from all remotes" if success else "Fetch failed", stdout or stderr)
+        return SyncResult(
+            success,
+            "fetch",
+            "Fetched from all remotes" if success else "Fetch failed",
+            stdout or stderr,
+        )
 
     def pull_main(self) -> SyncResult:
         current = self._get_current_branch()
@@ -204,8 +226,12 @@ class GitSynchronizer:
             return SyncResult(True, "pull_main", "Updated main branch", stdout)
         else:
             success, stdout, err = self._run_git(["pull", "origin", "main"])
-            return SyncResult(success, "pull_main",
-                "Updated main branch" if success else f"Pull failed: {err}", stdout)
+            return SyncResult(
+                success,
+                "pull_main",
+                "Updated main branch" if success else f"Pull failed: {err}",
+                stdout,
+            )
 
     def rebase_on_main(self) -> SyncResult:
         current = self._get_current_branch()
@@ -214,13 +240,18 @@ class GitSynchronizer:
 
         has_changes, count = self._has_uncommitted_changes()
         if has_changes:
-            return SyncResult(False, "rebase",
-                f"Cannot rebase: {count} uncommitted changes. Commit or stash first.")
+            return SyncResult(
+                False,
+                "rebase",
+                f"Cannot rebase: {count} uncommitted changes. Commit or stash first.",
+            )
 
         success, stdout, stderr = self._run_git(["rebase", "main"])
         if not success:
             self._run_git(["rebase", "--abort"])
-            return SyncResult(False, "rebase", "Rebase failed - conflicts detected. Aborted.", stderr)
+            return SyncResult(
+                False, "rebase", "Rebase failed - conflicts detected. Aborted.", stderr
+            )
         return SyncResult(True, "rebase", f"Rebased {current} on main", stdout)
 
     def clean_stale_branches(self, force: bool = False, dry_run: bool = False) -> SyncResult:
@@ -248,7 +279,12 @@ class GitSynchronizer:
                 skipped.append(f"{branch} (unmerged, use --force)")
 
         if dry_run:
-            return SyncResult(True, "clean", f"Would delete {len(deleted)} branches", "\n".join(deleted))
+            return SyncResult(
+                True,
+                "clean",
+                f"Would delete {len(deleted)} branches",
+                "\n".join(deleted),
+            )
 
         msg = f"Deleted {len(deleted)} branches"
         if skipped:
@@ -263,22 +299,38 @@ class GitSynchronizer:
         if not gone:
             return SyncResult(True, "prune_gone", "No gone branches to prune")
         if dry_run:
-            return SyncResult(True, "prune_gone", f"Would delete {len(gone)} gone branches", "\n".join(gone))
+            return SyncResult(
+                True,
+                "prune_gone",
+                f"Would delete {len(gone)} gone branches",
+                "\n".join(gone),
+            )
 
         deleted = []
         for branch in gone:
             success, _, _ = self._run_git(["branch", "-D", branch])
             if success:
                 deleted.append(branch)
-        return SyncResult(True, "prune_gone", f"Deleted {len(deleted)} gone branches",
-            ", ".join(deleted) if deleted else None)
+        return SyncResult(
+            True,
+            "prune_gone",
+            f"Deleted {len(deleted)} gone branches",
+            ", ".join(deleted) if deleted else None,
+        )
 
-    def full_sync(self, clean_branches: bool = False, force_clean: bool = False) -> List[SyncResult]:
+    def full_sync(
+        self, clean_branches: bool = False, force_clean: bool = False
+    ) -> List[SyncResult]:
         results = []
         has_changes, count = self._has_uncommitted_changes()
         if has_changes:
-            results.append(SyncResult(False, "preflight",
-                f"Cannot sync: {count} uncommitted changes. Commit or stash first."))
+            results.append(
+                SyncResult(
+                    False,
+                    "preflight",
+                    f"Cannot sync: {count} uncommitted changes. Commit or stash first.",
+                )
+            )
             return results
 
         results.append(self.fetch_all(prune=True))
@@ -341,8 +393,10 @@ class GitSynchronizer:
 def get_sync_status(repo_path: str = None) -> SyncStatus:
     return GitSynchronizer(repo_path).get_sync_status()
 
+
 def quick_sync(repo_path: str = None) -> List[SyncResult]:
     return GitSynchronizer(repo_path).full_sync(clean_branches=False)
+
 
 def full_sync(repo_path: str = None, force_clean: bool = False) -> List[SyncResult]:
     return GitSynchronizer(repo_path).full_sync(clean_branches=True, force_clean=force_clean)

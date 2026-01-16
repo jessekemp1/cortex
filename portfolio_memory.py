@@ -11,9 +11,9 @@ Reads from ~/.claude/portfolio/project_index.json to provide:
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class PortfolioMemory:
 
         # Lazy load health tracker
         self._health_tracker = None
-    
+
     def _load_portfolio(self) -> Dict[str, Any]:
         """Load portfolio data from project_index.json"""
         if not self.index_file.exists():
@@ -36,12 +36,12 @@ class PortfolioMemory:
                 "meta": {
                     "last_updated": datetime.now().isoformat(),
                     "total_projects": 0,
-                    "total_specs": 0
+                    "total_specs": 0,
                 },
-                "projects": {}
+                "projects": {},
             }
 
-        with open(self.index_file, 'r') as f:
+        with open(self.index_file, "r") as f:
             return json.load(f)
 
     def _get_health_tracker(self):
@@ -49,18 +49,22 @@ class PortfolioMemory:
         if self._health_tracker is None:
             try:
                 # Try absolute import first
-                from cortex.agents.data_agent.analyzers.health_tracker import HealthTracker
+                from cortex.agents.data_agent.analyzers.health_tracker import (
+                    HealthTracker,
+                )
+
                 self._health_tracker = HealthTracker()
             except ImportError:
                 try:
                     # Try relative import
                     from agents.data_agent.analyzers.health_tracker import HealthTracker
+
                     self._health_tracker = HealthTracker()
                 except ImportError:
                     # HealthTracker not available
                     pass
         return self._health_tracker
-    
+
     def get_stats(self, include_health: bool = True) -> Dict[str, Any]:
         """
         Get portfolio statistics
@@ -81,8 +85,7 @@ class PortfolioMemory:
 
         # Active projects (commits in last 7 days)
         active_projects = [
-            name for name, data in projects.items()
-            if data.get("activity_commits_7d", 0) > 0
+            name for name, data in projects.items() if data.get("activity_commits_7d", 0) > 0
         ]
 
         # Tech stack distribution
@@ -91,6 +94,7 @@ class PortfolioMemory:
             all_tech.extend(proj_data.get("tech_stack", []))
 
         from collections import Counter
+
         tech_counts = Counter(all_tech)
         top_tech = dict(tech_counts.most_common(10))
 
@@ -107,13 +111,13 @@ class PortfolioMemory:
             "by_priority": {
                 "tier1": tier1_count,
                 "tier2": tier2_count,
-                "tier3": tier3_count
+                "tier3": tier3_count,
             },
             "active_projects": len(active_projects),
             "active_project_names": active_projects[:10],  # Top 10
             "top_technologies": top_tech,
             "top_patterns": top_patterns,
-            "last_updated": self.portfolio_data.get("meta", {}).get("last_updated", "Unknown")
+            "last_updated": self.portfolio_data.get("meta", {}).get("last_updated", "Unknown"),
         }
 
         # Add health summary if requested
@@ -124,23 +128,25 @@ class PortfolioMemory:
                     "healthy_count": len(health_summary["aggregate"]["healthy_projects"]),
                     "at_risk_count": len(health_summary["aggregate"]["at_risk_projects"]),
                     "critical_count": len(health_summary["aggregate"]["critical_projects"]),
-                    "projects": health_summary["projects"]
+                    "projects": health_summary["projects"],
                 }
 
         return stats
-    
-    def get_cross_project_patterns(self, pattern_type: Optional[str] = None) -> List[Dict[str, Any]]:
+
+    def get_cross_project_patterns(
+        self, pattern_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get cross-project patterns
-        
+
         Args:
             pattern_type: Optional filter (e.g., 'async_fastapi_routes', 'sqlalchemy_2.0_queries')
-        
+
         Returns:
             List of pattern dictionaries with usage examples
         """
         projects = self.portfolio_data.get("projects", {})
-        
+
         # Collect all patterns with their project usage
         pattern_usage = {}
         for project_name, project_data in projects.items():
@@ -148,95 +154,95 @@ class PortfolioMemory:
             for pattern in patterns:
                 if pattern_type and pattern != pattern_type:
                     continue
-                
+
                 if pattern not in pattern_usage:
                     pattern_usage[pattern] = {
                         "pattern": pattern,
                         "used_in": [],
-                        "count": 0
+                        "count": 0,
                     }
-                
-                pattern_usage[pattern]["used_in"].append({
-                    "project": project_name,
-                    "priority": project_data.get("priority", "tier3"),
-                    "path": project_data.get("path", "")
-                })
+
+                pattern_usage[pattern]["used_in"].append(
+                    {
+                        "project": project_name,
+                        "priority": project_data.get("priority", "tier3"),
+                        "path": project_data.get("path", ""),
+                    }
+                )
                 pattern_usage[pattern]["count"] += 1
-        
+
         # Sort by usage count (most common first)
-        patterns_list = sorted(
-            pattern_usage.values(),
-            key=lambda x: x["count"],
-            reverse=True
-        )
-        
+        patterns_list = sorted(pattern_usage.values(), key=lambda x: x["count"], reverse=True)
+
         return patterns_list
-    
+
     def get_lessons_learned(
-        self, 
-        project: Optional[str] = None, 
-        pattern: Optional[str] = None
+        self, project: Optional[str] = None, pattern: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get lessons learned from past work
-        
+
         Args:
             project: Optional project filter
             pattern: Optional pattern filter (e.g., 'async', 'sqlalchemy')
-        
+
         Returns:
             List of lesson dictionaries
         """
         projects = self.portfolio_data.get("projects", {})
         lessons = []
-        
+
         for project_name, project_data in projects.items():
             # Filter by project if specified
             if project and project_name != project:
                 continue
-            
+
             # Extract issues as lessons
             issues = project_data.get("common_issues", [])
             for issue in issues:
                 # Filter by pattern if specified
                 if pattern and pattern.lower() not in issue.lower():
                     continue
-                
-                lessons.append({
-                    "lesson": issue,
-                    "project": project_name,
-                    "priority": project_data.get("priority", "tier3"),
-                    "source": "common_issues"
-                })
-            
+
+                lessons.append(
+                    {
+                        "lesson": issue,
+                        "project": project_name,
+                        "priority": project_data.get("priority", "tier3"),
+                        "source": "common_issues",
+                    }
+                )
+
             # Extract from related_projects context (migration lessons)
             related = project_data.get("related_projects", [])
             if related and "migration" in str(project_data.get("tech_stack", [])).lower():
-                lessons.append({
-                    "lesson": f"Project shares context with: {', '.join(related)}",
-                    "project": project_name,
-                    "priority": project_data.get("priority", "tier3"),
-                    "source": "related_projects"
-                })
-        
+                lessons.append(
+                    {
+                        "lesson": f"Project shares context with: {', '.join(related)}",
+                        "project": project_name,
+                        "priority": project_data.get("priority", "tier3"),
+                        "source": "related_projects",
+                    }
+                )
+
         return lessons
-    
+
     def store_deep_analysis(
         self,
         project: str,
         tech_stack: Dict[str, Any],
         architecture: Dict[str, Any],
-        code_quality: Dict[str, Any]
+        code_quality: Dict[str, Any],
     ) -> bool:
         """
         Store deep analysis results in portfolio memory.
-        
+
         Args:
             project: Project name
             tech_stack: Tech stack analysis results
             architecture: Architecture analysis results
             code_quality: Code quality analysis results
-            
+
         Returns:
             True if stored successfully
         """
@@ -244,7 +250,7 @@ class PortfolioMemory:
             projects = self.portfolio_data.get("projects", {})
             if project not in projects:
                 projects[project] = {}
-            
+
             # Store analysis results
             projects[project]["deep_analysis"] = {
                 "tech_stack": tech_stack,
@@ -252,20 +258,20 @@ class PortfolioMemory:
                 "code_quality": code_quality,
                 "analyzed_at": datetime.now().isoformat(),
             }
-            
+
             # Update tech stack in project data
             if tech_stack.get("languages"):
                 projects[project]["tech_stack"] = tech_stack.get("languages", [])
-            
+
             # Save updated portfolio
             self.portfolio_data["projects"] = projects
             self.portfolio_data["meta"]["last_updated"] = datetime.now().isoformat()
-            
+
             # Save to file
             self.index_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.index_file, 'w') as f:
+            with open(self.index_file, "w") as f:
                 json.dump(self.portfolio_data, f, indent=2)
-            
+
             return True
         except Exception as e:
             logger.error(f"Failed to store deep analysis for {project}: {e}")
@@ -274,11 +280,11 @@ class PortfolioMemory:
     def store_warnings(self, project: str, warnings: List[Dict[str, Any]]) -> bool:
         """
         Store warnings in portfolio memory.
-        
+
         Args:
             project: Project name
             warnings: List of warning dictionaries
-            
+
         Returns:
             True if stored successfully
         """
@@ -286,58 +292,60 @@ class PortfolioMemory:
             projects = self.portfolio_data.get("projects", {})
             if project not in projects:
                 projects[project] = {}
-            
+
             # Store warnings
             projects[project]["warnings"] = warnings
             projects[project]["warnings_updated_at"] = datetime.now().isoformat()
-            
+
             # Save updated portfolio
             self.portfolio_data["projects"] = projects
             self.portfolio_data["meta"]["last_updated"] = datetime.now().isoformat()
-            
+
             # Save to file
             self.index_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.index_file, 'w') as f:
+            with open(self.index_file, "w") as f:
                 json.dump(self.portfolio_data, f, indent=2)
-            
+
             return True
         except Exception as e:
             logger.error(f"Failed to store warnings for {project}: {e}")
             return False
 
-    def get_warnings(self, project: Optional[str] = None, severity: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_warnings(
+        self, project: Optional[str] = None, severity: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Get warnings for project(s).
-        
+
         Args:
             project: Optional project filter
             severity: Optional severity filter (critical, high, medium, low)
-            
+
         Returns:
             List of warnings
         """
         projects = self.portfolio_data.get("projects", {})
         all_warnings = []
-        
+
         for project_name, project_data in projects.items():
             if project and project_name != project:
                 continue
-            
+
             warnings = project_data.get("warnings", [])
             for warning in warnings:
                 if severity and warning.get("severity") != severity:
                     continue
                 all_warnings.append(warning)
-        
+
         # Sort by severity and creation time
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         all_warnings.sort(
             key=lambda w: (
                 severity_order.get(w.get("severity", "low"), 3),
-                w.get("created_at", "")
+                w.get("created_at", ""),
             )
         )
-        
+
         return all_warnings
 
     def get_project_context(self, project: str, include_health: bool = True) -> Dict[str, Any]:
@@ -363,7 +371,7 @@ class PortfolioMemory:
             else:
                 return {
                     "error": f"Project '{project}' not found in portfolio",
-                    "available_projects": list(projects.keys())[:10]
+                    "available_projects": list(projects.keys())[:10],
                 }
 
         project_data = projects[project]
@@ -374,13 +382,18 @@ class PortfolioMemory:
         for pattern in patterns:
             cross_project_patterns = self.get_cross_project_patterns(pattern)
             if cross_project_patterns:
-                pattern_context.append({
-                    "pattern": pattern,
-                    "also_used_in": [
-                        p["project"] for p in cross_project_patterns[0]["used_in"]
-                        if p["project"] != project
-                    ][:5]  # Top 5 other projects
-                })
+                pattern_context.append(
+                    {
+                        "pattern": pattern,
+                        "also_used_in": [
+                            p["project"]
+                            for p in cross_project_patterns[0]["used_in"]
+                            if p["project"] != project
+                        ][
+                            :5
+                        ],  # Top 5 other projects
+                    }
+                )
 
         context = {
             "project": project,
@@ -390,7 +403,7 @@ class PortfolioMemory:
             "tech_stack": project_data.get("tech_stack", []),
             "patterns": pattern_context,
             "common_issues": project_data.get("common_issues", []),
-            "related_projects": project_data.get("related_projects", [])
+            "related_projects": project_data.get("related_projects", []),
         }
 
         # Add health data if requested
@@ -401,7 +414,7 @@ class PortfolioMemory:
                 context["health"] = health_data
 
         return context
-    
+
     def search_projects(self, query: str) -> List[str]:
         """
         Search for projects by name or technology
@@ -471,16 +484,13 @@ class PortfolioMemory:
                 "assessment": health_section.get("assessment", "unknown"),
                 "trend": commits_section.get("trend", "unknown"),
                 "commits_7d": commits_section.get("count", 0),
-                "uncommitted_files": uncommitted_section.get("total", 0)
+                "uncommitted_files": uncommitted_section.get("total", 0),
             }
         except Exception:
             return None
 
     def get_project_health(
-        self,
-        project_name: str,
-        days: int = 7,
-        force_refresh: bool = False
+        self, project_name: str, days: int = 7, force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
         Get health score and analysis for a specific project
@@ -500,10 +510,7 @@ class PortfolioMemory:
         """
         tracker = self._get_health_tracker()
         if not tracker:
-            return {
-                "error": "HealthTracker not available",
-                "project": project_name
-            }
+            return {"error": "HealthTracker not available", "project": project_name}
 
         projects = self.portfolio_data.get("projects", {})
 
@@ -517,17 +524,11 @@ class PortfolioMemory:
         # Use Dev directory as git root (all projects are in one repo)
         dev_path = Path("/Users/jesse.kemp/Dev")
         if not (dev_path / ".git").exists():
-            return {
-                "error": "Git repository not found",
-                "project": actual_name
-            }
+            return {"error": "Git repository not found", "project": actual_name}
 
         try:
             result = tracker.get_cached_health(
-                "Dev",
-                dev_path,
-                days=days,
-                force_refresh=force_refresh
+                "Dev", dev_path, days=days, force_refresh=force_refresh
             )
 
             # Extract and flatten health data
@@ -544,18 +545,12 @@ class PortfolioMemory:
                 "commits_7d": commits_section.get("count", 0),
                 "uncommitted_files": uncommitted_section.get("total", 0),
                 "analysis_period_days": days,
-                "from_cache": result.get("from_cache", False)
+                "from_cache": result.get("from_cache", False),
             }
         except Exception as e:
-            return {
-                "error": str(e),
-                "project": actual_name
-            }
+            return {"error": str(e), "project": actual_name}
 
-    def get_portfolio_health_summary(
-        self,
-        days: int = 7
-    ) -> Dict[str, Any]:
+    def get_portfolio_health_summary(self, days: int = 7) -> Dict[str, Any]:
         """
         Get health summary for all projects in portfolio
 
@@ -573,18 +568,14 @@ class PortfolioMemory:
         """
         tracker = self._get_health_tracker()
         if not tracker:
-            return {
-                "error": "HealthTracker not available"
-            }
+            return {"error": "HealthTracker not available"}
 
         projects = self.portfolio_data.get("projects", {})
 
         # Get health for Dev repo (contains all projects)
         dev_path = Path("/Users/jesse.kemp/Dev")
         if not (dev_path / ".git").exists():
-            return {
-                "error": "Git repository not found"
-            }
+            return {"error": "Git repository not found"}
 
         try:
             result = tracker.get_cached_health("Dev", dev_path, days=days)
@@ -599,9 +590,7 @@ class PortfolioMemory:
             uncommitted = uncommitted_section.get("total", 0)
 
         except Exception as e:
-            return {
-                "error": str(e)
-            }
+            return {"error": str(e)}
 
         summary = {
             "timestamp": datetime.now().isoformat(),
@@ -611,15 +600,15 @@ class PortfolioMemory:
             "aggregate": {
                 "healthy_projects": [],
                 "at_risk_projects": [],
-                "critical_projects": []
+                "critical_projects": [],
             },
             "overall": {
                 "score": score,
                 "assessment": assessment,
                 "trend": trend,
                 "commits": commits,
-                "uncommitted": uncommitted
-            }
+                "uncommitted": uncommitted,
+            },
         }
 
         # Apply same health metrics to all projects (since they're in same repo)
@@ -629,7 +618,7 @@ class PortfolioMemory:
                 "assessment": assessment,
                 "trend": trend,
                 "commits": commits,
-                "uncommitted": uncommitted
+                "uncommitted": uncommitted,
             }
 
             # Categorize by health
@@ -642,10 +631,7 @@ class PortfolioMemory:
 
         return summary
 
-    def get_project_health_trends(
-        self,
-        project_name: str
-    ) -> Dict[str, Any]:
+    def get_project_health_trends(self, project_name: str) -> Dict[str, Any]:
         """
         Get comprehensive health trends for a project
 
@@ -662,10 +648,7 @@ class PortfolioMemory:
         """
         tracker = self._get_health_tracker()
         if not tracker:
-            return {
-                "error": "HealthTracker not available",
-                "project": project_name
-            }
+            return {"error": "HealthTracker not available", "project": project_name}
 
         projects = self.portfolio_data.get("projects", {})
 
@@ -679,57 +662,51 @@ class PortfolioMemory:
                 break
 
         if not project_data:
-            return {
-                "error": f"Project '{project_name}' not found in portfolio"
-            }
+            return {"error": f"Project '{project_name}' not found in portfolio"}
 
         project_path = Path(project_data.get("path", ""))
         if not project_path.exists():
-            return {
-                "error": f"Project path not found: {project_path}"
-            }
+            return {"error": f"Project path not found: {project_path}"}
 
         try:
             trends = tracker.get_health_trends(actual_name, project_path)
             return trends
         except Exception as e:
-            return {
-                "error": str(e),
-                "project": actual_name
-            }
+            return {"error": str(e), "project": actual_name}
 
 
 # CLI helper for testing
 if __name__ == "__main__":
     import sys
-    
+
     pm = PortfolioMemory()
-    
+
     if len(sys.argv) < 2:
         print("Usage: python portfolio_memory.py <command> [args]")
         print("Commands: stats, patterns, lessons, project <name>, search <query>")
         sys.exit(1)
-    
+
     command = sys.argv[1]
-    
+
     if command == "stats":
         import json
+
         print(json.dumps(pm.get_stats(), indent=2))
-    
+
     elif command == "patterns":
         pattern_type = sys.argv[2] if len(sys.argv) > 2 else None
         patterns = pm.get_cross_project_patterns(pattern_type)
         for p in patterns:
             print(f"\n{p['pattern']} (used in {p['count']} projects)")
-            for usage in p['used_in'][:3]:
+            for usage in p["used_in"][:3]:
                 print(f"  - {usage['project']} ({usage['priority']})")
-    
+
     elif command == "lessons":
         project = sys.argv[2] if len(sys.argv) > 2 else None
         lessons = pm.get_lessons_learned(project=project)
         for lesson in lessons:
             print(f"\n[{lesson['project']}] {lesson['lesson']}")
-    
+
     elif command == "project":
         if len(sys.argv) < 3:
             print("Usage: python portfolio_memory.py project <name>")
@@ -737,8 +714,9 @@ if __name__ == "__main__":
         project_name = sys.argv[2]
         context = pm.get_project_context(project_name)
         import json
+
         print(json.dumps(context, indent=2))
-    
+
     elif command == "search":
         if len(sys.argv) < 3:
             print("Usage: python portfolio_memory.py search <query>")
@@ -748,7 +726,7 @@ if __name__ == "__main__":
         print(f"Found {len(matches)} projects matching '{query}':")
         for match in matches:
             print(f"  - {match}")
-    
+
     else:
         print(f"Unknown command: {command}")
         sys.exit(1)

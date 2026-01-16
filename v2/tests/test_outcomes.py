@@ -1,14 +1,14 @@
 """Tests for automated outcome detection."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
 from cortex.v2.learning.outcomes import (
-    OutcomeDetector,
-    OutcomeType,
-    OutcomeSource,
     DetectedOutcome,
+    OutcomeDetector,
+    OutcomeSource,
+    OutcomeType,
 )
 
 
@@ -30,7 +30,7 @@ class TestOutcomeDetector:
             message="Fix authentication bug in login flow",
             branch="main",
             files_changed=3,
-            project="VortexV2"
+            project="VortexV2",
         )
 
         assert outcome.id == "git_abc12345"
@@ -77,9 +77,7 @@ class TestOutcomeDetector:
     def test_analyze_partial_patterns(self, detector):
         """Test detecting partial/WIP patterns."""
         # "WIP" should indicate in_progress
-        outcome_type, confidence = detector._analyze_commit_message(
-            "WIP: Authentication refactor"
-        )
+        outcome_type, confidence = detector._analyze_commit_message("WIP: Authentication refactor")
         assert outcome_type == OutcomeType.IN_PROGRESS
 
         # "part 1" should indicate in_progress
@@ -90,9 +88,7 @@ class TestOutcomeDetector:
 
     def test_analyze_unknown_patterns(self, detector):
         """Test handling unknown patterns."""
-        outcome_type, confidence = detector._analyze_commit_message(
-            "Update dependencies"
-        )
+        outcome_type, confidence = detector._analyze_commit_message("Update dependencies")
         assert outcome_type == OutcomeType.UNKNOWN
         assert confidence < 0.5
 
@@ -104,7 +100,7 @@ class TestOutcomeDetector:
             conclusion="success",
             commit="abc12345",
             branch="main",
-            duration_ms=45000
+            duration_ms=45000,
         )
 
         assert outcome.source == OutcomeSource.CI_PIPELINE
@@ -116,30 +112,16 @@ class TestOutcomeDetector:
         """Test recording test run outcome."""
         # All passing
         outcome = detector.record_test_outcome(
-            project="VortexV2",
-            passed=50,
-            failed=0,
-            skipped=2,
-            duration_seconds=10.5
+            project="VortexV2", passed=50, failed=0, skipped=2, duration_seconds=10.5
         )
         assert outcome.outcome_type == OutcomeType.SUCCESS
 
         # Some failures
-        outcome = detector.record_test_outcome(
-            project="VortexV2",
-            passed=45,
-            failed=5,
-            skipped=0
-        )
+        outcome = detector.record_test_outcome(project="VortexV2", passed=45, failed=5, skipped=0)
         assert outcome.outcome_type == OutcomeType.PARTIAL
 
         # More failures than passes
-        outcome = detector.record_test_outcome(
-            project="VortexV2",
-            passed=10,
-            failed=40,
-            skipped=0
-        )
+        outcome = detector.record_test_outcome(project="VortexV2", passed=10, failed=40, skipped=0)
         assert outcome.outcome_type == OutcomeType.FAILURE
 
     def test_get_recent_outcomes(self, detector):
@@ -149,14 +131,14 @@ class TestOutcomeDetector:
             message="Fix bug",
             branch="main",
             files_changed=1,
-            project="ProjectA"
+            project="ProjectA",
         )
         detector.record_git_outcome(
             commit_hash="abc2",
             message="Add feature",
             branch="main",
             files_changed=1,
-            project="ProjectB"
+            project="ProjectB",
         )
 
         all_outcomes = detector.get_recent_outcomes()

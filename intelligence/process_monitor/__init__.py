@@ -5,31 +5,30 @@ Monitors OS processes, learns system utilization patterns, and provides
 intelligence about AI tools, development workflows, and resource optimization.
 """
 
+from .alerts import ProcessAlertGenerator, ProcessAlertType
+from .analyzer import ProcessAnalyzer
+from .batch_executor import BatchExecutor
+from .batch_queue import BatchTask, BatchTaskQueue, TaskState
+from .collector import ProcessCollector
+from .daemon import BatchDaemon
 from .models import (
-    ProcessCategory,
-    ProcessStatus,
-    AnomalyType,
-    WasteType,
-    ProcessSnapshot,
-    ResourceMetric,
-    Anomaly,
-    WasteItem,
-    UtilizationInsights,
     AIToolInsights,
+    Anomaly,
+    AnomalyType,
+    CapacityForecast,
     DevPatterns,
     Optimization,
-    CapacityForecast,
+    ProcessCategory,
+    ProcessSnapshot,
+    ProcessStatus,
+    ResourceMetric,
+    UtilizationInsights,
+    WasteItem,
+    WasteType,
 )
-
-from .collector import ProcessCollector
-from .tracker import ProcessTracker
-from .analyzer import ProcessAnalyzer
 from .optimizer import ResourceOptimizer
-from .alerts import ProcessAlertGenerator, ProcessAlertType
-from .scheduler import CapacityScheduler, TaskType, SchedulingPriority, ScheduledTask
-from .batch_queue import BatchTaskQueue, BatchTask, TaskState
-from .batch_executor import BatchExecutor
-from .daemon import BatchDaemon
+from .scheduler import CapacityScheduler, ScheduledTask, SchedulingPriority, TaskType
+from .tracker import ProcessTracker
 
 
 class ProcessMonitor:
@@ -45,22 +44,17 @@ class ProcessMonitor:
         self.tracker = ProcessTracker()
         self.analyzer = ProcessAnalyzer(tracker=self.tracker, collector=self.collector)
         self.optimizer = ResourceOptimizer(
-            collector=self.collector,
-            tracker=self.tracker,
-            analyzer=self.analyzer
+            collector=self.collector, tracker=self.tracker, analyzer=self.analyzer
         )
         self.alert_generator = ProcessAlertGenerator(
             collector=self.collector,
             tracker=self.tracker,
             analyzer=self.analyzer,
-            optimizer=self.optimizer
+            optimizer=self.optimizer,
         )
         self.scheduler = CapacityScheduler(process_monitor=self)
         self.batch_queue = BatchTaskQueue()
-        self.batch_executor = BatchExecutor(
-            queue=self.batch_queue,
-            process_monitor=self
-        )
+        self.batch_executor = BatchExecutor(queue=self.batch_queue, process_monitor=self)
 
     def collect_and_store(self):
         """Collect current snapshot and store in database."""

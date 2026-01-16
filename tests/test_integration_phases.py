@@ -38,16 +38,12 @@ def test_base_coordination_agent_import():
 def test_phase1_agent_import():
     """Test Phase 1 agent can be imported"""
     try:
-        sys.path.insert(
-            0, str(Path(__file__).parent.parent.parent / "local-orchestrator")
-        )
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent / "local-orchestrator"))
         from agents.integration.phase1_agent import Phase1Agent
 
         assert Phase1Agent is not None
     except ImportError:
-        pytest.skip(
-            "Phase 1 agent not available (local-orchestrator dependencies missing)"
-        )
+        pytest.skip("Phase 1 agent not available (local-orchestrator dependencies missing)")
 
 
 def test_phase2_agent_import():

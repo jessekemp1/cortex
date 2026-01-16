@@ -20,33 +20,33 @@ class StatisticalValidator:
     ) -> tuple:
         """
         Calculate confidence interval for a proportion using Wilson score interval.
-        
+
         Args:
             proportion: Sample proportion (0.0-1.0)
             sample_size: Sample size
             confidence_level: Confidence level (default: 0.95 for 95% CI)
-            
+
         Returns:
             Tuple of (lower_bound, upper_bound)
         """
         if sample_size == 0:
             return (0.0, 0.0)
-        
+
         # Z-score for confidence level
         z_scores = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}
         z = z_scores.get(confidence_level, 1.96)
-        
+
         # Wilson score interval
         n = sample_size
         p = proportion
-        
+
         denominator = 1 + (z**2 / n)
         center = (p + (z**2 / (2 * n))) / denominator
         margin = (z / denominator) * math.sqrt((p * (1 - p) / n) + (z**2 / (4 * n**2)))
-        
+
         lower = max(0.0, center - margin)
         upper = min(1.0, center + margin)
-        
+
         return (round(lower, 3), round(upper, 3))
 
     def validate_pattern_effectiveness(
@@ -54,17 +54,17 @@ class StatisticalValidator:
         pattern_name: str,
         total_applications: int,
         successful_applications: int,
-        success_threshold: float = 0.7
+        success_threshold: float = 0.7,
     ) -> Dict[str, Any]:
         """
         Validate pattern effectiveness statistically.
-        
+
         Args:
             pattern_name: Name of the pattern
             total_applications: Total number of times pattern was applied
             successful_applications: Number of successful applications
             success_threshold: Minimum success rate to consider effective
-            
+
         Returns:
             Dict with validation results
         """
@@ -77,24 +77,22 @@ class StatisticalValidator:
                 "validation_status": "insufficient_data",
                 "statistical_significance": False,
             }
-        
+
         success_rate = successful_applications / total_applications
-        confidence_interval = self.calculate_confidence_interval(
-            success_rate, total_applications
-        )
-        
+        confidence_interval = self.calculate_confidence_interval(success_rate, total_applications)
+
         # Check statistical significance (at least 3 applications for basic significance)
         is_significant = total_applications >= 3
-        
+
         # Check if effective
         is_effective = success_rate >= success_threshold and is_significant
-        
+
         # Calculate p-value approximation (simplified)
         # For small samples, use binomial test approximation
         p_value = self._approximate_p_value(
             successful_applications, total_applications, success_threshold
         )
-        
+
         return {
             "pattern": pattern_name,
             "is_effective": is_effective,
@@ -108,19 +106,16 @@ class StatisticalValidator:
         }
 
     def validate_recommendation_accuracy(
-        self,
-        total_recommendations: int,
-        followed_count: int,
-        successful_count: int
+        self, total_recommendations: int, followed_count: int, successful_count: int
     ) -> Dict[str, Any]:
         """
         Validate recommendation accuracy statistically.
-        
+
         Args:
             total_recommendations: Total recommendations made
             followed_count: Number of recommendations that were followed
             successful_count: Number of followed recommendations that were successful
-            
+
         Returns:
             Dict with validation results
         """
@@ -131,16 +126,14 @@ class StatisticalValidator:
                 "validation_status": "insufficient_data",
                 "follow_rate": 0.0,
             }
-        
+
         accuracy = successful_count / followed_count
         follow_rate = followed_count / total_recommendations if total_recommendations > 0 else 0.0
-        
-        confidence_interval = self.calculate_confidence_interval(
-            accuracy, followed_count
-        )
-        
+
+        confidence_interval = self.calculate_confidence_interval(accuracy, followed_count)
+
         is_significant = followed_count >= 10
-        
+
         return {
             "accuracy": round(accuracy, 3),
             "confidence_interval": confidence_interval,
@@ -157,74 +150,73 @@ class StatisticalValidator:
     ) -> List[Dict[str, Any]]:
         """
         Generate calibration curve data for visualization.
-        
+
         Args:
             predictions: List of prediction dicts with 'confidence' and 'outcome'
             num_bins: Number of bins for calibration curve (default: 10)
-            
+
         Returns:
             List of bin statistics
         """
         if not predictions:
             return []
-        
+
         bins = []
         bin_size = 1.0 / num_bins
-        
+
         for i in range(num_bins):
             bin_lower = i * bin_size
             bin_upper = (i + 1) * bin_size
-            
+
             # Handle last bin to include 1.0
             if i == num_bins - 1:
                 bin_predictions = [
-                    p for p in predictions
-                    if bin_lower <= p.get("confidence", 0.0) <= bin_upper
+                    p for p in predictions if bin_lower <= p.get("confidence", 0.0) <= bin_upper
                 ]
             else:
                 bin_predictions = [
-                    p for p in predictions
-                    if bin_lower <= p.get("confidence", 0.0) < bin_upper
+                    p for p in predictions if bin_lower <= p.get("confidence", 0.0) < bin_upper
                 ]
-            
+
             if bin_predictions:
                 actual_positive = sum(
-                    1 for p in bin_predictions
+                    1
+                    for p in bin_predictions
                     if p.get("outcome") == "success" or p.get("was_correct", False)
                 )
                 total = len(bin_predictions)
                 actual_rate = actual_positive / total
                 avg_confidence = sum(p.get("confidence", 0.0) for p in bin_predictions) / total
-                
-                bins.append({
-                    "bin_range": f"{bin_lower:.2f}-{bin_upper:.2f}",
-                    "count": total,
-                    "avg_confidence": round(avg_confidence, 3),
-                    "actual_rate": round(actual_rate, 3),
-                    "calibration_error": round(abs(avg_confidence - actual_rate), 3),
-                })
-        
+
+                bins.append(
+                    {
+                        "bin_range": f"{bin_lower:.2f}-{bin_upper:.2f}",
+                        "count": total,
+                        "avg_confidence": round(avg_confidence, 3),
+                        "actual_rate": round(actual_rate, 3),
+                        "calibration_error": round(abs(avg_confidence - actual_rate), 3),
+                    }
+                )
+
         return bins
 
-    def _approximate_p_value(
-        self, successes: int, trials: int, null_hypothesis: float
-    ) -> float:
+    def _approximate_p_value(self, successes: int, trials: int, null_hypothesis: float) -> float:
         """
         Approximate p-value for binomial test.
-        
+
         Args:
             successes: Number of successes
             trials: Number of trials
             null_hypothesis: Null hypothesis proportion
-            
+
         Returns:
             Approximate p-value
         """
         if trials == 0:
             return 1.0
-        
+
         observed_rate = successes / trials
-        
+
         # Simplified p-value calculation using normal approximation
         # For more accuracy, would use exact binomial test
         if trials < 30:
@@ -234,7 +226,7 @@ class StatisticalValidator:
             # Normal approximation
             se = math.sqrt(null_hypothesis * (1 - null_hypothesis) / trials)
             z = (observed_rate - null_hypothesis) / se if se > 0 else 0
-            
+
             # Approximate p-value (two-tailed)
             # Simplified: use standard normal CDF approximation
             p_value = 2 * (1 - self._normal_cdf(abs(z)))
@@ -253,54 +245,56 @@ class StatisticalValidator:
     def calculate_brier_score(self, predictions: List[Dict[str, Any]]) -> float:
         """
         Calculate Brier score for predictions.
-        
+
         Args:
             predictions: List of prediction dicts with 'confidence' and 'outcome'
-            
+
         Returns:
             Brier score (lower is better, 0 = perfect)
         """
         if not predictions:
             return 1.0
-        
+
         total_score = 0.0
         for p in predictions:
             confidence = p.get("confidence", 0.0)
             actual = 1.0 if (p.get("outcome") == "success" or p.get("was_correct", False)) else 0.0
             total_score += (confidence - actual) ** 2
-        
+
         return round(total_score / len(predictions), 4)
 
     def generate_validation_summary(
         self,
         pattern_validations: List[Dict[str, Any]],
         recommendation_validation: Dict[str, Any],
-        calibration_stats: Dict[str, Any]
+        calibration_stats: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Generate comprehensive validation summary.
-        
+
         Args:
             pattern_validations: List of pattern validation results
             recommendation_validation: Recommendation validation results
             calibration_stats: Calibration statistics
-            
+
         Returns:
             Comprehensive validation summary
         """
         # Aggregate pattern statistics
         effective_patterns = sum(1 for p in pattern_validations if p.get("is_effective", False))
         total_patterns = len(pattern_validations)
-        pattern_effectiveness_rate = effective_patterns / total_patterns if total_patterns > 0 else 0.0
-        
+        pattern_effectiveness_rate = (
+            effective_patterns / total_patterns if total_patterns > 0 else 0.0
+        )
+
         # Recommendation statistics
         rec_accuracy = recommendation_validation.get("accuracy", 0.0)
         rec_status = recommendation_validation.get("validation_status", "unknown")
-        
+
         # Calibration statistics
         calibration_error = calibration_stats.get("calibration_error", 0.0)
         brier_score = calibration_stats.get("brier_score", 1.0)
-        
+
         return {
             "timestamp": datetime.now().isoformat(),
             "pattern_validation": {
@@ -308,9 +302,13 @@ class StatisticalValidator:
                 "effective_patterns": effective_patterns,
                 "effectiveness_rate": round(pattern_effectiveness_rate, 3),
                 "average_success_rate": round(
-                    sum(p.get("success_rate", 0.0) for p in pattern_validations) / total_patterns
-                    if total_patterns > 0 else 0.0,
-                    3
+                    (
+                        sum(p.get("success_rate", 0.0) for p in pattern_validations)
+                        / total_patterns
+                        if total_patterns > 0
+                        else 0.0
+                    ),
+                    3,
                 ),
             },
             "recommendation_validation": {
@@ -321,7 +319,11 @@ class StatisticalValidator:
             "calibration": {
                 "calibration_error": calibration_error,
                 "brier_score": brier_score,
-                "status": "good" if calibration_error < 0.15 and brier_score < 0.25 else "needs_improvement",
+                "status": (
+                    "good"
+                    if calibration_error < 0.15 and brier_score < 0.25
+                    else "needs_improvement"
+                ),
             },
             "overall_assessment": self._assess_overall_quality(
                 pattern_effectiveness_rate, rec_accuracy, calibration_error
@@ -332,19 +334,19 @@ class StatisticalValidator:
         self,
         pattern_effectiveness: float,
         recommendation_accuracy: float,
-        calibration_error: float
+        calibration_error: float,
     ) -> str:
         """Assess overall system quality."""
         if (
-            pattern_effectiveness >= 0.7 and
-            recommendation_accuracy >= 0.7 and
-            calibration_error < 0.15
+            pattern_effectiveness >= 0.7
+            and recommendation_accuracy >= 0.7
+            and calibration_error < 0.15
         ):
             return "excellent"
         elif (
-            pattern_effectiveness >= 0.5 and
-            recommendation_accuracy >= 0.5 and
-            calibration_error < 0.25
+            pattern_effectiveness >= 0.5
+            and recommendation_accuracy >= 0.5
+            and calibration_error < 0.25
         ):
             return "good"
         else:
@@ -354,14 +356,13 @@ class StatisticalValidator:
 if __name__ == "__main__":
     # Test the validator
     validator = StatisticalValidator()
-    
+
     # Test confidence interval
     ci = validator.calculate_confidence_interval(0.8, 100)
     print(f"Confidence interval for 80% success rate (n=100): {ci}")
-    
+
     # Test pattern validation
     pattern_result = validator.validate_pattern_effectiveness(
         "test_pattern", 20, 16, success_threshold=0.7
     )
     print(f"Pattern validation: {pattern_result}")
-

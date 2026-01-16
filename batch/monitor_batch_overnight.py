@@ -72,7 +72,7 @@ def apply_code_changes(results: list, output_dir: Path):
 
         # Get response content
         # result.result is a Pydantic model, not a dict
-        if hasattr(result.result, 'message'):
+        if hasattr(result.result, "message"):
             content = result.result.message.content
         else:
             log(f"  ⚠️  No message in {result.custom_id}")
@@ -85,7 +85,7 @@ def apply_code_changes(results: list, output_dir: Path):
         # Extract text from content blocks
         response_text = ""
         for block in content:
-            if hasattr(block, 'type') and block.type == "text":
+            if hasattr(block, "type") and block.type == "text":
                 response_text += block.text
 
         # Extract code blocks
@@ -164,7 +164,7 @@ def run_tests(test_path: str = "intelligence/") -> bool:
             cwd="/Users/jesse.kemp/Dev/cortex",
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
         )
 
         if result.returncode == 0:
@@ -183,7 +183,13 @@ def run_tests(test_path: str = "intelligence/") -> bool:
         return False
 
 
-def create_summary_report(batch_id: str, results: list, created_files: list, modified_files: list, output_dir: Path):
+def create_summary_report(
+    batch_id: str,
+    results: list,
+    created_files: list,
+    modified_files: list,
+    output_dir: Path,
+):
     """Create summary report of batch results."""
 
     report = f"""# Layers 3-4 Implementation - Batch Results
@@ -218,9 +224,9 @@ def create_summary_report(batch_id: str, results: list, created_files: list, mod
 
         if result.status != "succeeded":
             # Show error if available
-            if hasattr(result.result, 'error'):
+            if hasattr(result.result, "error"):
                 error = result.result.error
-                error_msg = error.message if hasattr(error, 'message') else str(error)
+                error_msg = error.message if hasattr(error, "message") else str(error)
                 report += f"**Error**: {error_msg}\n\n"
 
     report += """
@@ -316,7 +322,11 @@ def monitor_batch(batch_id: str, check_interval: int = 1800):
                     {
                         "custom_id": r.custom_id,
                         "status": r.status,
-                        "result": r.result.model_dump() if hasattr(r.result, 'model_dump') else (r.result.dict() if hasattr(r.result, 'dict') else r.result)
+                        "result": (
+                            r.result.model_dump()
+                            if hasattr(r.result, "model_dump")
+                            else (r.result.dict() if hasattr(r.result, "dict") else r.result)
+                        ),
                     }
                     for r in results
                 ]
@@ -345,7 +355,9 @@ def monitor_batch(batch_id: str, check_interval: int = 1800):
                 log(f"✅ Results downloaded: {len(results)} tasks")
                 log(f"✅ Files created: {len(created_files)}")
                 log(f"✅ Files modified: {len(modified_files)}")
-                log(f"{'✅' if tests_passed else '⚠️ '} Tests: {'passed' if tests_passed else 'some failures'}")
+                log(
+                    f"{'✅' if tests_passed else '⚠️ '} Tests: {'passed' if tests_passed else 'some failures'}"
+                )
                 log(f"✅ Report: {report_path}")
                 print()
                 log("Next: Review the implementation report and test the features!")
@@ -374,6 +386,7 @@ def monitor_batch(batch_id: str, check_interval: int = 1800):
         except Exception as e:
             log(f"❌ Error checking batch status: {e}")
             import traceback
+
             traceback.print_exc()
             print()
             log(f"  Retrying in {check_interval // 60} minutes...")

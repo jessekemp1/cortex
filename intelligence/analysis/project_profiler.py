@@ -209,7 +209,10 @@ class ProjectProfiler:
             package_json = self._read_json("package.json")
             if package_json:
                 # Detect if TypeScript
-                deps = {**package_json.get("dependencies", {}), **package_json.get("devDependencies", {})}
+                deps = {
+                    **package_json.get("dependencies", {}),
+                    **package_json.get("devDependencies", {}),
+                }
                 if "typescript" in deps:
                     stack.languages.add("TypeScript")
                 else:
@@ -291,7 +294,10 @@ class ProjectProfiler:
     def _detect_js_frameworks(self, package_json: Dict) -> Set[str]:
         """Detect JavaScript/TypeScript frameworks."""
         frameworks = set()
-        deps = {**package_json.get("dependencies", {}), **package_json.get("devDependencies", {})}
+        deps = {
+            **package_json.get("dependencies", {}),
+            **package_json.get("devDependencies", {}),
+        }
 
         if "react" in deps:
             frameworks.add("React")
@@ -338,7 +344,10 @@ class ProjectProfiler:
         # JS databases
         package_json = self._read_json("package.json")
         if package_json:
-            deps = {**package_json.get("dependencies", {}), **package_json.get("devDependencies", {})}
+            deps = {
+                **package_json.get("dependencies", {}),
+                **package_json.get("devDependencies", {}),
+            }
             if "pg" in deps or "postgres" in deps:
                 databases.add("PostgreSQL")
             if "mongodb" in deps:
@@ -391,7 +400,13 @@ class ProjectProfiler:
             return coverage
 
         # Count test files
-        test_patterns = ["**/test_*.py", "**/tests/**/*.py", "**/*.test.ts", "**/*.test.js", "**/*.spec.ts"]
+        test_patterns = [
+            "**/test_*.py",
+            "**/tests/**/*.py",
+            "**/*.test.ts",
+            "**/*.test.js",
+            "**/*.spec.ts",
+        ]
         test_files = set()
         for pattern in test_patterns:
             test_files.update(self.project_path.glob(pattern))
@@ -488,7 +503,15 @@ class ProjectProfiler:
         }
 
         # Exclude patterns for directories to ignore
-        exclude_patterns = ["venv", "env", ".venv", "node_modules", "dist", "build", "__pycache__"]
+        exclude_patterns = [
+            "venv",
+            "env",
+            ".venv",
+            "node_modules",
+            "dist",
+            "build",
+            "__pycache__",
+        ]
 
         for pattern, reason in critical_patterns.items():
             matches = list(self.project_path.glob(f"**/{pattern}"))

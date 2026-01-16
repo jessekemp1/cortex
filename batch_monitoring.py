@@ -79,9 +79,7 @@ def show_batch_status(verbose=False):
                         metadata = json.load(f)
                         status = metadata.get("status", "unknown")
                         batch_id = metadata.get("batch_id", "unknown")
-                        print(
-                            f"    - {b.stem[:30]}... ({mtime.strftime('%Y-%m-%d %H:%M')})"
-                        )
+                        print(f"    - {b.stem[:30]}... ({mtime.strftime('%Y-%m-%d %H:%M')})")
                         if verbose:
                             print(f"      Status: {status}, ID: {batch_id}")
                 except Exception:
@@ -146,9 +144,7 @@ def check_batch_details():
     print("BATCH DETAILS")
     print("=" * 70)
 
-    for batch_file in sorted(batches, key=lambda p: p.stat().st_mtime, reverse=True)[
-        :10
-    ]:
+    for batch_file in sorted(batches, key=lambda p: p.stat().st_mtime, reverse=True)[:10]:
         try:
             with open(batch_file) as f:
                 metadata = json.load(f)
@@ -177,9 +173,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Batch API Monitoring Dashboard")
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show verbose output")
     parser.add_argument(
         "--check-batches",
         "-b",

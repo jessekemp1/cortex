@@ -22,7 +22,7 @@ from .models import (
 
 def _get_priority_string(priority) -> str:
     """Convert priority to string, handling both enum and string types."""
-    if hasattr(priority, 'value'):
+    if hasattr(priority, "value"):
         return priority.value
     elif isinstance(priority, str):
         return priority
@@ -60,7 +60,7 @@ class UnifiedIntelligence:
         project: str,
         query_type: IntelligenceQueryType,
         use_cache: bool = True,
-        parallel: bool = True
+        parallel: bool = True,
     ) -> IntelligenceResult:
         """
         Query all intelligence sources and aggregate results.
@@ -106,7 +106,9 @@ class UnifiedIntelligence:
                     executor.submit(self._query_spec_kb, user_request, project): "spec_kb",
                     executor.submit(self._query_session_manager): "session_mgr",
                     executor.submit(self._query_portfolio, project, query_type): "portfolio",
-                    executor.submit(self._query_context_intel, user_request, project): "context_intel",
+                    executor.submit(
+                        self._query_context_intel, user_request, project
+                    ): "context_intel",
                 }
 
                 for future in as_completed(futures):
@@ -142,8 +144,9 @@ class UnifiedIntelligence:
             if source:
                 sources_queried.append(source)
 
-            applicable_patterns, lessons, project_context, source = \
-                self._query_portfolio(project, query_type)
+            applicable_patterns, lessons, project_context, source = self._query_portfolio(
+                project, query_type
+            )
             if source:
                 sources_queried.append(source)
 
@@ -169,9 +172,7 @@ class UnifiedIntelligence:
         )
 
         # 7. Rank results by relevance (with recency and pattern success rate)
-        similar_work = self._rank_similar_work(
-            similar_work, user_request, project, query_type
-        )
+        similar_work = self._rank_similar_work(similar_work, user_request, project, query_type)
         applicable_patterns = self._rank_patterns(
             applicable_patterns, user_request, project, query_type
         )
@@ -186,8 +187,15 @@ class UnifiedIntelligence:
 
         # 9. Generate enhanced reasoning
         reasoning = self._generate_enhanced_reasoning(
-            query_type, user_request, project, similar_work, applicable_patterns,
-            recommendations, context_predictions, overall_confidence, sources_queried
+            query_type,
+            user_request,
+            project,
+            similar_work,
+            applicable_patterns,
+            recommendations,
+            context_predictions,
+            overall_confidence,
+            sources_queried,
         )
 
         result = IntelligenceResult(
@@ -205,7 +213,7 @@ class UnifiedIntelligence:
             reasoning=reasoning,
             query_time_ms=query_time_ms,
             sources_queried=sources_queried,
-            overall_confidence=overall_confidence
+            overall_confidence=overall_confidence,
         )
 
         # Cache result
@@ -214,9 +222,7 @@ class UnifiedIntelligence:
 
         return result
 
-    def _query_spec_kb(
-        self, request: str, project: str
-    ) -> Tuple[List[SimilarWork], Optional[str]]:
+    def _query_spec_kb(self, request: str, project: str) -> Tuple[List[SimilarWork], Optional[str]]:
         """Query SpecKnowledgeBase for similar work."""
         try:
             kb = self._get_spec_kb()
@@ -274,11 +280,7 @@ class UnifiedIntelligence:
 
             # Extract keywords from request
             keywords = request.split()[:5]
-            predictions = intel.predict_context(
-                current_project=project,
-                keywords=keywords,
-                limit=3
-            )
+            predictions = intel.predict_context(current_project=project, keywords=keywords, limit=3)
 
             # Convert to models.ContextPrediction
             result = [
@@ -286,7 +288,7 @@ class UnifiedIntelligence:
                     type=p.context_type,
                     relevance_score=p.confidence,
                     content=p.description,
-                    source=p.title
+                    source=p.title,
                 )
                 for p in predictions
             ]
@@ -295,7 +297,10 @@ class UnifiedIntelligence:
             return [], None
 
     def _generate_warnings(
-        self, project: str, lessons: List[Lesson], project_context: Optional[ProjectContext] = None
+        self,
+        project: str,
+        lessons: List[Lesson],
+        project_context: Optional[ProjectContext] = None,
     ) -> List[Warning]:
         """Generate warnings based on lessons learned and health data."""
         warnings = []
@@ -315,53 +320,63 @@ class UnifiedIntelligence:
         for category, count in category_counts.items():
             if count >= 3:  # Threshold for warning
                 category_lesson_list = category_lessons[category]
-                warnings.append(Warning(
-                    type=category,
-                    severity="medium" if count < 5 else "high",
-                    message=f"Repeated issue: {category} ({count} occurrences)",
-                    occurrences=count,
-                    prevention=category_lesson_list[0].context if category_lesson_list else "",
-                    past_examples=[l.lesson for l in category_lesson_list[:3]]
-                ))
+                warnings.append(
+                    Warning(
+                        type=category,
+                        severity="medium" if count < 5 else "high",
+                        message=f"Repeated issue: {category} ({count} occurrences)",
+                        occurrences=count,
+                        prevention=(
+                            category_lesson_list[0].context if category_lesson_list else ""
+                        ),
+                        past_examples=[l.lesson for l in category_lesson_list[:3]],
+                    )
+                )
 
         # Add health-based warnings if available
         if project_context:
-            health_data = getattr(project_context, 'health_data', None)
+            health_data = getattr(project_context, "health_data", None)
             if health_data:
-                health_score = health_data.get('score', 0)
-                assessment = health_data.get('assessment', 'unknown')
-                uncommitted = health_data.get('uncommitted_files', 0)
+                health_score = health_data.get("score", 0)
+                assessment = health_data.get("assessment", "unknown")
+                uncommitted = health_data.get("uncommitted_files", 0)
 
                 # Warning for low health score
                 if health_score < 50:
-                    warnings.append(Warning(
-                        type="health",
-                        severity="high",
-                        message=f"Project health critically low: {health_score}/100 ({assessment})",
-                        occurrences=1,
-                        prevention="Review recent commits, clean up uncommitted work, increase activity",
-                        past_examples=[]
-                    ))
+                    warnings.append(
+                        Warning(
+                            type="health",
+                            severity="high",
+                            message=f"Project health critically low: {health_score}/100 ({assessment})",
+                            occurrences=1,
+                            prevention="Review recent commits, clean up uncommitted work, increase activity",
+                            past_examples=[],
+                        )
+                    )
                 elif health_score < 70:
-                    warnings.append(Warning(
-                        type="health",
-                        severity="medium",
-                        message=f"Project health declining: {health_score}/100 ({assessment})",
-                        occurrences=1,
-                        prevention="Monitor project activity and commit patterns",
-                        past_examples=[]
-                    ))
+                    warnings.append(
+                        Warning(
+                            type="health",
+                            severity="medium",
+                            message=f"Project health declining: {health_score}/100 ({assessment})",
+                            occurrences=1,
+                            prevention="Monitor project activity and commit patterns",
+                            past_examples=[],
+                        )
+                    )
 
                 # Warning for high uncommitted changes
                 if uncommitted > 20:
-                    warnings.append(Warning(
-                        type="uncommitted_work",
-                        severity="medium",
-                        message=f"High uncommitted changes: {uncommitted} files",
-                        occurrences=1,
-                        prevention="Commit or clean up uncommitted work to improve project health",
-                        past_examples=[]
-                    ))
+                    warnings.append(
+                        Warning(
+                            type="uncommitted_work",
+                            severity="medium",
+                            message=f"High uncommitted changes: {uncommitted} files",
+                            occurrences=1,
+                            prevention="Commit or clean up uncommitted work to improve project health",
+                            past_examples=[],
+                        )
+                    )
 
         return warnings
 
@@ -370,7 +385,7 @@ class UnifiedIntelligence:
         query_type: IntelligenceQueryType,
         patterns: List[Pattern],
         similar_work: List[SimilarWork],
-        project_context: Optional[ProjectContext] = None
+        project_context: Optional[ProjectContext] = None,
     ) -> List[Recommendation]:
         """Generate strategic recommendations."""
         recommendations = []
@@ -378,73 +393,81 @@ class UnifiedIntelligence:
         # Recommend patterns based on query type
         if query_type == IntelligenceQueryType.implementation:
             for pattern in patterns[:3]:  # Top 3 patterns
-                recommendations.append(Recommendation(
-                    type="pattern",
-                    priority="high",
-                    title=f"Apply {pattern.name} pattern",
-                    description=pattern.description,
-                    rationale=f"Used in {len(pattern.projects)} projects: {', '.join(pattern.projects)}",
-                    related_patterns=[pattern.name]
-                ))
+                recommendations.append(
+                    Recommendation(
+                        type="pattern",
+                        priority="high",
+                        title=f"Apply {pattern.name} pattern",
+                        description=pattern.description,
+                        rationale=f"Used in {len(pattern.projects)} projects: {', '.join(pattern.projects)}",
+                        related_patterns=[pattern.name],
+                    )
+                )
 
         # Recommend similar work for review
         if similar_work:
             top_similar = similar_work[0]
-            recommendations.append(Recommendation(
-                type="reference",
-                priority="medium",
-                title=f"Review similar work: {top_similar.title}",
-                description=top_similar.summary,
-                rationale=f"High similarity score: {top_similar.similarity_score:.2f}",
-                related_patterns=top_similar.key_patterns
-            ))
+            recommendations.append(
+                Recommendation(
+                    type="reference",
+                    priority="medium",
+                    title=f"Review similar work: {top_similar.title}",
+                    description=top_similar.summary,
+                    rationale=f"High similarity score: {top_similar.similarity_score:.2f}",
+                    related_patterns=top_similar.key_patterns,
+                )
+            )
 
         # Add health-based recommendations
         if project_context:
-            health_data = getattr(project_context, 'health_data', None)
+            health_data = getattr(project_context, "health_data", None)
             if health_data:
-                health_score = health_data.get('score', 0)
-                uncommitted = health_data.get('uncommitted_files', 0)
-                commits_7d = health_data.get('commits_7d', 0)
+                health_score = health_data.get("score", 0)
+                uncommitted = health_data.get("uncommitted_files", 0)
+                commits_7d = health_data.get("commits_7d", 0)
 
                 # Recommendation for low activity
                 if commits_7d < 3:
-                    recommendations.append(Recommendation(
-                        type="health",
-                        priority="medium",
-                        title="Increase project activity",
-                        description=f"Only {commits_7d} commits in last 7 days",
-                        rationale="Low commit activity negatively impacts project health score",
-                        related_patterns=[]
-                    ))
+                    recommendations.append(
+                        Recommendation(
+                            type="health",
+                            priority="medium",
+                            title="Increase project activity",
+                            description=f"Only {commits_7d} commits in last 7 days",
+                            rationale="Low commit activity negatively impacts project health score",
+                            related_patterns=[],
+                        )
+                    )
 
                 # Recommendation for uncommitted work
                 if uncommitted > 10:
-                    recommendations.append(Recommendation(
-                        type="health",
-                        priority="high" if uncommitted > 20 else "medium",
-                        title="Review uncommitted work",
-                        description=f"{uncommitted} uncommitted files detected",
-                        rationale="High uncommitted changes reduce project maintainability and health score",
-                        related_patterns=[]
-                    ))
+                    recommendations.append(
+                        Recommendation(
+                            type="health",
+                            priority="high" if uncommitted > 20 else "medium",
+                            title="Review uncommitted work",
+                            description=f"{uncommitted} uncommitted files detected",
+                            rationale="High uncommitted changes reduce project maintainability and health score",
+                            related_patterns=[],
+                        )
+                    )
 
                 # Recommendation for declining health
                 if health_score < 60:
-                    recommendations.append(Recommendation(
-                        type="health",
-                        priority="high",
-                        title="Improve project health",
-                        description=f"Current health score: {health_score}/100",
-                        rationale="Low health score indicates potential maintainability issues",
-                        related_patterns=[]
-                    ))
+                    recommendations.append(
+                        Recommendation(
+                            type="health",
+                            priority="high",
+                            title="Improve project health",
+                            description=f"Current health score: {health_score}/100",
+                            rationale="Low health score indicates potential maintainability issues",
+                            related_patterns=[],
+                        )
+                    )
 
         return recommendations
 
-    def _generate_reasoning(
-        self, query_type: IntelligenceQueryType, sources: List[str]
-    ) -> str:
+    def _generate_reasoning(self, query_type: IntelligenceQueryType, sources: List[str]) -> str:
         """Generate reasoning about the intelligence query."""
         return (
             f"Queried {len(sources)} intelligence sources for {query_type.value} request: "
@@ -456,7 +479,7 @@ class UnifiedIntelligence:
         similar_work: List[SimilarWork],
         user_request: str,
         project: str,
-        query_type: IntelligenceQueryType
+        query_type: IntelligenceQueryType,
     ) -> List[SimilarWork]:
         """Calculate confidence scores for similar work results."""
         request_lower = user_request.lower()
@@ -482,7 +505,10 @@ class UnifiedIntelligence:
             keyword_boost = min(keyword_overlap * 0.1, 0.1)
 
             # Calculate final confidence (clamp to [0.0, 1.0])
-            confidence = max(0.0, min(base_confidence + project_boost + pattern_boost + keyword_boost, 1.0))
+            confidence = max(
+                0.0,
+                min(base_confidence + project_boost + pattern_boost + keyword_boost, 1.0),
+            )
             work.confidence_score = confidence
 
         return similar_work
@@ -492,7 +518,7 @@ class UnifiedIntelligence:
         patterns: List[Pattern],
         user_request: str,
         project: str,
-        query_type: IntelligenceQueryType
+        query_type: IntelligenceQueryType,
     ) -> List[Pattern]:
         """Calculate confidence scores for pattern applicability."""
         request_lower = user_request.lower()
@@ -517,7 +543,9 @@ class UnifiedIntelligence:
             project_boost = 0.1 if project.lower() in [p.lower() for p in pattern.projects] else 0.0
 
             # Calculate final confidence (clamp to [0.0, 1.0])
-            confidence = max(0.0, min(base_confidence + name_boost + desc_boost + project_boost, 1.0))
+            confidence = max(
+                0.0, min(base_confidence + name_boost + desc_boost + project_boost, 1.0)
+            )
             pattern.confidence_score = confidence
 
         return patterns
@@ -527,7 +555,7 @@ class UnifiedIntelligence:
         recommendations: List[Recommendation],
         user_request: str,
         project: str,
-        query_type: IntelligenceQueryType
+        query_type: IntelligenceQueryType,
     ) -> List[Recommendation]:
         """Calculate confidence scores for recommendations."""
         request_lower = user_request.lower()
@@ -565,7 +593,7 @@ class UnifiedIntelligence:
         similar_work: List[SimilarWork],
         user_request: str,
         project: str,
-        query_type: IntelligenceQueryType
+        query_type: IntelligenceQueryType,
     ) -> List[SimilarWork]:
         """Rank similar work by relevance score with recency weighting."""
         request_lower = user_request.lower()
@@ -603,11 +631,11 @@ class UnifiedIntelligence:
 
             # Calculate relevance score
             relevance = (
-                similarity_component +
-                confidence_component +
-                project_component +
-                keyword_component +
-                recency_component
+                similarity_component
+                + confidence_component
+                + project_component
+                + keyword_component
+                + recency_component
             )
             work.relevance_score = relevance
 
@@ -619,7 +647,7 @@ class UnifiedIntelligence:
         patterns: List[Pattern],
         user_request: str,
         project: str,
-        query_type: IntelligenceQueryType
+        query_type: IntelligenceQueryType,
     ) -> List[Pattern]:
         """Rank patterns by relevance score with pattern success rate weighting."""
         request_lower = user_request.lower()
@@ -655,11 +683,11 @@ class UnifiedIntelligence:
 
             # Calculate relevance score
             relevance = (
-                confidence_component +
-                usage_component +
-                name_component +
-                project_component +
-                success_rate_component
+                confidence_component
+                + usage_component
+                + name_component
+                + project_component
+                + success_rate_component
             )
             pattern.relevance_score = relevance
 
@@ -667,9 +695,7 @@ class UnifiedIntelligence:
         return sorted(patterns, key=lambda p: p.relevance_score, reverse=True)
 
     def _rank_recommendations(
-        self,
-        recommendations: List[Recommendation],
-        query_type: IntelligenceQueryType
+        self, recommendations: List[Recommendation], query_type: IntelligenceQueryType
     ) -> List[Recommendation]:
         """Rank recommendations by relevance score."""
         priority_map = {"high": 1.0, "medium": 0.6, "low": 0.3}
@@ -709,7 +735,7 @@ class UnifiedIntelligence:
         similar_work: List[SimilarWork],
         patterns: List[Pattern],
         recommendations: List[Recommendation],
-        context_predictions: List[ContextPrediction]
+        context_predictions: List[ContextPrediction],
     ) -> float:
         """Calculate overall confidence in query results."""
         if not any([similar_work, patterns, recommendations, context_predictions]):
@@ -721,7 +747,9 @@ class UnifiedIntelligence:
 
         # Similar work confidence (weighted by count)
         if similar_work:
-            avg_similar_confidence = sum(w.confidence_score for w in similar_work) / len(similar_work)
+            avg_similar_confidence = sum(w.confidence_score for w in similar_work) / len(
+                similar_work
+            )
             weights.append(0.3)
             confidences.append(avg_similar_confidence)
 
@@ -733,13 +761,17 @@ class UnifiedIntelligence:
 
         # Recommendation confidence
         if recommendations:
-            avg_rec_confidence = sum(r.confidence_score for r in recommendations) / len(recommendations)
+            avg_rec_confidence = sum(r.confidence_score for r in recommendations) / len(
+                recommendations
+            )
             weights.append(0.25)
             confidences.append(avg_rec_confidence)
 
         # Context prediction confidence
         if context_predictions:
-            avg_context_confidence = sum(p.relevance_score for p in context_predictions) / len(context_predictions)
+            avg_context_confidence = sum(p.relevance_score for p in context_predictions) / len(
+                context_predictions
+            )
             weights.append(0.2)
             confidences.append(avg_context_confidence)
 
@@ -764,7 +796,7 @@ class UnifiedIntelligence:
         recommendations: List[Recommendation],
         context_predictions: List[ContextPrediction],
         overall_confidence: float,
-        sources_queried: List[str]
+        sources_queried: List[str],
     ) -> str:
         """Generate detailed reasoning for query results with explanations."""
         reasoning_parts = []
@@ -773,7 +805,9 @@ class UnifiedIntelligence:
         reasoning_parts.append(
             f"Query: '{user_request}' for project '{project}' ({query_type.value})"
         )
-        reasoning_parts.append(f"Queried {len(sources_queried)} sources: {', '.join(sources_queried)}")
+        reasoning_parts.append(
+            f"Queried {len(sources_queried)} sources: {', '.join(sources_queried)}"
+        )
         reasoning_parts.append(f"Overall confidence: {overall_confidence:.0%}")
 
         # Top similar work with detailed explanation
@@ -799,9 +833,7 @@ class UnifiedIntelligence:
                     f"these patterns may be applicable to your current task."
                 )
             if top_work.summary:
-                reasoning_parts.append(
-                    f"  Summary: {top_work.summary[:200]}..."
-                )
+                reasoning_parts.append(f"  Summary: {top_work.summary[:200]}...")
         else:
             reasoning_parts.append(
                 "\nNo similar work found: Consider refining your query or checking if "
@@ -833,9 +865,7 @@ class UnifiedIntelligence:
                     f"before applying."
                 )
             if top_pattern.description:
-                reasoning_parts.append(
-                    f"  Description: {top_pattern.description[:200]}..."
-                )
+                reasoning_parts.append(f"  Description: {top_pattern.description[:200]}...")
         else:
             reasoning_parts.append(
                 "\nNo applicable patterns found: This may be a novel task or the pattern library "
@@ -925,6 +955,7 @@ class UnifiedIntelligence:
         if self._spec_kb is None:
             try:
                 from .spec_knowledge_base import SpecKnowledgeBase
+
                 self._spec_kb = SpecKnowledgeBase()
             except (ImportError, Exception):
                 pass
@@ -935,6 +966,7 @@ class UnifiedIntelligence:
         if self._session_mgr is None:
             try:
                 from .session_manager import SessionManager
+
                 self._session_mgr = SessionManager(self.root_dir)
             except (ImportError, Exception):
                 pass
@@ -945,6 +977,7 @@ class UnifiedIntelligence:
         if self._portfolio is None:
             try:
                 from cortex.portfolio_memory import PortfolioMemory
+
                 self._portfolio = PortfolioMemory()
             except (ImportError, Exception):
                 pass
@@ -955,6 +988,7 @@ class UnifiedIntelligence:
         if self._context_intel is None:
             try:
                 from cortex.context_intelligence import ContextIntelligence
+
                 self._context_intel = ContextIntelligence(self.root_dir)
             except (ImportError, Exception):
                 pass
@@ -965,6 +999,7 @@ class UnifiedIntelligence:
         if self._metrics_tracker is None:
             try:
                 from cortex.metrics_tracker import MetricsTracker
+
                 self._metrics_tracker = MetricsTracker()
             except (ImportError, Exception):
                 pass
@@ -974,7 +1009,10 @@ class UnifiedIntelligence:
         """Lazy initialize DependencyMapper."""
         if self._dependency_mapper is None:
             try:
-                from cortex.agents.data_agent.analyzers.dependency_mapper import DependencyMapper
+                from cortex.agents.data_agent.analyzers.dependency_mapper import (
+                    DependencyMapper,
+                )
+
                 self._dependency_mapper = DependencyMapper()
             except (ImportError, Exception):
                 pass
@@ -985,6 +1023,7 @@ class UnifiedIntelligence:
         if self._recommendations_engine is None:
             try:
                 from cortex.recommendations import RecommendationEngine
+
                 self._recommendations_engine = RecommendationEngine(self.root_dir)
             except (ImportError, Exception):
                 pass
@@ -1046,18 +1085,18 @@ class UnifiedIntelligence:
     def _calculate_recency_score(self, work: SimilarWork, now: datetime) -> float:
         """
         Calculate recency score for similar work.
-        
+
         Args:
             work: SimilarWork object
             now: Current datetime
-            
+
         Returns:
             Recency score (0.0-1.0), where 1.0 is most recent
         """
         # Try to extract timestamp from reference_path or use default
         # For now, use a heuristic based on project activity
         # In future, could parse timestamps from file metadata or git history
-        
+
         # Default: assume moderate recency if we can't determine
         # This could be enhanced by checking file modification times
         # or git commit dates for the reference_path
@@ -1066,10 +1105,10 @@ class UnifiedIntelligence:
     def _get_pattern_success_rate(self, pattern_name: str) -> float:
         """
         Get pattern success rate from metrics tracker or portfolio.
-        
+
         Args:
             pattern_name: Name of the pattern
-            
+
         Returns:
             Success rate (0.0-1.0), default 0.5 if unknown
         """
@@ -1115,7 +1154,7 @@ class UnifiedIntelligence:
             name=data.get("pattern", ""),
             description=f"Used in {data.get('count', 0)} projects",
             projects=projects,
-            reference=""
+            reference="",
         )
 
     def _dict_to_lesson(self, data: Dict[str, Any]) -> Lesson:
@@ -1130,7 +1169,7 @@ class UnifiedIntelligence:
             context=f"Priority: {data.get('priority', 'tier3')}",
             frequency=1,
             first_seen=datetime.now().isoformat(),
-            last_seen=datetime.now().isoformat()
+            last_seen=datetime.now().isoformat(),
         )
 
     def _dict_to_project_context(self, data: Dict[str, Any]) -> ProjectContext:
@@ -1156,5 +1195,5 @@ class UnifiedIntelligence:
             related_projects=data.get("related_projects", []),
             lessons_count=len(data.get("common_issues", [])),
             last_updated=datetime.now().isoformat(),
-            health_data=health_data
+            health_data=health_data,
         )

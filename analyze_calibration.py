@@ -4,9 +4,11 @@ Week 2 Calibration Analysis
 Comprehensive report for Month 1, Week 1-2 calibration data
 """
 
-from metrics_tracker import MetricsTracker
-from datetime import datetime
 import json
+from datetime import datetime
+
+from metrics_tracker import MetricsTracker
+
 
 def generate_report():
     """Generate comprehensive calibration report"""
@@ -31,7 +33,7 @@ def generate_report():
     print(f"Pending: {cal_data['pending_count']}")
     print()
 
-    if len(cal_data['outcomes']) == 0:
+    if len(cal_data["outcomes"]) == 0:
         print("⚠️ No completed predictions yet.")
         print("Complete at least 10 tasks to generate a meaningful report.")
         return
@@ -45,11 +47,11 @@ def generate_report():
     print()
 
     # Calibration assessment
-    if stats['calibration_error'] < 0.10:
+    if stats["calibration_error"] < 0.10:
         assessment = "✅ EXCELLENT - Very well calibrated"
-    elif stats['calibration_error'] < 0.15:
+    elif stats["calibration_error"] < 0.15:
         assessment = "✅ GOOD - Well calibrated"
-    elif stats['calibration_error'] < 0.25:
+    elif stats["calibration_error"] < 0.25:
         assessment = "⚠️ MODERATE - Needs adjustment"
     else:
         assessment = "❌ POOR - Significant calibration error"
@@ -59,16 +61,16 @@ def generate_report():
     # === SECTION 3: CONFIDENCE BUCKETS ===
     print("3. CALIBRATION CURVE (Confidence Buckets)")
     print("-" * 60)
-    buckets = stats.get('by_confidence_bucket', {})
+    buckets = stats.get("by_confidence_bucket", {})
     if buckets:
         print(f"{'Confidence Range':<20} {'Predictions':<15} {'Accuracy':<15} {'Gap'}")
         print("-" * 60)
         for bucket_range, bucket_stats in sorted(buckets.items()):
-            pred_count = bucket_stats['predictions']
-            accuracy = bucket_stats['accuracy']
+            pred_count = bucket_stats["predictions"]
+            accuracy = bucket_stats["accuracy"]
 
             # Parse bucket range to get midpoint
-            low, high = bucket_range.split('-')
+            low, high = bucket_range.split("-")
             midpoint = (float(low) + float(high)) / 2
             gap = accuracy - midpoint
             gap_str = f"{gap:+.1%}"
@@ -82,17 +84,17 @@ def generate_report():
     # === SECTION 4: TIME ESTIMATION ACCURACY ===
     print("4. TIME ESTIMATION ACCURACY")
     print("-" * 60)
-    if time_stats['count'] > 0:
+    if time_stats["count"] > 0:
         print(f"Mean estimation error: {time_stats['mean_error_pct']:.1f}%")
         print(f"Underestimates: {time_stats['underestimates']}")
         print(f"Overestimates: {time_stats['overestimates']}")
         print()
 
         # Bias detection
-        if time_stats['underestimates'] > time_stats['overestimates'] * 1.5:
+        if time_stats["underestimates"] > time_stats["overestimates"] * 1.5:
             print("⚠️ BIAS DETECTED: You tend to UNDERESTIMATE task duration")
             print("   Recommendation: Increase your time estimates by 20-30%")
-        elif time_stats['overestimates'] > time_stats['underestimates'] * 1.5:
+        elif time_stats["overestimates"] > time_stats["underestimates"] * 1.5:
             print("⚠️ BIAS DETECTED: You tend to OVERESTIMATE task duration")
             print("   Recommendation: Decrease your time estimates by 10-20%")
         else:
@@ -100,11 +102,11 @@ def generate_report():
         print()
 
         # Time estimation assessment
-        if time_stats['mean_error_pct'] < 20:
+        if time_stats["mean_error_pct"] < 20:
             print("✅ EXCELLENT time estimation (< 20% error)")
-        elif time_stats['mean_error_pct'] < 30:
+        elif time_stats["mean_error_pct"] < 30:
             print("✅ GOOD time estimation (20-30% error)")
-        elif time_stats['mean_error_pct'] < 40:
+        elif time_stats["mean_error_pct"] < 40:
             print("⚠️ MODERATE time estimation (30-40% error)")
         else:
             print("❌ POOR time estimation (> 40% error)")
@@ -116,9 +118,9 @@ def generate_report():
     print("5. PROJECT BREAKDOWN")
     print("-" * 60)
     project_counts = {}
-    for pred in cal_data['predictions']:
-        project = pred.get('project', 'Unknown')
-        if pred.get('outcome_recorded'):
+    for pred in cal_data["predictions"]:
+        project = pred.get("project", "Unknown")
+        if pred.get("outcome_recorded"):
             project_counts[project] = project_counts.get(project, 0) + 1
 
     if project_counts:
@@ -131,7 +133,7 @@ def generate_report():
     # === SECTION 6: WEEK 1-2 GOALS ===
     print("6. WEEK 1-2 GOALS PROGRESS")
     print("-" * 60)
-    goal_completed = len(cal_data['outcomes'])
+    goal_completed = len(cal_data["outcomes"])
     goal_target = 20
 
     print(f"Target: {goal_target} completed predictions")
@@ -162,29 +164,25 @@ def generate_report():
         )
 
     # Calibration error
-    if stats['calibration_error'] > 0.20:
-        if stats['avg_confidence'] > stats['accuracy']:
-            recommendations.append(
-                "You're OVERCONFIDENT - lower your confidence levels by 10-15%"
-            )
+    if stats["calibration_error"] > 0.20:
+        if stats["avg_confidence"] > stats["accuracy"]:
+            recommendations.append("You're OVERCONFIDENT - lower your confidence levels by 10-15%")
         else:
             recommendations.append(
                 "You're UNDERCONFIDENT - increase your confidence levels by 10-15%"
             )
 
     # Time estimation
-    if time_stats['count'] > 5:
-        if time_stats['mean_error_pct'] > 40:
-            recommendations.append(
-                "Time estimates need significant improvement (>40% error)"
-            )
-        if time_stats['underestimates'] > time_stats['overestimates'] * 1.5:
+    if time_stats["count"] > 5:
+        if time_stats["mean_error_pct"] > 40:
+            recommendations.append("Time estimates need significant improvement (>40% error)")
+        if time_stats["underestimates"] > time_stats["overestimates"] * 1.5:
             recommendations.append(
                 "Add 20-30% buffer to your time estimates (you tend to underestimate)"
             )
 
     # Pending predictions
-    if cal_data['pending_count'] > 5:
+    if cal_data["pending_count"] > 5:
         recommendations.append(
             f"Complete {cal_data['pending_count']} pending predictions to keep data current"
         )

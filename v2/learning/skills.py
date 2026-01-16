@@ -10,14 +10,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
-from .outcomes import (
-    DetectedOutcome,
-    OutcomeDetector,
-    OutcomeType,
-    OutcomeSource
-)
+from .outcomes import DetectedOutcome, OutcomeDetector, OutcomeSource, OutcomeType
 
 if TYPE_CHECKING:
     from ..memory.store import TypedMemoryStore
@@ -26,6 +21,7 @@ if TYPE_CHECKING:
 @dataclass
 class SkillSequence:
     """A sequence of related outcomes that may represent a skill."""
+
     outcomes: List[DetectedOutcome]
     start_time: datetime
     end_time: datetime
@@ -58,6 +54,7 @@ class SkillSequence:
 @dataclass
 class ExtractedSkill:
     """A skill extracted from outcome sequences."""
+
     id: str
     title: str
     steps: List[str]
@@ -117,7 +114,7 @@ class SkillExtractor:
         self,
         detector: Optional[OutcomeDetector] = None,
         store: Optional["TypedMemoryStore"] = None,
-        data_dir: Optional[Path] = None
+        data_dir: Optional[Path] = None,
     ):
         """Initialize skill extractor.
 
@@ -133,9 +130,7 @@ class SkillExtractor:
         self.store = store
 
     def extract_from_recent(
-        self,
-        days: int = 7,
-        project: Optional[str] = None
+        self, days: int = 7, project: Optional[str] = None
     ) -> List[ExtractedSkill]:
         """Extract skills from recent outcomes.
 
@@ -148,9 +143,7 @@ class SkillExtractor:
         """
         # Get recent outcomes
         outcomes = self.detector.get_recent_outcomes(
-            project=project,
-            days=days,
-            source=OutcomeSource.GIT_COMMIT
+            project=project, days=days, source=OutcomeSource.GIT_COMMIT
         )
 
         if not outcomes:
@@ -175,10 +168,7 @@ class SkillExtractor:
 
         return skills
 
-    def detect_sequences(
-        self,
-        outcomes: List[DetectedOutcome]
-    ) -> List[SkillSequence]:
+    def detect_sequences(self, outcomes: List[DetectedOutcome]) -> List[SkillSequence]:
         """Detect sequences of related commits.
 
         Args:
@@ -221,7 +211,9 @@ class SkillExtractor:
 
                 # Check file overlap (if we have files)
                 if current_files and outcome_files:
-                    overlap = len(current_files & outcome_files) / len(current_files | outcome_files)
+                    overlap = len(current_files & outcome_files) / len(
+                        current_files | outcome_files
+                    )
                     if overlap < self.MIN_FILE_OVERLAP:
                         # Low overlap - save current and start new
                         if len(current_sequence) >= self.MIN_COMMITS:
@@ -265,24 +257,17 @@ class SkillExtractor:
 
         return files
 
-    def _create_sequence(
-        self,
-        outcomes: List[DetectedOutcome],
-        files: Set[str]
-    ) -> SkillSequence:
+    def _create_sequence(self, outcomes: List[DetectedOutcome], files: Set[str]) -> SkillSequence:
         """Create a SkillSequence from outcomes."""
         return SkillSequence(
             outcomes=outcomes,
             start_time=outcomes[0].timestamp,
             end_time=outcomes[-1].timestamp,
             project=outcomes[0].project,
-            files_touched=files
+            files_touched=files,
         )
 
-    def sequence_to_skill(
-        self,
-        seq: SkillSequence
-    ) -> Optional[ExtractedSkill]:
+    def sequence_to_skill(self, seq: SkillSequence) -> Optional[ExtractedSkill]:
         """Convert a sequence to an extracted skill.
 
         Args:
@@ -304,10 +289,7 @@ class SkillExtractor:
         steps = self._extract_steps(seq.commit_messages)
 
         # Get commit hashes
-        commits = [
-            o.context.get("commit_hash", o.id)
-            for o in seq.outcomes
-        ]
+        commits = [o.context.get("commit_hash", o.id) for o in seq.outcomes]
 
         # Calculate confidence based on sequence quality
         confidence = self._calculate_confidence(seq)
@@ -320,7 +302,7 @@ class SkillExtractor:
             project=seq.project,
             confidence=confidence,
             duration_minutes=seq.duration_minutes,
-            files_touched=list(seq.files_touched)
+            files_touched=list(seq.files_touched),
         )
 
     def generate_title(self, messages: List[str]) -> str:
@@ -350,7 +332,12 @@ class SkillExtractor:
             # Fall back to first message, cleaned up
             first = messages[0]
             # Remove common prefixes
-            first = re.sub(r"^(feat|fix|chore|docs|refactor|test|style)(\(.+?\))?:\s*", "", first, flags=re.I)
+            first = re.sub(
+                r"^(feat|fix|chore|docs|refactor|test|style)(\(.+?\))?:\s*",
+                "",
+                first,
+                flags=re.I,
+            )
             return first[:50] if len(first) > 50 else first
 
     def _extract_primary_verb(self, messages: List[str]) -> Optional[str]:
@@ -399,7 +386,12 @@ class SkillExtractor:
         steps = []
         for msg in messages:
             # Clean conventional commit prefixes
-            clean = re.sub(r"^(feat|fix|chore|docs|refactor|test|style)(\(.+?\))?:\s*", "", msg, flags=re.I)
+            clean = re.sub(
+                r"^(feat|fix|chore|docs|refactor|test|style)(\(.+?\))?:\s*",
+                "",
+                msg,
+                flags=re.I,
+            )
             # Clean ticket references
             clean = re.sub(r"\s*#\d+\s*", "", clean)
             # Capitalize first letter
@@ -439,10 +431,7 @@ class SkillExtractor:
 
         return min(0.95, confidence)
 
-    def merge_similar(
-        self,
-        skills: List[ExtractedSkill]
-    ) -> List[ExtractedSkill]:
+    def merge_similar(self, skills: List[ExtractedSkill]) -> List[ExtractedSkill]:
         """Merge skills that appear to be duplicates.
 
         Args:
@@ -470,10 +459,7 @@ class SkillExtractor:
 
         return merged
 
-    def save_as_skill(
-        self,
-        extracted: ExtractedSkill
-    ) -> "Skill":
+    def save_as_skill(self, extracted: ExtractedSkill) -> "Skill":
         """Save an extracted skill to the TypedMemoryStore.
 
         Args:
@@ -492,7 +478,7 @@ class SkillExtractor:
             steps=extracted.steps,
             estimated_time=f"{extracted.duration_minutes} minutes",
             difficulty=self._estimate_difficulty(extracted),
-            projects=[extracted.project]
+            projects=[extracted.project],
         )
         skill.confidence = extracted.confidence
         skill.tags = ["auto-extracted", "from-commits"]

@@ -18,7 +18,7 @@ class ArchitectureAnalyzer:
     def analyze_architecture(self) -> Dict[str, Any]:
         """
         Analyze project architecture and detect patterns.
-        
+
         Returns:
             Dict with architectural analysis including patterns and structure
         """
@@ -89,50 +89,61 @@ class ArchitectureAnalyzer:
 
         # Async/await usage
         if self._uses_async():
-            decisions.append({
-                "decision": "Async/await for concurrency",
-                "rationale": "Project uses async/await patterns",
-                "impact": "high",
-            })
+            decisions.append(
+                {
+                    "decision": "Async/await for concurrency",
+                    "rationale": "Project uses async/await patterns",
+                    "impact": "high",
+                }
+            )
 
         # Type hints
         if self._uses_type_hints():
-            decisions.append({
-                "decision": "Type hints for type safety",
-                "rationale": "Project uses type annotations",
-                "impact": "medium",
-            })
+            decisions.append(
+                {
+                    "decision": "Type hints for type safety",
+                    "rationale": "Project uses type annotations",
+                    "impact": "medium",
+                }
+            )
 
         # Dependency management
         if (self.project_path / "poetry.lock").exists():
-            decisions.append({
-                "decision": "Poetry for dependency management",
-                "rationale": "Uses Poetry instead of pip",
-                "impact": "medium",
-            })
+            decisions.append(
+                {
+                    "decision": "Poetry for dependency management",
+                    "rationale": "Uses Poetry instead of pip",
+                    "impact": "medium",
+                }
+            )
         elif (self.project_path / "requirements.txt").exists():
-            decisions.append({
-                "decision": "Requirements.txt for dependencies",
-                "rationale": "Traditional pip-based dependency management",
-                "impact": "low",
-            })
+            decisions.append(
+                {
+                    "decision": "Requirements.txt for dependencies",
+                    "rationale": "Traditional pip-based dependency management",
+                    "impact": "low",
+                }
+            )
 
         # Testing strategy
-        test_files = list(self.project_path.rglob("test_*.py")) + \
-                    list(self.project_path.rglob("*_test.py"))
+        test_files = list(self.project_path.rglob("test_*.py")) + list(
+            self.project_path.rglob("*_test.py")
+        )
         if len(test_files) > 10:
-            decisions.append({
-                "decision": "Comprehensive testing",
-                "rationale": f"Found {len(test_files)} test files",
-                "impact": "high",
-            })
+            decisions.append(
+                {
+                    "decision": "Comprehensive testing",
+                    "rationale": f"Found {len(test_files)} test files",
+                    "impact": "high",
+                }
+            )
 
         return decisions
 
     def _analyze_module_organization(self) -> Dict[str, Any]:
         """Analyze how modules are organized."""
         python_files = list(self.project_path.rglob("*.py"))
-        
+
         # Count files by directory depth
         depth_counts = {}
         for py_file in python_files:
@@ -165,21 +176,25 @@ class ArchitectureAnalyzer:
     def _has_mvc_structure(self) -> bool:
         """Check for MVC structure (models, views, controllers)."""
         has_models = any(self.project_path.rglob("**/models*.py"))
-        has_views = any(self.project_path.rglob("**/views*.py")) or \
-                   any(self.project_path.rglob("**/templates"))
-        has_controllers = any(self.project_path.rglob("**/controllers*.py")) or \
-                         any(self.project_path.rglob("**/routes*.py"))
+        has_views = any(self.project_path.rglob("**/views*.py")) or any(
+            self.project_path.rglob("**/templates")
+        )
+        has_controllers = any(self.project_path.rglob("**/controllers*.py")) or any(
+            self.project_path.rglob("**/routes*.py")
+        )
         return has_models and (has_views or has_controllers)
 
     def _has_repository_pattern(self) -> bool:
         """Check for repository pattern."""
-        return any(self.project_path.rglob("**/repositories*.py")) or \
-               any(self.project_path.rglob("**/repository*.py"))
+        return any(self.project_path.rglob("**/repositories*.py")) or any(
+            self.project_path.rglob("**/repository*.py")
+        )
 
     def _has_service_layer(self) -> bool:
         """Check for service layer pattern."""
-        return any(self.project_path.rglob("**/services*.py")) or \
-               any(self.project_path.rglob("**/service*.py"))
+        return any(self.project_path.rglob("**/services*.py")) or any(
+            self.project_path.rglob("**/service*.py")
+        )
 
     def _has_dependency_injection(self) -> bool:
         """Check for dependency injection patterns."""
@@ -196,8 +211,9 @@ class ArchitectureAnalyzer:
 
     def _has_factory_pattern(self) -> bool:
         """Check for factory pattern."""
-        return any(self.project_path.rglob("**/factory*.py")) or \
-               any(self.project_path.rglob("**/factories*.py"))
+        return any(self.project_path.rglob("**/factory*.py")) or any(
+            self.project_path.rglob("**/factories*.py")
+        )
 
     def _has_observer_pattern(self) -> bool:
         """Check for observer pattern."""
@@ -213,9 +229,11 @@ class ArchitectureAnalyzer:
 
     def _has_api_gateway(self) -> bool:
         """Check for API Gateway pattern (routes, endpoints)."""
-        return any(self.project_path.rglob("**/routes*.py")) or \
-               any(self.project_path.rglob("**/endpoints*.py")) or \
-               any(self.project_path.rglob("**/api*.py"))
+        return (
+            any(self.project_path.rglob("**/routes*.py"))
+            or any(self.project_path.rglob("**/endpoints*.py"))
+            or any(self.project_path.rglob("**/api*.py"))
+        )
 
     def _uses_async(self) -> bool:
         """Check if project uses async/await."""
@@ -236,7 +254,11 @@ class ArchitectureAnalyzer:
         for py_file in python_files:
             try:
                 content = py_file.read_text()
-                if "->" in content or ": " in content and ("str" in content or "int" in content or "List" in content):
+                if (
+                    "->" in content
+                    or ": " in content
+                    and ("str" in content or "int" in content or "List" in content)
+                ):
                     type_hint_count += 1
             except Exception:
                 pass
@@ -246,11 +268,11 @@ class ArchitectureAnalyzer:
         """Classify module organization style."""
         if not depth_counts:
             return "unknown"
-        
+
         max_depth = max(depth_counts.keys())
         shallow_files = sum(count for depth, count in depth_counts.items() if depth <= 1)
         total_files = sum(depth_counts.values())
-        
+
         if shallow_files / total_files > 0.7:
             return "flat"
         elif max_depth <= 2:
@@ -259,5 +281,3 @@ class ArchitectureAnalyzer:
             return "deeply_nested"
         else:
             return "moderate"
-
-

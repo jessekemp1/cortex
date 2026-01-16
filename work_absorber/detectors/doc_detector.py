@@ -5,14 +5,14 @@ Parses *_COMPLETE.md, *_SUMMARY.md, and similar completion documentation
 to extract structured work achievements.
 """
 
-import re
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from .base import SignalDetector
 from ..models import WorkSignal, WorkSignalType
+from .base import SignalDetector
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +197,7 @@ class CompletionDocDetector(SignalDetector):
                         return datetime.fromisoformat(date_str)
                     # Try natural format
                     from dateutil import parser
+
                     return parser.parse(date_str)
                 except (ValueError, ImportError):
                     continue

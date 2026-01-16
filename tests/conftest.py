@@ -8,30 +8,36 @@ Provides test fixtures for:
 - Sample test data
 """
 
-import tempfile
 import sys
-from pathlib import Path
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
+
 import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from intelligence.monitoring.alert_generator import (
+    Alert,
+    AlertGenerator,
+    AlertSeverity,
+    AlertType,
+)
 from intelligence.monitoring.metric_tracker import MetricTracker, MetricType
 from intelligence.monitoring.trend_analyzer import TrendAnalyzer
-from intelligence.monitoring.alert_generator import AlertGenerator, Alert, AlertSeverity, AlertType
+from intelligence.recommendations.alert_adapter import AdaptedAlert, adapt_alerts
 from intelligence.recommendations.file_selector import FileSelector
 from intelligence.recommendations.smart_generator import SmartRecommendationGenerator
-from intelligence.recommendations.alert_adapter import AdaptedAlert, adapt_alerts
 from recommendation_engine import RecommendationEngine
 
-
 # Database Fixtures
+
 
 @pytest.fixture
 def temp_db():
     """Create a temporary SQLite database for testing."""
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.db') as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".db") as f:
         temp_path = Path(f.name)
 
     yield temp_path
@@ -48,6 +54,7 @@ def temp_project_dir():
 
 
 # Layer 3 Fixtures
+
 
 @pytest.fixture
 def metric_tracker(temp_db):
@@ -71,6 +78,7 @@ def alert_generator(trend_analyzer):
 
 # Layer 4 Fixtures
 
+
 @pytest.fixture
 def file_selector(temp_project_dir):
     """Create a FileSelector with temp project directory."""
@@ -90,6 +98,7 @@ def recommendation_engine(temp_project_dir):
 
 
 # Sample Data Fixtures
+
 
 @pytest.fixture
 def sample_coverage_degrading():
@@ -143,11 +152,11 @@ def sample_violations_increasing():
 def sample_commits_active():
     """Sample commit metrics showing active project."""
     return [
-        (15, {'timeframe': '24h'}),
-        (18, {'timeframe': '24h'}),
-        (20, {'timeframe': '24h'}),
-        (12, {'timeframe': '24h'}),
-        (16, {'timeframe': '24h'}),
+        (15, {"timeframe": "24h"}),
+        (18, {"timeframe": "24h"}),
+        (20, {"timeframe": "24h"}),
+        (12, {"timeframe": "24h"}),
+        (16, {"timeframe": "24h"}),
     ]
 
 
@@ -166,7 +175,7 @@ def sample_alert_critical():
             "current": 70.0,
         },
         created_at=datetime.now(),
-        project="test_project"
+        project="test_project",
     )
 
 
@@ -185,7 +194,7 @@ def sample_alert_warning():
             "current": 77.0,
         },
         created_at=datetime.now(),
-        project="test_project"
+        project="test_project",
     )
 
 
@@ -197,12 +206,13 @@ def sample_alerts(sample_alert_critical, sample_alert_warning):
 
 # Helper Functions
 
+
 def create_metric_series(
     metric_tracker: MetricTracker,
     project: str,
     metric_type: MetricType,
     values: list,
-    start_time: datetime = None
+    start_time: datetime = None,
 ):
     """
     Helper to create a series of metrics over time.
@@ -225,9 +235,7 @@ def create_metric_series(
         timestamp = start_time + timedelta(days=i)
 
         if metric_type == MetricType.COVERAGE:
-            metric = metric_tracker.track_coverage(
-                project, value, metadata, timestamp=timestamp
-            )
+            metric = metric_tracker.track_coverage(project, value, metadata, timestamp=timestamp)
         elif metric_type == MetricType.VIOLATIONS:
             metric = metric_tracker.track_violations(
                 project, value, metadata=metadata, timestamp=timestamp
@@ -246,21 +254,21 @@ def create_metric_series(
 
 # Export helper for easy imports
 __all__ = [
-    'temp_db',
-    'temp_project_dir',
-    'metric_tracker',
-    'trend_analyzer',
-    'alert_generator',
-    'file_selector',
-    'smart_generator',
-    'recommendation_engine',
-    'sample_coverage_degrading',
-    'sample_coverage_stable',
-    'sample_coverage_improving',
-    'sample_violations_increasing',
-    'sample_commits_active',
-    'sample_alert_critical',
-    'sample_alert_warning',
-    'sample_alerts',
-    'create_metric_series',
+    "temp_db",
+    "temp_project_dir",
+    "metric_tracker",
+    "trend_analyzer",
+    "alert_generator",
+    "file_selector",
+    "smart_generator",
+    "recommendation_engine",
+    "sample_coverage_degrading",
+    "sample_coverage_stable",
+    "sample_coverage_improving",
+    "sample_violations_increasing",
+    "sample_commits_active",
+    "sample_alert_critical",
+    "sample_alert_warning",
+    "sample_alerts",
+    "create_metric_series",
 ]

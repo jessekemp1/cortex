@@ -8,9 +8,9 @@ Each detector extracts work signals from a specific source:
 """
 
 from .base import SignalDetector
-from .git_detector import GitSignalDetector
-from .doc_detector import CompletionDocDetector
 from .batch_detector import BatchResultDetector
+from .doc_detector import CompletionDocDetector
+from .git_detector import GitSignalDetector
 
 __all__ = [
     "SignalDetector",

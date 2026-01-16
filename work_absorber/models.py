@@ -9,16 +9,17 @@ Core entities:
 - AbsorptionReport: Summary of an absorption cycle
 """
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
 from pathlib import Path
-import hashlib
+from typing import Any, Dict, List, Optional
 
 
 class WorkSignalType(Enum):
     """Types of work signals that can be detected."""
+
     GIT_COMMIT = "git_commit"
     COMPLETION_DOC = "completion_doc"
     BATCH_RESULT = "batch_result"
@@ -28,19 +29,21 @@ class WorkSignalType(Enum):
 
 class WorkStatus(Enum):
     """Status of work items in the absorption pipeline."""
-    DETECTED = "detected"      # Signal detected, not yet processed
-    ABSORBED = "absorbed"      # Processed and integrated
+
+    DETECTED = "detected"  # Signal detected, not yet processed
+    ABSORBED = "absorbed"  # Processed and integrated
     CORRELATED = "correlated"  # Linked to a plan item
-    ORPHANED = "orphaned"      # No plan correlation found
+    ORPHANED = "orphaned"  # No plan correlation found
 
 
 class DriftType(Enum):
     """Types of drift between plans and actual work."""
-    UNPLANNED_WORK = "unplanned_work"      # Work done not in plan
-    STALE_PLAN = "stale_plan"              # Plan item with no activity
-    SCOPE_CREEP = "scope_creep"            # Work exceeds plan scope
-    BLOCKED = "blocked"                     # Plan item explicitly blocked
-    EARLY_COMPLETION = "early_completion"   # Completed ahead of schedule
+
+    UNPLANNED_WORK = "unplanned_work"  # Work done not in plan
+    STALE_PLAN = "stale_plan"  # Plan item with no activity
+    SCOPE_CREEP = "scope_creep"  # Work exceeds plan scope
+    BLOCKED = "blocked"  # Plan item explicitly blocked
+    EARLY_COMPLETION = "early_completion"  # Completed ahead of schedule
 
 
 @dataclass
@@ -51,6 +54,7 @@ class WorkSignal:
     This is the atomic unit of work detection - one commit, one doc,
     one batch result, etc.
     """
+
     id: str
     signal_type: WorkSignalType
     source_path: str  # File path, repo path, or URL
@@ -141,6 +145,7 @@ class WorkItem:
     Represents a logical unit of work (e.g., "Implemented batch scheduler")
     that may span multiple commits, docs, etc.
     """
+
     id: str
     project: str
     title: str
@@ -244,6 +249,7 @@ class ProgressEntry:
 
     Links work items to plan steps with evidence.
     """
+
     id: str
     work_item_id: str
     plan_step_id: Optional[str]
@@ -306,6 +312,7 @@ class PlanDrift:
 
     Identifies gaps like unplanned work, stale plans, scope creep, etc.
     """
+
     id: str
     project: str
     detected_at: datetime
@@ -364,7 +371,9 @@ class PlanDrift:
             description=data.get("description", ""),
             suggested_action=data.get("suggested_action", ""),
             resolved=data.get("resolved", False),
-            resolved_at=datetime.fromisoformat(data["resolved_at"]) if data.get("resolved_at") else None,
+            resolved_at=(
+                datetime.fromisoformat(data["resolved_at"]) if data.get("resolved_at") else None
+            ),
             resolution_notes=data.get("resolution_notes", ""),
         )
 
@@ -376,6 +385,7 @@ class AbsorptionReport:
 
     Provides metrics and audit trail for each absorption run.
     """
+
     id: str
     started_at: datetime
     completed_at: datetime
@@ -461,7 +471,9 @@ class AbsorptionReport:
         if self.by_project:
             lines.append("\nBy Project:")
             for project, stats in sorted(self.by_project.items()):
-                lines.append(f"  {project}: {stats.get('signals', 0)} signals, {stats.get('work_items', 0)} items")
+                lines.append(
+                    f"  {project}: {stats.get('signals', 0)} signals, {stats.get('work_items', 0)} items"
+                )
 
         if self.errors:
             lines.append(f"\nErrors ({len(self.errors)}):")

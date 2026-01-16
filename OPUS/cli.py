@@ -46,9 +46,7 @@ def cmd_status(args):
     orchestrator = ConverxOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(
-            limit=0
-        )  # Just get state, no recommendations
+        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
 
         state = response.current_state
 
@@ -126,9 +124,7 @@ Examples:
 
     # Next command
     next_parser = subparsers.add_parser("next", help="Get next action")
-    next_parser.add_argument(
-        "project", nargs="?", help="Filter by project name (optional)"
-    )
+    next_parser.add_argument("project", nargs="?", help="Filter by project name (optional)")
     next_parser.add_argument(
         "--with-context", action="store_true", help="Include context predictions"
     )

@@ -8,11 +8,11 @@ Formats StrategistResponse objects into human-readable output.
 import json
 
 try:
+    from .orchestrator import SystemHealth  # noqa: F401
     from .orchestrator import (
         ContextPrediction,
         Recommendation,
         StrategistResponse,
-        SystemHealth,  # noqa: F401
     )
 except ImportError:
     from orchestrator import (
@@ -121,9 +121,7 @@ class ConverxFormatter:
             lines.append("🎯 NEXT ACTION")
             lines.append("────────────────")
             lines.append(
-                ConverxFormatter._format_recommendation(
-                    response.next_action, detailed=True
-                )
+                ConverxFormatter._format_recommendation(response.next_action, detailed=True)
             )
             lines.append("")
         else:
@@ -144,9 +142,7 @@ class ConverxFormatter:
             lines.append("────────────────────────────────────────────────────────────")
 
             for i, rec in enumerate(response.alternative_actions, 2):
-                lines.append(
-                    f"{i}. {ConverxFormatter._format_recommendation(rec, detailed=False)}"
-                )
+                lines.append(f"{i}. {ConverxFormatter._format_recommendation(rec, detailed=False)}")
                 lines.append("")
 
         # Context Predictions
@@ -157,13 +153,9 @@ class ConverxFormatter:
 
             for pred in response.context_predictions[:3]:  # Show top 3
                 confidence_icon = (
-                    "🟢"
-                    if pred.confidence >= 0.8
-                    else "🟡" if pred.confidence >= 0.6 else "⚪"
+                    "🟢" if pred.confidence >= 0.8 else "🟡" if pred.confidence >= 0.6 else "⚪"
                 )
-                lines.append(
-                    f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)"
-                )
+                lines.append(f"{confidence_icon} {pred.title} ({pred.confidence:.0%} confidence)")
                 lines.append(f"   {pred.description}")
                 lines.append(f"   Command: {pred.command}")
                 lines.append("")
@@ -174,9 +166,7 @@ class ConverxFormatter:
     def _format_recommendation(rec: Recommendation, detailed: bool = True) -> str:
         """Format a single recommendation with enhanced traceability."""
         priority_icon = (
-            "🔴"
-            if rec.priority == "high"
-            else "🟡" if rec.priority == "medium" else "⚪"
+            "🔴" if rec.priority == "high" else "🟡" if rec.priority == "medium" else "⚪"
         )
         priority_label = rec.priority.upper()
 
@@ -220,11 +210,7 @@ class ConverxFormatter:
                         lines.append("Next Steps:")
                     elif next_steps_started and line.strip().startswith("•"):
                         lines.append(f"  {line.strip()}")
-                    elif (
-                        next_steps_started
-                        and line.strip()
-                        and not line.strip().startswith("•")
-                    ):
+                    elif next_steps_started and line.strip() and not line.strip().startswith("•"):
                         # End of next steps
                         break
 

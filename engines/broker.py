@@ -12,20 +12,21 @@ Instead of waiting for `cortex next`, the Broker emits InterventionEvents when:
 - High-confidence recommendation available
 """
 
+import json
+import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
-import json
-import uuid
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class InterventionType(Enum):
     """Types of proactive interventions."""
+
     ERROR_PATTERN_DETECTED = "error_pattern_detected"
     WORK_DRIFT = "work_drift"
     BLOCKER_IDENTIFIED = "blocker_identified"
@@ -37,6 +38,7 @@ class InterventionType(Enum):
 
 class Severity(Enum):
     """Intervention severity levels."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -47,6 +49,7 @@ class Severity(Enum):
 @dataclass
 class SuggestedAction:
     """Suggested action for an intervention."""
+
     title: str
     rationale: str
     confidence: float
@@ -66,6 +69,7 @@ class SuggestedAction:
 @dataclass
 class Intervention:
     """A proactive intervention from Cortex."""
+
     id: str
     type: InterventionType
     severity: Severity
@@ -86,10 +90,14 @@ class Intervention:
             "title": self.title,
             "description": self.description,
             "context": self.context,
-            "suggested_action": self.suggested_action.to_dict() if self.suggested_action else None,
+            "suggested_action": (
+                self.suggested_action.to_dict() if self.suggested_action else None
+            ),
             "timestamp": self.timestamp.isoformat(),
             "acknowledged": self.acknowledged,
-            "suppressed_until": self.suppressed_until.isoformat() if self.suppressed_until else None,
+            "suppressed_until": (
+                self.suppressed_until.isoformat() if self.suppressed_until else None
+            ),
             "source_engine": self.source_engine,
         }
 
@@ -102,10 +110,18 @@ class Intervention:
             title=data["title"],
             description=data["description"],
             context=data["context"],
-            suggested_action=SuggestedAction(**data["suggested_action"]) if data.get("suggested_action") else None,
+            suggested_action=(
+                SuggestedAction(**data["suggested_action"])
+                if data.get("suggested_action")
+                else None
+            ),
             timestamp=datetime.fromisoformat(data.get("timestamp", datetime.now().isoformat())),
             acknowledged=data.get("acknowledged", False),
-            suppressed_until=datetime.fromisoformat(data["suppressed_until"]) if data.get("suppressed_until") else None,
+            suppressed_until=(
+                datetime.fromisoformat(data["suppressed_until"])
+                if data.get("suppressed_until")
+                else None
+            ),
             source_engine=data.get("source_engine", "broker"),
         )
 
@@ -116,27 +132,24 @@ class Intervention:
             "message_id": f"msg:intervention-{self.id}",
             "timestamp": self.timestamp.isoformat(),
             "message_type": "intervention",
-            "source_agent": {
-                "id": "cortex",
-                "role": "orchestrator"
-            },
+            "source_agent": {"id": "cortex", "role": "orchestrator"},
             "target_agent": target_agent,
             "context_snapshot": self.context,
             "payload": {
                 "intervention_type": self.type.value,
                 "severity": self.severity.value,
                 "instruction": self.description,
-                "suggested_fix": self.suggested_action.title if self.suggested_action else None,
-                "confidence": self.suggested_action.confidence if self.suggested_action else 0.5,
-                "constraints": []
-            }
+                "suggested_fix": (self.suggested_action.title if self.suggested_action else None),
+                "confidence": (self.suggested_action.confidence if self.suggested_action else 0.5),
+                "constraints": [],
+            },
         }
 
 
 class ActionBroker:
     """
     Engine C: Proactive intervention system.
-    
+
     This is the output layer of Cortex V2 Prime.
     """
 
@@ -182,7 +195,7 @@ class ActionBroker:
 
         self.interventions.append(intervention)
         self._save()
-        
+
         # Notify callbacks
         for callback in self._callbacks:
             try:
@@ -206,7 +219,7 @@ class ActionBroker:
         title: str,
         description: str,
         context: Dict[str, Any],
-        suggested_action: Optional[SuggestedAction] = None
+        suggested_action: Optional[SuggestedAction] = None,
     ) -> Intervention:
         """Create and emit an intervention."""
         intervention = Intervention(
@@ -225,10 +238,9 @@ class ActionBroker:
         """Get unacknowledged interventions."""
         now = datetime.now()
         return [
-            i for i in self.interventions
-            if not i.acknowledged and (
-                i.suppressed_until is None or i.suppressed_until < now
-            )
+            i
+            for i in self.interventions
+            if not i.acknowledged and (i.suppressed_until is None or i.suppressed_until < now)
         ]
 
     def get_by_severity(self, severity: Severity) -> List[Intervention]:
@@ -417,8 +429,12 @@ class ActionBroker:
         recommendations: List[str],
     ) -> Intervention:
         """Trigger a health alert intervention."""
-        severity = Severity.CRITICAL if health_score < 30 else Severity.HIGH if health_score < 50 else Severity.MEDIUM
-        
+        severity = (
+            Severity.CRITICAL
+            if health_score < 30
+            else Severity.HIGH if health_score < 50 else Severity.MEDIUM
+        )
+
         return self.create_intervention(
             intervention_type=InterventionType.HEALTH_ALERT,
             severity=severity,
@@ -458,7 +474,7 @@ class ActionBroker:
     def get_status(self) -> Dict[str, Any]:
         """Get broker status."""
         pending = self.get_pending()
-        
+
         by_severity = {}
         for sev in Severity:
             by_severity[sev.value] = len([i for i in pending if i.severity == sev])
@@ -479,15 +495,14 @@ class ActionBroker:
         """Remove acknowledged interventions older than specified days."""
         cutoff = datetime.now() - timedelta(days=days)
         original_count = len(self.interventions)
-        
+
         self.interventions = [
-            i for i in self.interventions
-            if not i.acknowledged or i.timestamp > cutoff
+            i for i in self.interventions if not i.acknowledged or i.timestamp > cutoff
         ]
-        
+
         removed = original_count - len(self.interventions)
         if removed > 0:
             self._save()
             logger.info(f"Cleaned up {removed} old interventions")
-        
+
         return removed

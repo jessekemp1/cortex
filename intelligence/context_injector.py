@@ -59,7 +59,7 @@ class InjectionContext:
         lines.append(line1)
 
         # Prioritize: Warnings > Patterns > Domain Insights
-        
+
         # Warnings (most important - show up to 2)
         if self.warnings:
             for warning in self.warnings[:2]:
@@ -74,14 +74,16 @@ class InjectionContext:
         # Pattern hint (if space available)
         if self.pattern_hint:
             current_length = len("\n".join(lines))
-            remaining = max_chars - current_length - 20  # Reserve 20 chars for newline and "Pattern: "
+            remaining = (
+                max_chars - current_length - 20
+            )  # Reserve 20 chars for newline and "Pattern: "
             if remaining > 20:  # Only add if we have reasonable space
                 pattern_line = f"Pattern: {self.pattern_hint}"
                 if len(pattern_line) <= remaining:
                     lines.append(pattern_line)
                 else:
                     # Truncate pattern hint to fit
-                    truncated = self.pattern_hint[:remaining - 13] + "..."
+                    truncated = self.pattern_hint[: remaining - 13] + "..."
                     lines.append(f"Pattern: {truncated}")
 
         # Domain insight (if space available)
@@ -93,7 +95,7 @@ class InjectionContext:
                     lines.append(self.domain_insight)
                 else:
                     # Truncate domain insight to fit
-                    truncated = self.domain_insight[:remaining - 3] + "..."
+                    truncated = self.domain_insight[: remaining - 3] + "..."
                     lines.append(truncated)
 
         # Process context (if space available)
@@ -106,7 +108,7 @@ class InjectionContext:
                     lines.append(process_line)
                 else:
                     # Truncate to fit
-                    truncated = self.process_context[:remaining - 15] + "..."
+                    truncated = self.process_context[: remaining - 15] + "..."
                     lines.append(f"Resource: {truncated}")
 
         result = "\n".join(lines)
@@ -203,7 +205,11 @@ class ContextInjector:
                     # Handle nested projects like Vortex/VortexV2 or production/audio/dj-copilot
                     if len(parts) >= 2 and parts[0] in ["Vortex", "production"]:
                         # Return deepest non-category directory
-                        return parts[-1] if parts[-1] not in ["audio", "weather", "health"] else parts[-2]
+                        return (
+                            parts[-1]
+                            if parts[-1] not in ["audio", "weather", "health"]
+                            else parts[-2]
+                        )
                     return parts[0]
             except ValueError:
                 pass
@@ -214,11 +220,11 @@ class ContextInjector:
         """Add project profile to context (with caching)."""
         # Find project root
         project_root = self._find_project_root(cwd)
-        
+
         # Check cache
         cache_key = (project_root, quick)
         current_time = time.time()
-        
+
         if cache_key in self._profile_cache:
             profile, cache_time = self._profile_cache[cache_key]
             age = current_time - cache_time
@@ -226,17 +232,17 @@ class ContextInjector:
                 # Use cached profile
                 self._apply_profile_to_context(context, profile)
                 return
-        
+
         # Cache miss - generate profile
         profiler = ProjectProfiler(project_root)
         profile = profiler.profile(quick=quick)
-        
+
         # Cache the profile
         self._profile_cache[cache_key] = (profile, current_time)
-        
+
         # Apply to context
         self._apply_profile_to_context(context, profile)
-    
+
     def _apply_profile_to_context(self, context: InjectionContext, profile):
         """Apply profile data to context."""
         # Add to context
@@ -256,7 +262,7 @@ class ContextInjector:
         if not task:
             # No task provided, skip pattern search
             return
-            
+
         if self._pattern_memory is None:
             self._pattern_memory = PatternMemory(self.root_dir)
 
@@ -281,9 +287,7 @@ class ContextInjector:
             # Graceful degradation - if pattern search fails, continue without it
             pass
 
-    def _add_domain_insight(
-        self, context: InjectionContext, cwd: Path, task: str, project: str
-    ):
+    def _add_domain_insight(self, context: InjectionContext, cwd: Path, task: str, project: str):
         """Add domain expert insight and warnings."""
         expert = self._get_domain_expert(project)
         if expert:
@@ -291,7 +295,7 @@ class ContextInjector:
             insight = expert.get_quick_insight(cwd, task)
             if insight:
                 context.domain_insight = insight
-            
+
             # Get warnings (e.g., GRIB data freshness)
             try:
                 warnings = expert.get_warnings(cwd)

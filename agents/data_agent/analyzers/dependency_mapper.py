@@ -20,33 +20,210 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Standard library modules (Python 3.9+)
 STDLIB_MODULES = {
-    "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio", "asyncore",
-    "atexit", "audioop", "base64", "bdb", "binascii", "binhex", "bisect", "builtins",
-    "bz2", "calendar", "cgi", "cgitb", "chunk", "cmath", "cmd", "code", "codecs",
-    "codeop", "collections", "colorsys", "compileall", "concurrent", "configparser",
-    "contextlib", "contextvars", "copy", "copyreg", "cProfile", "crypt", "csv",
-    "ctypes", "curses", "dataclasses", "datetime", "dbm", "decimal", "difflib",
-    "dis", "distutils", "doctest", "email", "encodings", "enum", "errno", "faulthandler",
-    "fcntl", "filecmp", "fileinput", "fnmatch", "fractions", "ftplib", "functools",
-    "gc", "getopt", "getpass", "gettext", "glob", "graphlib", "grp", "gzip", "hashlib",
-    "heapq", "hmac", "html", "http", "imaplib", "imghdr", "imp", "importlib", "inspect",
-    "io", "ipaddress", "itertools", "json", "keyword", "lib2to3", "linecache", "locale",
-    "logging", "lzma", "mailbox", "mailcap", "marshal", "math", "mimetypes", "mmap",
-    "modulefinder", "multiprocessing", "netrc", "nis", "nntplib", "numbers", "operator",
-    "optparse", "os", "ossaudiodev", "pathlib", "pdb", "pickle", "pickletools", "pipes",
-    "pkgutil", "platform", "plistlib", "poplib", "posix", "posixpath", "pprint", "profile",
-    "pstats", "pty", "pwd", "py_compile", "pyclbr", "pydoc", "queue", "quopri", "random",
-    "re", "readline", "reprlib", "resource", "rlcompleter", "runpy", "sched", "secrets",
-    "select", "selectors", "shelve", "shlex", "shutil", "signal", "site", "smtpd",
-    "smtplib", "sndhdr", "socket", "socketserver", "spwd", "sqlite3", "ssl", "stat",
-    "statistics", "string", "stringprep", "struct", "subprocess", "sunau", "symbol",
-    "symtable", "sys", "sysconfig", "syslog", "tabnanny", "tarfile", "telnetlib",
-    "tempfile", "termios", "test", "textwrap", "threading", "time", "timeit", "tkinter",
-    "token", "tokenize", "trace", "traceback", "tracemalloc", "tty", "turtle", "turtledemo",
-    "types", "typing", "typing_extensions", "unicodedata", "unittest", "urllib", "uu",
-    "uuid", "venv", "warnings", "wave", "weakref", "webbrowser", "winreg", "winsound",
-    "wsgiref", "xdrlib", "xml", "xmlrpc", "zipapp", "zipfile", "zipimport", "zlib",
-    "_thread"
+    "abc",
+    "aifc",
+    "argparse",
+    "array",
+    "ast",
+    "asynchat",
+    "asyncio",
+    "asyncore",
+    "atexit",
+    "audioop",
+    "base64",
+    "bdb",
+    "binascii",
+    "binhex",
+    "bisect",
+    "builtins",
+    "bz2",
+    "calendar",
+    "cgi",
+    "cgitb",
+    "chunk",
+    "cmath",
+    "cmd",
+    "code",
+    "codecs",
+    "codeop",
+    "collections",
+    "colorsys",
+    "compileall",
+    "concurrent",
+    "configparser",
+    "contextlib",
+    "contextvars",
+    "copy",
+    "copyreg",
+    "cProfile",
+    "crypt",
+    "csv",
+    "ctypes",
+    "curses",
+    "dataclasses",
+    "datetime",
+    "dbm",
+    "decimal",
+    "difflib",
+    "dis",
+    "distutils",
+    "doctest",
+    "email",
+    "encodings",
+    "enum",
+    "errno",
+    "faulthandler",
+    "fcntl",
+    "filecmp",
+    "fileinput",
+    "fnmatch",
+    "fractions",
+    "ftplib",
+    "functools",
+    "gc",
+    "getopt",
+    "getpass",
+    "gettext",
+    "glob",
+    "graphlib",
+    "grp",
+    "gzip",
+    "hashlib",
+    "heapq",
+    "hmac",
+    "html",
+    "http",
+    "imaplib",
+    "imghdr",
+    "imp",
+    "importlib",
+    "inspect",
+    "io",
+    "ipaddress",
+    "itertools",
+    "json",
+    "keyword",
+    "lib2to3",
+    "linecache",
+    "locale",
+    "logging",
+    "lzma",
+    "mailbox",
+    "mailcap",
+    "marshal",
+    "math",
+    "mimetypes",
+    "mmap",
+    "modulefinder",
+    "multiprocessing",
+    "netrc",
+    "nis",
+    "nntplib",
+    "numbers",
+    "operator",
+    "optparse",
+    "os",
+    "ossaudiodev",
+    "pathlib",
+    "pdb",
+    "pickle",
+    "pickletools",
+    "pipes",
+    "pkgutil",
+    "platform",
+    "plistlib",
+    "poplib",
+    "posix",
+    "posixpath",
+    "pprint",
+    "profile",
+    "pstats",
+    "pty",
+    "pwd",
+    "py_compile",
+    "pyclbr",
+    "pydoc",
+    "queue",
+    "quopri",
+    "random",
+    "re",
+    "readline",
+    "reprlib",
+    "resource",
+    "rlcompleter",
+    "runpy",
+    "sched",
+    "secrets",
+    "select",
+    "selectors",
+    "shelve",
+    "shlex",
+    "shutil",
+    "signal",
+    "site",
+    "smtpd",
+    "smtplib",
+    "sndhdr",
+    "socket",
+    "socketserver",
+    "spwd",
+    "sqlite3",
+    "ssl",
+    "stat",
+    "statistics",
+    "string",
+    "stringprep",
+    "struct",
+    "subprocess",
+    "sunau",
+    "symbol",
+    "symtable",
+    "sys",
+    "sysconfig",
+    "syslog",
+    "tabnanny",
+    "tarfile",
+    "telnetlib",
+    "tempfile",
+    "termios",
+    "test",
+    "textwrap",
+    "threading",
+    "time",
+    "timeit",
+    "tkinter",
+    "token",
+    "tokenize",
+    "trace",
+    "traceback",
+    "tracemalloc",
+    "tty",
+    "turtle",
+    "turtledemo",
+    "types",
+    "typing",
+    "typing_extensions",
+    "unicodedata",
+    "unittest",
+    "urllib",
+    "uu",
+    "uuid",
+    "venv",
+    "warnings",
+    "wave",
+    "weakref",
+    "webbrowser",
+    "winreg",
+    "winsound",
+    "wsgiref",
+    "xdrlib",
+    "xml",
+    "xmlrpc",
+    "zipapp",
+    "zipfile",
+    "zipimport",
+    "zlib",
+    "_thread",
 }
 
 
@@ -62,16 +239,18 @@ class ImportVisitor(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import):
         """Handle: import X, import X as Y"""
         for alias in node.names:
-            self.imports.append({
-                "module": alias.name,
-                "names": [alias.asname or alias.name],
-                "type": self._classify_import_type(),
-                "line": node.lineno,
-                "is_relative": False,
-                "level": 0,
-                "is_optional": self.in_try_block,
-                "is_type_only": self.in_type_checking
-            })
+            self.imports.append(
+                {
+                    "module": alias.name,
+                    "names": [alias.asname or alias.name],
+                    "type": self._classify_import_type(),
+                    "line": node.lineno,
+                    "is_relative": False,
+                    "level": 0,
+                    "is_optional": self.in_try_block,
+                    "is_type_only": self.in_type_checking,
+                }
+            )
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -83,16 +262,18 @@ class ImportVisitor(ast.NodeVisitor):
         if node.names:
             names = [alias.name for alias in node.names]
 
-        self.imports.append({
-            "module": module,
-            "names": names,
-            "type": "relative" if is_relative else self._classify_import_type(),
-            "line": node.lineno,
-            "is_relative": is_relative,
-            "level": node.level,
-            "is_optional": self.in_try_block,
-            "is_type_only": self.in_type_checking
-        })
+        self.imports.append(
+            {
+                "module": module,
+                "names": names,
+                "type": "relative" if is_relative else self._classify_import_type(),
+                "line": node.lineno,
+                "is_relative": is_relative,
+                "level": node.level,
+                "is_optional": self.in_try_block,
+                "is_type_only": self.in_type_checking,
+            }
+        )
         self.generic_visit(node)
 
     def visit_Try(self, node: ast.Try):
@@ -146,7 +327,7 @@ class DependencyMapper:
     def __init__(
         self,
         project_path: Path,
-        cache_dir: Path = Path.home() / ".claude" / "dependency_cache"
+        cache_dir: Path = Path.home() / ".claude" / "dependency_cache",
     ):
         """
         Initialize mapper for a project.
@@ -204,7 +385,7 @@ class DependencyMapper:
 
         cache_path = self._get_cache_path()
         try:
-            with open(cache_path, 'r') as f:
+            with open(cache_path, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return None
@@ -213,7 +394,7 @@ class DependencyMapper:
         """Write analysis to cache"""
         cache_path = self._get_cache_path()
         try:
-            with open(cache_path, 'w') as f:
+            with open(cache_path, "w") as f:
                 json.dump(data, f, indent=2, default=str)
         except IOError:
             pass  # Silently fail on cache write errors
@@ -243,11 +424,11 @@ class DependencyMapper:
             "file": str(file_path.relative_to(self.project_path)),
             "imports": [],
             "import_types": {},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 source = f.read()
 
             tree = ast.parse(source, filename=str(file_path))
@@ -272,9 +453,7 @@ class DependencyMapper:
         return result
 
     def analyze_project(
-        self,
-        exclude_dirs: Optional[List[str]] = None,
-        include_tests: bool = False
+        self, exclude_dirs: Optional[List[str]] = None, include_tests: bool = False
     ) -> Dict[str, Any]:
         """
         Analyze all Python files in project.
@@ -287,7 +466,16 @@ class DependencyMapper:
             Dict with comprehensive dependency analysis
         """
         if exclude_dirs is None:
-            exclude_dirs = ['venv', '__pycache__', '.git', 'node_modules', '.tox', 'build', 'dist', '.eggs']
+            exclude_dirs = [
+                "venv",
+                "__pycache__",
+                ".git",
+                "node_modules",
+                ".tox",
+                "build",
+                "dist",
+                ".eggs",
+            ]
 
         result = {
             "project": self.project_path.name,
@@ -299,7 +487,7 @@ class DependencyMapper:
             "external_deps": set(),
             "internal_modules": set(),
             "cross_project": defaultdict(list),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         # Find all Python files
@@ -310,7 +498,7 @@ class DependencyMapper:
                 continue
 
             # Skip test files if not included
-            if not include_tests and ('test' in py_file.name or 'tests' in py_file.parts):
+            if not include_tests and ("test" in py_file.name or "tests" in py_file.parts):
                 continue
 
             python_files.append(py_file)
@@ -351,11 +539,7 @@ class DependencyMapper:
 
         return result
 
-    def get_cached_analysis(
-        self,
-        force_refresh: bool = False,
-        **kwargs
-    ) -> Dict[str, Any]:
+    def get_cached_analysis(self, force_refresh: bool = False, **kwargs) -> Dict[str, Any]:
         """
         Get project analysis with caching.
 
@@ -489,7 +673,7 @@ class DependencyMapper:
             "cycles": cycles,
             "cycle_count": len(cycles),
             "severity": severity,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def calculate_dependency_health(self) -> Dict[str, Any]:
@@ -580,17 +764,21 @@ class DependencyMapper:
         # Generate recommendations
         recommendations = []
         if circular["has_cycles"]:
-            recommendations.append({
-                "priority": "high" if circular["severity"] == "major" else "medium",
-                "action": "Resolve circular dependencies",
-                "details": f"Found {circular['cycle_count']} cycles that can cause import errors"
-            })
+            recommendations.append(
+                {
+                    "priority": "high" if circular["severity"] == "major" else "medium",
+                    "action": "Resolve circular dependencies",
+                    "details": f"Found {circular['cycle_count']} cycles that can cause import errors",
+                }
+            )
         if ext_count > 50:
-            recommendations.append({
-                "priority": "medium",
-                "action": "Review external dependencies",
-                "details": "Consider consolidating or removing unused dependencies"
-            })
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "action": "Review external dependencies",
+                    "details": "Consider consolidating or removing unused dependencies",
+                }
+            )
 
         return {
             "total_score": total_score,
@@ -598,14 +786,10 @@ class DependencyMapper:
             "assessment": assessment,
             "concerns": concerns,
             "recommendations": recommendations,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
-    def generate_ascii_tree(
-        self,
-        module: Optional[str] = None,
-        max_depth: int = 3
-    ) -> str:
+    def generate_ascii_tree(self, module: Optional[str] = None, max_depth: int = 3) -> str:
         """
         Generate ASCII tree visualization of dependencies.
 
@@ -658,7 +842,7 @@ class DependencyMapper:
         self,
         include_stdlib: bool = False,
         include_external: bool = True,
-        max_nodes: int = 100
+        max_nodes: int = 100,
     ) -> str:
         """
         Export dependency graph to DOT format (Graphviz).
@@ -772,9 +956,9 @@ class DependencyMapper:
                         break
 
                 if is_cycle_edge:
-                    lines.append(f'  {source_id} -> {target_id} [color=red, penwidth=2];')
+                    lines.append(f"  {source_id} -> {target_id} [color=red, penwidth=2];")
                 else:
-                    lines.append(f'  {source_id} -> {target_id};')
+                    lines.append(f"  {source_id} -> {target_id};")
 
         lines.append("}")
         return "\n".join(lines)
@@ -783,7 +967,7 @@ class DependencyMapper:
         self,
         include_stdlib: bool = False,
         include_external: bool = True,
-        max_nodes: int = 50
+        max_nodes: int = 50,
     ) -> str:
         """
         Export dependency graph to Mermaid flowchart format.
@@ -863,7 +1047,7 @@ class DependencyMapper:
                 style = "fill:#e9ecef,stroke:#495057"
 
             lines.append(f'    {node_id}["{label}"]')
-            lines.append(f'    style {node_id} {style}')
+            lines.append(f"    style {node_id} {style}")
 
         lines.append("")
 
@@ -888,9 +1072,9 @@ class DependencyMapper:
                         break
 
                 if is_cycle_edge:
-                    lines.append(f'    {source_id} -->|cycle| {target_id}')
+                    lines.append(f"    {source_id} -->|cycle| {target_id}")
                 else:
-                    lines.append(f'    {source_id} --> {target_id}')
+                    lines.append(f"    {source_id} --> {target_id}")
 
         return "\n".join(lines)
 
@@ -903,13 +1087,14 @@ class DependencyMapper:
         """
         try:
             from .package_parser import PackageParser
+
             parser = PackageParser(self.project_path)
             return parser.get_all_declared_dependencies()
         except ImportError:
             return {
                 "all_packages": [],
                 "by_file": {},
-                "errors": ["PackageParser not available"]
+                "errors": ["PackageParser not available"],
             }
 
     def compare_declared_vs_actual(self) -> Dict[str, Any]:
@@ -963,7 +1148,7 @@ class DependencyMapper:
             "unused_count": len(unused_declared),
             "undeclared_count": len(undeclared),
             "package_files": list(package_data.get("by_file", {}).keys()),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 

@@ -37,30 +37,20 @@ class RuntimeConfig:
     """Configuration for the Cortex runtime engine."""
 
     # Server settings
-    host: str = field(
-        default_factory=lambda: os.getenv("CORTEX_RUNTIME_HOST", "localhost")
-    )
-    port: int = field(
-        default_factory=lambda: int(os.getenv("CORTEX_RUNTIME_PORT", "8000"))
-    )
-    log_level: str = field(
-        default_factory=lambda: os.getenv("CORTEX_LOG_LEVEL", "INFO")
-    )
+    host: str = field(default_factory=lambda: os.getenv("CORTEX_RUNTIME_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.getenv("CORTEX_RUNTIME_PORT", "8000")))
+    log_level: str = field(default_factory=lambda: os.getenv("CORTEX_LOG_LEVEL", "INFO"))
 
     # Scheduler settings
     timezone: str = field(
         default_factory=lambda: os.getenv("CORTEX_TIMEZONE", "America/Los_Angeles")
     )
-    max_workers: int = field(
-        default_factory=lambda: int(os.getenv("CORTEX_MAX_WORKERS", "10"))
-    )
+    max_workers: int = field(default_factory=lambda: int(os.getenv("CORTEX_MAX_WORKERS", "10")))
 
     # Directory settings
     root_dir: Path = field(default_factory=_get_default_root_dir)
     data_dir: Path = field(default_factory=_get_default_data_dir)
-    agents_dir: Path = field(
-        default_factory=lambda: Path.home() / ".cortex" / "agents"
-    )
+    agents_dir: Path = field(default_factory=lambda: Path.home() / ".cortex" / "agents")
 
     def __post_init__(self):
         """Ensure directories exist."""

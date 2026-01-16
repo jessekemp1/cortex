@@ -32,9 +32,7 @@ class Phase2Agent(BaseCoordinationAgent):
     """Agent team for Phase 2: Add Integration Layer"""
 
     def __init__(self, root_dir: Path = None):
-        super().__init__(
-            phase_name="Add Integration Layer", phase_number=2, root_dir=root_dir
-        )
+        super().__init__(phase_name="Add Integration Layer", phase_number=2, root_dir=root_dir)
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
         self.cortex_dir = self.root_dir / "cortex"
         self.integration_dir = self.cortex_dir / "integration"
@@ -103,9 +101,7 @@ class Phase2Agent(BaseCoordinationAgent):
             error_msg = f"Phase 2 execution failed: {str(e)}"
             self.update_progress("execution", "failed", error_msg)
             self.complete_phase(False, error_msg)
-            return AgentResult(
-                success=False, message=error_msg, data={"phase": 2, "error": str(e)}
-            )
+            return AgentResult(success=False, message=error_msg, data={"phase": 2, "error": str(e)})
 
     def _verify_adapter(self) -> bool:
         """Verify adapter class can be imported and instantiated"""
@@ -284,9 +280,7 @@ def cmd_schedule(args):
     )
     schedule_parser.set_defaults(func=cmd_schedule)
 """
-                    lines.insert(
-                        i + 20, schedule_parser_code
-                    )  # Insert after feedback parser setup
+                    lines.insert(i + 20, schedule_parser_code)  # Insert after feedback parser setup
                     break
 
         cli_file.write_text("\n".join(lines))

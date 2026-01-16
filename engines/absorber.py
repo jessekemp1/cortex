@@ -6,25 +6,26 @@ This is the INPUT layer of Cortex V2 Prime.
 
 Components:
 - FileWatcher: Monitor filesystem events
-- ShellListener: Capture terminal history/exit codes  
+- ShellListener: Capture terminal history/exit codes
 - IDEBridge: Receive cursor position/active file via MCP
 - GitTracker: Track repository state (V1 foundation)
 """
 
+import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Callable
-import json
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class SignalType(Enum):
     """Types of environmental signals that can be absorbed."""
+
     FILE_CREATED = "file_created"
     FILE_MODIFIED = "file_modified"
     FILE_DELETED = "file_deleted"
@@ -42,6 +43,7 @@ class SignalType(Enum):
 @dataclass
 class Signal:
     """Raw environmental signal captured by the Absorber."""
+
     id: str
     type: SignalType
     timestamp: datetime
@@ -113,14 +115,19 @@ class SignalSource(ABC):
 class FileWatcher(SignalSource):
     """
     Monitor filesystem events.
-    
+
     Uses watchdog library when available, falls back to polling.
     """
 
     def __init__(self, watch_paths: List[Path], ignore_patterns: Optional[List[str]] = None):
         self.watch_paths = watch_paths
         self.ignore_patterns = ignore_patterns or [
-            "*.pyc", "__pycache__", ".git", "node_modules", "venv", ".venv"
+            "*.pyc",
+            "__pycache__",
+            ".git",
+            "node_modules",
+            "venv",
+            ".venv",
         ]
         self._running = False
         self._signals: List[Signal] = []
@@ -133,8 +140,8 @@ class FileWatcher(SignalSource):
     def start(self) -> None:
         """Start filesystem monitoring."""
         try:
-            from watchdog.observers import Observer
             from watchdog.events import FileSystemEventHandler
+            from watchdog.observers import Observer
 
             class SignalHandler(FileSystemEventHandler):
                 def __init__(handler_self, watcher):
@@ -146,17 +153,23 @@ class FileWatcher(SignalSource):
                             return True
                     return False
 
-                def _create_signal(handler_self, event, signal_type: SignalType) -> Optional[Signal]:
+                def _create_signal(
+                    handler_self, event, signal_type: SignalType
+                ) -> Optional[Signal]:
                     if handler_self._should_ignore(event.src_path):
                         return None
-                    
+
                     import uuid
+
                     return Signal(
                         id=f"sig_{uuid.uuid4().hex[:8]}",
                         type=signal_type,
                         timestamp=datetime.now(),
                         source="file_watcher",
-                        payload={"path": event.src_path, "is_directory": event.is_directory},
+                        payload={
+                            "path": event.src_path,
+                            "is_directory": event.is_directory,
+                        },
                         project=handler_self.watcher._detect_project(event.src_path),
                     )
 
@@ -178,11 +191,11 @@ class FileWatcher(SignalSource):
 
             self._observer = Observer()
             handler = SignalHandler(self)
-            
+
             for path in self.watch_paths:
                 if path.exists():
                     self._observer.schedule(handler, str(path), recursive=True)
-            
+
             self._observer.start()
             self._running = True
             logger.info(f"FileWatcher started for {len(self.watch_paths)} paths")
@@ -225,7 +238,7 @@ class FileWatcher(SignalSource):
 class ShellListener(SignalSource):
     """
     Capture terminal history and exit codes.
-    
+
     Monitors shell history files for new commands.
     """
 
@@ -254,7 +267,7 @@ class ShellListener(SignalSource):
     def get_signals(self) -> List[Signal]:
         """Get new shell commands since last check."""
         signals = []
-        
+
         if not self.history_file.exists():
             return signals
 
@@ -264,20 +277,23 @@ class ShellListener(SignalSource):
                 with open(self.history_file, "rb") as f:
                     f.seek(self._last_position)
                     new_content = f.read().decode("utf-8", errors="ignore")
-                
+
                 import uuid
+
                 for line in new_content.strip().split("\n"):
                     if line.strip():
                         # Parse zsh history format: : timestamp:0;command
                         command = line.split(";", 1)[-1] if ";" in line else line
-                        signals.append(Signal(
-                            id=f"sig_{uuid.uuid4().hex[:8]}",
-                            type=SignalType.COMMAND_EXECUTED,
-                            timestamp=datetime.now(),
-                            source="shell_listener",
-                            payload={"command": command.strip()},
-                        ))
-                
+                        signals.append(
+                            Signal(
+                                id=f"sig_{uuid.uuid4().hex[:8]}",
+                                type=SignalType.COMMAND_EXECUTED,
+                                timestamp=datetime.now(),
+                                source="shell_listener",
+                                payload={"command": command.strip()},
+                            )
+                        )
+
                 self._last_position = current_size
 
         except Exception as e:
@@ -293,7 +309,7 @@ class ShellListener(SignalSource):
 class IDEBridge(SignalSource):
     """
     Receive signals from IDE via MCP.
-    
+
     Connects to MCP server to receive IDE events.
     """
 
@@ -336,7 +352,7 @@ class IDEBridge(SignalSource):
 class ContextAbsorber:
     """
     Engine A: Aggregates signals from all sources.
-    
+
     This is the input layer of Cortex V2 Prime.
     Collects signals from FileWatcher, ShellListener, IDEBridge, and GitTracker.
     """
@@ -376,7 +392,7 @@ class ContextAbsorber:
     def absorb(self) -> List[Signal]:
         """
         Collect signals from all sources.
-        
+
         Returns list of new signals since last call.
         """
         signals = []
@@ -412,13 +428,15 @@ class ContextAbsorber:
         self._signal_buffer.clear()
         return buffer
 
-    def get_recent_signals(self, limit: int = 100, signal_type: Optional[SignalType] = None) -> List[Signal]:
+    def get_recent_signals(
+        self, limit: int = 100, signal_type: Optional[SignalType] = None
+    ) -> List[Signal]:
         """Get recent signals from storage."""
         signals = self._load_signals()
-        
+
         if signal_type:
             signals = [s for s in signals if s.type == signal_type]
-        
+
         return signals[-limit:]
 
     def _persist_signals(self, signals: List[Signal]) -> None:
@@ -428,14 +446,14 @@ class ContextAbsorber:
 
         try:
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             existing = self._load_signals()
             existing.extend(signals)
-            
+
             # Keep last 10000 signals
             if len(existing) > 10000:
                 existing = existing[-10000:]
-            
+
             with open(self.storage_path, "w") as f:
                 json.dump([s.to_dict() for s in existing], f)
 
@@ -458,10 +476,7 @@ class ContextAbsorber:
     def get_status(self) -> Dict[str, Any]:
         """Get absorber status."""
         return {
-            "sources": [
-                {"name": s.name, "running": s.is_running}
-                for s in self.sources
-            ],
+            "sources": [{"name": s.name, "running": s.is_running} for s in self.sources],
             "buffer_size": len(self._signal_buffer),
             "total_signals": len(self._load_signals()),
             "storage_path": str(self.storage_path),
@@ -471,14 +486,14 @@ class ContextAbsorber:
 def create_default_absorber(root_dir: Path) -> ContextAbsorber:
     """Create absorber with default sources configured."""
     absorber = ContextAbsorber(root_dir)
-    
+
     # Add FileWatcher for Dev directory
     absorber.register_source(FileWatcher([root_dir]))
-    
+
     # Add ShellListener
     absorber.register_source(ShellListener())
-    
+
     # Add IDEBridge for MCP
     absorber.register_source(IDEBridge())
-    
+
     return absorber

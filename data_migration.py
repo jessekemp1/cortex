@@ -11,9 +11,8 @@ Tasks:
 """
 
 import json
-from pathlib import Path
-from typing import Dict, List
 from datetime import datetime
+from pathlib import Path
 
 from portfolio_memory import PortfolioMemory
 
@@ -28,9 +27,9 @@ class DataMigrator:
 
     def migrate_all(self):
         """Run all migration tasks"""
-        print("="*60)
+        print("=" * 60)
         print("AGENT 5: DATA MIGRATION")
-        print("="*60)
+        print("=" * 60)
 
         # Task 1: Register existing projects
         print("\n📁 Task 1: Register existing projects")
@@ -48,13 +47,13 @@ class DataMigrator:
         print("\n📚 Task 4: Index project specifications")
         self.index_project_specs()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("DATA MIGRATION COMPLETE ✅")
-        print("="*60)
+        print("=" * 60)
 
         # Show final stats
         stats = self.pm.get_stats()
-        print(f"\nFinal Stats:")
+        print("\nFinal Stats:")
         print(f"  Projects registered: {stats['project_count']}")
         print(f"  Patterns documented: {stats['pattern_count']}")
         print(f"  Lessons learned: {stats['lesson_count']}")
@@ -66,7 +65,7 @@ class DataMigrator:
         # Load existing project index
         index_file = self.portfolio_path / "project_index.json"
         if index_file.exists():
-            with open(index_file, 'r') as f:
+            with open(index_file, "r") as f:
                 data = json.load(f)
         else:
             data = {"meta": {}, "projects": {}}
@@ -78,7 +77,14 @@ class DataMigrator:
                 "name": "VortexV2",
                 "path": str(vortex_path),
                 "description": "Weather forecast validation system for Great Lakes",
-                "tech_stack": ["python", "grib", "eccodes", "herbie", "fastapi", "postgresql"],
+                "tech_stack": [
+                    "python",
+                    "grib",
+                    "eccodes",
+                    "herbie",
+                    "fastapi",
+                    "postgresql",
+                ],
                 "priority": "tier1",
                 "domain": "weather_forecasting",
                 "status": "production",
@@ -86,9 +92,9 @@ class DataMigrator:
                     "GRIB data processing",
                     "Forecast accuracy validation",
                     "Real-time bias tracking",
-                    "Multi-model ensemble analysis"
+                    "Multi-model ensemble analysis",
                 ],
-                "registered_at": datetime.now().isoformat()
+                "registered_at": datetime.now().isoformat(),
             }
             print("  ✅ Registered VortexV2")
 
@@ -107,9 +113,9 @@ class DataMigrator:
                     "Real-time market data",
                     "Paper trading execution",
                     "Position management",
-                    "Performance analytics"
+                    "Performance analytics",
                 ],
-                "registered_at": datetime.now().isoformat()
+                "registered_at": datetime.now().isoformat(),
             }
             print("  ✅ Registered AlphaArena")
 
@@ -129,9 +135,9 @@ class DataMigrator:
                     "Session intelligence",
                     "Spec knowledge base",
                     "Calibration tracking",
-                    "Batch API integration"
+                    "Batch API integration",
                 ],
-                "registered_at": datetime.now().isoformat()
+                "registered_at": datetime.now().isoformat(),
             }
             print("  ✅ Registered Cortex")
 
@@ -146,12 +152,8 @@ class DataMigrator:
                 "priority": "tier2",
                 "domain": "research_portfolio",
                 "status": "active",
-                "key_features": [
-                    "Research papers",
-                    "Project showcases",
-                    "Blog posts"
-                ],
-                "registered_at": datetime.now().isoformat()
+                "key_features": ["Research papers", "Project showcases", "Blog posts"],
+                "registered_at": datetime.now().isoformat(),
             }
             print("  ✅ Registered KempionResearch")
 
@@ -159,11 +161,11 @@ class DataMigrator:
         data["meta"] = {
             "last_updated": datetime.now().isoformat(),
             "total_projects": len(data["projects"]),
-            "migration_version": "1.0"
+            "migration_version": "1.0",
         }
 
         # Save updated index
-        with open(index_file, 'w') as f:
+        with open(index_file, "w") as f:
             json.dump(data, f, indent=2)
 
     def import_patterns(self):
@@ -172,34 +174,36 @@ class DataMigrator:
         # Load existing patterns
         patterns_file = self.portfolio_path / "patterns.json"
         if patterns_file.exists():
-            with open(patterns_file, 'r') as f:
+            with open(patterns_file, "r") as f:
                 patterns = json.load(f)
         else:
             patterns = []
 
         # Pattern 1: GRIB Processing Pipeline (from VortexV2)
-        patterns.append({
-            name="GRIB Data Processing Pipeline",
-            category="data_processing",
-            description="Multi-stage pipeline for GRIB weather data: download → decode → validate → store",
-            context="Processing large-scale meteorological data from NOAA/ECMWF",
-            implementation={
-                "stage1": "Download with Herbie (multi-model support)",
-                "stage2": "Decode with eccodes/cfgrib",
-                "stage3": "Validate data quality (missing values, bounds)",
-                "stage4": "Store in PostgreSQL with PostGIS"
-            },
-            success_metrics={
-                "throughput": "~100 GRIB files/hour",
-                "error_rate": "<1%",
-                "data_quality": ">99.5% valid"
-            },
-            lessons_learned=[
-                "Always validate GRIB messages before decoding",
-                "Use concurrent downloads for multiple models",
-                "Cache decoded data to avoid re-processing"
-            ],
-            projects=["VortexV2"]
+        patterns.append(
+            {
+                "name": "GRIB Data Processing Pipeline",
+                "category": "data_processing",
+                "description": "Multi-stage pipeline for GRIB weather data: download → decode → validate → store",
+                "context": "Processing large-scale meteorological data from NOAA/ECMWF",
+                "implementation": {
+                    "stage1": "Download with Herbie (multi-model support)",
+                    "stage2": "Decode with eccodes/cfgrib",
+                    "stage3": "Validate data quality (missing values, bounds)",
+                    "stage4": "Store in PostgreSQL with PostGIS",
+                },
+                "success_metrics": {
+                    "throughput": "~100 GRIB files/hour",
+                    "error_rate": "<1%",
+                    "data_quality": ">99.5% valid",
+                },
+                "lessons_learned": [
+                    "Always validate GRIB messages before decoding",
+                    "Use concurrent downloads for multiple models",
+                    "Cache decoded data to avoid re-processing",
+                ],
+                "projects": ["VortexV2"],
+            }
         )
         print("  ✅ Imported pattern: GRIB Data Processing Pipeline")
 
@@ -213,13 +217,13 @@ class DataMigrator:
                 "step1": "Calculate actual vs predicted for each forecast hour",
                 "step2": "Compute rolling bias (mean error over N forecasts)",
                 "step3": "Apply bias correction to new forecasts",
-                "step4": "Monitor bias drift and alert on anomalies"
+                "step4": "Monitor bias drift and alert on anomalies",
             },
             success_metrics={
                 "mae_reduction": "15-25% improvement",
-                "bias_stability": "<0.5°F drift per week"
+                "bias_stability": "<0.5°F drift per week",
             },
-            projects=["VortexV2"]
+            projects=["VortexV2"],
         )
         print("  ✅ Imported pattern: Real-time Forecast Bias Tracking")
 
@@ -233,13 +237,13 @@ class DataMigrator:
                 "fill_model": "Use bid/ask spread + random slippage (0-0.1%)",
                 "position_sizing": "Risk-based sizing with max position limits",
                 "commission": "Interactive Brokers rates (~$1/trade)",
-                "equity_tracking": "Mark-to-market every update"
+                "equity_tracking": "Mark-to-market every update",
             },
             success_metrics={
                 "realism": "Within 2% of live trading results",
-                "position_accuracy": "100% reconciliation"
+                "position_accuracy": "100% reconciliation",
             },
-            projects=["AlphaArena"]
+            projects=["AlphaArena"],
         )
         print("  ✅ Imported pattern: Paper Trading Position Management")
 
@@ -266,7 +270,7 @@ if inv:
 """,
             success_rate="100% prevention since implementation",
             projects=["VortexV2"],
-            tags=["data_validation", "grib", "bandwidth"]
+            tags=["data_validation", "grib", "bandwidth"],
         )
         print("  ✅ Imported lesson: Check GRIB Index Files")
 
@@ -291,7 +295,7 @@ self.cash -= cost
 """,
             success_rate="100% prevention since fix",
             projects=["AlphaArena"],
-            tags=["accounting", "paper_trading", "state_management"]
+            tags=["accounting", "paper_trading", "state_management"],
         )
         print("  ✅ Imported lesson: Calculate Equity Before Updates")
 
@@ -317,7 +321,7 @@ def download_with_retry(url):
 """,
             success_rate="95% prevention (still occasional failures on AWS outages)",
             projects=["VortexV2", "AlphaArena"],
-            tags=["api", "rate_limiting", "resilience"]
+            tags=["api", "rate_limiting", "resilience"],
         )
         print("  ✅ Imported lesson: Exponential Backoff for APIs")
 
@@ -340,7 +344,7 @@ def download_with_retry(url):
             print(f"  ✅ Indexed {count} AlphaArena specs")
 
         # Index Cortex specs (already done, but verify)
-        cortex_count = len([s for s in kb.specs.values() if s['project'] == 'Cortex'])
+        cortex_count = len([s for s in kb.specs.values() if s["project"] == "Cortex"])
         print(f"  ✅ Verified {cortex_count} Cortex specs")
 
         # Show total
@@ -355,5 +359,5 @@ def main():
     migrator.migrate_all()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

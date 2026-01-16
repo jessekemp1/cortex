@@ -152,9 +152,7 @@ ADJUSTMENT_SUGGESTIONS:
             logger.error(f"Learning batch processing failed: {e}")
             raise
 
-    def _build_learning_requests(
-        self, contexts: List[LearningContext]
-    ) -> List[BatchRequest]:
+    def _build_learning_requests(self, contexts: List[LearningContext]) -> List[BatchRequest]:
         """Convert learning contexts to batch requests"""
         requests = []
         models = AnthropicBatchModels()
@@ -187,9 +185,7 @@ Provide learning insights, pattern discoveries, and confidence assessment based 
         logger.debug(f"Created {len(requests)} learning requests")
         return requests
 
-    def _process_learning_result(
-        self, context_id: str, result: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _process_learning_result(self, context_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and structure learning results"""
         try:
             message = result.get("message", {})

@@ -137,32 +137,40 @@ class VortexExpert(BaseDomainExpert):
         task_lower = task.lower()
 
         if "grib" in task_lower:
-            suggestions.extend([
-                "Validate GRIB coordinates in expected bounds",
-                "Check u10/v10 components convert correctly to speed/direction",
-                "Verify forecast_time is in UTC",
-            ])
+            suggestions.extend(
+                [
+                    "Validate GRIB coordinates in expected bounds",
+                    "Check u10/v10 components convert correctly to speed/direction",
+                    "Verify forecast_time is in UTC",
+                ]
+            )
 
         if "ndbc" in task_lower or "buoy" in task_lower:
-            suggestions.extend([
-                "Verify station_id format (5 digits for NDBC)",
-                "Check observation_time matches forecast_time ±30min",
-                "Convert wind speeds from m/s to knots (multiply by 1.944)",
-            ])
+            suggestions.extend(
+                [
+                    "Verify station_id format (5 digits for NDBC)",
+                    "Check observation_time matches forecast_time ±30min",
+                    "Convert wind speeds from m/s to knots (multiply by 1.944)",
+                ]
+            )
 
         if "lake huron" in task_lower:
-            suggestions.extend([
-                "Verify coordinates: lat [43°, 46°N], lon [80°, 84°W]",
-                "Use NAD83 datum for Great Lakes stations",
-                "Check station 45008 for Southern Lake Huron data",
-            ])
+            suggestions.extend(
+                [
+                    "Verify coordinates: lat [43°, 46°N], lon [80°, 84°W]",
+                    "Use NAD83 datum for Great Lakes stations",
+                    "Check station 45008 for Southern Lake Huron data",
+                ]
+            )
 
         if "ensemble" in task_lower:
-            suggestions.extend([
-                "Test with all 7 model sources (GFS, ECMWF, ensemble variants)",
-                "Verify ensemble weights sum to 1.0",
-                "Check confidence intervals are reasonable",
-            ])
+            suggestions.extend(
+                [
+                    "Test with all 7 model sources (GFS, ECMWF, ensemble variants)",
+                    "Verify ensemble weights sum to 1.0",
+                    "Check confidence intervals are reasonable",
+                ]
+            )
 
         return suggestions
 

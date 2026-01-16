@@ -9,12 +9,12 @@ Provides:
 - Trend detection
 """
 
+import json
+import subprocess
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-import subprocess
-import json
-from collections import defaultdict
+from typing import Any, Dict, List, Optional
 
 
 class GitAnalyzer:
@@ -46,18 +46,14 @@ class GitAnalyzer:
 
         # Get commits with stats
         cmd = [
-            "git", "log",
+            "git",
+            "log",
             f"--since={since_str}",
             "--pretty=format:%H|%an|%ae|%at|%s",
-            "--numstat"
+            "--numstat",
         ]
 
-        result = subprocess.run(
-            cmd,
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(cmd, cwd=self.repo_path, capture_output=True, text=True)
 
         if result.returncode != 0:
             return {
@@ -65,7 +61,7 @@ class GitAnalyzer:
                 "authors": {},
                 "files_changed": {},
                 "trend": "unknown",
-                "error": result.stderr
+                "error": result.stderr,
             }
 
         commits = self._parse_commit_log(result.stdout)
@@ -75,7 +71,7 @@ class GitAnalyzer:
             "authors": self._get_author_stats(commits),
             "files_changed": self._get_file_stats(commits),
             "trend": self._calculate_trend(commits, days),
-            "commits": commits[:10]  # Last 10 for reference
+            "commits": commits[:10],  # Last 10 for reference
         }
 
     def _parse_commit_log(self, log_output: str) -> List[Dict[str, Any]]:
@@ -83,39 +79,39 @@ class GitAnalyzer:
         commits = []
         current_commit = None
 
-        for line in log_output.split('\n'):
-            if '|' in line and len(line.split('|')) == 5:
+        for line in log_output.split("\n"):
+            if "|" in line and len(line.split("|")) == 5:
                 # New commit header
                 if current_commit:
                     commits.append(current_commit)
 
-                hash_val, author, email, timestamp, message = line.split('|')
+                hash_val, author, email, timestamp, message = line.split("|")
                 current_commit = {
                     "hash": hash_val[:7],
                     "author": author,
                     "email": email,
                     "timestamp": int(timestamp),
                     "message": message,
-                    "files": []
+                    "files": [],
                 }
-            elif current_commit and '\t' in line:
+            elif current_commit and "\t" in line:
                 # File stat line (additions, deletions, filename)
-                parts = line.split('\t')
+                parts = line.split("\t")
                 if len(parts) == 3:
                     additions, deletions, filename = parts
                     try:
-                        current_commit["files"].append({
-                            "filename": filename,
-                            "additions": int(additions) if additions != '-' else 0,
-                            "deletions": int(deletions) if deletions != '-' else 0
-                        })
+                        current_commit["files"].append(
+                            {
+                                "filename": filename,
+                                "additions": int(additions) if additions != "-" else 0,
+                                "deletions": int(deletions) if deletions != "-" else 0,
+                            }
+                        )
                     except ValueError:
                         # Binary file or special case
-                        current_commit["files"].append({
-                            "filename": filename,
-                            "additions": 0,
-                            "deletions": 0
-                        })
+                        current_commit["files"].append(
+                            {"filename": filename, "additions": 0, "deletions": 0}
+                        )
 
         if current_commit:
             commits.append(current_commit)
@@ -178,27 +174,24 @@ class GitAnalyzer:
             ["git", "branch", "--show-current"],
             cwd=self.repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         # Get all branches
         branches_result = subprocess.run(
-            ["git", "branch", "-a"],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True
+            ["git", "branch", "-a"], cwd=self.repo_path, capture_output=True, text=True
         )
 
         branches = [
             b.strip().replace("* ", "")
-            for b in branches_result.stdout.split('\n')
+            for b in branches_result.stdout.split("\n")
             if b.strip() and not b.strip().startswith("remotes/")
         ]
 
         return {
             "current": current_result.stdout.strip(),
             "total_local": len(branches),
-            "branches": branches
+            "branches": branches,
         }
 
     def get_uncommitted_changes(self) -> Dict[str, Any]:
@@ -207,13 +200,13 @@ class GitAnalyzer:
             ["git", "status", "--porcelain"],
             cwd=self.repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if status_result.returncode != 0:
             return {"error": status_result.stderr}
 
-        lines = [line for line in status_result.stdout.split('\n') if line.strip()]
+        lines = [line for line in status_result.stdout.split("\n") if line.strip()]
 
         modified = [line[3:] for line in lines if line.startswith(" M")]
         added = [line[3:] for line in lines if line.startswith("A ")]
@@ -226,13 +219,11 @@ class GitAnalyzer:
             "deleted": deleted,
             "untracked": untracked,
             "total": len(lines),
-            "has_changes": len(lines) > 0
+            "has_changes": len(lines) > 0,
         }
 
     def calculate_health_score(
-        self,
-        commit_data: Dict[str, Any],
-        uncommitted_data: Dict[str, Any]
+        self, commit_data: Dict[str, Any], uncommitted_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Calculate project health score (0-100)
@@ -315,7 +306,7 @@ class GitAnalyzer:
             "total_score": total_score,
             "breakdown": scores,
             "assessment": assessment,
-            "max_score": 100
+            "max_score": 100,
         }
 
     def get_project_summary(self, days: int = 30) -> Dict[str, Any]:
@@ -341,7 +332,7 @@ class GitAnalyzer:
             "branches": branches,
             "uncommitted": uncommitted,
             "health": health,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 

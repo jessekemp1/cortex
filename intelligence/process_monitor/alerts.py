@@ -2,19 +2,23 @@
 Process alert generator extending Layer 3 Alert System.
 """
 
-from typing import List, Optional, Dict, Any
-import subprocess
 import os
+import subprocess
+from typing import Any, Dict, List, Optional
 
-from .models import Anomaly, WasteItem, ProcessCategory
-from .collector import ProcessCollector
-from .tracker import ProcessTracker
 from .analyzer import ProcessAnalyzer
+from .collector import ProcessCollector
+from .models import Anomaly, ProcessCategory, WasteItem
 from .optimizer import ResourceOptimizer
+from .tracker import ProcessTracker
 
 # Import from existing monitoring system
 try:
-    from ..monitoring.alert_generator import Alert, AlertSeverity, AlertType as BaseAlertType
+    from ..monitoring.alert_generator import (
+        Alert,
+        AlertSeverity,
+    )
+    from ..monitoring.alert_generator import AlertType as BaseAlertType
 except ImportError:
     # Fallback if imports don't work
     from dataclasses import dataclass, field
@@ -45,6 +49,7 @@ except ImportError:
 
 class ProcessAlertType:
     """Extended alert types for process monitoring."""
+
     HIGH_CPU_SUSTAINED = "high_cpu_sustained"
     MEMORY_LEAK = "memory_leak"
     ZOMBIE_PROCESS = "zombie_process"
@@ -57,11 +62,13 @@ class ProcessAlertType:
 class ProcessAlertGenerator:
     """Generates alerts for process monitoring anomalies and waste."""
 
-    def __init__(self,
-                 collector: Optional[ProcessCollector] = None,
-                 tracker: Optional[ProcessTracker] = None,
-                 analyzer: Optional[ProcessAnalyzer] = None,
-                 optimizer: Optional[ResourceOptimizer] = None):
+    def __init__(
+        self,
+        collector: Optional[ProcessCollector] = None,
+        tracker: Optional[ProcessTracker] = None,
+        analyzer: Optional[ProcessAnalyzer] = None,
+        optimizer: Optional[ResourceOptimizer] = None,
+    ):
         """
         Initialize the alert generator.
 
@@ -75,9 +82,7 @@ class ProcessAlertGenerator:
         self.tracker = tracker or ProcessTracker()
         self.analyzer = analyzer or ProcessAnalyzer(tracker=self.tracker, collector=self.collector)
         self.optimizer = optimizer or ResourceOptimizer(
-            collector=self.collector,
-            tracker=self.tracker,
-            analyzer=self.analyzer
+            collector=self.collector, tracker=self.tracker, analyzer=self.analyzer
         )
 
     def generate_alerts(self, hours: int = 24) -> List[Alert]:
@@ -111,65 +116,75 @@ class ProcessAlertGenerator:
 
         # 3. Resource capacity alerts
         if current_metric.memory_usage_percent > 90:
-            alerts.append(Alert(
-                alert_type=ProcessAlertType.RESOURCE_CAPACITY,
-                severity=AlertSeverity.CRITICAL,
-                title="Critical memory usage",
-                message=f"Memory usage at {current_metric.memory_usage_percent:.1f}%",
-                metric_type="memory",
-                metadata={
-                    "memory_usage_percent": current_metric.memory_usage_percent,
-                    "available_mb": current_metric.available_memory_mb,
-                },
-            ))
+            alerts.append(
+                Alert(
+                    alert_type=ProcessAlertType.RESOURCE_CAPACITY,
+                    severity=AlertSeverity.CRITICAL,
+                    title="Critical memory usage",
+                    message=f"Memory usage at {current_metric.memory_usage_percent:.1f}%",
+                    metric_type="memory",
+                    metadata={
+                        "memory_usage_percent": current_metric.memory_usage_percent,
+                        "available_mb": current_metric.available_memory_mb,
+                    },
+                )
+            )
         elif current_metric.memory_usage_percent > 80:
-            alerts.append(Alert(
-                alert_type=ProcessAlertType.RESOURCE_CAPACITY,
-                severity=AlertSeverity.WARNING,
-                title="High memory usage",
-                message=f"Memory usage at {current_metric.memory_usage_percent:.1f}%",
-                metric_type="memory",
-                metadata={
-                    "memory_usage_percent": current_metric.memory_usage_percent,
-                    "available_mb": current_metric.available_memory_mb,
-                },
-            ))
+            alerts.append(
+                Alert(
+                    alert_type=ProcessAlertType.RESOURCE_CAPACITY,
+                    severity=AlertSeverity.WARNING,
+                    title="High memory usage",
+                    message=f"Memory usage at {current_metric.memory_usage_percent:.1f}%",
+                    metric_type="memory",
+                    metadata={
+                        "memory_usage_percent": current_metric.memory_usage_percent,
+                        "available_mb": current_metric.available_memory_mb,
+                    },
+                )
+            )
 
         if current_metric.total_cpu_percent > 90:
-            alerts.append(Alert(
-                alert_type=ProcessAlertType.HIGH_CPU_SUSTAINED,
-                severity=AlertSeverity.CRITICAL,
-                title="Critical CPU usage",
-                message=f"CPU usage at {current_metric.total_cpu_percent:.1f}%",
-                metric_type="cpu",
-                metadata={"cpu_percent": current_metric.total_cpu_percent},
-            ))
+            alerts.append(
+                Alert(
+                    alert_type=ProcessAlertType.HIGH_CPU_SUSTAINED,
+                    severity=AlertSeverity.CRITICAL,
+                    title="Critical CPU usage",
+                    message=f"CPU usage at {current_metric.total_cpu_percent:.1f}%",
+                    metric_type="cpu",
+                    metadata={"cpu_percent": current_metric.total_cpu_percent},
+                )
+            )
         elif current_metric.total_cpu_percent > 80:
-            alerts.append(Alert(
-                alert_type=ProcessAlertType.HIGH_CPU_SUSTAINED,
-                severity=AlertSeverity.WARNING,
-                title="High CPU usage",
-                message=f"CPU usage at {current_metric.total_cpu_percent:.1f}%",
-                metric_type="cpu",
-                metadata={"cpu_percent": current_metric.total_cpu_percent},
-            ))
+            alerts.append(
+                Alert(
+                    alert_type=ProcessAlertType.HIGH_CPU_SUSTAINED,
+                    severity=AlertSeverity.WARNING,
+                    title="High CPU usage",
+                    message=f"CPU usage at {current_metric.total_cpu_percent:.1f}%",
+                    metric_type="cpu",
+                    metadata={"cpu_percent": current_metric.total_cpu_percent},
+                )
+            )
 
         # 4. AI tool health alerts
         ai_insights = self.analyzer.get_ai_tool_insights(hours=hours)
         for insight in ai_insights:
             if insight.idle_hours > 3.0 and insight.avg_memory > 500:
-                alerts.append(Alert(
-                    alert_type=ProcessAlertType.IDLE_WASTE,
-                    severity=AlertSeverity.INFO,
-                    title=f"{insight.tool_name} idle",
-                    message=f"Idle for {insight.idle_hours:.1f}h, using {insight.avg_memory:.0f}MB",
-                    metric_type="ai_tool",
-                    metadata={
-                        "tool_name": insight.tool_name,
-                        "idle_hours": insight.idle_hours,
-                        "memory_mb": insight.avg_memory,
-                    },
-                ))
+                alerts.append(
+                    Alert(
+                        alert_type=ProcessAlertType.IDLE_WASTE,
+                        severity=AlertSeverity.INFO,
+                        title=f"{insight.tool_name} idle",
+                        message=f"Idle for {insight.idle_hours:.1f}h, using {insight.avg_memory:.0f}MB",
+                        metric_type="ai_tool",
+                        metadata={
+                            "tool_name": insight.tool_name,
+                            "idle_hours": insight.idle_hours,
+                            "memory_mb": insight.avg_memory,
+                        },
+                    )
+                )
 
         # Sort by severity
         severity_order = {
@@ -249,11 +264,11 @@ class ProcessAlertGenerator:
             subtitle = alert.title
             message = alert.message
 
-            script = f'''
+            script = f"""
                 display notification "{message}" with title "{title}" subtitle "{subtitle}"
-            '''
+            """
 
-            subprocess.run(['osascript', '-e', script], check=False, timeout=5)
+            subprocess.run(["osascript", "-e", script], check=False, timeout=5)
         except Exception:
             # Fail silently - notifications are best-effort
             pass

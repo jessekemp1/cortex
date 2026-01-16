@@ -3,12 +3,12 @@ V2.1 Full E2E Test Suite
 Tests all 47 methods with output verification
 """
 
-import pytest
 import json
 import tempfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
+import pytest
 from cortex.v21.bridge import CortexV2_1Bridge
 
 
@@ -24,9 +24,7 @@ class TestMemoryOperations:
 
     def test_add_pattern(self, bridge):
         result = bridge.add_pattern(
-            title="Test Pattern",
-            problem="Test problem",
-            solution="Test solution"
+            title="Test Pattern", problem="Test problem", solution="Test solution"
         )
         assert "id" in result
         assert result["id"].startswith("pattern_")
@@ -37,16 +35,13 @@ class TestMemoryOperations:
             title="Test Incident",
             what_happened="Something broke",
             root_cause="Bad config",
-            resolution="Fixed config"
+            resolution="Fixed config",
         )
         assert "id" in result
         assert result["id"].startswith("incident_")
 
     def test_add_skill(self, bridge):
-        result = bridge.add_skill(
-            title="Test Skill",
-            steps=["Step 1", "Step 2"]
-        )
+        result = bridge.add_skill(title="Test Skill", steps=["Step 1", "Step 2"])
         assert "id" in result
         assert result["id"].startswith("skill_")
 
@@ -56,7 +51,7 @@ class TestMemoryOperations:
             question="Which to choose?",
             chosen_option="Option A",
             alternatives=["Option B", "Option C"],
-            rationale="Option A is best for performance"
+            rationale="Option A is best for performance",
         )
         assert "id" in result
         assert result["id"].startswith("decision_")
@@ -87,7 +82,7 @@ class TestQueryOperations:
             title="DB Incident",
             what_happened="DB crashed",
             root_cause="OOM",
-            resolution="Increased memory"
+            resolution="Increased memory",
         )
         result = bridge.find_incident("crashed")
         assert result is None or "id" in result
@@ -98,7 +93,7 @@ class TestQueryOperations:
             question="Which DB?",
             chosen_option="Postgres",
             alternatives=["MySQL", "SQLite"],
-            rationale="Best for our scale"
+            rationale="Best for our scale",
         )
         result = bridge.find_decision("database")
         assert result is None or "id" in result
@@ -129,10 +124,7 @@ class TestOutcomeOperations:
 
     def test_record_git_outcome(self, bridge):
         result = bridge.record_git_outcome(
-            commit_hash="abc123",
-            message="fix: Bug fix",
-            branch="main",
-            files_changed=3
+            commit_hash="abc123", message="fix: Bug fix", branch="main", files_changed=3
         )
         assert result["source"] == "git_commit"
 
@@ -142,16 +134,12 @@ class TestOutcomeOperations:
             workflow="tests",
             conclusion="success",
             commit="abc123",
-            branch="main"
+            branch="main",
         )
         assert result["source"] == "ci_pipeline"
 
     def test_record_test_outcome(self, bridge):
-        result = bridge.record_test_outcome(
-            project="test-project",
-            passed=10,
-            failed=0
-        )
+        result = bridge.record_test_outcome(project="test-project", passed=10, failed=0)
         assert result["source"] == "test_run"
 
     def test_get_recent_outcomes(self, bridge):
@@ -271,16 +259,28 @@ class TestV21Batch:
 
     def test_submit_batch_research(self, bridge):
         batch_id = bridge.submit_batch(
-            items=[{"id": "test1", "topic": "test", "context": "testing", "priority": "low"}],
-            batch_type="research"
+            items=[
+                {
+                    "id": "test1",
+                    "topic": "test",
+                    "context": "testing",
+                    "priority": "low",
+                }
+            ],
+            batch_type="research",
         )
         # Should return batch ID or pending message
         assert "batch" in batch_id or "research" in batch_id
 
     def test_submit_batch_generic(self, bridge):
         batch_id = bridge.submit_batch(
-            items=[{"id": "test1", "params": {"messages": [{"role": "user", "content": "hello"}]}}],
-            batch_type="generic"
+            items=[
+                {
+                    "id": "test1",
+                    "params": {"messages": [{"role": "user", "content": "hello"}]},
+                }
+            ],
+            batch_type="generic",
         )
         assert "batch" in batch_id
 

@@ -6,8 +6,8 @@ Tests the core functionality of metric tracking without complex integrations.
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -53,6 +53,7 @@ def test_metric_tracking():
     except Exception as e:
         print(f"✗ Failed to retrieve metrics: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     print()
@@ -67,6 +68,7 @@ def test_metric_tracking():
     except Exception as e:
         print(f"✗ Failed to track multiple metrics: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     print()
@@ -76,7 +78,11 @@ def test_metric_tracking():
     print("-" * 60)
     try:
         all_metrics = []
-        for metric_type in [MetricType.COVERAGE, MetricType.COMMITS, MetricType.VIOLATIONS]:
+        for metric_type in [
+            MetricType.COVERAGE,
+            MetricType.COMMITS,
+            MetricType.VIOLATIONS,
+        ]:
             metrics = tracker.get_metrics(project, metric_type, days=7)
             all_metrics.extend(metrics)
 
@@ -86,6 +92,7 @@ def test_metric_tracking():
     except Exception as e:
         print(f"✗ Failed to retrieve all metrics: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     print()

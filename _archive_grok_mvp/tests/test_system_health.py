@@ -6,7 +6,6 @@ Tests for System Health (Golden Spec: Dependency Transparency)
 import sys
 from pathlib import Path
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from orchestrator import ConverxOrchestrator, SystemHealth

@@ -3,8 +3,9 @@ Quick test of planning functionality.
 """
 
 from pathlib import Path
-from recommendation_engine import RecommendationEngine, Recommendation
-from intelligence.planning import Planner, PlanExecutor, PlanPriority
+
+from intelligence.planning import PlanExecutor, Planner, PlanPriority
+from recommendation_engine import Recommendation, RecommendationEngine
 
 
 def test_basic_planning():
@@ -24,8 +25,8 @@ def test_basic_planning():
                 "Review existing auth tests",
                 "Identify untested edge cases",
                 "Write new test cases",
-                "Run test suite and verify coverage"
-            ]
+                "Run test suite and verify coverage",
+            ],
         ),
         Recommendation(
             type="refactor",
@@ -37,9 +38,9 @@ def test_basic_planning():
             steps=[
                 "Audit current connection usage",
                 "Implement connection pooling",
-                "Add connection health checks"
-            ]
-        )
+                "Add connection health checks",
+            ],
+        ),
     ]
 
     # Test 1: Create plan from recommendations
@@ -48,7 +49,7 @@ def test_basic_planning():
     plan = planner.create_plan_from_recommendations(
         recommendations=recommendations,
         title="Q1 Technical Improvements",
-        priority=PlanPriority.HIGH
+        priority=PlanPriority.HIGH,
     )
     print(f"   ✅ Created plan: {plan.id}")
     print(f"   • Title: {plan.title}")
@@ -95,7 +96,9 @@ def test_basic_planning():
     plans = executor.list_plans()
     print(f"   ✅ Found {len(plans)} plan(s)")
     for p in plans[:3]:  # Show first 3
-        print(f"   • [{p['status']}] {p['title']} ({p['progress'].get('completion_pct', 0):.0f}% complete)")
+        print(
+            f"   • [{p['status']}] {p['title']} ({p['progress'].get('completion_pct', 0):.0f}% complete)"
+        )
     print()
 
     print("✅ All tests passed!\n")
@@ -114,7 +117,7 @@ def test_recommendation_engine_integration():
     print("1️⃣ Creating plan from auto-generated recommendations...")
     plan = engine.create_plan(
         title="Auto-generated improvement plan",
-        auto_generate=False  # Skip auto-generation for now
+        auto_generate=False,  # Skip auto-generation for now
     )
     print(f"   ⚠️  Skipped (no recommendations to convert)\n")
 
@@ -137,4 +140,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()

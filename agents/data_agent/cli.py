@@ -4,26 +4,27 @@ Cortex Data Agent CLI - Project health analysis interface
 Provides beautiful terminal output for project health metrics
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime
-from typing import Optional
 import json
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
 from .analyzers.project_analyzer import ProjectAnalyzer
 
 
 class Colors:
     """ANSI color codes for terminal output"""
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    END = '\033[0m'
+
+    HEADER = "\033[95m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    END = "\033[0m"
 
 
 def print_header(text: str):
@@ -80,8 +81,12 @@ def display_portfolio_summary(days: int = 7):
     print(f"{Colors.BOLD}Portfolio Overview:{Colors.END}")
     print(f"  Total Projects: {stats['total_projects']}")
     print(f"  Total Commits: {stats['total_commits']}")
-    print(f"  Average Health: {get_score_color(stats['average_health'])}{stats['average_health']}/100{Colors.END}")
-    print(f"  Projects with Concerns: {Colors.RED if stats['projects_with_concerns'] > 0 else Colors.GREEN}{stats['projects_with_concerns']}{Colors.END}")
+    print(
+        f"  Average Health: {get_score_color(stats['average_health'])}{stats['average_health']}/100{Colors.END}"
+    )
+    print(
+        f"  Projects with Concerns: {Colors.RED if stats['projects_with_concerns'] > 0 else Colors.GREEN}{stats['projects_with_concerns']}{Colors.END}"
+    )
     print(f"  Star Projects: {Colors.GREEN}{stats['star_projects']}{Colors.END}")
 
     if summary["rankings"]:
@@ -142,7 +147,9 @@ def display_project_detail(project_name: str, days: int = 7):
     score_color = get_score_color(health["total_score"])
     assessment_emoji = get_assessment_emoji(health["assessment"])
 
-    print(f"{Colors.BOLD}Health Score: {score_color}{health['total_score']}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}")
+    print(
+        f"{Colors.BOLD}Health Score: {score_color}{health['total_score']}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}"
+    )
     print(f"\nScore Breakdown:")
     print(f"  Activity:      {health['breakdown']['activity']}/40")
     print(f"  Trend:         {health['breakdown']['trend']}/25")
@@ -160,7 +167,9 @@ def display_project_detail(project_name: str, days: int = 7):
 
     if commits["authors"]:
         print(f"  Top Contributors:")
-        for author, count in sorted(commits["authors"].items(), key=lambda x: x[1], reverse=True)[:3]:
+        for author, count in sorted(commits["authors"].items(), key=lambda x: x[1], reverse=True)[
+            :3
+        ]:
             print(f"    - {author}: {count} commits")
 
     # Uncommitted changes
@@ -218,7 +227,9 @@ def display_comparison(proj1: str, proj2: str, days: int = 7):
     health_winner = "🏆" if winner["health"] == proj1 else ""
     health_winner2 = "🏆" if winner["health"] == proj2 else ""
 
-    print(f"{'Health Score:':<20} {get_score_color(proj1_health)}{proj1_health:>3}/100{Colors.END} {health_winner}  vs  {get_score_color(proj2_health)}{proj2_health:>3}/100{Colors.END} {health_winner2}")
+    print(
+        f"{'Health Score:':<20} {get_score_color(proj1_health)}{proj1_health:>3}/100{Colors.END} {health_winner}  vs  {get_score_color(proj2_health)}{proj2_health:>3}/100{Colors.END} {health_winner2}"
+    )
 
     # Commits
     proj1_commits = comp[proj1]["commits"]
@@ -226,13 +237,17 @@ def display_comparison(proj1: str, proj2: str, days: int = 7):
     commits_winner = "🏆" if winner["activity"] == proj1 else ""
     commits_winner2 = "🏆" if winner["activity"] == proj2 else ""
 
-    print(f"{'Commits:':<20} {proj1_commits:>7} {commits_winner}  vs  {proj2_commits:>7} {commits_winner2}")
+    print(
+        f"{'Commits:':<20} {proj1_commits:>7} {commits_winner}  vs  {proj2_commits:>7} {commits_winner2}"
+    )
 
     # Trend
     proj1_trend = comp[proj1]["trend"]
     proj2_trend = comp[proj2]["trend"]
 
-    print(f"{'Trend:':<20} {get_trend_emoji(proj1_trend)} {proj1_trend:<10}  vs  {get_trend_emoji(proj2_trend)} {proj2_trend:<10}")
+    print(
+        f"{'Trend:':<20} {get_trend_emoji(proj1_trend)} {proj1_trend:<10}  vs  {get_trend_emoji(proj2_trend)} {proj2_trend:<10}"
+    )
 
     # Uncommitted
     proj1_uncommitted = comp[proj1]["uncommitted"]
@@ -240,7 +255,9 @@ def display_comparison(proj1: str, proj2: str, days: int = 7):
     clean_winner = "✨" if winner["cleanliness"] == proj1 else ""
     clean_winner2 = "✨" if winner["cleanliness"] == proj2 else ""
 
-    print(f"{'Uncommitted:':<20} {proj1_uncommitted:>7} {clean_winner}  vs  {proj2_uncommitted:>7} {clean_winner2}")
+    print(
+        f"{'Uncommitted:':<20} {proj1_uncommitted:>7} {clean_winner}  vs  {proj2_uncommitted:>7} {clean_winner2}"
+    )
 
     print()
 
@@ -255,23 +272,29 @@ def display_project_trends(project_name: str):
         print(f"{Colors.RED}Error: {e}{Colors.END}")
         return
 
-    print("="*60)
+    print("=" * 60)
     print(f"📈 {Colors.BOLD}{project_name} - Health Trends Analysis{Colors.END}")
-    print("="*60)
+    print("=" * 60)
     print()
 
     # Overall trend
     history = trends["history"]
     overall_trend = history["overall_trend"]
     trend_emoji = get_trend_emoji(overall_trend)
-    trend_color = Colors.GREEN if overall_trend == "improving" else (Colors.RED if overall_trend == "declining" else Colors.YELLOW)
-    print(f"{Colors.BOLD}Overall Trend:{Colors.END} {trend_color}{trend_emoji} {overall_trend.upper()}{Colors.END}")
+    trend_color = (
+        Colors.GREEN
+        if overall_trend == "improving"
+        else (Colors.RED if overall_trend == "declining" else Colors.YELLOW)
+    )
+    print(
+        f"{Colors.BOLD}Overall Trend:{Colors.END} {trend_color}{trend_emoji} {overall_trend.upper()}{Colors.END}"
+    )
     print()
 
     # Multi-period health scores
     print(f"{Colors.BOLD}Health Score by Period:{Colors.END}")
     print(f"{'Period':<12} {'Score':<12} {'Commits':<12} {'Trend':<15} {'Uncommitted'}")
-    print("-"*70)
+    print("-" * 70)
 
     periods = history["periods"]
     for period_key in sorted(periods.keys(), key=lambda x: int(x[:-1])):
@@ -280,9 +303,11 @@ def display_project_trends(project_name: str):
         score_color = get_score_color(score)
         trend_emoji = get_trend_emoji(period["trend"])
 
-        print(f"{period_key:<12} {score_color}{score}/100{Colors.END:<12} "
-              f"{period['commits']:<12} {trend_emoji} {period['trend']:<12} "
-              f"{period['uncommitted']}")
+        print(
+            f"{period_key:<12} {score_color}{score}/100{Colors.END:<12} "
+            f"{period['commits']:<12} {trend_emoji} {period['trend']:<12} "
+            f"{period['uncommitted']}"
+        )
 
     print()
 
@@ -290,8 +315,16 @@ def display_project_trends(project_name: str):
     if trends["insights"]:
         print(f"{Colors.BOLD}Insights:{Colors.END}")
         for insight in trends["insights"]:
-            icon = "⚠️ " if insight["type"] == "warning" else "✅ " if insight["type"] == "success" else "ℹ️  "
-            color = Colors.YELLOW if insight["type"] == "warning" else Colors.GREEN if insight["type"] == "success" else Colors.BLUE
+            icon = (
+                "⚠️ "
+                if insight["type"] == "warning"
+                else "✅ " if insight["type"] == "success" else "ℹ️  "
+            )
+            color = (
+                Colors.YELLOW
+                if insight["type"] == "warning"
+                else Colors.GREEN if insight["type"] == "success" else Colors.BLUE
+            )
             print(f"  {icon}{color}{insight['message']}{Colors.END}")
         print()
 
@@ -304,7 +337,7 @@ def display_project_trends(project_name: str):
             print(f"    → {rec['details']}")
         print()
 
-    print("="*60)
+    print("=" * 60)
 
 
 def display_dependency_analysis(project_name: str):
@@ -317,9 +350,9 @@ def display_dependency_analysis(project_name: str):
         print(f"{Colors.RED}Error: {e}{Colors.END}")
         return
 
-    print("="*60)
+    print("=" * 60)
     print(f"📦 {Colors.BOLD}{project_name} - Dependency Analysis{Colors.END}")
-    print("="*60)
+    print("=" * 60)
     print()
 
     print(f"{Colors.BOLD}Summary:{Colors.END}")
@@ -345,7 +378,7 @@ def display_dependency_analysis(project_name: str):
             print(f"  ... and {len(external) - 10} more")
         print()
 
-    print("="*60)
+    print("=" * 60)
 
 
 def display_dependency_health(project_name: str):
@@ -358,9 +391,9 @@ def display_dependency_health(project_name: str):
         print(f"{Colors.RED}Error: {e}{Colors.END}")
         return
 
-    print("="*60)
+    print("=" * 60)
     print(f"💊 {Colors.BOLD}{project_name} - Dependency Health{Colors.END}")
-    print("="*60)
+    print("=" * 60)
     print()
 
     # Health score
@@ -368,7 +401,9 @@ def display_dependency_health(project_name: str):
     score_color = get_score_color(score)
     assessment_emoji = get_assessment_emoji(health["assessment"])
 
-    print(f"{Colors.BOLD}Health Score: {score_color}{score}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}")
+    print(
+        f"{Colors.BOLD}Health Score: {score_color}{score}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}"
+    )
     print()
 
     # Breakdown
@@ -395,7 +430,7 @@ def display_dependency_health(project_name: str):
             print(f"    → {rec['details']}")
         print()
 
-    print("="*60)
+    print("=" * 60)
 
 
 def display_circular_dependencies(project_name: str):
@@ -408,16 +443,18 @@ def display_circular_dependencies(project_name: str):
         print(f"{Colors.RED}Error: {e}{Colors.END}")
         return
 
-    print("="*60)
+    print("=" * 60)
     print(f"🔄 {Colors.BOLD}{project_name} - Circular Dependencies{Colors.END}")
-    print("="*60)
+    print("=" * 60)
     print()
 
     if circular["has_cycles"]:
         severity = circular["severity"]
         severity_color = Colors.RED if severity == "major" else Colors.YELLOW
 
-        print(f"{Colors.BOLD}Status:{Colors.END} {severity_color}Found {circular['cycle_count']} circular dependencies ({severity}){Colors.END}")
+        print(
+            f"{Colors.BOLD}Status:{Colors.END} {severity_color}Found {circular['cycle_count']} circular dependencies ({severity}){Colors.END}"
+        )
         print()
 
         print(f"{Colors.BOLD}Cycles:{Colors.END}")
@@ -429,7 +466,7 @@ def display_circular_dependencies(project_name: str):
         print(f"{Colors.GREEN}✅ No circular dependencies found{Colors.END}")
 
     print()
-    print("="*60)
+    print("=" * 60)
 
 
 def display_package_comparison(project_name: str):
@@ -444,12 +481,13 @@ def display_package_comparison(project_name: str):
             return
 
         from .analyzers.dependency_mapper import DependencyMapper
+
         mapper = DependencyMapper(project_path)
         comparison = mapper.compare_declared_vs_actual()
 
-        print("="*60)
+        print("=" * 60)
         print(f"📦 {Colors.BOLD}{project_name} - Declared vs Actual Dependencies{Colors.END}")
-        print("="*60)
+        print("=" * 60)
         print()
 
         # Summary
@@ -470,7 +508,9 @@ def display_package_comparison(project_name: str):
 
         # Unused declared dependencies
         if comparison["unused_declared"]:
-            print(f"{Colors.BOLD}{Colors.YELLOW}⚠️  Unused Declared Dependencies ({len(comparison['unused_declared'])}):{Colors.END}")
+            print(
+                f"{Colors.BOLD}{Colors.YELLOW}⚠️  Unused Declared Dependencies ({len(comparison['unused_declared'])}):{Colors.END}"
+            )
             for pkg in sorted(comparison["unused_declared"])[:10]:
                 print(f"  • {pkg}")
             if len(comparison["unused_declared"]) > 10:
@@ -479,14 +519,16 @@ def display_package_comparison(project_name: str):
 
         # Undeclared dependencies
         if comparison["undeclared"]:
-            print(f"{Colors.BOLD}{Colors.RED}⚠️  Undeclared Dependencies ({len(comparison['undeclared'])}):{Colors.END}")
+            print(
+                f"{Colors.BOLD}{Colors.RED}⚠️  Undeclared Dependencies ({len(comparison['undeclared'])}):{Colors.END}"
+            )
             for pkg in sorted(comparison["undeclared"])[:10]:
                 print(f"  • {pkg}")
             if len(comparison["undeclared"]) > 10:
                 print(f"  ... and {len(comparison['undeclared']) - 10} more")
             print()
 
-        print("="*60)
+        print("=" * 60)
 
     except Exception as e:
         print(f"{Colors.RED}Error: {e}{Colors.END}")
@@ -500,16 +542,18 @@ def display_portfolio_dependencies(project_filter: Optional[str] = None):
     try:
         portfolio = analyzer.analyze_portfolio_dependencies(project_filter=project_filter)
 
-        print("="*60)
+        print("=" * 60)
         if project_filter:
             print(f"🔗 {Colors.BOLD}Portfolio Dependencies - {project_filter} Focus{Colors.END}")
         else:
             print(f"🔗 {Colors.BOLD}Portfolio Dependencies - All Projects{Colors.END}")
-        print("="*60)
+        print("=" * 60)
         print()
 
         # Projects analyzed
-        print(f"{Colors.BOLD}Projects Analyzed ({len(portfolio['projects_analyzed'])}):{Colors.END}")
+        print(
+            f"{Colors.BOLD}Projects Analyzed ({len(portfolio['projects_analyzed'])}):{Colors.END}"
+        )
         for proj in portfolio["projects_analyzed"]:
             deps = portfolio["project_dependencies"].get(proj, {})
             ext_count = deps.get("external_count", 0)
@@ -541,12 +585,16 @@ def display_portfolio_dependencies(project_filter: Optional[str] = None):
                 else:
                     color = Colors.GREEN
 
-                print(f"{proj:<20} {color}{outgoing:<12}{Colors.END} {incoming:<12} {bidirectional:<15}")
+                print(
+                    f"{proj:<20} {color}{outgoing:<12}{Colors.END} {incoming:<12} {bidirectional:<15}"
+                )
             print()
 
         # Shared dependencies
         if portfolio["shared_dependencies"]:
-            print(f"{Colors.BOLD}Shared Dependencies ({len(portfolio['shared_dependencies'])}):{Colors.END}")
+            print(
+                f"{Colors.BOLD}Shared Dependencies ({len(portfolio['shared_dependencies'])}):{Colors.END}"
+            )
             for dep, projects in list(portfolio["shared_dependencies"].items())[:10]:
                 print(f"  • {dep} (used by: {', '.join(projects)})")
             if len(portfolio["shared_dependencies"]) > 10:
@@ -562,7 +610,7 @@ def display_portfolio_dependencies(project_filter: Optional[str] = None):
                 print(f"    → {rec['details']}")
             print()
 
-        print("="*60)
+        print("=" * 60)
 
     except Exception as e:
         print(f"{Colors.RED}Error: {e}{Colors.END}")
@@ -581,6 +629,7 @@ def display_dependency_graph(project_name: str, format: str = "ascii"):
             return
 
         from .analyzers.dependency_mapper import DependencyMapper
+
         mapper = DependencyMapper(project_path)
 
         if format == "dot":
@@ -591,15 +640,17 @@ def display_dependency_graph(project_name: str, format: str = "ascii"):
             print(graph)
         elif format == "ascii":
             tree = mapper.generate_ascii_tree()
-            print("="*60)
+            print("=" * 60)
             print(f"🌳 {Colors.BOLD}{project_name} - Dependency Tree{Colors.END}")
-            print("="*60)
+            print("=" * 60)
             print()
             print(tree)
             print()
-            print("="*60)
+            print("=" * 60)
         else:
-            print(f"{Colors.RED}Error: Unknown format '{format}'. Use: ascii, dot, or mermaid{Colors.END}")
+            print(
+                f"{Colors.RED}Error: Unknown format '{format}'. Use: ascii, dot, or mermaid{Colors.END}"
+            )
 
     except Exception as e:
         print(f"{Colors.RED}Error: {e}{Colors.END}")
@@ -712,16 +763,17 @@ def main():
             print(f"Available: {', '.join(analyzer.projects.keys())}")
             sys.exit(1)
         project_name = sys.argv[2]
-        from .analyzers.project_analyzer import ProjectAnalyzer
         from .analyzers.package_parser import PackageParser
+        from .analyzers.project_analyzer import ProjectAnalyzer
+
         analyzer = ProjectAnalyzer()
         project_path = analyzer.projects.get(project_name)
         if project_path:
             parser = PackageParser(project_path)
             result = parser.get_all_declared_dependencies()
-            print("="*60)
+            print("=" * 60)
             print(f"📦 {Colors.BOLD}{project_name} - Package Files{Colors.END}")
-            print("="*60)
+            print("=" * 60)
             print()
             if result["by_file"]:
                 for file_type, file_data in result["by_file"].items():
@@ -742,7 +794,7 @@ def main():
                     print()
             else:
                 print("  No package files found")
-            print("="*60)
+            print("=" * 60)
         else:
             print(f"{Colors.RED}Error: Project '{project_name}' not found{Colors.END}")
 

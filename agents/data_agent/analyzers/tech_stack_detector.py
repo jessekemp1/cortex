@@ -19,7 +19,7 @@ class TechStackDetector:
     def detect_tech_stack(self) -> Dict[str, Any]:
         """
         Detect comprehensive tech stack for a project.
-        
+
         Returns:
             Dict with languages, frameworks, libraries, tools, and versions
         """
@@ -83,9 +83,11 @@ class TechStackDetector:
         }
 
         # Check for Python
-        if (self.project_path / "requirements.txt").exists() or \
-           (self.project_path / "pyproject.toml").exists() or \
-           (self.project_path / "setup.py").exists():
+        if (
+            (self.project_path / "requirements.txt").exists()
+            or (self.project_path / "pyproject.toml").exists()
+            or (self.project_path / "setup.py").exists()
+        ):
             stack["languages"].append("Python")
 
             # Detect Python version
@@ -95,7 +97,7 @@ class TechStackDetector:
 
             # Read dependencies
             deps = self._read_python_dependencies()
-            
+
             # Detect frameworks
             framework_patterns = {
                 "FastAPI": ["fastapi"],
@@ -105,7 +107,7 @@ class TechStackDetector:
                 "PyTorch": ["torch", "pytorch"],
                 "TensorFlow": ["tensorflow"],
             }
-            
+
             for framework, patterns in framework_patterns.items():
                 if any(pattern in deps for pattern in patterns):
                     stack["frameworks"].append(framework)
@@ -123,7 +125,7 @@ class TechStackDetector:
                 "Redis": ["redis"],
                 "MongoDB": ["pymongo", "motor"],
             }
-            
+
             for db, patterns in db_patterns.items():
                 if any(pattern in deps for pattern in patterns):
                     stack["databases"].append(db)
@@ -143,8 +145,11 @@ class TechStackDetector:
         if package_json.exists():
             try:
                 data = json.loads(package_json.read_text())
-                deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-                
+                deps = {
+                    **data.get("dependencies", {}),
+                    **data.get("devDependencies", {}),
+                }
+
                 # Detect language
                 if "typescript" in deps:
                     stack["languages"].append("TypeScript")
@@ -164,7 +169,7 @@ class TechStackDetector:
                     "Express": ["express"],
                     "NestJS": ["@nestjs/core"],
                 }
-                
+
                 for framework, patterns in framework_patterns.items():
                     if any(pattern in deps for pattern in patterns):
                         stack["frameworks"].append(framework)
@@ -199,7 +204,9 @@ class TechStackDetector:
             stack["languages"].append("Rust")
 
         # Java
-        if (self.project_path / "pom.xml").exists() or (self.project_path / "build.gradle").exists():
+        if (self.project_path / "pom.xml").exists() or (
+            self.project_path / "build.gradle"
+        ).exists():
             stack["languages"].append("Java")
 
         # C/C++
@@ -224,7 +231,7 @@ class TechStackDetector:
             if config_file.exists():
                 try:
                     content = config_file.read_text().lower()
-                    
+
                     db_patterns = {
                         "PostgreSQL": ["postgres", "postgresql", "psql"],
                         "MySQL": ["mysql", "mariadb"],
@@ -233,7 +240,7 @@ class TechStackDetector:
                         "SQLite": ["sqlite"],
                         "DuckDB": ["duckdb"],
                     }
-                    
+
                     for db, patterns in db_patterns.items():
                         if any(pattern in content for pattern in patterns):
                             databases.add(db)
@@ -269,7 +276,9 @@ class TechStackDetector:
             tools.add("Jest")
 
         # Linting/Formatting
-        if (self.project_path / ".ruff.toml").exists() or (self.project_path / "ruff.toml").exists():
+        if (self.project_path / ".ruff.toml").exists() or (
+            self.project_path / "ruff.toml"
+        ).exists():
             tools.add("Ruff")
         if (self.project_path / ".eslintrc").exists():
             tools.add("ESLint")
@@ -291,7 +300,9 @@ class TechStackDetector:
                     line = line.strip()
                     if line and not line.startswith("#"):
                         # Extract package name (before == or @)
-                        pkg = line.split("==")[0].split("@")[0].split(">=")[0].split("<=")[0].strip()
+                        pkg = (
+                            line.split("==")[0].split("@")[0].split(">=")[0].split("<=")[0].strip()
+                        )
                         if pkg:
                             deps.append(pkg.lower())
             except Exception:
@@ -302,6 +313,7 @@ class TechStackDetector:
         if pyproject.exists():
             try:
                 import tomli
+
                 data = tomli.loads(pyproject.read_text())
                 project_deps = data.get("project", {}).get("dependencies", [])
                 for dep in project_deps:
@@ -333,6 +345,7 @@ class TechStackDetector:
         if pyproject.exists():
             try:
                 import tomli
+
                 data = tomli.loads(pyproject.read_text())
                 requires = data.get("project", {}).get("requires-python", "")
                 if requires:
@@ -356,4 +369,3 @@ class TechStackDetector:
             except Exception:
                 pass
         return None
-

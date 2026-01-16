@@ -5,36 +5,29 @@ Tests the complete integration flow from metric tracking through alert generatio
 to recommendations, ensuring all layers work together correctly.
 """
 
-import pytest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from intelligence.monitoring.metric_tracker import MetricType
-from intelligence.monitoring.alert_generator import AlertSeverity, AlertType
-from intelligence.recommendations.alert_adapter import adapt_alerts, AdaptedAlert
-from recommendation_engine import Task, Goal
+import pytest
 from cortex.tests.conftest import create_metric_series
+from intelligence.monitoring.alert_generator import AlertSeverity, AlertType
+from intelligence.monitoring.metric_tracker import MetricType
+from intelligence.recommendations.alert_adapter import AdaptedAlert, adapt_alerts
+from recommendation_engine import Goal, Task
 
 
 class TestLayer3Pipeline:
     """Test Layer 3 internal flow: MetricTracker → TrendAnalyzer → AlertGenerator"""
 
     def test_coverage_degradation_critical_alert(
-        self,
-        metric_tracker,
-        trend_analyzer,
-        alert_generator,
-        sample_coverage_degrading
+        self, metric_tracker, trend_analyzer, alert_generator, sample_coverage_degrading
     ):
         """Track degrading coverage (80% → 70%) and verify CRITICAL alert generated."""
         project = "test_project"
 
         # Create metric series
         create_metric_series(
-            metric_tracker,
-            project,
-            MetricType.COVERAGE,
-            sample_coverage_degrading
+            metric_tracker, project, MetricType.COVERAGE, sample_coverage_degrading
         )
 
         # Analyze trend
@@ -57,10 +50,7 @@ class TestLayer3Pipeline:
         assert alert.project == project
 
     def test_coverage_degradation_warning_alert(
-        self,
-        metric_tracker,
-        trend_analyzer,
-        alert_generator
+        self, metric_tracker, trend_analyzer, alert_generator
     ):
         """Track moderate coverage drop (80% → 77%) and verify WARNING alert."""
         project = "test_project_warning"
@@ -74,12 +64,7 @@ class TestLayer3Pipeline:
             (77.0, {}),
         ]
 
-        create_metric_series(
-            metric_tracker,
-            project,
-            MetricType.COVERAGE,
-            metrics
-        )
+        create_metric_series(metric_tracker, project, MetricType.COVERAGE, metrics)
 
         # Generate alerts
         alerts = alert_generator.generate_alerts(project, days=7)
@@ -90,26 +75,17 @@ class TestLayer3Pipeline:
             warning_alerts = [a for a in alerts if a.severity == AlertSeverity.WARNING]
             # If there are alerts, at least one should be WARNING
             if alerts:
-                assert any(a.severity == AlertSeverity.WARNING for a in alerts) or \
-                       any(a.severity == AlertSeverity.CRITICAL for a in alerts), \
-                       "Expected WARNING or CRITICAL alert for 3% drop"
+                assert any(a.severity == AlertSeverity.WARNING for a in alerts) or any(
+                    a.severity == AlertSeverity.CRITICAL for a in alerts
+                ), "Expected WARNING or CRITICAL alert for 3% drop"
 
     def test_stable_coverage_no_alert(
-        self,
-        metric_tracker,
-        trend_analyzer,
-        alert_generator,
-        sample_coverage_stable
+        self, metric_tracker, trend_analyzer, alert_generator, sample_coverage_stable
     ):
         """Track stable coverage and verify no degradation alerts."""
         project = "test_project_stable"
 
-        create_metric_series(
-            metric_tracker,
-            project,
-            MetricType.COVERAGE,
-            sample_coverage_stable
-        )
+        create_metric_series(metric_tracker, project, MetricType.COVERAGE, sample_coverage_stable)
 
         # Generate alerts
         alerts = alert_generator.generate_alerts(project, days=7)
@@ -123,16 +99,13 @@ class TestLayer3Pipeline:
         metric_tracker,
         trend_analyzer,
         alert_generator,
-        sample_violations_increasing
+        sample_violations_increasing,
     ):
         """Track increasing violations (5 → 20) and verify alert."""
         project = "test_project_violations"
 
         create_metric_series(
-            metric_tracker,
-            project,
-            MetricType.VIOLATIONS,
-            sample_violations_increasing
+            metric_tracker, project, MetricType.VIOLATIONS, sample_violations_increasing
         )
 
         # Analyze trend
@@ -149,12 +122,7 @@ class TestLayer3Pipeline:
         degradation_alerts = [a for a in alerts if a.alert_type == AlertType.DEGRADATION]
         assert len(degradation_alerts) > 0, "Expected degradation alert for violations"
 
-    def test_alerts_sorted_by_severity(
-        self,
-        metric_tracker,
-        trend_analyzer,
-        alert_generator
-    ):
+    def test_alerts_sorted_by_severity(self, metric_tracker, trend_analyzer, alert_generator):
         """Verify alerts are sorted with CRITICAL first."""
         project = "test_multi_alert"
 
@@ -173,7 +141,7 @@ class TestLayer3Pipeline:
             severity_order = {
                 AlertSeverity.CRITICAL: 0,
                 AlertSeverity.WARNING: 1,
-                AlertSeverity.INFO: 2
+                AlertSeverity.INFO: 2,
             }
 
             for i in range(len(alerts) - 1):
@@ -244,7 +212,7 @@ class TestLayer4Components:
             files = file_selector.select_for_recommendation_type(
                 rec_type="health",  # Use health instead of coverage to avoid ProfilerAnalyzer
                 context={},
-                limit=5
+                limit=5,
             )
 
             # Should return a list (may be empty for temp dir)
@@ -260,7 +228,11 @@ class TestLayer4Components:
     def test_smart_generator_alert_recommendations(self, smart_generator):
         """Test generating recommendations from alerts."""
         # Create adapted alerts
-        from intelligence.monitoring.alert_generator import Alert, AlertSeverity, AlertType
+        from intelligence.monitoring.alert_generator import (
+            Alert,
+            AlertSeverity,
+            AlertType,
+        )
 
         layer3_alert = Alert(
             alert_type=AlertType.DEGRADATION,
@@ -270,16 +242,14 @@ class TestLayer4Components:
             metric_type="coverage",
             metadata={},
             created_at=datetime.now(),
-            project="test"
+            project="test",
         )
 
         adapted = AdaptedAlert.from_layer3_alert(layer3_alert)
 
         # Generate recommendations
         try:
-            recs = smart_generator.generate_alert_recommendations(
-                alerts=[adapted]
-            )
+            recs = smart_generator.generate_alert_recommendations(alerts=[adapted])
 
             assert isinstance(recs, list)
         except (AttributeError, TypeError):
@@ -324,12 +294,7 @@ class TestRecommendationEngine:
 
         # Create some degrading metrics
         metrics = [(80.0, {}), (70.0, {}), (60.0, {})]
-        create_metric_series(
-            metric_tracker,
-            project,
-            MetricType.COVERAGE,
-            metrics
-        )
+        create_metric_series(metric_tracker, project, MetricType.COVERAGE, metrics)
 
         # Get alerts
         alerts = recommendation_engine.get_active_alerts(project, days=7)
@@ -342,10 +307,7 @@ class TestRecommendationEngine:
         # Test with empty inputs - may have API mismatches
         try:
             recs = recommendation_engine.generate_recommendations(
-                tasks=[],
-                goals=[],
-                context={},
-                limit=10
+                tasks=[], goals=[], context={}, limit=10
             )
 
             assert isinstance(recs, list)
@@ -356,16 +318,10 @@ class TestRecommendationEngine:
 
     def test_generate_recommendations_with_tasks(self, recommendation_engine):
         """Test generate_recommendations with tasks."""
-        tasks = [
-            Task(id="1", title="Test task", status="blocked", metadata=None)
-        ]
+        tasks = [Task(id="1", title="Test task", status="blocked", metadata=None)]
 
         try:
-            recs = recommendation_engine.generate_recommendations(
-                tasks=tasks,
-                goals=[],
-                context={}
-            )
+            recs = recommendation_engine.generate_recommendations(tasks=tasks, goals=[], context={})
 
             assert isinstance(recs, list)
         except (AttributeError, TypeError):
@@ -379,16 +335,12 @@ class TestRecommendationEngine:
                 name="Improve coverage",
                 target_value=90.0,
                 current_value=75.0,
-                metric_type="coverage"
+                metric_type="coverage",
             )
         ]
 
         try:
-            recs = recommendation_engine.generate_recommendations(
-                tasks=[],
-                goals=goals,
-                context={}
-            )
+            recs = recommendation_engine.generate_recommendations(tasks=[], goals=goals, context={})
 
             assert isinstance(recs, list)
         except (AttributeError, TypeError):
@@ -404,16 +356,13 @@ class TestRecommendationEngine:
                 name="Coverage goal",
                 target_value=90.0,
                 current_value=50.0,
-                metric_type="coverage"
+                metric_type="coverage",
             )
         ]
 
         try:
             recs = recommendation_engine.generate_recommendations(
-                tasks=tasks,
-                goals=goals,
-                context={},
-                limit=20
+                tasks=tasks, goals=goals, context={}, limit=20
             )
 
             # Should return a list (may be empty)
@@ -425,12 +374,7 @@ class TestRecommendationEngine:
 class TestPerformance:
     """Test performance requirements."""
 
-    def test_alert_generation_time(
-        self,
-        metric_tracker,
-        trend_analyzer,
-        alert_generator
-    ):
+    def test_alert_generation_time(self, metric_tracker, trend_analyzer, alert_generator):
         """Test alert generation completes quickly."""
         import time
 

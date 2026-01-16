@@ -12,15 +12,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .memory.graph import GraphMemory
-from .memory.store import TypedMemoryStore
-from .memory.types import Pattern, Incident, Skill, Decision
-from .memory.models import MemoryType, RelationType
-from .learning.outcomes import OutcomeDetector, OutcomeType, OutcomeSource
+from .integrations.git_hooks import GitHookInstaller
 from .learning.calibration import ConfidenceCalibrator
+from .learning.outcomes import OutcomeDetector, OutcomeSource, OutcomeType
 from .learning.skills import SkillExtractor
 from .memory.decay import TemporalDecay
-from .integrations.git_hooks import GitHookInstaller
+from .memory.graph import GraphMemory
+from .memory.models import MemoryType, RelationType
+from .memory.store import TypedMemoryStore
+from .memory.types import Decision, Incident, Pattern, Skill
 
 
 class CortexV2Bridge:
@@ -65,7 +65,7 @@ class CortexV2Bridge:
         solution: str,
         projects: Optional[List[str]] = None,
         tags: Optional[List[str]] = None,
-        context: str = ""
+        context: str = "",
     ) -> Dict[str, Any]:
         """Add a pattern to memory.
 
@@ -86,37 +86,30 @@ class CortexV2Bridge:
             solution=solution,
             projects=projects or [],
             tags=tags or [],
-            context=context
+            context=context,
         )
 
         self.store.add(pattern)
 
         # Add to graph
-        node = self.graph.add_node(
-            type=MemoryType.PATTERN,
-            name=title,
-            data=pattern.to_dict()
-        )
+        node = self.graph.add_node(type=MemoryType.PATTERN, name=title, data=pattern.to_dict())
 
         # Link to projects
-        for project in (projects or []):
+        for project in projects or []:
             self._ensure_project_node(project)
-            project_nodes = self.graph.find_nodes(
-                type=MemoryType.PROJECT,
-                name_contains=project
-            )
+            project_nodes = self.graph.find_nodes(type=MemoryType.PROJECT, name_contains=project)
             if project_nodes:
                 self.graph.add_edge(
                     from_id=project_nodes[0].id,
                     to_id=node.id,
-                    relation=RelationType.USES
+                    relation=RelationType.USES,
                 )
 
         return {
             "id": pattern.id,
             "graph_node_id": node.id,
             "title": title,
-            "success": True
+            "success": True,
         }
 
     def add_incident(
@@ -126,7 +119,7 @@ class CortexV2Bridge:
         root_cause: str,
         resolution: str,
         severity: str = "minor",
-        projects: Optional[List[str]] = None
+        projects: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Add an incident to memory.
 
@@ -147,23 +140,19 @@ class CortexV2Bridge:
             root_cause=root_cause,
             resolution=resolution,
             severity=severity,
-            projects=projects or []
+            projects=projects or [],
         )
 
         self.store.add(incident)
 
         # Add to graph
-        node = self.graph.add_node(
-            type=MemoryType.INCIDENT,
-            name=title,
-            data=incident.to_dict()
-        )
+        node = self.graph.add_node(type=MemoryType.INCIDENT, name=title, data=incident.to_dict())
 
         return {
             "id": incident.id,
             "graph_node_id": node.id,
             "title": title,
-            "success": True
+            "success": True,
         }
 
     def add_skill(
@@ -173,7 +162,7 @@ class CortexV2Bridge:
         projects: Optional[List[str]] = None,
         prerequisites: Optional[List[str]] = None,
         difficulty: str = "medium",
-        estimated_time: str = ""
+        estimated_time: str = "",
     ) -> Dict[str, Any]:
         """Add a skill (how-to) to memory.
 
@@ -194,23 +183,19 @@ class CortexV2Bridge:
             projects=projects or [],
             prerequisites=prerequisites or [],
             difficulty=difficulty,
-            estimated_time=estimated_time
+            estimated_time=estimated_time,
         )
 
         self.store.add(skill)
 
         # Add to graph
-        node = self.graph.add_node(
-            type=MemoryType.SKILL,
-            name=title,
-            data=skill.to_dict()
-        )
+        node = self.graph.add_node(type=MemoryType.SKILL, name=title, data=skill.to_dict())
 
         return {
             "id": skill.id,
             "graph_node_id": node.id,
             "title": title,
-            "success": True
+            "success": True,
         }
 
     def add_decision(
@@ -220,7 +205,7 @@ class CortexV2Bridge:
         chosen_option: str,
         alternatives: List[str],
         rationale: str,
-        projects: Optional[List[str]] = None
+        projects: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Add a decision to memory.
 
@@ -241,32 +226,25 @@ class CortexV2Bridge:
             chosen_option=chosen_option,
             alternatives=alternatives,
             rationale=rationale,
-            projects=projects or []
+            projects=projects or [],
         )
 
         self.store.add(decision)
 
         # Add to graph
-        node = self.graph.add_node(
-            type=MemoryType.DECISION,
-            name=title,
-            data=decision.to_dict()
-        )
+        node = self.graph.add_node(type=MemoryType.DECISION, name=title, data=decision.to_dict())
 
         return {
             "id": decision.id,
             "graph_node_id": node.id,
             "title": title,
-            "success": True
+            "success": True,
         }
 
     # === Query Operations ===
 
     def query(
-        self,
-        query: str,
-        project: Optional[str] = None,
-        limit: int = 10
+        self, query: str, project: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Smart query with intent detection.
 
@@ -285,9 +263,7 @@ class CortexV2Bridge:
             List of matching memories
         """
         results = self.store.query(
-            query=query,
-            projects=[project] if project else None,
-            limit=limit
+            query=query, projects=[project] if project else None, limit=limit
         )
 
         return [m.to_dict() for m in results]
@@ -302,7 +278,9 @@ class CortexV2Bridge:
         skill = self.store.find_skill(task, project)
         return skill.to_dict() if skill else None
 
-    def find_incident(self, symptom: str, project: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def find_incident(
+        self, symptom: str, project: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Find a past incident by symptom."""
         incident = self.store.find_incident(symptom, project)
         return incident.to_dict() if incident else None
@@ -315,11 +293,7 @@ class CortexV2Bridge:
     # === Relationship Operations ===
 
     def link_memories(
-        self,
-        from_id: str,
-        to_id: str,
-        relation: str,
-        weight: float = 1.0
+        self, from_id: str, to_id: str, relation: str, weight: float = 1.0
     ) -> Dict[str, Any]:
         """Link two memories with a relationship.
 
@@ -334,10 +308,7 @@ class CortexV2Bridge:
         """
         relation_type = RelationType(relation)
         edge = self.graph.add_edge(
-            from_id=from_id,
-            to_id=to_id,
-            relation=relation_type,
-            weight=weight
+            from_id=from_id, to_id=to_id, relation=relation_type, weight=weight
         )
 
         return {
@@ -345,14 +316,11 @@ class CortexV2Bridge:
             "from_id": from_id,
             "to_id": to_id,
             "relation": relation,
-            "success": True
+            "success": True,
         }
 
     def get_related(
-        self,
-        memory_id: str,
-        relation: Optional[str] = None,
-        direction: str = "both"
+        self, memory_id: str, relation: Optional[str] = None, direction: str = "both"
     ) -> List[Dict[str, Any]]:
         """Get memories related to a given memory.
 
@@ -367,9 +335,7 @@ class CortexV2Bridge:
         relation_type = RelationType(relation) if relation else None
 
         results = self.graph.get_related(
-            node_id=memory_id,
-            relation=relation_type,
-            direction=direction
+            node_id=memory_id, relation=relation_type, direction=direction
         )
 
         return [
@@ -377,17 +343,14 @@ class CortexV2Bridge:
                 "node": r.node.__dict__,
                 "path": [e.__dict__ for e in r.path] if r.path else [],
                 "distance": r.distance,
-                "relevance": r.relevance
+                "relevance": r.relevance,
             }
             for r in results
         ]
 
     def get_patterns_for_project(self, project: str) -> List[Dict[str, Any]]:
         """Get all patterns used by a project."""
-        project_nodes = self.graph.find_nodes(
-            type=MemoryType.PROJECT,
-            name_contains=project
-        )
+        project_nodes = self.graph.find_nodes(type=MemoryType.PROJECT, name_contains=project)
 
         if not project_nodes:
             return []
@@ -403,7 +366,7 @@ class CortexV2Bridge:
         message: str,
         branch: str,
         files_changed: int,
-        project: Optional[str] = None
+        project: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Record a git commit outcome.
 
@@ -414,7 +377,7 @@ class CortexV2Bridge:
             message=message,
             branch=branch,
             files_changed=files_changed,
-            project=project
+            project=project,
         )
 
         return outcome.to_dict()
@@ -426,7 +389,7 @@ class CortexV2Bridge:
         conclusion: str,
         commit: str,
         branch: str,
-        duration_ms: Optional[int] = None
+        duration_ms: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Record a CI/CD pipeline outcome."""
         outcome = self.outcomes.record_ci_outcome(
@@ -435,7 +398,7 @@ class CortexV2Bridge:
             conclusion=conclusion,
             commit=commit,
             branch=branch,
-            duration_ms=duration_ms
+            duration_ms=duration_ms,
         )
 
         return outcome.to_dict()
@@ -447,7 +410,7 @@ class CortexV2Bridge:
         failed: int,
         skipped: int = 0,
         duration_seconds: float = 0,
-        commit: Optional[str] = None
+        commit: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Record a test run outcome."""
         outcome = self.outcomes.record_test_outcome(
@@ -456,21 +419,16 @@ class CortexV2Bridge:
             failed=failed,
             skipped=skipped,
             duration_seconds=duration_seconds,
-            commit=commit
+            commit=commit,
         )
 
         return outcome.to_dict()
 
     def detect_outcomes_from_git(
-        self,
-        repo_path: Path,
-        since_days: int = 7
+        self, repo_path: Path, since_days: int = 7
     ) -> List[Dict[str, Any]]:
         """Detect outcomes from recent git history."""
-        outcomes = self.outcomes.detect_from_git_log(
-            repo_path=repo_path,
-            since_days=since_days
-        )
+        outcomes = self.outcomes.detect_from_git_log(repo_path=repo_path, since_days=since_days)
 
         return [o.to_dict() for o in outcomes]
 
@@ -478,24 +436,16 @@ class CortexV2Bridge:
         self,
         project: Optional[str] = None,
         days: int = 7,
-        outcome_type: Optional[str] = None
+        outcome_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get recent detected outcomes."""
         ot = OutcomeType(outcome_type) if outcome_type else None
 
-        outcomes = self.outcomes.get_recent_outcomes(
-            project=project,
-            days=days,
-            outcome_type=ot
-        )
+        outcomes = self.outcomes.get_recent_outcomes(project=project, days=days, outcome_type=ot)
 
         return [o.to_dict() for o in outcomes]
 
-    def get_outcome_stats(
-        self,
-        project: Optional[str] = None,
-        days: int = 30
-    ) -> Dict[str, Any]:
+    def get_outcome_stats(self, project: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
         """Get outcome statistics."""
         return self.outcomes.get_outcome_stats(project=project, days=days)
 
@@ -518,7 +468,7 @@ class CortexV2Bridge:
         return {
             "success": success,
             "repo": str(repo_path),
-            "message": "Git hooks installed" if success else "Failed to install hooks"
+            "message": "Git hooks installed" if success else "Failed to install hooks",
         }
 
     def install_all_git_hooks(self, root_dir: Path, force: bool = False) -> Dict[str, Any]:
@@ -528,15 +478,12 @@ class CortexV2Bridge:
             "installed": results["installed"],
             "skipped": results["skipped"],
             "failed": results["failed"],
-            "total": results["installed"] + results["skipped"] + results["failed"]
+            "total": results["installed"] + results["skipped"] + results["failed"],
         }
 
     # === Tier 2: Temporal Decay ===
 
-    def get_stale_memories(
-        self,
-        threshold: float = 0.1
-    ) -> List[Dict[str, Any]]:
+    def get_stale_memories(self, threshold: float = 0.1) -> List[Dict[str, Any]]:
         """Get memories that have decayed below a threshold.
 
         Args:
@@ -546,10 +493,7 @@ class CortexV2Bridge:
             List of stale memories with their decay factors
         """
         all_memories = (
-            self.store.patterns +
-            self.store.incidents +
-            self.store.skills +
-            self.store.decisions
+            self.store.patterns + self.store.incidents + self.store.skills + self.store.decisions
         )
 
         stale = self.decay.get_stale_memories(all_memories, threshold=threshold)
@@ -557,23 +501,22 @@ class CortexV2Bridge:
         results = []
         for memory in stale:
             result = self.decay.calculate_decay_result(memory)
-            results.append({
-                "id": memory.id,
-                "title": memory.title,
-                "type": memory.__class__.__name__.lower(),
-                "decay_factor": result.decay_factor,
-                "days_since_use": result.days_since_use,
-                "use_count": memory.use_count,
-                "recommendation": result.recommendation
-            })
+            results.append(
+                {
+                    "id": memory.id,
+                    "title": memory.title,
+                    "type": memory.__class__.__name__.lower(),
+                    "decay_factor": result.decay_factor,
+                    "days_since_use": result.days_since_use,
+                    "use_count": memory.use_count,
+                    "recommendation": result.recommendation,
+                }
+            )
 
         return results
 
     def apply_decay_to_query(
-        self,
-        query: str,
-        project: Optional[str] = None,
-        limit: int = 10
+        self, query: str, project: Optional[str] = None, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Query with temporal decay applied.
 
@@ -583,23 +526,14 @@ class CortexV2Bridge:
             query=query,
             projects=[project] if project else None,
             limit=limit,
-            apply_decay=True
+            apply_decay=True,
         )
 
-        return [
-            {
-                **m.to_dict(),
-                "effective_confidence": m.effective_confidence
-            }
-            for m in results
-        ]
+        return [{**m.to_dict(), "effective_confidence": m.effective_confidence} for m in results]
 
     # === Tier 2: ML Confidence Calibration ===
 
-    def recalibrate_confidence(
-        self,
-        project: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def recalibrate_confidence(self, project: Optional[str] = None) -> Dict[str, Any]:
         """Recalibrate confidence for all patterns based on outcomes.
 
         Uses Bayesian Beta-Binomial model to adjust confidence based on
@@ -623,16 +557,13 @@ class CortexV2Bridge:
                     "new_confidence": r.new_confidence,
                     "delta": r.delta,
                     "certainty": r.certainty,
-                    "outcomes": r.outcome_stats.total
+                    "outcomes": r.outcome_stats.total,
                 }
                 for r in results.values()
-            ]
+            ],
         }
 
-    def get_confidence_report(
-        self,
-        project: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def get_confidence_report(self, project: Optional[str] = None) -> Dict[str, Any]:
         """Get a confidence calibration report.
 
         Shows distribution of pattern confidence and recommendations.
@@ -640,9 +571,7 @@ class CortexV2Bridge:
         return self.calibrator.get_confidence_report(project=project)
 
     def get_pattern_confidence(
-        self,
-        pattern_id: str,
-        project: Optional[str] = None
+        self, pattern_id: str, project: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get calibrated confidence for a specific pattern.
 
@@ -663,17 +592,14 @@ class CortexV2Bridge:
                 "successes": result.outcome_stats.successes,
                 "failures": result.outcome_stats.failures,
                 "partial": result.outcome_stats.partial,
-                "total": result.outcome_stats.total
-            }
+                "total": result.outcome_stats.total,
+            },
         }
 
     # === Tier 2: Skill Extraction ===
 
     def extract_skills(
-        self,
-        days: int = 7,
-        project: Optional[str] = None,
-        save: bool = False
+        self, days: int = 7, project: Optional[str] = None, save: bool = False
     ) -> List[Dict[str, Any]]:
         """Extract skills from recent successful outcome sequences.
 
@@ -693,11 +619,7 @@ class CortexV2Bridge:
         for skill in skills:
             if save:
                 saved = self.skill_extractor.save_as_skill(skill)
-                results.append({
-                    **skill.to_dict(),
-                    "saved": True,
-                    "stored_id": saved.id
-                })
+                results.append({**skill.to_dict(), "saved": True, "stored_id": saved.id})
             else:
                 results.append(skill.to_dict())
 
@@ -715,23 +637,20 @@ class CortexV2Bridge:
             "memory": store_stats,
             "graph": graph_stats,
             "outcomes": outcome_stats,
-            "data_dir": str(self.data_dir)
+            "data_dir": str(self.data_dir),
         }
 
     # === Helper Methods ===
 
     def _ensure_project_node(self, project: str):
         """Ensure a project node exists in the graph."""
-        existing = self.graph.find_nodes(
-            type=MemoryType.PROJECT,
-            name_contains=project
-        )
+        existing = self.graph.find_nodes(type=MemoryType.PROJECT, name_contains=project)
 
         if not existing:
             self.graph.add_node(
                 type=MemoryType.PROJECT,
                 name=project,
-                data={"created_at": datetime.utcnow().isoformat()}
+                data={"created_at": datetime.utcnow().isoformat()},
             )
 
 
@@ -826,16 +745,12 @@ def main():
             title=args.title,
             problem=args.problem,
             solution=args.solution,
-            projects=args.projects
+            projects=args.projects,
         )
         print(json.dumps(result, indent=2))
 
     elif args.command == "add-skill":
-        result = bridge.add_skill(
-            title=args.title,
-            steps=args.steps,
-            projects=args.projects
-        )
+        result = bridge.add_skill(title=args.title, steps=args.steps, projects=args.projects)
         print(json.dumps(result, indent=2))
 
     elif args.command == "add-incident":
@@ -845,7 +760,7 @@ def main():
             root_cause=args.root_cause,
             resolution=args.resolution,
             severity=args.severity,
-            projects=args.projects
+            projects=args.projects,
         )
         print(json.dumps(result, indent=2))
 
@@ -856,39 +771,29 @@ def main():
             chosen_option=args.chosen,
             alternatives=args.alternatives,
             rationale=args.rationale,
-            projects=args.projects
+            projects=args.projects,
         )
         print(json.dumps(result, indent=2))
 
     elif args.command == "outcomes":
         if args.outcomes_cmd == "recent":
-            result = bridge.get_recent_outcomes(
-                project=args.project,
-                days=args.days
-            )
+            result = bridge.get_recent_outcomes(project=args.project, days=args.days)
             print(json.dumps(result, indent=2, default=str))
         elif args.outcomes_cmd == "stats":
             result = bridge.get_outcome_stats(project=args.project)
             print(json.dumps(result, indent=2))
         elif args.outcomes_cmd == "detect":
             result = bridge.detect_outcomes_from_git(
-                repo_path=Path(args.repo_path),
-                since_days=args.days
+                repo_path=Path(args.repo_path), since_days=args.days
             )
             print(json.dumps(result, indent=2, default=str))
 
     elif args.command == "hooks":
         if args.hooks_cmd == "install":
-            result = bridge.install_git_hooks(
-                repo_path=Path(args.repo_path),
-                force=args.force
-            )
+            result = bridge.install_git_hooks(repo_path=Path(args.repo_path), force=args.force)
             print(json.dumps(result, indent=2))
         elif args.hooks_cmd == "install-all":
-            result = bridge.install_all_git_hooks(
-                root_dir=Path(args.root_dir),
-                force=args.force
-            )
+            result = bridge.install_all_git_hooks(root_dir=Path(args.root_dir), force=args.force)
             print(json.dumps(result, indent=2))
 
     elif args.command == "stats":

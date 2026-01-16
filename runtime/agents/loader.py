@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.config import get_config
 from cortex.runtime.models import AgentResult
@@ -58,16 +57,12 @@ class DynamicAgent(BaseAgent):
             exec(self.script_code, namespace)
 
             if "run" not in namespace:
-                raise ValueError(
-                    "Dynamic agent script must define a 'run(context)' function."
-                )
+                raise ValueError("Dynamic agent script must define a 'run(context)' function.")
 
             self._compiled_run = namespace["run"]
 
         except Exception as e:
-            logger.error(
-                "dynamic_agent_compile_failed", agent_id=self.agent_id, error=str(e)
-            )
+            logger.error("dynamic_agent_compile_failed", agent_id=self.agent_id, error=str(e))
             raise
 
     def execute(self, context: Dict[str, Any]) -> AgentResult:
@@ -98,9 +93,7 @@ class DynamicAgent(BaseAgent):
             )
 
         except Exception as e:
-            logger.error(
-                "dynamic_agent_execution_failed", agent_id=self.agent_id, error=str(e)
-            )
+            logger.error("dynamic_agent_execution_failed", agent_id=self.agent_id, error=str(e))
             return AgentResult(
                 success=False, message=f"Dynamic Execution Failed: {str(e)}", data={}
             )
@@ -148,9 +141,7 @@ class DynamicAgentLoader:
                     self.loaded_agents[agent.agent_id] = agent
                     new_agents.append(agent)
             except Exception as e:
-                logger.error(
-                    "dynamic_agent_load_error", file=agent_file.name, error=str(e)
-                )
+                logger.error("dynamic_agent_load_error", file=agent_file.name, error=str(e))
 
         return new_agents
 
@@ -187,7 +178,5 @@ class DynamicAgentLoader:
             )
 
         except Exception as e:
-            logger.error(
-                "dynamic_agent_parse_error", file=file_path.name, error=str(e)
-            )
+            logger.error("dynamic_agent_parse_error", file=file_path.name, error=str(e))
             raise

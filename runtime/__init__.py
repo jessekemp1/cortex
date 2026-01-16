@@ -26,14 +26,18 @@ def __getattr__(name: str):
     """Lazy load heavy modules."""
     if name == "RuntimeExecutor":
         from cortex.runtime.executor import RuntimeExecutor
+
         return RuntimeExecutor
     if name == "BaseAgent":
         from cortex.runtime.agents.base import BaseAgent
+
         return BaseAgent
     if name == "AgentResult":
         from cortex.runtime.models import AgentResult
+
         return AgentResult
     if name == "AgentStatus":
         from cortex.runtime.models import AgentStatus
+
         return AgentStatus
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

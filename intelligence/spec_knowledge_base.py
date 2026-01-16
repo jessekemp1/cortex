@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 try:
     import chromadb
+
     CHROMADB_AVAILABLE = True
 except ImportError:
     CHROMADB_AVAILABLE = False
@@ -32,8 +33,7 @@ class SpecKnowledgeBase:
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(path=str(storage_path / "embeddings"))
         self.collection = self.chroma_client.get_or_create_collection(
-            name="specs",
-            metadata={"hnsw:space": "cosine"}
+            name="specs", metadata={"hnsw:space": "cosine"}
         )
 
         # Initialize SQLite for metadata
@@ -42,7 +42,7 @@ class SpecKnowledgeBase:
 
         # Initialize embeddings client (lazy)
         self._embeddings_client = None
-        
+
         # Embedding cache to avoid regenerating for unchanged content
         self._embedding_cache: Dict[str, List[float]] = {}
         self._cache_file = storage_path / "embedding_cache.json"
@@ -52,7 +52,8 @@ class SpecKnowledgeBase:
         """Initialize SQLite database for spec metadata."""
         conn = sqlite3.connect(self.metadata_db)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS specs (
                 spec_id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -65,7 +66,8 @@ class SpecKnowledgeBase:
                 word_count INTEGER NOT NULL,
                 key_concepts TEXT
             )
-        """)
+        """
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_project ON specs(project)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_domain ON specs(domain)")
         conn.commit()
@@ -76,6 +78,7 @@ class SpecKnowledgeBase:
         if self._embeddings_client is None:
             try:
                 from .embeddings_client import EmbeddingsClient
+
                 self._embeddings_client = EmbeddingsClient()
                 logger.info("EmbeddingsClient initialized successfully")
             except (ImportError, ValueError, Exception) as e:
@@ -88,9 +91,7 @@ class SpecKnowledgeBase:
         if self._cache_file.exists():
             try:
                 cache_data = json.loads(self._cache_file.read_text())
-                self._embedding_cache = {
-                    k: v for k, v in cache_data.items()
-                }
+                self._embedding_cache = {k: v for k, v in cache_data.items()}
                 logger.debug(f"Loaded {len(self._embedding_cache)} cached embeddings")
             except Exception as e:
                 logger.warning(f"Failed to load embedding cache: {e}")
@@ -107,11 +108,11 @@ class SpecKnowledgeBase:
     def _generate_embedding(self, text: str, use_cache: bool = True) -> List[float]:
         """
         Generate embedding using Anthropic API or hash-based fallback with caching.
-        
+
         Args:
             text: Text to embed
             use_cache: Whether to use cached embeddings for unchanged content
-            
+
         Returns:
             Embedding vector
         """
@@ -137,24 +138,24 @@ class SpecKnowledgeBase:
                 return embedding
             except Exception as e:
                 logger.warning(f"Failed to generate embedding via API: {e}. Using fallback.")
-        
+
         # Fallback to hash-based embedding
         hash_obj = hashlib.sha256(text.encode())
         hash_bytes = hash_obj.digest()
 
         embedding = []
         for i in range(0, len(hash_bytes), 4):
-            chunk = hash_bytes[i:i+4]
-            value = int.from_bytes(chunk, byteorder='big')
+            chunk = hash_bytes[i : i + 4]
+            value = int.from_bytes(chunk, byteorder="big")
             normalized = (value / (2**32)) * 2 - 1
             embedding.append(normalized)
 
         # Pad to 768 dimensions
         while len(embedding) < 768:
-            embedding.extend(embedding[:min(768 - len(embedding), len(embedding))])
+            embedding.extend(embedding[: min(768 - len(embedding), len(embedding))])
 
         embedding = embedding[:768]
-        
+
         # Cache hash-based embedding too
         if use_cache:
             content_hash = hashlib.sha256(text.encode()).hexdigest()
@@ -175,19 +176,23 @@ class SpecKnowledgeBase:
         embedding = self._generate_embedding(content)
 
         # Create spec ID
-        spec_id = f"{metadata['project']}_{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}"
+        spec_id = (
+            f"{metadata['project']}_{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}"
+        )
 
         # Store in ChromaDB
         self.collection.add(
             ids=[spec_id],
             embeddings=[embedding],
             documents=[content[:1000]],  # Store summary
-            metadatas=[{
-                "project": metadata["project"],
-                "domain": metadata.get("domain", "general"),
-                "title": title,
-                "path": str(spec_path)
-            }]
+            metadatas=[
+                {
+                    "project": metadata["project"],
+                    "domain": metadata.get("domain", "general"),
+                    "title": title,
+                    "path": str(spec_path),
+                }
+            ],
         )
 
         # Store metadata in SQLite
@@ -196,22 +201,25 @@ class SpecKnowledgeBase:
 
         conn = sqlite3.connect(self.metadata_db)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO specs
             (spec_id, title, project, domain, file_path, created_at, indexed_at, content_hash, word_count, key_concepts)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            spec_id,
-            title,
-            metadata["project"],
-            metadata.get("domain", "general"),
-            str(spec_path),
-            now,
-            now,
-            content_hash,
-            word_count,
-            json.dumps([])  # Empty key concepts for now
-        ))
+        """,
+            (
+                spec_id,
+                title,
+                metadata["project"],
+                metadata.get("domain", "general"),
+                str(spec_path),
+                now,
+                now,
+                content_hash,
+                word_count,
+                json.dumps([]),  # Empty key concepts for now
+            ),
+        )
         conn.commit()
         conn.close()
 
@@ -225,17 +233,17 @@ class SpecKnowledgeBase:
         query_text: str,
         k: int = 5,
         project_filter: Optional[str] = None,
-        use_hybrid_search: bool = True
+        use_hybrid_search: bool = True,
     ) -> List[SimilarWork]:
         """
         Find similar specs using embedding similarity with optional hybrid search.
-        
+
         Args:
             query_text: Query text to search for
             k: Number of results to return
             project_filter: Optional project filter
             use_hybrid_search: Whether to use hybrid search (embeddings + metadata)
-            
+
         Returns:
             List of SimilarWork objects ranked by relevance
         """
@@ -243,14 +251,12 @@ class SpecKnowledgeBase:
 
         # Query ChromaDB with embeddings
         where_filter = {"project": project_filter} if project_filter else None
-        
+
         # Increase n_results for hybrid search to allow re-ranking
         n_results = k * 2 if use_hybrid_search else k
-        
+
         results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=where_filter
+            query_embeddings=[query_embedding], n_results=n_results, where=where_filter
         )
 
         if not results["ids"] or not results["ids"][0]:
@@ -271,49 +277,51 @@ class SpecKnowledgeBase:
             if row:
                 # row: spec_id, title, project, domain, file_path, created_at, indexed_at, content_hash, word_count, key_concepts
                 key_concepts = json.loads(row[9]) if row[9] else []
-                
+
                 # Base similarity from embedding distance
                 embedding_similarity = 1.0 - results["distances"][0][i]
-                
+
                 # Hybrid search: combine embedding similarity with metadata matching
                 if use_hybrid_search:
                     # Boost if title matches query keywords
                     title_lower = row[1].lower()
                     title_matches = sum(1 for kw in query_keywords if kw in title_lower)
                     title_boost = min(title_matches * 0.1, 0.2)
-                    
+
                     # Boost if domain matches
                     domain_boost = 0.0
                     if row[3] and any(kw in row[3].lower() for kw in query_keywords):
                         domain_boost = 0.1
-                    
+
                     # Boost if project matches (if no filter)
                     project_boost = 0.0
                     if not project_filter and row[2]:
                         project_boost = 0.05
-                    
+
                     # Combine scores
                     final_similarity = min(
                         embedding_similarity + title_boost + domain_boost + project_boost,
-                        1.0
+                        1.0,
                     )
                 else:
                     final_similarity = embedding_similarity
-                
-                similar_work.append(SimilarWork(
-                    id=row[0],
-                    title=row[1],
-                    type="spec",
-                    similarity_score=final_similarity,
-                    project=row[2],
-                    summary=results["documents"][0][i][:500] if results["documents"] else "",
-                    key_patterns=key_concepts[:5],  # First 5 concepts as patterns
-                    lessons_learned=[],
-                    reference_path=row[4]
-                ))
+
+                similar_work.append(
+                    SimilarWork(
+                        id=row[0],
+                        title=row[1],
+                        type="spec",
+                        similarity_score=final_similarity,
+                        project=row[2],
+                        summary=(results["documents"][0][i][:500] if results["documents"] else ""),
+                        key_patterns=key_concepts[:5],  # First 5 concepts as patterns
+                        lessons_learned=[],
+                        reference_path=row[4],
+                    )
+                )
 
         conn.close()
-        
+
         # Re-rank by final similarity score and return top k
         similar_work.sort(key=lambda x: x.similarity_score, reverse=True)
         return similar_work[:k]
@@ -333,5 +341,5 @@ class SpecKnowledgeBase:
             "total_projects": projects or 0,
             "total_words": words or 0,
             "storage_path": str(self.storage_path),
-            "collection_count": self.collection.count()
+            "collection_count": self.collection.count(),
         }

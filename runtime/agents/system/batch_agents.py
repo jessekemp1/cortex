@@ -7,7 +7,6 @@ and handle results from completed batches.
 from typing import TYPE_CHECKING, Any, Dict
 
 import structlog
-
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.batch.client import AnthropicBatchClient
 from cortex.runtime.models import AgentResult
@@ -49,25 +48,19 @@ class BatchProcessorAgent(BaseAgent):
             AgentResult with batch submission details
         """
         if not hasattr(self.executor, "batch_manager"):
-            return AgentResult(
-                success=False, message="BatchManager not initialized", data={}
-            )
+            return AgentResult(success=False, message="BatchManager not initialized", data={})
 
         manager = self.executor.batch_manager
 
         # 1. Get Pending Items
         items = manager.get_pending_items(limit=100)
         if not items:
-            return AgentResult(
-                success=True, message="No pending items to batch", data={"count": 0}
-            )
+            return AgentResult(success=True, message="No pending items to batch", data={"count": 0})
 
         # 2. Prepare Items for Client
         client_items = []
         for item in items:
-            client_items.append(
-                {"custom_id": str(item["id"]), "prompt": item["prompt"]}
-            )
+            client_items.append({"custom_id": str(item["id"]), "prompt": item["prompt"]})
 
         logger.info("batch_processor_submitting", count=len(items))
 
@@ -88,9 +81,7 @@ class BatchProcessorAgent(BaseAgent):
             )
         except Exception as e:
             logger.error("batch_submission_fatal_error", error=str(e))
-            return AgentResult(
-                success=False, message=f"Batch submission failed: {str(e)}"
-            )
+            return AgentResult(success=False, message=f"Batch submission failed: {str(e)}")
 
 
 class ResultHandlerAgent(BaseAgent):
@@ -124,18 +115,14 @@ class ResultHandlerAgent(BaseAgent):
             AgentResult with processing summary
         """
         if not hasattr(self.executor, "batch_manager"):
-            return AgentResult(
-                success=False, message="BatchManager not initialized", data={}
-            )
+            return AgentResult(success=False, message="BatchManager not initialized", data={})
 
         manager = self.executor.batch_manager
 
         # 1. Get Active Batches
         batches = manager.get_active_batches()
         if not batches:
-            return AgentResult(
-                success=True, message="No active batches", data={"count": 0}
-            )
+            return AgentResult(success=True, message="No active batches", data={"count": 0})
 
         processed_count = 0
 
@@ -164,9 +151,7 @@ class ResultHandlerAgent(BaseAgent):
 
                         # Fallback for simulation mode
                         if not result_text and batch_id.startswith("msgbatch_sim_"):
-                            result_text = (
-                                f"[Batch Result] Processed prompt: {prompt[:20]}..."
-                            )
+                            result_text = f"[Batch Result] Processed prompt: {prompt[:20]}..."
 
                         if result_text:
                             try:
@@ -189,9 +174,7 @@ class ResultHandlerAgent(BaseAgent):
                                 )
 
                     # 5. Mark Complete
-                    manager.update_batch_status(
-                        batch_id, "ended", result_file_id="processed"
-                    )
+                    manager.update_batch_status(batch_id, "ended", result_file_id="processed")
                     processed_count += 1
 
             except Exception as e:

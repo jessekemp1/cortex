@@ -1,39 +1,42 @@
 """Data models for V2 memory system."""
 
+import json
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import json
-import uuid
 
 
 class MemoryType(Enum):
     """Types of memories stored in the system."""
-    PATTERN = "pattern"      # Reusable solutions
-    INCIDENT = "incident"    # What went wrong
-    SKILL = "skill"          # Step-by-step procedures
-    DECISION = "decision"    # Why we chose X over Y
-    FACT = "fact"            # General knowledge
-    PROJECT = "project"      # Project metadata
-    OUTCOME = "outcome"      # Detected outcomes
+
+    PATTERN = "pattern"  # Reusable solutions
+    INCIDENT = "incident"  # What went wrong
+    SKILL = "skill"  # Step-by-step procedures
+    DECISION = "decision"  # Why we chose X over Y
+    FACT = "fact"  # General knowledge
+    PROJECT = "project"  # Project metadata
+    OUTCOME = "outcome"  # Detected outcomes
 
 
 class RelationType(Enum):
     """Types of relationships between nodes."""
-    USES = "uses"                    # project uses pattern
-    SIMILAR_TO = "similar_to"        # pattern similar to pattern
-    VALIDATES = "validates"          # outcome validates pattern
-    CAUSED_BY = "caused_by"          # incident caused by pattern
+
+    USES = "uses"  # project uses pattern
+    SIMILAR_TO = "similar_to"  # pattern similar to pattern
+    VALIDATES = "validates"  # outcome validates pattern
+    CAUSED_BY = "caused_by"  # incident caused by pattern
     EXTRACTED_FROM = "extracted_from"  # skill extracted from outcome
-    DEPENDS_ON = "depends_on"        # project depends on project
-    SUPERSEDES = "supersedes"        # pattern supersedes older pattern
-    RELATED_TO = "related_to"        # generic relationship
+    DEPENDS_ON = "depends_on"  # project depends on project
+    SUPERSEDES = "supersedes"  # pattern supersedes older pattern
+    RELATED_TO = "related_to"  # generic relationship
 
 
 @dataclass
 class Node:
     """A node in the memory graph."""
+
     id: str
     type: MemoryType
     name: str
@@ -48,7 +51,7 @@ class Node:
             id=f"{type.value}_{uuid.uuid4().hex[:8]}",
             type=type,
             name=name,
-            data=data or {}
+            data=data or {},
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -78,6 +81,7 @@ class Node:
 @dataclass
 class Edge:
     """An edge (relationship) in the memory graph."""
+
     id: str
     from_id: str
     to_id: str
@@ -93,7 +97,7 @@ class Edge:
         to_id: str,
         relation: RelationType,
         weight: float = 1.0,
-        data: Dict[str, Any] = None
+        data: Dict[str, Any] = None,
     ) -> "Edge":
         """Create a new edge with generated ID."""
         return cls(
@@ -102,7 +106,7 @@ class Edge:
             to_id=to_id,
             relation=relation,
             weight=weight,
-            data=data or {}
+            data=data or {},
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -134,6 +138,7 @@ class Edge:
 @dataclass
 class GraphQueryResult:
     """Result from a graph query."""
+
     node: Node
     path: List[Edge] = field(default_factory=list)
     distance: int = 0

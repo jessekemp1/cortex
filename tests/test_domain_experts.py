@@ -1,8 +1,8 @@
 """Tests for domain expert system."""
+
 from pathlib import Path
 
 import pytest
-
 from intelligence.domains.base_expert import BaseDomainExpert, DomainInsight
 from intelligence.domains.vortex_expert import VortexExpert
 

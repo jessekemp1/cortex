@@ -97,9 +97,7 @@ def test_schedule_real_recommendation():
 
     # Try to schedule
     try:
-        success = integration.schedule_recommendation(
-            recommendation, schedule="0 8 * * *"
-        )
+        success = integration.schedule_recommendation(recommendation, schedule="0 8 * * *")
 
         # Should attempt scheduling (may fail if orchestrator not running, that's OK)
         assert isinstance(success, bool)
@@ -147,15 +145,11 @@ def test_learning_with_real_recommendation():
 
         # Test priority adjustment
         recommendation = response.next_action
-        adjusted = orchestrator.feedback_loop.adjust_recommendation_priority(
-            recommendation
-        )
+        adjusted = orchestrator.feedback_loop.adjust_recommendation_priority(recommendation)
 
         assert adjusted is not None
         assert hasattr(adjusted, "title")
-        print(
-            f"✓ Priority adjustment works: {recommendation.priority} → {adjusted.priority}"
-        )
+        print(f"✓ Priority adjustment works: {recommendation.priority} → {adjusted.priority}")
     else:
         print("⚠ Feedback loop not available (expected if history not accessible)")
 

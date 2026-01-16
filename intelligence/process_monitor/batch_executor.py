@@ -9,16 +9,15 @@ Handles:
 - Concurrent task execution
 """
 
+import logging
+import sqlite3
 import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable, List, Dict, Any
-import time
-import logging
-import sqlite3
+from typing import Any, Callable, Dict, Optional
 
-from .batch_queue import BatchTaskQueue, BatchTask, TaskState
+from .batch_queue import BatchTask, BatchTaskQueue, TaskState
 
 
 class BatchExecutor:
@@ -31,7 +30,7 @@ class BatchExecutor:
         queue: BatchTaskQueue,
         process_monitor: Optional[Any] = None,
         max_concurrent: int = 3,
-        timeout_seconds: int = 3600
+        timeout_seconds: int = 3600,
     ):
         """
         Initialize batch executor.
@@ -63,7 +62,7 @@ class BatchExecutor:
         task: BatchTask,
         cwd: Optional[Path] = None,
         env: Optional[Dict[str, str]] = None,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
     ) -> bool:
         """
         Execute a single task.
@@ -82,11 +81,7 @@ class BatchExecutor:
 
         # Update state to running
         started_at = datetime.now()
-        self.queue.update_task_state(
-            task.task_id,
-            TaskState.RUNNING,
-            started_at=started_at
-        )
+        self.queue.update_task_state(task.task_id, TaskState.RUNNING, started_at=started_at)
 
         try:
             # Execute command
@@ -97,7 +92,7 @@ class BatchExecutor:
                 env=env,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
             )
 
             completed_at = datetime.now()
@@ -111,9 +106,13 @@ class BatchExecutor:
                     completed_at=completed_at,
                     exit_code=result.returncode,
                     stdout=result.stdout[:10000],  # Limit to 10KB
-                    stderr=result.stderr[:10000]
+                    stderr=result.stderr[:10000],
                 )
                 self.logger.info(f"Task {task.task_id} completed successfully")
+
+                # Trigger dependent tasks (V2a batch orchestration)
+                self.queue.trigger_dependent_tasks(task.task_id)
+
                 return True
             else:
                 # Non-zero exit code = failure
@@ -125,17 +124,21 @@ class BatchExecutor:
                     exit_code=result.returncode,
                     stdout=result.stdout[:10000],
                     stderr=result.stderr[:10000],
-                    error_message=f"Command failed with exit code {result.returncode}"
+                    error_message=f"Command failed with exit code {result.returncode}",
                 )
                 self.logger.error(f"Task {task.task_id} failed with exit code {result.returncode}")
 
                 # Attempt retry if within limits
                 # Note: retry_task() will increment retry_count, so check if current + 1 <= max
                 if task.retry_count + 1 <= task.max_retries:
-                    self.logger.info(f"Retrying task {task.task_id} (retry {task.retry_count + 1}/{task.max_retries})")
+                    self.logger.info(
+                        f"Retrying task {task.task_id} (retry {task.retry_count + 1}/{task.max_retries})"
+                    )
                     self.queue.retry_task(task.task_id)
                 else:
-                    self.logger.error(f"Task {task.task_id} failed permanently after {task.max_retries} retries")
+                    self.logger.error(
+                        f"Task {task.task_id} failed permanently after {task.max_retries} retries"
+                    )
 
                 return False
 
@@ -146,7 +149,7 @@ class BatchExecutor:
                 TaskState.FAILED,
                 started_at=started_at,
                 completed_at=completed_at,
-                error_message=f"Task timed out after {timeout} seconds"
+                error_message=f"Task timed out after {timeout} seconds",
             )
             self.logger.error(f"Task {task.task_id} timed out")
             return False
@@ -158,7 +161,7 @@ class BatchExecutor:
                 TaskState.FAILED,
                 started_at=started_at,
                 completed_at=completed_at,
-                error_message=str(e)
+                error_message=str(e),
             )
             self.logger.error(f"Task {task.task_id} failed with exception: {e}")
             return False
@@ -178,12 +181,20 @@ class BatchExecutor:
             return False, f"Max concurrent tasks ({self.max_concurrent}) reached"
 
         # Check capacity if process monitor available
-        if self.process_monitor and hasattr(self.process_monitor, 'scheduler'):
-            from .scheduler import TaskType, SchedulingPriority
+        if self.process_monitor and hasattr(self.process_monitor, "scheduler"):
+            from .scheduler import SchedulingPriority, TaskType
 
             try:
-                task_type = TaskType(task.task_type) if task.task_type in [t.value for t in TaskType] else TaskType.GENERAL
-                priority = SchedulingPriority(task.priority) if task.priority in [p.value for p in SchedulingPriority] else SchedulingPriority.NORMAL
+                task_type = (
+                    TaskType(task.task_type)
+                    if task.task_type in [t.value for t in TaskType]
+                    else TaskType.GENERAL
+                )
+                priority = (
+                    SchedulingPriority(task.priority)
+                    if task.priority in [p.value for p in SchedulingPriority]
+                    else SchedulingPriority.NORMAL
+                )
 
                 can_run, reason = self.process_monitor.scheduler.can_run_now(task_type, priority)
                 return can_run, reason
@@ -197,7 +208,7 @@ class BatchExecutor:
     def execute_task_async(
         self,
         task: BatchTask,
-        on_complete: Optional[Callable[[BatchTask, bool], None]] = None
+        on_complete: Optional[Callable[[BatchTask, bool], None]] = None,
     ):
         """
         Execute task asynchronously in a separate thread.
@@ -206,6 +217,7 @@ class BatchExecutor:
             task: Task to execute
             on_complete: Callback function(task, success) called when complete
         """
+
         def run():
             try:
                 success = self.execute_task(task)
@@ -223,44 +235,55 @@ class BatchExecutor:
     def process_scheduled_tasks(self) -> Dict[str, Any]:
         """
         Process all scheduled tasks that are ready to run.
+        Now dependency-aware: only executes tasks whose dependencies are met.
 
         Returns:
             Dictionary with execution summary
         """
-        tasks_ready = self.queue.get_scheduled_tasks()
+        # Get tasks with dependencies met (V2a batch orchestration)
+        tasks_ready = self.queue.get_next_available_tasks()
+        # Also check scheduled tasks with time-based scheduling
+        scheduled_tasks = self.queue.get_scheduled_tasks()
+
+        # Combine both lists, removing duplicates
+        all_ready_tasks = {t.task_id: t for t in tasks_ready + scheduled_tasks}.values()
 
         results = {
-            'total_ready': len(tasks_ready),
-            'executed': 0,
-            'deferred': 0,
-            'failed_capacity_check': 0,
-            'tasks': []
+            "total_ready": len(all_ready_tasks),
+            "executed": 0,
+            "deferred": 0,
+            "failed_capacity_check": 0,
+            "tasks": [],
         }
 
-        for task in tasks_ready:
+        for task in all_ready_tasks:
             # Check if we can execute
             can_execute, reason = self.can_execute_now(task)
 
             if can_execute:
                 # Execute asynchronously
                 self.execute_task_async(task)
-                results['executed'] += 1
-                results['tasks'].append({
-                    'task_id': task.task_id,
-                    'description': task.description,
-                    'status': 'executing',
-                    'reason': reason
-                })
+                results["executed"] += 1
+                results["tasks"].append(
+                    {
+                        "task_id": task.task_id,
+                        "description": task.description,
+                        "status": "executing",
+                        "reason": reason,
+                    }
+                )
             else:
                 # Defer task - reschedule for later
-                results['deferred'] += 1
-                results['failed_capacity_check'] += 1
-                results['tasks'].append({
-                    'task_id': task.task_id,
-                    'description': task.description,
-                    'status': 'deferred',
-                    'reason': reason
-                })
+                results["deferred"] += 1
+                results["failed_capacity_check"] += 1
+                results["tasks"].append(
+                    {
+                        "task_id": task.task_id,
+                        "description": task.description,
+                        "status": "deferred",
+                        "reason": reason,
+                    }
+                )
                 self.logger.info(f"Deferring task {task.task_id}: {reason}")
 
         return results
@@ -272,53 +295,59 @@ class BatchExecutor:
         Returns:
             Dictionary with scheduling summary
         """
-        if not self.process_monitor or not hasattr(self.process_monitor, 'scheduler'):
-            return {
-                'error': 'ProcessMonitor scheduler not available',
-                'scheduled': 0
-            }
+        if not self.process_monitor or not hasattr(self.process_monitor, "scheduler"):
+            return {"error": "ProcessMonitor scheduler not available", "scheduled": 0}
 
         pending_tasks = self.queue.get_pending_tasks()
         scheduler = self.process_monitor.scheduler
 
-        results = {
-            'total_pending': len(pending_tasks),
-            'scheduled': 0,
-            'tasks': []
-        }
+        results = {"total_pending": len(pending_tasks), "scheduled": 0, "tasks": []}
 
         for task in pending_tasks:
             # Use capacity scheduler to determine optimal time
-            from .scheduler import TaskType, SchedulingPriority
+            from .scheduler import SchedulingPriority, TaskType
 
             try:
-                task_type = TaskType(task.task_type) if task.task_type in [t.value for t in TaskType] else TaskType.GENERAL
-                priority = SchedulingPriority(task.priority) if task.priority in [p.value for p in SchedulingPriority] else SchedulingPriority.NORMAL
+                task_type = (
+                    TaskType(task.task_type)
+                    if task.task_type in [t.value for t in TaskType]
+                    else TaskType.GENERAL
+                )
+                priority = (
+                    SchedulingPriority(task.priority)
+                    if task.priority in [p.value for p in SchedulingPriority]
+                    else SchedulingPriority.NORMAL
+                )
 
                 scheduled = scheduler.schedule_task(
                     task_id=task.task_id,
                     task_type=task_type,
                     priority=priority,
-                    estimated_duration_minutes=task.estimated_duration_minutes
+                    estimated_duration_minutes=task.estimated_duration_minutes,
                 )
 
                 # Update task with scheduled time
                 conn = sqlite3.connect(self.queue.db_path)
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE batch_tasks
                     SET scheduled_time = ?, state = 'scheduled'
                     WHERE task_id = ?
-                """, (scheduled.recommended_start_time.isoformat(), task.task_id))
+                """,
+                    (scheduled.recommended_start_time.isoformat(), task.task_id),
+                )
                 conn.commit()
                 conn.close()
 
-                results['scheduled'] += 1
-                results['tasks'].append({
-                    'task_id': task.task_id,
-                    'description': task.description,
-                    'scheduled_time': scheduled.recommended_start_time.isoformat(),
-                    'reason': scheduled.scheduling_reason
-                })
+                results["scheduled"] += 1
+                results["tasks"].append(
+                    {
+                        "task_id": task.task_id,
+                        "description": task.description,
+                        "scheduled_time": scheduled.recommended_start_time.isoformat(),
+                        "reason": scheduled.scheduling_reason,
+                    }
+                )
 
             except Exception as e:
                 self.logger.error(f"Failed to schedule task {task.task_id}: {e}")
@@ -338,16 +367,18 @@ class BatchExecutor:
             try:
                 # Schedule any pending tasks
                 schedule_results = self.schedule_pending_tasks()
-                if schedule_results.get('scheduled', 0) > 0:
+                if schedule_results.get("scheduled", 0) > 0:
                     self.logger.info(f"Scheduled {schedule_results['scheduled']} tasks")
 
                 # Process scheduled tasks that are ready
                 process_results = self.process_scheduled_tasks()
-                if process_results['executed'] > 0:
+                if process_results["executed"] > 0:
                     self.logger.info(f"Executed {process_results['executed']} tasks")
 
-                if process_results['deferred'] > 0:
-                    self.logger.info(f"Deferred {process_results['deferred']} tasks due to capacity")
+                if process_results["deferred"] > 0:
+                    self.logger.info(
+                        f"Deferred {process_results['deferred']} tasks due to capacity"
+                    )
 
             except Exception as e:
                 self.logger.error(f"Scheduler daemon error: {e}")
@@ -372,8 +403,8 @@ class BatchExecutor:
     def get_status(self) -> Dict[str, Any]:
         """Get executor status."""
         return {
-            'running_tasks': len(self._running_tasks),
-            'max_concurrent': self.max_concurrent,
-            'shutdown': self._shutdown_event.is_set(),
-            'running_task_ids': list(self._running_tasks.keys()),
+            "running_tasks": len(self._running_tasks),
+            "max_concurrent": self.max_concurrent,
+            "shutdown": self._shutdown_event.is_set(),
+            "running_task_ids": list(self._running_tasks.keys()),
         }

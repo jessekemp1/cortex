@@ -12,10 +12,10 @@ Key Features:
 """
 
 import json
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 
 from batch_api_client import BatchAPIClient, BatchRequest
 
@@ -26,14 +26,14 @@ class TokenBudget:
 
     # Claude API Limits
     max_input_tokens: int = 100_000  # Max input per request
-    max_output_tokens: int = 8_000   # Max output per request
+    max_output_tokens: int = 8_000  # Max output per request
 
     # Usage Constraints (from optimization guide)
     weekly_hour_limit: float = 60.0  # Hours per week
-    daily_hour_target: float = 8.6   # Sustainable hours per day
+    daily_hour_target: float = 8.6  # Sustainable hours per day
 
     # Batch API specific
-    batch_size_limit: int = 50_000   # Recommended batch chunk size
+    batch_size_limit: int = 50_000  # Recommended batch chunk size
 
     # Cost optimization
     batch_discount: float = 0.50  # 50% savings vs real-time
@@ -57,7 +57,7 @@ class TokenBudget:
             return [text]
 
         # Split by paragraphs to maintain context
-        paragraphs = text.split('\n\n')
+        paragraphs = text.split("\n\n")
         chunks = []
         current_chunk = []
         current_tokens = 0
@@ -67,7 +67,7 @@ class TokenBudget:
 
             if current_tokens + para_tokens > chunk_size:
                 if current_chunk:
-                    chunks.append('\n\n'.join(current_chunk))
+                    chunks.append("\n\n".join(current_chunk))
                 current_chunk = [para]
                 current_tokens = para_tokens
             else:
@@ -75,7 +75,7 @@ class TokenBudget:
                 current_tokens += para_tokens
 
         if current_chunk:
-            chunks.append('\n\n'.join(current_chunk))
+            chunks.append("\n\n".join(current_chunk))
 
         return chunks
 
@@ -96,7 +96,7 @@ class BatchTask:
 
     # Scheduling
     submit_after: Optional[datetime] = None  # Don't submit before this time
-    deadline: Optional[datetime] = None      # Results needed by this time
+    deadline: Optional[datetime] = None  # Results needed by this time
 
     # Batch API
     batch_id: Optional[str] = None
@@ -124,11 +124,7 @@ class BatchScheduler:
     - Usage limit compliance
     """
 
-    def __init__(
-        self,
-        storage_path: Path = None,
-        budget: TokenBudget = None
-    ):
+    def __init__(self, storage_path: Path = None, budget: TokenBudget = None):
         if storage_path is None:
             storage_path = Path.home() / ".cortex" / "batch_schedule"
 
@@ -155,7 +151,13 @@ class BatchScheduler:
         tasks = []
         for task_data in data:
             # Convert datetime strings back to datetime objects
-            for field in ['submit_after', 'deadline', 'created_at', 'submitted_at', 'completed_at']:
+            for field in [
+                "submit_after",
+                "deadline",
+                "created_at",
+                "submitted_at",
+                "completed_at",
+            ]:
                 if task_data.get(field):
                     task_data[field] = datetime.fromisoformat(task_data[field])
 
@@ -171,27 +173,27 @@ class BatchScheduler:
         data = []
         for task in self.tasks:
             task_dict = {
-                'id': task.id,
-                'title': task.title,
-                'description': task.description,
-                'prompt': task.prompt,
-                'priority': task.priority,
-                'estimated_input_tokens': task.estimated_input_tokens,
-                'estimated_output_tokens': task.estimated_output_tokens,
-                'submit_after': task.submit_after.isoformat() if task.submit_after else None,
-                'deadline': task.deadline.isoformat() if task.deadline else None,
-                'batch_id': task.batch_id,
-                'status': task.status,
-                'result': task.result,
-                'actual_input_tokens': task.actual_input_tokens,
-                'actual_output_tokens': task.actual_output_tokens,
-                'created_at': task.created_at.isoformat(),
-                'submitted_at': task.submitted_at.isoformat() if task.submitted_at else None,
-                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "prompt": task.prompt,
+                "priority": task.priority,
+                "estimated_input_tokens": task.estimated_input_tokens,
+                "estimated_output_tokens": task.estimated_output_tokens,
+                "submit_after": (task.submit_after.isoformat() if task.submit_after else None),
+                "deadline": task.deadline.isoformat() if task.deadline else None,
+                "batch_id": task.batch_id,
+                "status": task.status,
+                "result": task.result,
+                "actual_input_tokens": task.actual_input_tokens,
+                "actual_output_tokens": task.actual_output_tokens,
+                "created_at": task.created_at.isoformat(),
+                "submitted_at": (task.submitted_at.isoformat() if task.submitted_at else None),
+                "completed_at": (task.completed_at.isoformat() if task.completed_at else None),
             }
             data.append(task_dict)
 
-        with open(tasks_file, 'w') as f:
+        with open(tasks_file, "w") as f:
             json.dump(data, f, indent=2)
 
     def schedule_task(
@@ -200,7 +202,7 @@ class BatchScheduler:
         description: str,
         prompt: str,
         priority: str = "normal",
-        deadline_hours: int = 48  # Default: results in 48 hours
+        deadline_hours: int = 48,  # Default: results in 48 hours
     ) -> BatchTask:
         """
         Schedule a task for Batch API processing.
@@ -248,7 +250,7 @@ class BatchScheduler:
             estimated_input_tokens=estimated_input,
             estimated_output_tokens=estimated_output,
             submit_after=submit_after,
-            deadline=deadline
+            deadline=deadline,
         )
 
         self.tasks.append(task)
@@ -267,9 +269,7 @@ class BatchScheduler:
         submitted = []
 
         for task in self.tasks:
-            if (task.status == "pending" and
-                task.submit_after and
-                now >= task.submit_after):
+            if task.status == "pending" and task.submit_after and now >= task.submit_after:
 
                 try:
                     # Create batch request with proper message format
@@ -277,14 +277,14 @@ class BatchScheduler:
                         custom_id=task.id,
                         params={
                             "messages": [{"role": "user", "content": task.prompt}],
-                            "max_tokens": task.estimated_output_tokens
-                        }
+                            "max_tokens": task.estimated_output_tokens,
+                        },
                     )
 
                     # Submit to Batch API
                     batch_id = self.batch_client.submit_batch(
                         requests=[batch_request],
-                        description=f"Batch task: {task.title}"
+                        description=f"Batch task: {task.title}",
                     )
 
                     task.batch_id = batch_id
@@ -391,7 +391,7 @@ class BatchScheduler:
             "estimated_real_time_cost": round(real_time_cost, 2),
             "estimated_batch_cost": round(batch_cost, 2),
             "estimated_savings": round(savings, 2),
-            "savings_percentage": 50.0
+            "savings_percentage": 50.0,
         }
 
     def get_pending_tasks(self) -> List[BatchTask]:
@@ -405,14 +405,14 @@ class BatchScheduler:
     def get_completed_tasks(self, days: int = 7) -> List[BatchTask]:
         """Get recently completed tasks"""
         cutoff = datetime.now() - timedelta(days=days)
-        return [t for t in self.tasks
-                if t.status == "completed" and t.completed_at and t.completed_at >= cutoff]
+        return [
+            t
+            for t in self.tasks
+            if t.status == "completed" and t.completed_at and t.completed_at >= cutoff
+        ]
 
 
-def create_batch_plan_from_cortex_plan(
-    plan_id: str,
-    scheduler: BatchScheduler
-) -> List[BatchTask]:
+def create_batch_plan_from_cortex_plan(plan_id: str, scheduler: BatchScheduler) -> List[BatchTask]:
     """
     Convert a Cortex Layer 5 plan into Batch API tasks.
 
@@ -459,7 +459,7 @@ Focus on being thorough and actionable. This will guide interactive implementati
             description=step.description,
             prompt=prompt,
             priority="normal",
-            deadline_hours=48
+            deadline_hours=48,
         )
 
         batch_tasks.append(batch_task)

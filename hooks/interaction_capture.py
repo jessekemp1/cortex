@@ -43,12 +43,12 @@ Usage in Claude Code settings.json:
 }
 """
 
-import sys
-import os
 import json
 import logging
-from pathlib import Path
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
 
 # Add cortex to path
 CORTEX_DIR = Path(__file__).parent.parent
@@ -113,14 +113,16 @@ def capture_prompt(hook_input: dict) -> None:
     except Exception:
         pass  # Never block on command tracking
 
-    queue_interaction({
-        "type": "prompt_received",
-        "session_id": session_id,
-        "cwd": cwd,
-        "prompt": prompt,
-        "transcript_path": hook_input.get("transcript_path"),
-        "command": command_info.get("command") if command_info else None,
-    })
+    queue_interaction(
+        {
+            "type": "prompt_received",
+            "session_id": session_id,
+            "cwd": cwd,
+            "prompt": prompt,
+            "transcript_path": hook_input.get("transcript_path"),
+            "command": command_info.get("command") if command_info else None,
+        }
+    )
 
     # Output context enhancement based on patterns (optional)
     try:
@@ -147,15 +149,17 @@ def capture_tool_complete(hook_input: dict) -> None:
     tool_response = hook_input.get("tool_response", {})
     success = determine_tool_success(tool_response)
 
-    queue_interaction({
-        "type": "tool_completed",
-        "session_id": hook_input.get("session_id"),
-        "cwd": hook_input.get("cwd", os.getcwd()),
-        "tool_name": hook_input.get("tool_name"),
-        "tool_input": sanitize_tool_input(hook_input.get("tool_input", {})),
-        "success": success,
-        "response_summary": summarize_response(tool_response),
-    })
+    queue_interaction(
+        {
+            "type": "tool_completed",
+            "session_id": hook_input.get("session_id"),
+            "cwd": hook_input.get("cwd", os.getcwd()),
+            "tool_name": hook_input.get("tool_name"),
+            "tool_input": sanitize_tool_input(hook_input.get("tool_input", {})),
+            "success": success,
+            "response_summary": summarize_response(tool_response),
+        }
+    )
 
 
 def capture_stop(hook_input: dict) -> None:
@@ -165,11 +169,13 @@ def capture_stop(hook_input: dict) -> None:
     This signals that Claude has finished responding, allowing us to
     correlate prompts with responses.
     """
-    queue_interaction({
-        "type": "response_completed",
-        "session_id": hook_input.get("session_id"),
-        "cwd": hook_input.get("cwd", os.getcwd()),
-    })
+    queue_interaction(
+        {
+            "type": "response_completed",
+            "session_id": hook_input.get("session_id"),
+            "cwd": hook_input.get("cwd", os.getcwd()),
+        }
+    )
 
 
 def capture_session_end(hook_input: dict) -> None:
@@ -188,17 +194,20 @@ def capture_session_end(hook_input: dict) -> None:
     # Finalize command tracking for this session (extracts workflow patterns)
     try:
         from engines.command_tracker import get_tracker
+
         tracker = get_tracker()
         tracker._finalize_session()
     except Exception as e:
         logger.debug(f"Command session finalization failed: {e}")
 
-    queue_interaction({
-        "type": "session_ended",
-        "session_id": session_id,
-        "cwd": hook_input.get("cwd", os.getcwd()),
-        "reason": hook_input.get("reason", "unknown"),
-    })
+    queue_interaction(
+        {
+            "type": "session_ended",
+            "session_id": session_id,
+            "cwd": hook_input.get("cwd", os.getcwd()),
+            "reason": hook_input.get("reason", "unknown"),
+        }
+    )
 
     # Trigger async learning processing
     try:
@@ -322,7 +331,9 @@ def get_contextual_hint(hook_input: dict) -> str:
 
         # If correction rate is high, suggest being more careful
         if stats.get("correction_rate", 0) > 0.15:
-            return "Pattern: Higher than usual corrections detected. Consider verifying assumptions."
+            return (
+                "Pattern: Higher than usual corrections detected. Consider verifying assumptions."
+            )
 
         return ""
     except Exception:
@@ -339,8 +350,11 @@ def trigger_learning_pipeline() -> None:
 
     # Fire-and-forget subprocess
     subprocess.Popen(
-        [sys.executable, "-c",
-         "from cortex.learning import InteractionLearner; InteractionLearner().process_queue()"],
+        [
+            sys.executable,
+            "-c",
+            "from cortex.learning import InteractionLearner; InteractionLearner().process_queue()",
+        ],
         cwd=str(CORTEX_DIR),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -351,8 +365,10 @@ def trigger_learning_pipeline() -> None:
 def main():
     """Main entry point for interaction capture hook."""
     if len(sys.argv) < 2:
-        print("Usage: interaction_capture.py <prompt|tool_complete|stop|session_end>",
-              file=sys.stderr)
+        print(
+            "Usage: interaction_capture.py <prompt|tool_complete|stop|session_end>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     command = sys.argv[1]

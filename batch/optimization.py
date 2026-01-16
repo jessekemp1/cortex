@@ -2,11 +2,14 @@
 Batch Optimization Module
 Implements intelligence for maximizing token usage and efficient bin-packing of requests.
 """
+
 import math
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
+
 import structlog
 
 logger = structlog.get_logger()
+
 
 class TokenEstimator:
     """Estimates token counts for text strings."""
@@ -20,6 +23,7 @@ class TokenEstimator:
         """Try to setup tiktoken encoding, fallback to approximation if failed."""
         try:
             import tiktoken
+
             # Map Claude models to cl100k_base (closest approximation for now)
             self._encoding = tiktoken.get_encoding("cl100k_base")
             self.mode = "tiktoken"
@@ -45,6 +49,7 @@ class TokenEstimator:
     def _approximate(self, text: str) -> int:
         """Approximate tokens (rough heuristic: 4 chars ~= 1 token)."""
         return math.ceil(len(text) / 4)
+
 
 class BatchBucket:
     """Represents a single batch request to be submitted."""
@@ -72,6 +77,7 @@ class BatchBucket:
         self.items.append(item)
         self.current_tokens += tokens
 
+
 class BatchOptimizer:
     """Optimizes list of pending items into efficient batches."""
 
@@ -82,7 +88,7 @@ class BatchOptimizer:
         self,
         items: List[Dict[str, Any]],
         max_batch_size: int = 10000,
-        token_budget: int = 200000
+        token_budget: int = 200000,
     ) -> List[List[Dict[str, Any]]]:
         """
         Pack items into optimized batches using First-Fit Decreasing algorithm.
@@ -130,7 +136,7 @@ class BatchOptimizer:
                         "item_too_large_skipped",
                         item_id=item.get("id"),
                         cost=cost,
-                        limit=token_budget
+                        limit=token_budget,
                     )
                     continue
 
@@ -144,7 +150,9 @@ class BatchOptimizer:
             "optimization_complete",
             input_items=len(items),
             output_batches=len(result_batches),
-            efficiency=f"{len(items)/len(result_batches):.1f} items/batch" if result_batches else "0"
+            efficiency=(
+                f"{len(items)/len(result_batches):.1f} items/batch" if result_batches else "0"
+            ),
         )
 
         return result_batches
