@@ -1,0 +1,11 @@
+# Sensitive data - never commit
+*.key
+*.pem
+*.env
+*credentials*
+*secrets*
+*api-key*
+
+# Claude settings may contain sensitive data - review before committing
+# Uncomment if settings contain API keys:
+# claude/settings.json
