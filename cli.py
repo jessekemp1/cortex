@@ -1442,6 +1442,122 @@ def cmd_dashboard(args):
     print("")
 
 
+def cmd_bandwidth(args):
+    """Show bandwidth metrics and run experiments."""
+    import json
+
+    from intelligence.bandwidth.dashboard import get_dashboard_data, render_dashboard
+    from intelligence.bandwidth.handoff_capture import capture_handoff, WorkstreamType
+    from intelligence.bandwidth.predictions import PredictionTracker, record_outcome, record_prediction
+
+    action = getattr(args, "action", "dashboard")
+
+    try:
+        if action == "dashboard" or action is None:
+            # Show dashboard
+            if args.json:
+                data = get_dashboard_data(project=args.project, days=args.days)
+                print(json.dumps(data, indent=2))
+            else:
+                print(render_dashboard(project=args.project, days=args.days))
+
+        elif action == "experiment":
+            # Run bandwidth experiments
+            from batch.bandwidth_experiments import BandwidthExperimentRunner
+
+            runner = BandwidthExperimentRunner()
+
+            if args.dry_run:
+                runner.submit_all_experiments(dry_run=True)
+            elif args.status:
+                status = runner.get_experiment_status()
+                print("╔════════════════════════════════════════════════════════╗")
+                print("║          BANDWIDTH EXPERIMENTS STATUS                  ║")
+                print("╚════════════════════════════════════════════════════════╝")
+                print("")
+                print(f"Total Tasks: {status['total_tasks']}")
+                print(f"Completed: {status['completed']}")
+                print(f"Running: {status['running']}")
+                print(f"Failed: {status['failed']}")
+                print(f"Pending: {status['pending']}")
+                print(f"Progress: {status['progress_pct']:.0f}%")
+            elif args.experiment_name:
+                task_id = runner.submit_single_experiment(args.experiment_name)
+                if task_id:
+                    print(f"✓ Submitted experiment: {args.experiment_name}")
+                    print(f"  Task ID: {task_id}")
+                else:
+                    print(f"✗ Unknown experiment: {args.experiment_name}")
+            else:
+                # Submit all experiments
+                wave_tasks = runner.submit_all_experiments()
+                print("✓ Submitted all bandwidth experiments")
+                for wave_id, task_ids in wave_tasks.items():
+                    print(f"  {wave_id}: {len(task_ids)} tasks")
+
+        elif action == "record-prediction":
+            # Record a new prediction
+            prediction = record_prediction(
+                prediction_id=args.prediction_id,
+                confidence=args.confidence,
+                domain=args.domain,
+                description=args.description or "",
+            )
+            print(f"✓ Recorded prediction: {prediction.prediction_id}")
+            print(f"  Domain: {prediction.domain}")
+            print(f"  Confidence: {prediction.confidence:.0%}")
+
+        elif action == "record-outcome":
+            # Record outcome for a prediction
+            was_correct = args.outcome.lower() in ["true", "yes", "1", "correct"]
+            result = record_outcome(args.prediction_id, was_correct)
+            if result:
+                print(f"✓ Recorded outcome for: {args.prediction_id}")
+                print(f"  Correct: {was_correct}")
+            else:
+                print(f"✗ Prediction not found: {args.prediction_id}")
+
+        elif action == "calibration":
+            # Show calibration data
+            tracker = PredictionTracker()
+            calibrations = tracker.get_calibration(domain=args.domain)
+
+            print("╔════════════════════════════════════════════════════════╗")
+            print("║            TRUST CALIBRATION BY DOMAIN                 ║")
+            print("╚════════════════════════════════════════════════════════╝")
+            print("")
+
+            for domain, cal in calibrations.items():
+                if cal.total == 0:
+                    print(f"{domain:15s}: No data yet")
+                else:
+                    filled = int(cal.calibrated_confidence * 10)
+                    bar = "█" * filled + "░" * (10 - filled)
+                    print(f"{domain:15s}: {bar} {cal.calibrated_confidence*100:.0f}% ({cal.total} outcomes)")
+
+        elif action == "capture":
+            # Capture a session handoff
+            workstream = WorkstreamType(args.workstream) if args.workstream else WorkstreamType.BUILDING
+            handoff = capture_handoff(
+                project=args.project or "cortex",
+                active_task=args.task or "Unknown task",
+                workstream=workstream,
+                next_action=args.next_action or "",
+            )
+            print("✓ Captured session handoff")
+            print(f"  Project: {handoff.project}")
+            print(f"  Task: {handoff.active_task}")
+            print(f"  Workstream: {handoff.workstream.value}")
+
+        else:
+            print(f"Unknown action: {action}", file=sys.stderr)
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -1676,6 +1792,43 @@ Examples:
     # Dashboard command (Symbiosis Engine)
     dashboard_parser = subparsers.add_parser("dashboard", help="Show Symbiosis Engine Dashboard")
     dashboard_parser.set_defaults(func=cmd_dashboard)
+
+    # Bandwidth command (Human-AI Bandwidth Research)
+    bandwidth_parser = subparsers.add_parser(
+        "bandwidth", help="Human-AI bandwidth metrics and experiments"
+    )
+    bandwidth_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["dashboard", "experiment", "record-prediction", "record-outcome", "calibration", "capture"],
+        default="dashboard",
+        help="Action to perform (default: dashboard)",
+    )
+    bandwidth_parser.add_argument("--json", action="store_true", help="Output JSON format")
+    bandwidth_parser.add_argument("--project", type=str, help="Filter by project")
+    bandwidth_parser.add_argument("--days", type=int, default=7, help="Number of days to show (default: 7)")
+    bandwidth_parser.add_argument("--dry-run", action="store_true", help="Preview experiments without running")
+    bandwidth_parser.add_argument("--status", action="store_true", help="Show experiment status")
+    bandwidth_parser.add_argument("--experiment-name", type=str, help="Specific experiment to run")
+    bandwidth_parser.add_argument("--prediction-id", type=str, help="Prediction ID for recording")
+    bandwidth_parser.add_argument("--confidence", type=float, help="Confidence level (0-1)")
+    bandwidth_parser.add_argument(
+        "--domain",
+        type=str,
+        choices=["code", "architecture", "testing", "debugging", "planning", "documentation"],
+        help="Domain for calibration",
+    )
+    bandwidth_parser.add_argument("--description", type=str, help="Description for prediction")
+    bandwidth_parser.add_argument("--outcome", type=str, help="Outcome (true/false) for prediction")
+    bandwidth_parser.add_argument("--task", type=str, help="Task description for handoff")
+    bandwidth_parser.add_argument(
+        "--workstream",
+        type=str,
+        choices=["planning", "building", "testing", "shipping", "research"],
+        help="Workstream type for handoff",
+    )
+    bandwidth_parser.add_argument("--next-action", type=str, help="Next action for handoff")
+    bandwidth_parser.set_defaults(func=cmd_bandwidth)
 
     # Briefing command
     briefing_parser = subparsers.add_parser("briefing", help="Generate daily briefing")
