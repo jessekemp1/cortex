@@ -46,7 +46,14 @@
           "action": "ShowAlertTrigger",
           "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         }
-      ]
+      ],
+      "HotKey Window Reopens On Activation": false,
+      "HotKey Activated By Modifier": false,
+      "HotKey Alternate Shortcuts": [],
+      "HotKey Characters": "1",
+      "HotKey Characters Ignoring Modifiers": "1",
+      "HotKey Key Code": 18,
+      "HotKey Modifier Flags": 262144
     },
     {
       "Name": "Sonnet",
@@ -94,7 +101,14 @@
           "action": "ShowAlertTrigger",
           "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         }
-      ]
+      ],
+      "HotKey Window Reopens On Activation": false,
+      "HotKey Activated By Modifier": false,
+      "HotKey Alternate Shortcuts": [],
+      "HotKey Characters": "2",
+      "HotKey Characters Ignoring Modifiers": "2",
+      "HotKey Key Code": 19,
+      "HotKey Modifier Flags": 262144
     },
     {
       "Name": "Cortex",
@@ -146,7 +160,14 @@
           "regex": "Batch.*complete|batch_\\d+.*finished",
           "action": "BounceIconTrigger"
         }
-      ]
+      ],
+      "HotKey Window Reopens On Activation": false,
+      "HotKey Activated By Modifier": false,
+      "HotKey Alternate Shortcuts": [],
+      "HotKey Characters": "3",
+      "HotKey Characters Ignoring Modifiers": "3",
+      "HotKey Key Code": 20,
+      "HotKey Modifier Flags": 262144
     },
     {
       "Name": "VortexV2",
@@ -199,7 +220,14 @@
           "action": "HighlightLineTrigger",
           "parameter": "yellow"
         }
-      ]
+      ],
+      "HotKey Window Reopens On Activation": false,
+      "HotKey Activated By Modifier": false,
+      "HotKey Alternate Shortcuts": [],
+      "HotKey Characters": "4",
+      "HotKey Characters Ignoring Modifiers": "4",
+      "HotKey Key Code": 21,
+      "HotKey Modifier Flags": 262144
     },
     {
       "Name": "AlphaArena",
@@ -252,7 +280,14 @@
           "action": "HighlightLineTrigger",
           "parameter": "yellow"
         }
-      ]
+      ],
+      "HotKey Window Reopens On Activation": false,
+      "HotKey Activated By Modifier": false,
+      "HotKey Alternate Shortcuts": [],
+      "HotKey Characters": "5",
+      "HotKey Characters Ignoring Modifiers": "5",
+      "HotKey Key Code": 23,
+      "HotKey Modifier Flags": 262144
     }
   ]
 }
