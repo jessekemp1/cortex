@@ -43,14 +43,92 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
 
     @app.get("/api/v1/runtime/health")
     async def health():
-        """Health check endpoint."""
-        return {"status": "healthy", "service": "cortex-runtime"}
+        """
+        Comprehensive health check endpoint.
+
+        Checks:
+        - Runtime service status
+        - Supervisor health (if available)
+        - Task queue status
+        - Detected issues with auto-healing status
+        """
+        health_status = {
+            "status": "healthy",
+            "service": "cortex-runtime",
+            "timestamp": executor.history.metrics.get("last_run_timestamp", None),
+        }
+
+        # Try to integrate with supervisor health monitoring
+        try:
+            from supervisor import CortexSupervisor, HealthMonitor
+            from intelligence.process_monitor.batch_queue import BatchTaskQueue
+
+            # Create health monitor instance
+            shell_queue = BatchTaskQueue()
+            health_monitor = HealthMonitor(shell_queue=shell_queue)
+
+            # Run health check
+            issues = health_monitor.check()
+
+            # Add health monitoring results
+            health_status["health_monitor"] = {
+                "enabled": True,
+                "issues_detected": len(issues),
+                "issues": [
+                    {
+                        "type": issue.issue_type,
+                        "target": issue.target_id[:8] if len(issue.target_id) > 8 else issue.target_id,
+                        "severity": issue.severity,
+                        "description": issue.description,
+                        "auto_healable": issue.auto_healable,
+                    }
+                    for issue in issues
+                ],
+            }
+
+            # Check if there are critical issues
+            critical_issues = [i for i in issues if i.severity == "critical"]
+            if critical_issues:
+                health_status["status"] = "degraded"
+                health_status["critical_issues"] = len(critical_issues)
+            elif issues:
+                health_status["status"] = "healthy_with_warnings"
+                health_status["warnings"] = len(issues)
+
+            # Add queue stats
+            try:
+                queue_stats = shell_queue.get_queue_stats()
+                health_status["queue"] = queue_stats
+            except Exception:
+                pass
+
+        except ImportError:
+            # Supervisor not available - basic health only
+            health_status["health_monitor"] = {
+                "enabled": False,
+                "reason": "supervisor module not available"
+            }
+        except Exception as e:
+            # Health check failed but runtime is still up
+            health_status["health_monitor"] = {
+                "enabled": True,
+                "error": str(e),
+                "status": "check_failed"
+            }
+            logger.warning(f"Health monitoring check failed: {e}")
+
+        return health_status
 
     # Backward compatibility alias
     @app.get("/api/v1/health", deprecated=True)
     async def health_legacy():
         """Health check endpoint (legacy path)."""
-        return {"status": "healthy", "service": "cortex-runtime"}
+        # Return simplified health for backward compatibility
+        full_health = await health()
+        return {
+            "status": full_health.get("status", "healthy"),
+            "service": "cortex-runtime"
+        }
 
     # ==================== Metrics ====================
 

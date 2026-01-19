@@ -2,14 +2,13 @@
 Health Tracker - Historical project health tracking and aggregation
 
 Tracks project health scores over time to identify trends and patterns.
-Provides caching to avoid expensive git operations.
+Fresh calculation every time (depth-first principle: fresh > fast).
 """
 
 import json
-from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from .git_analyzer import GitAnalyzer
 
@@ -17,57 +16,9 @@ from .git_analyzer import GitAnalyzer
 class HealthTracker:
     """Track and aggregate project health metrics over time"""
 
-    def __init__(self, cache_dir: Path = Path.home() / ".claude" / "health_cache"):
-        """
-        Initialize health tracker with cache directory
-
-        Args:
-            cache_dir: Directory to store cached health data
-        """
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Cache TTL (time to live) in seconds - default 1 hour
-        self.cache_ttl = 3600
-
-    def _get_cache_path(self, project_name: str) -> Path:
-        """Get cache file path for a project"""
-        # Sanitize project name for filesystem
-        safe_name = project_name.replace("/", "_").replace(" ", "_")
-        return self.cache_dir / f"{safe_name}_health.json"
-
-    def _is_cache_valid(self, cache_path: Path) -> bool:
-        """Check if cache file is still valid (within TTL)"""
-        if not cache_path.exists():
-            return False
-
-        # Check if cache is within TTL
-        cache_age = datetime.now().timestamp() - cache_path.stat().st_mtime
-        return cache_age < self.cache_ttl
-
-    def _read_cache(self, project_name: str) -> Optional[Dict[str, Any]]:
-        """Read cached health data for a project"""
-        cache_path = self._get_cache_path(project_name)
-
-        if not self._is_cache_valid(cache_path):
-            return None
-
-        try:
-            with open(cache_path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return None
-
-    def _write_cache(self, project_name: str, data: Dict[str, Any]):
-        """Write health data to cache"""
-        cache_path = self._get_cache_path(project_name)
-
-        try:
-            with open(cache_path, "w") as f:
-                json.dump(data, f, indent=2, default=str)
-        except IOError:
-            # Silently fail on cache write errors
-            pass
+    def __init__(self):
+        """Initialize health tracker (no caching - always fresh)"""
+        pass  # Simple initialization, no cache management
 
     def get_health_history(
         self, project_name: str, project_path: Path, days: int = 30
@@ -156,41 +107,6 @@ class HealthTracker:
         else:
             return "stable"
 
-    def get_cached_health(
-        self,
-        project_name: str,
-        project_path: Path,
-        days: int = 7,
-        force_refresh: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Get health data with caching
-
-        Args:
-            project_name: Name of project
-            project_path: Path to project repository
-            days: Days to analyze
-            force_refresh: Force cache refresh even if valid
-
-        Returns:
-            Health data (from cache or fresh analysis)
-        """
-        # Check cache first (unless force refresh)
-        if not force_refresh:
-            cached = self._read_cache(project_name)
-            if cached and cached.get("analysis_period_days") == days:
-                cached["from_cache"] = True
-                return cached
-
-        # Perform fresh analysis
-        analyzer = GitAnalyzer(project_path)
-        data = analyzer.get_project_summary(days)
-        data["from_cache"] = False
-
-        # Write to cache
-        self._write_cache(project_name, data)
-
-        return data
 
     def get_health_trends(self, project_name: str, project_path: Path) -> Dict[str, Any]:
         """
@@ -268,21 +184,6 @@ class HealthTracker:
             "timestamp": datetime.now().isoformat(),
         }
 
-    def clear_cache(self, project_name: Optional[str] = None):
-        """
-        Clear health cache
-
-        Args:
-            project_name: Specific project to clear, or None for all
-        """
-        if project_name:
-            cache_path = self._get_cache_path(project_name)
-            if cache_path.exists():
-                cache_path.unlink()
-        else:
-            # Clear all cache files
-            for cache_file in self.cache_dir.glob("*_health.json"):
-                cache_file.unlink()
 
     def get_portfolio_trends(self, projects: Dict[str, Path]) -> Dict[str, Any]:
         """
@@ -333,7 +234,6 @@ class HealthTracker:
 # CLI for testing
 if __name__ == "__main__":
     import sys
-    from pathlib import Path as PathLib
 
     # Fix imports for standalone execution
     if __package__ is None:
@@ -350,8 +250,6 @@ if __name__ == "__main__":
         print("\nCommands:")
         print("  history <project_path> [days]    - Get health history")
         print("  trends <project_path>             - Get comprehensive trends")
-        print("  cached <project_path> [days]      - Get cached health (or fresh)")
-        print("  clear [project_name]              - Clear cache")
         sys.exit(1)
 
     command = sys.argv[1]
@@ -373,20 +271,6 @@ if __name__ == "__main__":
         project_path = Path(sys.argv[2])
         result = tracker.get_health_trends("project", project_path)
         print(json.dumps(result, indent=2, default=str))
-
-    elif command == "cached":
-        if len(sys.argv) < 3:
-            print("Error: project path required")
-            sys.exit(1)
-        project_path = Path(sys.argv[2])
-        days = int(sys.argv[3]) if len(sys.argv) > 3 else 7
-        result = tracker.get_cached_health("project", project_path, days)
-        print(json.dumps(result, indent=2, default=str))
-
-    elif command == "clear":
-        project_name = sys.argv[2] if len(sys.argv) > 2 else None
-        tracker.clear_cache(project_name)
-        print(f"Cache cleared for: {project_name or 'all projects'}")
 
     else:
         print(f"Unknown command: {command}")

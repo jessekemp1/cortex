@@ -28,6 +28,21 @@ from feedback import FeedbackLogger
 from learning import LearningSystem
 from orchestrator import CortexOrchestrator
 
+# Deep mode intelligence (Phase 1 Integration)
+try:
+    from bridge import CortexBridge
+    from intelligence.cli_display import (
+        display_deep_intelligence,
+        display_quick_intelligence,
+        display_error,
+        format_mode_info,
+    )
+    from intelligence.adaptive_latency import AnalysisMode, DEEP_MODE, FAST_MODE
+
+    DEEP_MODE_AVAILABLE = True
+except ImportError:
+    DEEP_MODE_AVAILABLE = False
+
 # Model selection intelligence (Week 1)
 try:
     from datetime import timedelta
@@ -1558,6 +1573,181 @@ def cmd_bandwidth(args):
         sys.exit(1)
 
 
+# ============================================================================
+# Deep Mode Commands (Phase 1 Integration)
+# ============================================================================
+
+
+def cmd_deep(args):
+    """Run comprehensive deep analysis."""
+    if not DEEP_MODE_AVAILABLE:
+        print("❌ Deep mode not available (missing dependencies)")
+        print("   Install: pip install -r requirements.txt")
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge(root_dir=Path(args.root))
+
+        # Run deep analysis
+        result = bridge.analyze_deep(
+            project=args.project,
+            output_json=args.json
+        )
+
+        # Check for errors
+        if isinstance(result, dict) and "error" in result:
+            display_error(result["error"])
+            sys.exit(1)
+
+        # Display results
+        display_deep_intelligence(
+            result,
+            verbose=args.verbose,
+            json_output=args.json
+        )
+
+    except Exception as e:
+        display_error(f"Deep analysis failed: {e}")
+        if args.verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+def cmd_quick(args):
+    """Run minimal fast analysis."""
+    if not DEEP_MODE_AVAILABLE:
+        print("❌ Quick mode not available (missing dependencies)")
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge(root_dir=Path(args.root))
+
+        # Run quick analysis
+        result = bridge.analyze_quick(project=args.project)
+
+        # Check for errors
+        if isinstance(result, dict) and "error" in result:
+            # Quick mode is opt-in and may not be fully implemented
+            # Show friendly message and suggest deep mode instead
+            print("\n⚠️  Quick mode not yet fully implemented")
+            print(f"   Error: {result['error']}\n")
+            print("💡 Suggestion: Use 'cortex deep' for comprehensive analysis")
+            print("   (Deep mode is only 2-5s and provides much more context)\n")
+            sys.exit(0)  # Not a failure - just not implemented yet
+
+        # Display results
+        display_quick_intelligence(result)
+
+    except Exception as e:
+        # Catch any unexpected errors
+        print("\n⚠️  Quick mode encountered an error")
+        print(f"   {e}\n")
+        print("💡 Suggestion: Use 'cortex deep' for comprehensive analysis\n")
+        sys.exit(0)  # Not a failure - just not implemented yet
+
+
+def cmd_auto(args):
+    """Run adaptive analysis with intelligent mode selection."""
+    if not DEEP_MODE_AVAILABLE:
+        print("❌ Auto mode not available (missing dependencies)")
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge(root_dir=Path(args.root))
+
+        # Run auto analysis
+        result = bridge.analyze_auto(project=args.project)
+
+        # Check for errors
+        if isinstance(result, dict) and "error" in result:
+            display_error(result["error"])
+            sys.exit(1)
+
+        # Display results (auto returns either deep or quick result)
+        if hasattr(result, 'mode'):
+            # Deep result
+            display_deep_intelligence(
+                result,
+                verbose=args.verbose,
+                json_output=False
+            )
+        else:
+            # Quick result
+            display_quick_intelligence(result)
+
+    except Exception as e:
+        display_error(f"Auto analysis failed: {e}")
+        sys.exit(1)
+
+
+def cmd_config(args):
+    """Manage deep mode configuration."""
+    if not DEEP_MODE_AVAILABLE:
+        print("❌ Config not available (missing dependencies)")
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge(root_dir=Path(args.root))
+
+        if args.show:
+            # Show current configuration
+            preferences = bridge.latency_manager.preferences
+            print("\n" + "="*60)
+            print("Cortex Deep Mode Configuration")
+            print("="*60 + "\n")
+
+            default_mode = preferences.get('default_mode', 'deep')
+            print(f"Default Mode: {default_mode.upper()}")
+
+            # Project overrides
+            overrides = preferences.get('project_overrides', {})
+            if overrides:
+                print("\nProject Overrides:")
+                for proj, mode in overrides.items():
+                    print(f"  {proj}: {mode}")
+
+            print("\nDeep Mode Config:")
+            print(f"  - Git days: {DEEP_MODE.git_days}")
+            print(f"  - Spec search: {'enabled' if DEEP_MODE.spec_search_enabled else 'disabled'}")
+            print(f"  - Pattern matching: {'semantic' if DEEP_MODE.pattern_semantic else 'keyword'}")
+            print(f"  - Model: {DEEP_MODE.model}")
+            print(f"  - Expected latency: ~{DEEP_MODE.expected_latency_ms/1000:.1f}s")
+
+            print("\nFast Mode Config:")
+            print(f"  - Git days: {FAST_MODE.git_days}")
+            print("  - Spec search: disabled")
+            print(f"  - Model: {FAST_MODE.model}")
+            print(f"  - Expected latency: ~{FAST_MODE.expected_latency_ms/1000:.1f}s")
+            print()
+
+        elif args.set_default:
+            # Set default mode
+            mode = args.set_default.lower()
+            if mode not in ['deep', 'fast', 'auto']:
+                print(f"❌ Invalid mode: {mode}")
+                print("   Valid options: deep, fast, auto")
+                sys.exit(1)
+
+            # Update configuration
+            bridge.latency_manager.preferences['default_mode'] = mode
+            bridge.latency_manager._save_preferences()
+            print(f"✅ Default mode set to: {mode.upper()}")
+            print(f"   Saved to: {bridge.latency_manager.preference_file}")
+
+        else:
+            # Show help
+            print("\nUsage: cortex config [OPTIONS]")
+            print("\nOptions:")
+            print("  --show           Show current configuration")
+            print("  --set-default    Set default analysis mode (deep/fast/auto)")
+            print()
+
+    except Exception as e:
+        display_error(f"Config failed: {e}")
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -1578,6 +1768,15 @@ Examples:
   cortex briefing --format=json # Daily briefing in JSON
   cortex feedback --stats       # Show feedback statistics
   cortex feedback --log "Note"  # Quick log entry
+
+Deep Mode (Phase 1):
+  cortex deep                   # Comprehensive analysis (2-5s)
+  cortex deep --verbose         # Full details
+  cortex deep --json            # JSON output
+  cortex quick                  # Fast analysis (<1s)
+  cortex auto                   # Adaptive mode selection
+  cortex config --show          # Show configuration
+  cortex config --set-default deep  # Set default mode
         """,
     )
 
@@ -1744,6 +1943,27 @@ Examples:
     # Learn command
     learn_parser = subparsers.add_parser("learn", help="Show learning metrics and patterns")
     learn_parser.set_defaults(func=cmd_learn)
+
+    # Deep mode commands (Phase 1 Integration)
+    deep_parser = subparsers.add_parser("deep", help="Run comprehensive deep analysis (2-5s)")
+    deep_parser.add_argument("project", nargs="?", help="Project name (optional, auto-detected)")
+    deep_parser.add_argument("--verbose", "-v", action="store_true", help="Show full analysis")
+    deep_parser.add_argument("--json", "-j", action="store_true", help="Output JSON format")
+    deep_parser.set_defaults(func=cmd_deep)
+
+    quick_parser = subparsers.add_parser("quick", help="Run minimal fast analysis (<1s)")
+    quick_parser.add_argument("project", nargs="?", help="Project name (optional, auto-detected)")
+    quick_parser.set_defaults(func=cmd_quick)
+
+    auto_parser = subparsers.add_parser("auto", help="Run adaptive analysis (intelligent mode selection)")
+    auto_parser.add_argument("project", nargs="?", help="Project name (optional, auto-detected)")
+    auto_parser.add_argument("--verbose", "-v", action="store_true", help="Show full analysis if deep mode selected")
+    auto_parser.set_defaults(func=cmd_auto)
+
+    config_parser = subparsers.add_parser("config", help="Manage deep mode configuration")
+    config_parser.add_argument("--show", action="store_true", help="Show current configuration")
+    config_parser.add_argument("--set-default", type=str, help="Set default mode (deep/fast/auto)")
+    config_parser.set_defaults(func=cmd_config)
 
     # Interactions command (Real-time feedback loop)
     interactions_parser = subparsers.add_parser(

@@ -4,7 +4,7 @@ import json
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class SessionManager:
@@ -21,8 +21,6 @@ class SessionManager:
 
     def __init__(self, workspace_root: str = "~/Dev"):
         self.workspace_root = Path(workspace_root).expanduser()
-        self.context_cache_path = Path("~/.claude/session/context.json").expanduser()
-        self.context_cache_path.parent.mkdir(parents=True, exist_ok=True)
 
     def get_context(self, format: str = "terminal") -> str:
         """
@@ -58,7 +56,7 @@ class SessionManager:
         # Extract goals from recent work
         goals = self._extract_goals(git_context)
 
-        # Build context
+        # Build context (always fresh - no caching)
         context = {
             "timestamp": datetime.now().isoformat(),
             "current_directory": str(current_dir),
@@ -67,9 +65,6 @@ class SessionManager:
             "goals": goals,
             "focus": self._infer_focus(git_context),
         }
-
-        # Cache for quick retrieval
-        self._cache_context(context)
 
         return context
 
@@ -240,7 +235,3 @@ class SessionManager:
 
         return "\n".join(output)
 
-    def _cache_context(self, context: Dict):
-        """Cache context for quick retrieval"""
-        with open(self.context_cache_path, "w") as f:
-            json.dump(context, f, indent=2)
