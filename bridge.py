@@ -57,6 +57,28 @@ try:
 except ImportError:
     UnifiedIntelligence = None
 
+# Adaptive Latency (Deep Mode) imports
+try:
+    from cortex.intelligence.adaptive_latency import (
+        AdaptiveLatencyManager,
+        AnalysisMode,
+        SessionContext,
+        DEEP_MODE,
+        FAST_MODE,
+    )
+except ImportError:
+    AdaptiveLatencyManager = None
+    AnalysisMode = None
+    SessionContext = None
+    DEEP_MODE = None
+    FAST_MODE = None
+
+try:
+    from cortex.intelligence.deep_analysis import DeepAnalyzer, DeepIntelligence
+except ImportError:
+    DeepAnalyzer = None
+    DeepIntelligence = None
+
 # V2 Prime: Engine imports
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
@@ -126,6 +148,10 @@ class CortexBridge:
             self.spec_kb = None
 
         self.session_mgr = SessionManager(self.root_dir) if SessionManager else None
+
+        # Adaptive Latency: Deep Mode components
+        self.latency_manager = AdaptiveLatencyManager() if AdaptiveLatencyManager else None
+        self.deep_analyzer = DeepAnalyzer(self.root_dir) if DeepAnalyzer else None
 
         # V2 Prime: Engine initialization
         self._init_v2_prime()
@@ -2443,6 +2469,253 @@ class CortexBridge:
             "correlations": correlations,
             "outcomes_count": len(outcomes),
         }
+
+    # ==================== Deep Mode Integration ====================
+
+    def analyze_deep(self, project: Optional[str] = None, output_json: bool = False) -> Dict[str, Any]:
+        """
+        Run comprehensive deep analysis (Depth-First Architecture).
+
+        Performs:
+        - Full git history analysis (90 days)
+        - Fresh health calculation (no caching)
+        - Code quality metrics
+        - Automatic warnings and recommendations
+
+        Args:
+            project: Project name (auto-detect if None)
+            output_json: Return JSON-serializable dict instead of object
+
+        Returns:
+            DeepIntelligence object or JSON dict
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> result = bridge.analyze_deep("cortex")
+            >>> print(f"Health: {result.health.score}/100")
+        """
+        if not self.deep_analyzer:
+            return {"error": "DeepAnalyzer not available (import failed)"}
+
+        if not self.latency_manager:
+            return {"error": "AdaptiveLatencyManager not available (import failed)"}
+
+        # Auto-detect project if not specified
+        if project is None:
+            project = self._detect_current_project()
+
+        # Get deep mode configuration
+        config = self.latency_manager.select_mode(
+            requested_mode=AnalysisMode.DEEP if AnalysisMode else None,
+            context=None
+        )
+
+        # Run deep analysis
+        try:
+            result = self.deep_analyzer.analyze(project, config.__dict__)
+
+            if output_json:
+                return self._serialize_deep_intelligence(result)
+
+            return result
+        except Exception as e:
+            return {"error": f"Deep analysis failed: {str(e)}"}
+
+    def analyze_quick(self, project: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Run minimal fast analysis (<1s).
+
+        Uses existing shallow context for speed.
+
+        Args:
+            project: Project name (auto-detect if None)
+
+        Returns:
+            Quick context dict
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> result = bridge.analyze_quick("cortex")
+            >>> print(f"Status: {result.get('status')}")
+        """
+        if project is None:
+            project = self._detect_current_project()
+
+        # Use existing fast path via query_intelligence
+        try:
+            if self.unified_intel:
+                result = self.unified_intel.query_intelligence(
+                    request=f"Quick status check for {project}",
+                    project=project,
+                    query_type="status"
+                )
+                return result
+            else:
+                # Fallback to basic context
+                return {
+                    "project": project,
+                    "status": "quick mode",
+                    "message": "UnifiedIntelligence not available, returning basic context"
+                }
+        except Exception as e:
+            return {"error": f"Quick analysis failed: {str(e)}"}
+
+    def analyze_auto(self, project: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Run adaptive analysis with intelligent mode selection.
+
+        Selects mode based on:
+        - Time since last session
+        - Project state (uncommitted changes, stale branches)
+        - User preferences
+
+        Args:
+            project: Project name (auto-detect if None)
+
+        Returns:
+            Intelligence result (deep or quick depending on context)
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> result = bridge.analyze_auto("cortex")
+            >>> # Automatically selects best mode
+        """
+        if not self.latency_manager:
+            return {"error": "AdaptiveLatencyManager not available"}
+
+        if project is None:
+            project = self._detect_current_project()
+
+        # Build session context for mode selection
+        session_ctx = self._build_session_context(project)
+
+        # Select mode adaptively
+        config = self.latency_manager.select_mode(
+            requested_mode=AnalysisMode.AUTO if AnalysisMode else None,
+            context=session_ctx
+        )
+
+        # Route to appropriate analysis
+        mode_name = config.mode_name if hasattr(config, 'mode_name') else "deep"
+
+        if mode_name == "fast":
+            return self.analyze_quick(project)
+        else:
+            # Default to deep for balanced and deep modes
+            return self.analyze_deep(project)
+
+    def _detect_current_project(self) -> str:
+        """
+        Auto-detect current project from git repo.
+
+        Returns:
+            Project name (defaults to "cortex" if detection fails)
+        """
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                timeout=1,
+                cwd=self.root_dir
+            )
+            if result.returncode == 0:
+                repo_path = Path(result.stdout.strip())
+                return repo_path.name
+        except Exception:
+            pass
+
+        return "cortex"  # Default fallback
+
+    def _build_session_context(self, project: str):
+        """
+        Build SessionContext for adaptive mode selection.
+
+        Args:
+            project: Project name
+
+        Returns:
+            SessionContext object with current state
+        """
+        if not SessionContext:
+            return None
+
+
+        project_path = self.root_dir / project
+
+        # Check for uncommitted changes
+        has_uncommitted = False
+        branch_is_stale = False
+
+        try:
+            import subprocess
+
+            status_result = subprocess.run(
+                ["git", "status", "--short"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            has_uncommitted = len(status_result.stdout.strip()) > 0
+        except Exception:
+            pass
+
+        return SessionContext(
+            last_session_time=None,  # TODO: Track last session time
+            time_since_last_session=None,
+            project_name=project,
+            has_uncommitted_changes=has_uncommitted,
+            branch_is_stale=branch_is_stale,
+            user_preference=None
+        )
+
+    def _serialize_deep_intelligence(self, intelligence) -> Dict[str, Any]:
+        """
+        Convert DeepIntelligence object to JSON-serializable dict.
+
+        Args:
+            intelligence: DeepIntelligence object
+
+        Returns:
+            JSON-serializable dictionary
+        """
+        try:
+            return {
+                "timestamp": intelligence.timestamp.isoformat(),
+                "project": intelligence.project,
+                "mode": intelligence.mode,
+                "latency_ms": intelligence.latency_ms,
+                "health": {
+                    "score": intelligence.health.score,
+                    "assessment": intelligence.health.assessment,
+                    "trend": intelligence.health.trend,
+                    "commits_7d": intelligence.health.commits_7d,
+                    "commits_30d": intelligence.health.commits_30d,
+                    "uncommitted_files": intelligence.health.uncommitted_files,
+                    "warnings": intelligence.health.warnings,
+                },
+                "git": {
+                    "commit_count": intelligence.git.commit_count,
+                    "authors": intelligence.git.authors,
+                    "current_branch": intelligence.git.current_branch,
+                    "stale_branches": intelligence.git.stale_branches,
+                    "uncommitted_files": intelligence.git.uncommitted_files,
+                },
+                "quality": {
+                    "todos": intelligence.quality.todos,
+                    "fixmes": intelligence.quality.fixmes,
+                    "tech_debt_markers": intelligence.quality.tech_debt_markers,
+                },
+                "warnings": intelligence.warnings,
+                "recommendations": intelligence.recommendations,
+                "next_actions": intelligence.next_actions,
+                "analysis_config": intelligence.analysis_config,
+            }
+        except Exception as e:
+            return {"error": f"Serialization failed: {str(e)}"}
 
 
 def main():

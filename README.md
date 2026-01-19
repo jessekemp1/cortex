@@ -1,11 +1,13 @@
 # Cortex - Meta-Intelligence System for Software Development
 
 ![Status](https://img.shields.io/badge/status-enterprise--grade-brightgreen)
-![Version](https://img.shields.io/badge/version-1.0-blue)
+![Version](https://img.shields.io/badge/version-2.0--depth--first-blue)
 ![Tests](https://img.shields.io/badge/tests-100%25%20passing-brightgreen)
-![Performance](https://img.shields.io/badge/performance-98%25%2B%20faster-success)
+![Strategy](https://img.shields.io/badge/strategy-depth%20over%20speed-purple)
 
 **Cortex** is an enterprise-grade meta-intelligence system that creates compound learning across your entire project portfolio. It combines portfolio memory, session intelligence, spec knowledge base, and metrics tracking to provide unified intelligence for software development.
+
+**Design Philosophy**: [Depth Over Speed](DESIGN_PRINCIPLES.md) - Cortex prioritizes deep portfolio intelligence over rapid response times, providing comprehensive analysis that transforms how developers manage complex multi-project portfolios.
 
 ## Quick Start
 
