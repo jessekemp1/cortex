@@ -76,18 +76,76 @@ class BatchExecutor:
         Returns:
             True if successful, False otherwise
         """
+        # SECURITY: Input validation
+        # Validate command is not empty
+        if not task.command or (isinstance(task.command, str) and not task.command.strip()):
+            self.logger.error(f"Task {task.task_id}: Empty command")
+            self.queue.update_task_state(
+                task.task_id,
+                TaskState.FAILED,
+                error_message="Empty command not allowed"
+            )
+            return False
+
+        # Validate timeout is reasonable
         if timeout is None:
             timeout = self.timeout_seconds
+        if timeout < 0 or timeout > 86400:  # Max 24 hours
+            self.logger.error(f"Task {task.task_id}: Invalid timeout {timeout}s (must be 0-86400)")
+            self.queue.update_task_state(
+                task.task_id,
+                TaskState.FAILED,
+                error_message=f"Invalid timeout {timeout}s"
+            )
+            return False
+
+        # Validate working directory if provided
+        if cwd is not None:
+            cwd_path = Path(cwd).resolve()
+            if not cwd_path.exists():
+                self.logger.error(f"Task {task.task_id}: Working directory does not exist: {cwd}")
+                self.queue.update_task_state(
+                    task.task_id,
+                    TaskState.FAILED,
+                    error_message=f"Working directory not found: {cwd}"
+                )
+                return False
+            if not cwd_path.is_dir():
+                self.logger.error(f"Task {task.task_id}: Working directory is not a directory: {cwd}")
+                self.queue.update_task_state(
+                    task.task_id,
+                    TaskState.FAILED,
+                    error_message=f"Working directory is not a directory: {cwd}"
+                )
+                return False
+
+        # Sanitize environment variables if provided
+        if env is not None:
+            # Validate env var names (alphanumeric + underscore only)
+            import re
+            for key in env.keys():
+                if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key):
+                    self.logger.error(f"Task {task.task_id}: Invalid environment variable name: {key}")
+                    self.queue.update_task_state(
+                        task.task_id,
+                        TaskState.FAILED,
+                        error_message=f"Invalid environment variable name: {key}"
+                    )
+                    return False
 
         # Update state to running
         started_at = datetime.now()
         self.queue.update_task_state(task.task_id, TaskState.RUNNING, started_at=started_at)
 
         try:
-            # Execute command
+            # Execute command - SECURITY: Use shell=False to prevent command injection
+            # Parse command string into list for safe execution
+            import shlex
+            command_list = shlex.split(task.command) if isinstance(task.command, str) else task.command
+
             result = subprocess.run(
-                task.command,
-                shell=True,
+                command_list,
+                shell=False,  # CRITICAL: Never use shell=True with user input
                 cwd=cwd,
                 env=env,
                 capture_output=True,

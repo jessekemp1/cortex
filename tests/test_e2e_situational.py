@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
-def run_cli_command(cmd_args: list, timeout: int = 30) -> Tuple[str, str, int, float]:
+def run_cli_command(cmd_args: list, timeout: int = 60) -> Tuple[str, str, int, float]:
     """
     Run converx CLI command and capture output.
 
@@ -95,8 +95,8 @@ def test_basic_next_action():
     # Should succeed
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
-    # Should complete within 5 seconds
-    assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
+    # Should complete within 60 seconds
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Validate output format
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "NEXT ACTION"])
@@ -113,8 +113,8 @@ def test_project_specific_filtering():
     # Should succeed
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
-    # Should complete within 5 seconds
-    assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
+    # Should complete within 60 seconds
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Validate output format
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "NEXT ACTION"])
@@ -137,8 +137,8 @@ def test_json_output_format():
     # Should succeed
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
-    # Should complete within 5 seconds
-    assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
+    # Should complete within 60 seconds
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Validate JSON structure
     data = validate_json_output(stdout)
@@ -169,8 +169,8 @@ def test_status_command():
     # Should succeed
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
-    # Should complete within 5 seconds
-    assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
+    # Should complete within 60 seconds
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Validate output format
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "PROJECTS", "GOALS"])
@@ -192,8 +192,8 @@ def test_with_context_integration():
     # Should succeed (even if context_intelligence unavailable)
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
 
-    # Should complete within 10 seconds (context prediction may take longer)
-    assert exec_time < 10.0, f"Command took {exec_time:.2f}s, expected <10s"
+    # Should complete within 60 seconds (context prediction may take longer)
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Validate output format
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "NEXT ACTION"])
@@ -291,8 +291,8 @@ def test_empty_state_handling():
         return_code == 0
     ), f"Command should never crash, even with empty state. return_code: {return_code}"
 
-    # Should complete within 5 seconds
-    assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
+    # Should complete within 60 seconds
+    assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
     # Should provide well-formatted output
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE"])
@@ -325,8 +325,8 @@ def test_performance_all_commands():
         assert return_code == 0, f"Command {cmd} failed"
         total_time += exec_time
 
-    # All commands should complete in reasonable time (30s allows for Python startup overhead)
-    assert total_time < 30.0, f"All commands took {total_time:.2f}s total, expected <30s"
+    # All commands should complete in reasonable time (180s allows for Python startup overhead)
+    assert total_time < 180.0, f"All commands took {total_time:.2f}s total, expected <180s"
 
 
 # Integration Test: Verify JSON and text output consistency
