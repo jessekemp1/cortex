@@ -23,16 +23,26 @@ def load_config() -> CortexConfig:
             with open(config_file) as f:
                 data = yaml.safe_load(f) or {}
             if "root_dir" in data:
-                config.root_dir = Path(data["root_dir"])
+                # SECURITY: Validate path to prevent traversal attacks
+                proposed_root = Path(data["root_dir"]).resolve()
+                # Ensure path exists and is a directory
+                if proposed_root.exists() and proposed_root.is_dir():
+                    config.root_dir = proposed_root
+                else:
+                    print(f"Warning: Invalid root_dir in config: {data['root_dir']}, using default")
             if "learning_enabled" in data:
                 config.learning_enabled = data["learning_enabled"]
         except ImportError:
             # YAML optional - config will use defaults
             pass
 
-    # Environment overrides
+    # Environment overrides with validation
     if os.environ.get("CORTEX_ROOT_DIR"):
-        config.root_dir = Path(os.environ["CORTEX_ROOT_DIR"])
+        proposed_root = Path(os.environ["CORTEX_ROOT_DIR"]).resolve()
+        if proposed_root.exists() and proposed_root.is_dir():
+            config.root_dir = proposed_root
+        else:
+            print(f"Warning: Invalid CORTEX_ROOT_DIR: {os.environ['CORTEX_ROOT_DIR']}, using default")
 
     return config
 

@@ -336,13 +336,19 @@ class TestCortexSupervisor:
 
     def test_status_when_not_running(self):
         """Test status() when supervisor is not running."""
-        from supervisor import CortexSupervisor
+        import tempfile
+        from supervisor import CortexSupervisor, SupervisorConfig
 
-        supervisor = CortexSupervisor()
-        status = supervisor.status()
+        # Create supervisor with isolated PID file
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = SupervisorConfig()
+            config.pid_file = Path(tmpdir) / "test_supervisor.pid"
 
-        assert status["running"] is False
-        assert "message" in status
+            supervisor = CortexSupervisor(config=config)
+            status = supervisor.status()
+
+            assert status["running"] is False
+            assert "message" in status
 
 
 class TestWorkItem:

@@ -15,11 +15,17 @@ from cortex.runtime.models import WebhookEvent
 from cortex.runtime.storage.metrics import MetricsCollector
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 if TYPE_CHECKING:
     from cortex.runtime.executor import RuntimeExecutor
 
 logger = structlog.get_logger()
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
@@ -37,12 +43,17 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         description="Agent execution and monitoring API",
     )
 
+    # Add rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     webhook_handlers: Dict[str, str] = {}  # webhook_path -> agent_id
 
     # ==================== Health & Status ====================
 
     @app.get("/api/v1/runtime/health")
-    async def health():
+    @limiter.limit("120/minute")
+    async def health(request: Request):
         """
         Comprehensive health check endpoint.
 
@@ -133,7 +144,8 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
     # ==================== Metrics ====================
 
     @app.get("/api/v1/runtime/metrics")
-    async def get_metrics():
+    @limiter.limit("60/minute")
+    async def get_metrics(request: Request):
         """Get system-wide metrics."""
         metrics_collector = MetricsCollector(executor.history)
         return {
@@ -153,7 +165,8 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
     # ==================== Agents ====================
 
     @app.get("/api/v1/runtime/agents")
-    async def list_agents():
+    @limiter.limit("60/minute")
+    async def list_agents(request: Request):
         """List all registered agents."""
         return {"agents": executor.list_agents()}
 
@@ -173,7 +186,8 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         return {"agent_id": agent_id, "status": status.value}
 
     @app.post("/api/v1/runtime/agents/{agent_id}/trigger")
-    async def trigger_agent(agent_id: str, context: Optional[Dict[str, Any]] = None):
+    @limiter.limit("10/minute")
+    async def trigger_agent(request: Request, agent_id: str, context: Optional[Dict[str, Any]] = None):
         """Manually trigger an agent."""
         if agent_id not in executor.agents:
             raise HTTPException(status_code=404, detail="Agent not found")
@@ -188,7 +202,8 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
     # ==================== History ====================
 
     @app.get("/api/v1/runtime/history")
-    async def get_history(limit: int = 50, agent_id: Optional[str] = None):
+    @limiter.limit("60/minute")
+    async def get_history(request: Request, limit: int = 50, agent_id: Optional[str] = None):
         """Get recent execution history."""
         executions = executor.history.get_recent_executions(limit=limit, agent_id=agent_id)
         return {"executions": executions, "count": len(executions)}
@@ -218,7 +233,8 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
     # ==================== Webhooks ====================
 
     @app.post("/api/v1/runtime/webhooks/{webhook_path:path}")
-    async def webhook_handler(webhook_path: str, event: WebhookEvent):
+    @limiter.limit("10/minute")
+    async def webhook_handler(request: Request, webhook_path: str, event: WebhookEvent):
         """Handle webhook events."""
         if webhook_path not in webhook_handlers:
             raise HTTPException(status_code=404, detail="Webhook not found")

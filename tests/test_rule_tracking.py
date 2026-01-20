@@ -224,17 +224,19 @@ class TestRuleAdherenceHook:
         hook_path = Path(__file__).parent.parent.parent / ".claude" / "hooks"
         sys.path.insert(0, str(hook_path))
 
-        from rule_adherence_hook import SESSION_READ_FILES, process_tool_completion
+        # Import after adding to path
+        import rule_adherence_hook
 
-        # Clear session state
-        SESSION_READ_FILES.clear()
+        # Patch the module-level constants
+        with patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"), \
+             patch.object(rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"), \
+             patch.object(rule_adherence_hook, "SESSION_STATE_FILE", tmp_path / ".cortex" / "session_read_files.json"):
 
-        with patch.object(Path, "home", return_value=tmp_path):
             # Create cortex dir
             (tmp_path / ".cortex").mkdir(parents=True, exist_ok=True)
 
-            # Simulate edit without read
-            warnings = process_tool_completion(
+            # Simulate edit without read (no prior session state)
+            warnings = rule_adherence_hook.process_tool_completion(
                 tool_name="Edit",
                 tool_input={"file_path": "/test/file.py"},
                 tool_output="",
@@ -248,23 +250,25 @@ class TestRuleAdherenceHook:
         hook_path = Path(__file__).parent.parent.parent / ".claude" / "hooks"
         sys.path.insert(0, str(hook_path))
 
-        from rule_adherence_hook import SESSION_READ_FILES, process_tool_completion
+        # Import after adding to path
+        import rule_adherence_hook
 
-        # Clear session state
-        SESSION_READ_FILES.clear()
+        # Patch the module-level constants
+        with patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"), \
+             patch.object(rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"), \
+             patch.object(rule_adherence_hook, "SESSION_STATE_FILE", tmp_path / ".cortex" / "session_read_files.json"):
 
-        with patch.object(Path, "home", return_value=tmp_path):
             (tmp_path / ".cortex").mkdir(parents=True, exist_ok=True)
 
-            # First read the file
-            process_tool_completion(
+            # First read the file (will save to session state file)
+            rule_adherence_hook.process_tool_completion(
                 tool_name="Read",
                 tool_input={"file_path": "/test/file.py"},
                 tool_output="file contents",
             )
 
-            # Then edit should not warn
-            warnings = process_tool_completion(
+            # Then edit should not warn (will load from session state file)
+            warnings = rule_adherence_hook.process_tool_completion(
                 tool_name="Edit",
                 tool_input={"file_path": "/test/file.py"},
                 tool_output="",
