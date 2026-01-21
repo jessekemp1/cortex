@@ -1,11 +1,49 @@
+# Cortex - Meta-Intelligence System
+# Updated: 2026-01-21 - Critical Security Fixes (Week 1)
+#
+# SECURITY UPDATES:
+# - requests: CVE-2023-32681 (Proxy-Authorization header leak)
+# - urllib3: CVE-2023-45803 (Cookie leak on cross-origin redirects)
+# - PyYAML: Cython 3.0 compatibility fix
+# - setuptools: CVE-2024-6345 (Remote code execution)
+
+# =============================================================================
+# CORE DEPENDENCIES - SECURITY PATCHED
+# =============================================================================
+
+# HTTP Client Libraries
+requests>=2.31.0,<3.0.0
+urllib3>=2.0.7,<3.0.0
+
+# Configuration & Serialization
+PyYAML>=6.0.1,<7.0.0
+
+# Build Tools
+setuptools>=70.0.0
+
+# =============================================================================
+# CORTEX CORE DEPENDENCIES
+# =============================================================================
+
+# AI/LLM Integration
 anthropic
+openai
+
+# Logging
 structlog
+rich
+
+# Utilities
+python-dotenv
+pytz
+psutil
+
+# Scheduling
 APScheduler
+
+# API Framework
 fastapi
 uvicorn
-pytz
-python-dotenv
-openai
-rich
-psutil
+
+# Rate Limiting
 slowapi

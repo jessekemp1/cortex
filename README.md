@@ -15,7 +15,7 @@
 
 ```bash
 # Option 1: Install with pip (recommended)
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 pip install -e .
 
 # Option 2: Install with learning features
@@ -66,7 +66,7 @@ vim ~/.cortex/config.yaml
 
 Example config:
 ```yaml
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev  # Or use ${HOME}/Dev for portability
 learning_enabled: true
 default_limit: 3
 ```
@@ -358,7 +358,7 @@ cortex/
 ### Running Tests
 
 ```bash
-cd /Users/jesse.kemp/Dev
+cd ~/Dev
 python -m pytest cortex/tests/
 python cortex/test_enterprise_grade.py
 ```
@@ -393,3 +393,59 @@ For issues or questions:
 **Version**: 1.0  
 **Status**: Production - Enterprise-Grade  
 **Last Updated**: 2025-12-24
+
+## Project Organization
+
+Cortex is organized into specialized modules:
+
+```
+cortex/
+├── batch/              ← Batch job orchestration
+│   ├── batch_api_client.py
+│   ├── queue_manager.py
+│   ├── queue.sh
+│   ├── queues/         ← Queue definitions
+│   └── README.md
+│
+├── analysis/           ← Automated codebase analysis
+│   ├── reports/        ← Analysis reports (date-stamped)
+│   ├── templates/      ← Analysis prompt templates
+│   ├── processors/     ← Result processors
+│   └── README.md
+│
+├── intelligence/       ← AI intelligence engines
+│   ├── portfolio_memory.py
+│   ├── recommendation_engine.py
+│   └── context_intelligence.py
+│
+├── cli/                ← CLI commands
+├── docs/               ← Documentation
+└── tests/              ← Test suite
+```
+
+**Runtime Data** (not in git):
+```
+~/.cortex/
+├── batches/            ← Batch runtime data
+├── memory/             ← Portfolio memory data
+└── config.yaml         ← User configuration
+```
+
+### Key Modules
+
+**[Batch System](batch/README.md)** - Orchestrate long-running AI workloads using Anthropic Batch API
+- Queue manager with auto-submission
+- Dependency management
+- Cost-effective batch processing
+
+**[Analysis System](analysis/README.md)** - Automated codebase health monitoring
+- Security audits
+- Test coverage analysis
+- Code quality scanning
+- Dependency vulnerability checks
+
+**Intelligence Layer** - Learn from analyses and provide proactive recommendations
+- Portfolio memory integration
+- Pattern recognition across projects
+- Automated recommendations
+

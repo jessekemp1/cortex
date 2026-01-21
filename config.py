@@ -1,11 +1,12 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from security import check_and_warn_permissions, secure_create_file, secure_create_directory
 
 
 @dataclass
 class CortexConfig:
-    root_dir: Path = field(default_factory=lambda: Path("/Users/jesse.kemp/Dev"))
+    root_dir: Path = field(default_factory=lambda: Path(os.path.expanduser("~/Dev")))
     config_dir: Path = field(default_factory=lambda: Path.home() / ".cortex")
     learning_enabled: bool = True
     default_limit: int = 3
@@ -17,6 +18,9 @@ def load_config() -> CortexConfig:
     config_file = config.config_dir / "config.yaml"
 
     if config_file.exists():
+        # SECURITY: Check config file permissions and warn if insecure
+        check_and_warn_permissions(config_file, is_directory=False, fix=False)
+
         try:
             import yaml
 
@@ -24,7 +28,7 @@ def load_config() -> CortexConfig:
                 data = yaml.safe_load(f) or {}
             if "root_dir" in data:
                 # SECURITY: Validate path to prevent traversal attacks
-                proposed_root = Path(data["root_dir"]).resolve()
+                proposed_root = Path(data["root_dir"]).expanduser().resolve()
                 # Ensure path exists and is a directory
                 if proposed_root.exists() and proposed_root.is_dir():
                     config.root_dir = proposed_root
@@ -38,7 +42,7 @@ def load_config() -> CortexConfig:
 
     # Environment overrides with validation
     if os.environ.get("CORTEX_ROOT_DIR"):
-        proposed_root = Path(os.environ["CORTEX_ROOT_DIR"]).resolve()
+        proposed_root = Path(os.environ["CORTEX_ROOT_DIR"]).expanduser().resolve()
         if proposed_root.exists() and proposed_root.is_dir():
             config.root_dir = proposed_root
         else:
@@ -49,16 +53,21 @@ def load_config() -> CortexConfig:
 
 def create_default_config():
     config_dir = Path.home() / ".cortex"
-    config_dir.mkdir(exist_ok=True)
+
+    # SECURITY: Create directory with secure permissions (700)
+    secure_create_directory(config_dir)
+
     config_file = config_dir / "config.yaml"
 
     if not config_file.exists():
         try:
             import yaml  # noqa: F401
 
-            config_file.write_text(
-                """# Cortex Configuration
-root_dir: /Users/jesse.kemp/Dev
+            # SECURITY: Create config file with secure permissions (600)
+            secure_create_file(
+                config_file,
+                content="""# Cortex Configuration
+root_dir: ~/Dev  # Or use ${HOME}/Dev for portability
 learning_enabled: true
 default_limit: 3
 """
