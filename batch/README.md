@@ -170,7 +170,7 @@ cp cortex/batch/queues/my_queue.json ~/.cortex/batches/my_queue.json
 cortex/batch/queue.sh start
 
 # Option 2: Direct Python
-export PYTHONPATH=/Users/jesse.kemp/Dev:$PYTHONPATH
+export PYTHONPATH=~/Dev:$PYTHONPATH
 export ANTHROPIC_API_KEY=$(security find-generic-password -s "anthropic-api-key" -w)
 python3 cortex/batch/queue_manager.py --queue-file ~/.cortex/batches/my_queue.json
 ```
@@ -306,10 +306,10 @@ echo $ANTHROPIC_API_KEY | cut -c1-20
 
 ```bash
 # Set PYTHONPATH
-export PYTHONPATH=/Users/jesse.kemp/Dev:$PYTHONPATH
+export PYTHONPATH=~/Dev:$PYTHONPATH
 
 # Or use direnv (recommended)
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 # .envrc automatically sets PYTHONPATH
 ```
 

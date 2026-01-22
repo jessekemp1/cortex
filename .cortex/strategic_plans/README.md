@@ -121,9 +121,9 @@ Strategic planning leverages **overnight batch API** for cost optimization:
 - `.cortex/gotchas/` - Project-specific gotchas
 
 ### Project Documentation
-- `/Users/jesse.kemp/Dev/Vortex/VortexV2/docs/` - VortexV2 docs
-- `/Users/jesse.kemp/Dev/alpha_arena/docs/` - Alpha Arena docs
-- `/Users/jesse.kemp/Dev/cortex/docs/` - Cortex docs
+- `~/Dev/Vortex/VortexV2/docs/` - VortexV2 docs
+- `~/Dev/alpha_arena/docs/` - Alpha Arena docs
+- `~/Dev/cortex/docs/` - Cortex docs
 
 ### Strategic Memories
 - `.cortex/memories/intelligent_orchestrator_complete.md` - Batch orchestration

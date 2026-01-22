@@ -167,7 +167,7 @@ Skills can run automatically on schedule. Configuration is defined in each skill
 Add to your crontab to run scheduled skills automatically:
 ```bash
 # Run cortex skills every hour
-0 * * * * cd /Users/jesse.kemp/Dev/cortex && ./cortex skill schedule >> logs/skill_scheduler.log 2>&1
+0 * * * * cd ~/Dev/cortex && ./cortex skill schedule >> logs/skill_scheduler.log 2>&1
 ```
 
 ---
@@ -437,7 +437,7 @@ cat alpha_arena/reports/skills/alpha_arena_e2e_*.md | tail -100
 
 ---
 
-**Skills Directory**: `/Users/jesse.kemp/Dev/cortex/skills/`
+**Skills Directory**: `~/Dev/cortex/skills/`
 **Last Updated**: 2025-12-16
 **Version**: 1.0.0
 **Status**: Phase 1 Complete (3 skills operational)

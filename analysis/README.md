@@ -69,7 +69,7 @@ cortex/analysis/
 **Fix:**
 ```yaml
 # Bad
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev
 
 # Good
 root_dir: ~/Dev
@@ -253,7 +253,7 @@ Use cron or launchd to schedule regular analyses:
 
 ```bash
 # Add to crontab
-0 2 * * * cd /Users/jesse.kemp/Dev && cortex/batch/queue.sh process
+0 2 * * * cd ~/Dev && cortex/batch/queue.sh process
 ```
 
 Or use the queue manager's continuous mode:

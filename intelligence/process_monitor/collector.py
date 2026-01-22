@@ -358,7 +358,7 @@ class ProcessCollector:
             Port number or None
         """
         try:
-            connections = proc.connections(kind="inet")
+            connections = proc.net_connections(kind="inet")
             for conn in connections:
                 if conn.status == "LISTEN" and conn.laddr:
                     return conn.laddr.port

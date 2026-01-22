@@ -10,7 +10,7 @@ Converx is a personal cognitive OS that bridges human intuition with AI precisio
 
 ```bash
 # From the OPUS directory
-cd /Users/jesse.kemp/Dev/converx/OPUS
+cd ~/Dev/converx/OPUS
 
 # Get next action
 python -m cli next

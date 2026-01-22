@@ -10,7 +10,7 @@
 ### Step 1: Verify Installation
 
 ```bash
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="~/Dev/cortex:$PYTHONPATH"
 
 # Test imports
 python3 -c "from intelligence.model_selection import ContextAwareModelRecommender; print('✅ Ready')"
@@ -167,8 +167,8 @@ context = OrchestrationContext(
 # Check PYTHONPATH
 echo $PYTHONPATH
 
-# Should include: /Users/jesse.kemp/Dev/cortex
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+# Should include: ~/Dev/cortex
+export PYTHONPATH="~/Dev/cortex:$PYTHONPATH"
 ```
 
 ### Test Failures
