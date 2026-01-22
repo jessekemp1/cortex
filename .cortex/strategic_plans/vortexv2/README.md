@@ -130,7 +130,7 @@ This directory contains comprehensive strategic planning documents for VortexV2'
 ### Option 1: Start Nowcasting Phase 1 (Immediate) - RECOMMENDED
 ```bash
 # Navigate to VortexV2
-cd /Users/jesse.kemp/Dev/Vortex/VortexV2
+cd ~/Dev/Vortex/VortexV2
 
 # Begin NOW-001: Create nowcast module structure
 mkdir -p app/core/nowcast/{data,engines,services,utils}
@@ -146,7 +146,7 @@ touch app/core/nowcast/config.py
 ### Option 2: Gather Whitepaper Data (Background Work)
 ```bash
 # Extend validation period from 30 → 90 days
-cd /Users/jesse.kemp/Dev/Vortex/VortexV2
+cd ~/Dev/Vortex/VortexV2
 python scripts/analyze_ensemble_vs_ecmwf_atlantic.py --days 90
 
 # Generate figures for publication
@@ -156,7 +156,7 @@ python scripts/generate_whitepaper_figures.py
 ### Option 3: Wait for Showcase App Plan (Tomorrow)
 ```bash
 # Check batch queue status
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 python cli.py batch list | grep cb5fb9b0
 
 # Or wait for morning briefing
@@ -198,9 +198,9 @@ python cli.py batch list | grep cb5fb9b0
 ## 🔗 Related Documentation
 
 **VortexV2 Existing Docs**:
-- `/Users/jesse.kemp/Dev/Vortex/VortexV2/docs/VORTEX_V2_WHITE_PAPER.md` - Current internal whitepaper (585 lines)
-- `/Users/jesse.kemp/Dev/Vortex/VortexV2/docs/ARCHITECTURE.md` - System architecture
-- `/Users/jesse.kemp/Dev/Vortex/VortexV2/tests/integration/MODEL_ACCURACY_REPORT.md` - Validation results
+- `~/Dev/Vortex/VortexV2/docs/VORTEX_V2_WHITE_PAPER.md` - Current internal whitepaper (585 lines)
+- `~/Dev/Vortex/VortexV2/docs/ARCHITECTURE.md` - System architecture
+- `~/Dev/Vortex/VortexV2/tests/integration/MODEL_ACCURACY_REPORT.md` - Validation results
 
 **Cortex Strategic Memories**:
 - `.cortex/memories/intelligent_orchestrator_complete.md` - Batch API orchestration

@@ -58,7 +58,7 @@ sudo su - cortex
 
 ```bash
 # Navigate to installation directory
-cd /opt/cortex  # or /Users/jesse.kemp/Dev/cortex
+cd /opt/cortex  # or ~/Dev/cortex
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -74,12 +74,12 @@ pip install -e .
 ```bash
 # Set environment variables
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
-export CORTEX_ROOT="/Users/jesse.kemp/Dev"
+export CORTEX_ROOT="~/Dev"
 
 # Create configuration
 mkdir -p ~/.cortex
 cat > ~/.cortex/config.yaml <<EOF
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev
 learning_enabled: true
 default_limit: 3
 EOF
@@ -147,7 +147,7 @@ sudo systemctl status cortex
 
 ```yaml
 # Workspace root directory
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev
 
 # Enable learning from execution history
 learning_enabled: true

@@ -233,7 +233,7 @@ cortex/intelligence/
 ### Example 1: Detect Missing Linter
 
 ```bash
-cd /Users/jesse.kemp/Dev/alpha_arena
+cd ~/Dev/alpha_arena
 python3 -m intelligence.analysis.project_profiler .
 ```
 
@@ -257,7 +257,7 @@ echo "test" | .claude/hooks/inject_context.py
 ### Example 3: Full Project Analysis
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 python3 intelligence/analysis/project_profiler.py .
 ```
 
@@ -288,9 +288,9 @@ To test the profiler:
 
 ```bash
 # Test on a specific project
-python3 /Users/jesse.kemp/Dev/cortex/intelligence/analysis/project_profiler.py /path/to/project
+python3 ~/Dev/cortex/intelligence/analysis/project_profiler.py /path/to/project
 
 # Test quick mode (for context injection)
 cd /path/to/project
-echo "test" | python3 /Users/jesse.kemp/Dev/.claude/hooks/inject_context.py
+echo "test" | python3 ~/Dev/.claude/hooks/inject_context.py
 ```
