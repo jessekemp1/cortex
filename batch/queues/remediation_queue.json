@@ -1,0 +1,167 @@
+{
+  "queue_version": "1.0",
+  "created": "2026-01-20T00:00:00Z",
+  "priority_jobs": [
+    {
+      "id": "week1_security_fixes",
+      "priority": "CRITICAL",
+      "week": 1,
+      "status": "completed",
+      "description": "Week 1: Critical Security Fixes",
+      "tasks": [
+        {
+          "task_id": "security_1_username_exposure",
+          "title": "Remove exposed username from documentation",
+          "context": "Found hardcoded username 'jesse.kemp' in cortex/README.md lines 21, 41, 44. Replace with placeholders like ~/Dev or ${HOME}/Dev",
+          "files_affected": [
+            "cortex/README.md",
+            "alpha_arena/README.md",
+            "Vortex/VortexV2/README.md"
+          ],
+          "prompt": "Audit all README.md and documentation files across cortex, alpha_arena, and VortexV2 projects. Find and replace any instances of hardcoded usernames or absolute paths containing usernames with portable alternatives:\n- Replace '/Users/jesse.kemp/Dev' with '~/Dev' or '${HOME}/Dev'\n- Replace any other exposed usernames with placeholders\n- Ensure all example paths are portable\n\nProvide a comprehensive report of all changes made.",
+          "estimated_tokens": 2000
+        },
+        {
+          "task_id": "security_2_api_key_audit",
+          "title": "Audit for hardcoded API keys",
+          "context": "Alpha Arena integrates with Binance and Yahoo Finance. Need to verify no API keys are hardcoded in src/data/providers/",
+          "files_affected": [
+            "alpha_arena/src/data/providers/binance_provider.py",
+            "alpha_arena/src/data/providers/*"
+          ],
+          "prompt": "Audit Alpha Arena data provider code for hardcoded credentials:\n1. Search for any API keys, secrets, or tokens hardcoded in the code\n2. Check for common patterns: API_KEY=, SECRET=, TOKEN=, password=\n3. Verify environment variable usage for all credentials\n4. Check if .env is in .gitignore\n5. Scan git history for accidentally committed secrets (last 10 commits)\n\nProvide:\n- List of any found credentials (masked)\n- Recommendations for secure credential management\n- Code examples for proper environment variable usage",
+          "estimated_tokens": 2500
+        },
+        {
+          "task_id": "security_3_dependency_updates",
+          "title": "Update critical dependencies",
+          "context": "Critical CVEs found: requests<2.31.0 (CVE-2023-32681), urllib3<2.0.7 (CVE-2023-45803), PyYAML<6.0.1, setuptools<70.0.0 (CVE-2024-6345)",
+          "files_affected": [
+            "cortex/requirements.txt",
+            "alpha_arena/requirements.txt",
+            "Vortex/VortexV2/requirements.txt"
+          ],
+          "prompt": "Update dependencies to fix critical vulnerabilities:\n\n1. Audit current requirements.txt files in all three projects\n2. Update to safe versions:\n   - requests>=2.31.0\n   - urllib3>=2.0.7\n   - PyYAML>=6.0.1\n   - setuptools>=70.0.0\n3. Check for breaking changes in these updates\n4. Generate updated requirements.txt for each project\n5. Create migration guide if breaking changes exist\n\nProvide:\n- Updated requirements.txt for each project\n- Compatibility notes\n- Testing recommendations",
+          "estimated_tokens": 2000
+        },
+        {
+          "task_id": "security_4_config_permissions",
+          "title": "Fix config file permissions",
+          "context": "Config file ~/.cortex/config.yaml may have world-readable permissions (644). Should be 600",
+          "files_affected": [
+            "cortex/config.py",
+            "cortex/__init__.py"
+          ],
+          "prompt": "Add file permission enforcement for sensitive configuration:\n\n1. Find the code that creates ~/.cortex/config.yaml\n2. Add permission enforcement (chmod 600) when config file is created\n3. Add permission check on config load with warning if too permissive\n4. Apply same pattern to any other sensitive files (.cortex/batches/, etc.)\n\nProvide:\n- Code changes with proper permission handling\n- Migration script for existing installations\n- Documentation update for security best practices",
+          "estimated_tokens": 1800
+        },
+        {
+          "task_id": "security_5_validation",
+          "title": "Run security scan validation",
+          "context": "After fixes, validate with safety and bandit tools",
+          "files_affected": [],
+          "prompt": "Create a security validation script:\n\n1. Install and run 'safety check' on all requirements files\n2. Install and run 'bandit' security scanner on all Python code\n3. Check for SQL injection patterns in database code\n4. Validate all user input handling has proper sanitization\n5. Generate comprehensive security report\n\nProvide:\n- Security validation script (bash/python)\n- Report template\n- CI/CD integration instructions",
+          "estimated_tokens": 1500
+        }
+      ],
+      "estimated_total_tokens": 10000,
+      "request_count": 5,
+      "depends_on": [],
+      "batch_id": "msgbatch_019gfFr7oRVVNDy3YmrPhxfM",
+      "submitted_at": "2026-01-20T23:03:35.198860",
+      "completed_at": "2026-01-20T23:09:24.951846",
+      "final_status": {
+        "id": "msgbatch_019gfFr7oRVVNDy3YmrPhxfM",
+        "status": "ended",
+        "request_counts": {
+          "processing": 0,
+          "succeeded": 5,
+          "errored": 0,
+          "expired": 0
+        },
+        "progress_percentage": 100.0,
+        "error_rate": 0.0,
+        "retrieved_at": "2026-01-20T23:09:24.951833"
+      }
+    },
+    {
+      "id": "week2_high_priority",
+      "priority": "HIGH",
+      "week": 2,
+      "status": "submitted",
+      "description": "Week 2: High Priority Improvements",
+      "tasks": [
+        {
+          "task_id": "deps_1_pin_versions",
+          "title": "Pin numpy/pandas versions in Alpha Arena",
+          "context": "Trading system needs reproducible financial calculations. Currently no version pinning for numpy/pandas",
+          "files_affected": [
+            "alpha_arena/requirements.txt"
+          ],
+          "prompt": "Pin critical dependencies for reproducible trading:\n\n1. Determine current numpy/pandas versions in use\n2. Test compatibility matrix:\n   - numpy 1.24.4 + pandas 1.5.3 (stable)\n   - numpy 2.0+ + pandas 2.1.4 (modern)\n3. Choose version combination based on compatibility\n4. Update requirements.txt with pinned versions\n5. Test that all trading calculations remain consistent\n\nProvide:\n- Updated requirements.txt with version pins and rationale\n- Compatibility test results\n- Migration guide if versions change",
+          "estimated_tokens": 1800
+        },
+        {
+          "task_id": "test_1_trading_engine",
+          "title": "Add tests for core trading functions",
+          "context": "Critical gap: generate_signals(), calculate_position_size(), execute_trades() have NO TESTS",
+          "files_affected": [
+            "alpha_arena/src/intelligence/strategy_engine.py",
+            "alpha_arena/run_competition.py",
+            "alpha_arena/tests/"
+          ],
+          "prompt": "Create comprehensive test suite for Alpha Arena trading engine:\n\n1. Test generate_signals():\n   - Multiple conflicting factors\n   - Empty/invalid inputs\n   - Edge cases (extreme values)\n\n2. Test calculate_position_size():\n   - Extreme volatility (0, 2.5, negative)\n   - Capital constraints\n   - Risk limits\n\n3. Test execute_trades():\n   - Integration test with mocked broker\n   - Order validation\n   - Position tracking updates\n   - Error handling\n\nProvide:\n- Complete test file (pytest format)\n- Mock fixtures for broker/market data\n- Coverage report showing >80% for these functions",
+          "estimated_tokens": 3500
+        },
+        {
+          "task_id": "test_2_cli_validation",
+          "title": "Add input validation to CLI commands",
+          "context": "No input validation on cortex CLI commands. Risk of injection attacks",
+          "files_affected": [
+            "cortex/cli.py",
+            "cortex/validation.py"
+          ],
+          "prompt": "Add robust input validation to Cortex CLI:\n\n1. Validate project names (alphanumeric, dashes, underscores only)\n2. Validate file paths (no path traversal)\n3. Validate all user-provided arguments\n4. Add proper error messages for invalid input\n5. Create validation utility module\n\nProvide:\n- Updated cli.py with validation\n- New validation.py module with reusable validators\n- Test suite for validation logic\n- Documentation for allowed input formats",
+          "estimated_tokens": 2200
+        },
+        {
+          "task_id": "deps_2_lock_files",
+          "title": "Generate requirements-lock.txt",
+          "context": "No dependency lock files = non-reproducible builds across environments",
+          "files_affected": [
+            "cortex/requirements-lock.txt",
+            "alpha_arena/requirements-lock.txt",
+            "Vortex/VortexV2/requirements-lock.txt"
+          ],
+          "prompt": "Create dependency lock files for reproducible builds:\n\n1. For each project:\n   - Install current requirements.txt in clean venv\n   - Generate pip freeze > requirements-lock.txt\n   - Document Python version used\n2. Create Makefile or script for lock file updates\n3. Add documentation for using lock files\n4. Update CI/CD to use lock files\n\nProvide:\n- requirements-lock.txt for each project\n- Update script (update-deps.sh)\n- Updated README with dependency management docs",
+          "estimated_tokens": 1500
+        },
+        {
+          "task_id": "test_3_integration",
+          "title": "Add integration tests for trading pipeline",
+          "context": "Need end-to-end tests for Strategy \u2192 Broker \u2192 Position Tracking flow",
+          "files_affected": [
+            "alpha_arena/tests/integration/"
+          ],
+          "prompt": "Create integration test suite for trading pipeline:\n\n1. Test full pipeline: Strategy \u2192 Orders \u2192 Broker \u2192 Positions\n2. Test weather intelligence \u2192 trading signals integration\n3. Test multi-strategy competition fairness\n4. Test error handling and recovery\n5. Create mock fixtures for external services\n\nProvide:\n- Integration test suite (tests/integration/)\n- Mock broker and market data fixtures\n- Test data generators\n- Documentation for running integration tests",
+          "estimated_tokens": 3000
+        }
+      ],
+      "estimated_total_tokens": 12000,
+      "request_count": 5,
+      "depends_on": [
+        "week1_security_fixes"
+      ],
+      "batch_id": "msgbatch_01Q3nWUyGgBJiQRykQZQwJnd",
+      "submitted_at": "2026-01-20T23:09:25.730568"
+    }
+  ],
+  "queue_metadata": {
+    "total_jobs": 2,
+    "total_tasks": 10,
+    "estimated_total_tokens": 22000,
+    "estimated_total_requests": 10,
+    "auto_submit": true,
+    "check_interval_seconds": 300
+  }
+}

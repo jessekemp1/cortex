@@ -1,0 +1,33 @@
+{
+  "queue_version": "1.0",
+  "created": "YYYY-MM-DDTHH:MM:SSZ",
+  "priority_jobs": [
+    {
+      "id": "example_job",
+      "priority": "CRITICAL",
+      "status": "queued",
+      "description": "Example job description",
+      "tasks": [
+        {
+          "task_id": "example_task_1",
+          "title": "Task title",
+          "context": "Task context and background",
+          "files_affected": ["path/to/file.py"],
+          "prompt": "Detailed prompt for the LLM",
+          "estimated_tokens": 2000
+        }
+      ],
+      "estimated_total_tokens": 2000,
+      "request_count": 1,
+      "depends_on": []
+    }
+  ],
+  "queue_metadata": {
+    "total_jobs": 1,
+    "total_tasks": 1,
+    "estimated_total_tokens": 2000,
+    "estimated_total_requests": 1,
+    "auto_submit": true,
+    "check_interval_seconds": 300
+  }
+}
