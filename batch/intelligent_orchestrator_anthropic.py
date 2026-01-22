@@ -461,9 +461,9 @@ Context: {codebase_context[:3000]}""",
 
         return selected_jobs
 
-    def submit_batch_queue(self, dry_run: bool = False) -> Dict[str, Any]:
+    def submit_batch_queue(self, dry_run: bool = False, max_jobs: Optional[int] = None) -> Dict[str, Any]:
         """Submit overnight batch queue to Anthropic Batch API"""
-        queue = self.fill_overnight_queue()
+        queue = self.fill_overnight_queue(max_jobs=max_jobs)
 
         summary = {
             "total_jobs": len(queue),
@@ -564,7 +564,7 @@ def main():
 
     try:
         orchestrator = IntelligentBatchOrchestratorAnthropic()
-        summary = orchestrator.submit_batch_queue(dry_run=args.dry_run)
+        summary = orchestrator.submit_batch_queue(dry_run=args.dry_run, max_jobs=args.max_jobs)
         orchestrator.print_summary(summary)
 
         if args.dry_run:
