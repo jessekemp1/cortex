@@ -331,24 +331,36 @@ class IntelligentBatchOrchestrator:
             }
 
             if not dry_run:
-                # Actually submit the batch job
+                # Submit via BatchOrchestrator (routes to correct backend)
                 try:
-                    result = subprocess.run(
-                        [
-                            "python",
-                            str(self.cortex_dir / "cli.py"),
-                            "batch",
-                            "add",
-                            job.description,
-                            "--priority",
-                            job.priority,
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    job_summary["submitted"] = result.returncode == 0
-                    job_summary["error"] = result.stderr if result.returncode != 0 else None
+                    from batch.orchestrator import BatchOrchestrator
+
+                    orchestrator = BatchOrchestrator()
+
+                    # Convert BatchWorkItem to API job format
+                    api_job = {
+                        "id": job.id,
+                        "description": job.description,
+                        "priority": job.priority,
+                        "tasks": [{
+                            "task_id": f"{job.id}_task_1",
+                            "title": job.title,
+                            "prompt": job.prompt,
+                            "context": "",
+                            "files_affected": job.files,
+                            "estimated_tokens": job.estimated_input_tokens
+                        }],
+                        "estimated_total_tokens": job.total_tokens,
+                        "source": job.source,
+                        "project": job.project
+                    }
+
+                    # Submit - orchestrator will auto-detect as API job
+                    job_id = orchestrator.submit_job(api_job, auto_detect=True)
+
+                    job_summary["submitted"] = True
+                    job_summary["job_id"] = job_id
+                    job_summary["error"] = None
                 except Exception as e:
                     job_summary["submitted"] = False
                     job_summary["error"] = str(e)

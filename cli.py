@@ -151,106 +151,121 @@ def cmd_next(args):
 
 
 def cmd_status(args):
-    """Show current state summary."""
+    """Show intelligent strategic status."""
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     try:
-        response = orchestrator.get_next_action(limit=0)  # Just get state, no recommendations
+        # Get full intelligence (recommendations + state)
+        response = orchestrator.get_next_action(limit=3)
 
         state = response.current_state
         health = response.system_health
+        next_action = response.next_action
+        alternatives = response.alternative_actions
 
         print("╔══════════════════════════════════════════════════════╗")
-        print("║              CORTEX - CURRENT STATE                  ║")
+        print("║         CORTEX - STRATEGIC INTELLIGENCE              ║")
         print("╚══════════════════════════════════════════════════════╝")
         print("")
 
-        print("📊 PROJECTS")
+        # === 1. STRATEGIC FOCUS (Top Priority Actions) ===
+        print("🎯 STRATEGIC FOCUS")
         print("────────────────")
-        total = state.get("total_projects", 0)
+
+        if next_action:
+            print(f"  1. [{next_action.project}] {next_action.title}")
+            print(f"     {next_action.reasoning}")
+            if hasattr(next_action, 'file_context') and next_action.file_context:
+                print(f"     📁 {next_action.file_context}")
+            print()
+
+        if alternatives:
+            for i, alt in enumerate(alternatives[:2], start=2):
+                print(f"  {i}. [{alt.project}] {alt.title}")
+                print(f"     {alt.reasoning}")
+                if hasattr(alt, 'file_context') and alt.file_context:
+                    print(f"     📁 {alt.file_context}")
+                print()
+
+        if not next_action and not alternatives:
+            print("  No strategic recommendations available")
+            print("  Run '/briefing' for detailed analysis")
+            print()
+
+        # === 2. ORCHESTRATION INTELLIGENCE ===
         active = state.get("active_projects", 0)
-        recent = state.get("recent_projects", 0)
-        dormant = state.get("dormant_projects", 0)
-
-        print(f"Total: {total}")
-        print(f"  Active (3+ commits in 7d): {active}")
-        print(f"  Recent (commits in 7d): {recent}")
-        print(f"  Dormant (only 30d commits): {dormant}")
-        print("")
-
-        print("🎯 GOALS")
-        print("────────────────")
-        priority_a = state.get("priority_a_goals", 0)
-        priority_b = state.get("priority_b_goals", 0)
-        priority_c = state.get("priority_c_goals", 0)
-        pending = state.get("goals_pending", 0)
+        total = state.get("total_projects", 0)
         in_progress = state.get("goals_in_progress", 0)
+        pending = state.get("goals_pending", 0)
 
-        if priority_a > 0:
-            print(f"Priority A: {priority_a}")
-        if priority_b > 0:
-            print(f"Priority B: {priority_b}")
-        if priority_c > 0:
-            print(f"Priority C: {priority_c}")
-        print(f"Status: {in_progress} in progress, {pending} pending")
-        print("")
+        # Anomaly detection
+        anomalies = []
+        if active > 15:
+            active_pct = (active / total * 100) if total > 0 else 0
+            anomalies.append(
+                f"High context-switching risk: {active} active projects ({active_pct:.0f}% of portfolio)"
+            )
 
+        if active > 0 and in_progress == 0 and pending > 0:
+            anomalies.append(
+                f"Planning gap: {active} active projects but no goals in progress ({pending} pending)"
+            )
+
+        # Check for validated-but-undeployed code (anti-pattern)
+        validation_reports = []
+        try:
+            vortex_reports = list(Path(args.root).glob("Vortex/VortexV2/data/validation/*REPORT*.md"))
+            for report in vortex_reports:
+                content = report.read_text()
+                if "improvement" in content.lower() or "better" in content.lower():
+                    validation_reports.append(f"VortexV2: {report.name}")
+        except Exception:
+            pass
+
+        if validation_reports:
+            anomalies.append(
+                f"Validated improvements may not be deployed: {', '.join(validation_reports[:2])}"
+            )
+
+        if anomalies:
+            print("⚠️  ORCHESTRATION ALERTS")
+            print("────────────────")
+            for anomaly in anomalies:
+                print(f"  • {anomaly}")
+            print()
+
+        # === 3. BLOCKERS (Concise) ===
         blockers = state.get("blockers", [])
         if blockers:
-            print("⚠️  BLOCKERS")
+            print("🚫 BLOCKERS")
             print("────────────────")
             for blocker in blockers:
-                print(f"  • {blocker['project']}: {blocker['blocker']}")
-            print("")
+                severity = "🔴" if "critical" in blocker.get('blocker', '').lower() else "🟡"
+                print(f"  {severity} {blocker['project']}: {blocker['blocker']}")
+            print()
 
-        # System Health
-        print("🔧 SYSTEM HEALTH")
-        print("────────────────")
-        status_icon = "✅" if health.all_active else "⚠️"
-        print(f"{status_icon} Integrations: {health.active_count}/4 active")
-        if not health.all_active:
-            missing = []
-            if not health.project_scanner:
-                missing.append("Project Scanner")
-            if not health.goal_parser:
-                missing.append("Goal Parser")
-            if not health.recommendation_engine:
-                missing.append("Recommendation Engine")
-            if not health.context_intelligence:
-                missing.append("Context Intelligence")
-            if missing:
-                print(f"   Missing: {', '.join(missing)}")
-        print("")
-
-        # Batch Queue Status (Phase 1: Burn Rate Reduction)
-        try:
-            from batch.batch_scheduler import BatchScheduler
-
-            scheduler = BatchScheduler()
-
-            pending = len(scheduler.get_pending_tasks())
-            submitted = len(scheduler.get_submitted_tasks())
-            stats = scheduler.get_usage_stats(days=7)
-
-            print("💰 BATCH QUEUE (Cost Optimization)")
+        # === 4. NEXT ACTION (Prominent) ===
+        if next_action:
+            print("💡 NEXT ACTION")
             print("────────────────")
-            print(f"Pending: {pending} | Submitted: {submitted}")
-            print(f"Completed (7d): {stats['tasks_completed']}")
+            print(f"  {next_action.action}")
+            if response.command_workflow and response.command_workflow.suggested_command:
+                print(f"  Run: {response.command_workflow.suggested_command}")
+            print()
 
-            if stats["tasks_completed"] > 0:
-                print(f"Savings: ${stats['estimated_savings']:.2f} (50% discount)")
-                print("Target: 40% of work via batch")
-            else:
-                print("⚠️  No batch usage yet - see /batch-submit")
-                print("💡 Shift reviews, docs, research to batch = 50% savings")
-
-            print("")
-        except Exception:
-            # Batch metrics are optional - don't fail status command
-            pass
+        # === 5. SYSTEM HEALTH (Concise) ===
+        print("📊 PORTFOLIO STATUS")
+        print("────────────────")
+        print(f"  Projects: {active} active, {total} total")
+        print(f"  Goals: {in_progress} in progress, {pending} pending")
+        status_icon = "✅" if health.all_active else "⚠️"
+        print(f"  {status_icon} Integrations: {health.active_count}/4 active")
+        print()
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
@@ -2405,8 +2420,28 @@ Deep Mode (Phase 1):
         print(f"Build Frequency:     {dev['build_frequency']:.1f} builds/day")
 
     # === Batch Command Functions ===
+    def cmd_batch_submit(args):
+        """Submit job via unified orchestrator (NEW)."""
+        import json
+        from batch.orchestrator import BatchOrchestrator
+
+        orchestrator = BatchOrchestrator()
+
+        # Load job definition
+        with open(args.job_file) as f:
+            job_data = json.load(f)
+
+        # Submit with auto-detection
+        job_id = orchestrator.submit_job(job_data, auto_detect=True)
+
+        # Print result with backend indicator
+        backend = "LOCAL" if job_id.startswith("local_") else "API"
+        print(f"✅ Job submitted to {backend} backend")
+        print(f"Job ID: {job_id}")
+        print(f"Description: {job_data.get('description', 'N/A')}")
+
     def cmd_batch_add(args):
-        """Add a task to the batch queue."""
+        """Add a task to the batch queue (legacy - routes to ProcessMonitor)."""
         if not PROCESS_MONITOR_AVAILABLE:
             print("Error: Process Monitor not available")
             sys.exit(1)
@@ -2423,7 +2458,7 @@ Deep Mode (Phase 1):
             estimated_duration_minutes=args.duration,
         )
 
-        print("✅ Task added to queue")
+        print("✅ Task added to LOCAL queue (ProcessMonitor)")
         print(f"Task ID: {task.task_id}")
         print(f"Command: {task.command}")
         print(f"Type: {task.task_type}")
@@ -2431,53 +2466,49 @@ Deep Mode (Phase 1):
         print(f"State: {task.state.value}")
 
     def cmd_batch_list(args):
-        """List batch tasks."""
-        if not PROCESS_MONITOR_AVAILABLE:
-            print("Error: Process Monitor not available")
-            sys.exit(1)
+        """List batch tasks from both backends (unified view)."""
+        from batch.orchestrator import BatchOrchestrator, JobBackend
 
-        from intelligence.process_monitor import ProcessMonitor, TaskState
+        orchestrator = BatchOrchestrator()
 
-        monitor = ProcessMonitor()
+        # Map backend arg to orchestrator format
+        backend_filter = args.backend if hasattr(args, 'backend') else "both"
 
-        state_filter = TaskState(args.state) if args.state else None
-        tasks = monitor.batch_queue.get_task_history(limit=args.limit, state=state_filter)
+        jobs = orchestrator.list_jobs(backend=backend_filter, limit=args.limit)
 
-        if not tasks:
-            print("No tasks found")
+        if not jobs:
+            print("No jobs found")
             return
 
-        print(f"{'='*70}")
-        print(f"BATCH TASKS ({len(tasks)} shown)")
-        print(f"{'='*70}")
-        print()
+        # Group by backend
+        local_jobs = [j for j in jobs if j.backend == JobBackend.LOCAL]
+        api_jobs = [j for j in jobs if j.backend == JobBackend.API]
 
-        for task in tasks:
-            state_icon = {
-                "pending": "⏳",
-                "scheduled": "📅",
-                "running": "▶️ ",
-                "completed": "✅",
-                "failed": "❌",
-                "cancelled": "🚫",
-            }.get(task.state.value, "•")
+        if local_jobs:
+            print(f"\n{'='*80}")
+            print("LOCAL EXECUTION QUEUE (ProcessMonitor)")
+            print(f"{'='*80}")
+            for job in local_jobs:
+                print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
+                print(f"   ID: {job.id} | State: {job.state.value}")
+                if job.error_message:
+                    print(f"   Error: {job.error_message[:100]}")
+                print()
 
-            print(f"{state_icon} {task.description}")
-            print(f"   ID: {task.task_id}")
-            print(f"   Type: {task.task_type} | Priority: {task.priority}")
-            print(f"   State: {task.state.value}")
+        if api_jobs:
+            print(f"\n{'='*80}")
+            print("API BATCH QUEUE (Anthropic)")
+            print(f"{'='*80}")
+            for job in api_jobs:
+                print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
+                print(f"   ID: {job.id} | State: {job.state.value}")
+                if job.metadata.get("tokens"):
+                    print(f"   Tokens: {job.metadata['tokens']:,} | Tasks: {job.metadata.get('tasks', 0)}")
+                if job.progress_pct > 0:
+                    print(f"   Progress: {job.progress_pct:.1f}%")
+                print()
 
-            if task.scheduled_time:
-                print(f"   Scheduled: {task.scheduled_time.strftime('%Y-%m-%d %H:%M')}")
-
-            if task.completed_at:
-                duration = task.actual_duration_seconds or 0
-                print(f"   Duration: {duration:.1f}s | Exit code: {task.exit_code}")
-
-            if task.error_message:
-                print(f"   Error: {task.error_message}")
-
-            print()
+        print(f"Total: {len(jobs)} jobs ({len(local_jobs)} local, {len(api_jobs)} api)")
 
     def cmd_batch_queue_status(args):
         """Show batch queue status."""
@@ -2796,12 +2827,18 @@ Deep Mode (Phase 1):
     )
     batch_add_parser.set_defaults(func=cmd_batch_add)
 
+    # batch submit (NEW - unified submission)
+    batch_submit_parser = batch_subparsers.add_parser("submit", help="Submit job (auto-routes to correct backend)")
+    batch_submit_parser.add_argument("job_file", type=Path, help="Job definition JSON file")
+    batch_submit_parser.set_defaults(func=cmd_batch_submit)
+
     # batch list
-    batch_list_parser = batch_subparsers.add_parser("list", help="List batch tasks")
+    batch_list_parser = batch_subparsers.add_parser("list", help="List batch tasks (both backends)")
     batch_list_parser.add_argument(
-        "--state",
-        choices=["pending", "scheduled", "running", "completed", "failed", "cancelled"],
-        help="Filter by state",
+        "--backend",
+        choices=["local", "api", "both"],
+        default="both",
+        help="Which backend to show (default: both)",
     )
     batch_list_parser.add_argument("--limit", type=int, default=20, help="Maximum tasks to show")
     batch_list_parser.set_defaults(func=cmd_batch_list)
