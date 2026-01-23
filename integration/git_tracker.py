@@ -448,6 +448,26 @@ class GitTracker:
 
         return "\n".join(lines)
 
+    def format_for_session_context_fast(self) -> str:
+        """
+        FAST version for session start - skips expensive operations.
+
+        Uses only direct git commands, no branch scanning or PR fetching.
+        Expected time: <0.2s vs 17s for full version.
+        """
+        lines = []
+
+        # Current branch (fast - single git command)
+        current_branch = self._run_git(["branch", "--show-current"]) or "main"
+        lines.append(f"Branch: `{current_branch}`")
+
+        # Uncommitted changes count (fast - single git command)
+        uncommitted, _ = self._get_working_tree_status()
+        if uncommitted:
+            lines.append(f"Uncommitted: {uncommitted} files")
+
+        return "\n".join(lines) if lines else "Git: Clean state on main"
+
     def format_for_session_context(self) -> str:
         """Format Git state for session start context (concise)."""
         state = self.get_state()
@@ -494,6 +514,12 @@ def get_git_context(repo_path: str = None) -> str:
     """Get formatted Git context for session injection."""
     tracker = GitTracker(repo_path)
     return tracker.format_for_session_context()
+
+
+def get_git_context_fast(repo_path: str = None) -> str:
+    """Get formatted Git context for session injection (FAST - <0.2s)."""
+    tracker = GitTracker(repo_path)
+    return tracker.format_for_session_context_fast()
 
 
 def get_git_briefing(repo_path: str = None) -> str:
