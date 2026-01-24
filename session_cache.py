@@ -68,6 +68,101 @@ def write_session_cache(context: Dict) -> bool:
         return False
 
 
+def get_pr_status() -> Dict:
+    """
+    Get GitHub PR status (fast - single gh command).
+
+    Returns:
+        Dict with open_prs count and details
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "list", "--limit", "5", "--json", "number,title,isDraft,reviewDecision"],
+            cwd=Path.home() / "Dev",
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            import json
+            prs = json.loads(result.stdout)
+            return {
+                "open_prs": len(prs),
+                "details": [
+                    {
+                        "number": pr["number"],
+                        "title": pr["title"][:60],  # Truncate long titles
+                        "status": pr.get("reviewDecision", "pending").lower()
+                    }
+                    for pr in prs[:3]  # Top 3 PRs
+                ]
+            }
+    except Exception:
+        pass
+
+    return {"open_prs": 0, "details": []}
+
+
+def get_project_insights(project_name: str) -> Dict:
+    """
+    Get project-specific insights and context.
+
+    Args:
+        project_name: Name of the project
+
+    Returns:
+        Dict with project-specific insights
+    """
+    workspace = Path.home() / "Dev"
+    insights = {
+        "validation_alerts": [],
+        "test_status": None,
+        "deployment_needed": False
+    }
+
+    # VortexV2 specific insights
+    if project_name == "VortexV2":
+        try:
+            # Check for validation reports indicating improvements
+            validation_dir = workspace / "Vortex" / "VortexV2" / "data" / "validation"
+            if validation_dir.exists():
+                reports = list(validation_dir.glob("*REPORT*.md"))
+                for report in reports[:3]:
+                    content = report.read_text()
+                    if any(word in content.lower() for word in ["improvement", "better", "outperform"]):
+                        insights["validation_alerts"].append(
+                            f"Validated improvement in {report.stem.replace('_', ' ')}"
+                        )
+        except Exception:
+            pass
+
+    # Alpha Arena specific insights
+    elif project_name == "Alpha Arena":
+        try:
+            # Check for recent competition logs
+            comp_log = workspace / "alpha_arena" / "data" / "competition_log.jsonl"
+            if comp_log.exists():
+                insights["test_status"] = "Competition logs active"
+        except Exception:
+            pass
+
+    # Cortex specific insights
+    elif project_name == "Cortex":
+        try:
+            # Check for pending batch jobs
+            batch_dir = Path.home() / ".cortex" / "batch"
+            if batch_dir.exists():
+                pending = list(batch_dir.glob("*.pending"))
+                if pending:
+                    insights["test_status"] = f"{len(pending)} batch jobs pending"
+        except Exception:
+            pass
+
+    return insights
+
+
 def build_fast_session_context() -> Dict:
     """
     Build session context using fast operations only.
@@ -76,6 +171,8 @@ def build_fast_session_context() -> Dict:
     - Git commands (fast)
     - File system checks (fast)
     - GOALS.md parsing (fast)
+    - GitHub CLI (fast, 2s timeout)
+    - Project-specific file checks (fast)
 
     Returns:
         Session context dict
@@ -86,7 +183,9 @@ def build_fast_session_context() -> Dict:
         "project": "Unknown",
         "focus": "Unknown",
         "goals": [],
-        "recent_work": []
+        "recent_work": [],
+        "pr_status": {"open_prs": 0, "details": []},
+        "insights": {}
     }
 
     # Detect project from current directory
@@ -174,6 +273,12 @@ def build_fast_session_context() -> Dict:
             context["goals"] = goals[:3]  # Top 3
     except Exception:
         pass
+
+    # Get GitHub PR status (fast - 2s timeout)
+    context["pr_status"] = get_pr_status()
+
+    # Get project-specific insights
+    context["insights"] = get_project_insights(context["project"])
 
     return context
 
