@@ -423,6 +423,19 @@ class BatchExecutor:
 
         while not self._shutdown_event.is_set():
             try:
+                # Update session cache for fast startup (lightweight operation)
+                try:
+                    import sys
+                    from pathlib import Path
+                    cortex_root = Path(__file__).parent.parent.parent
+                    if str(cortex_root) not in sys.path:
+                        sys.path.insert(0, str(cortex_root))
+                    from session_cache import update_session_cache
+                    update_session_cache()
+                    self.logger.debug("Session cache updated")
+                except Exception as cache_error:
+                    self.logger.debug(f"Session cache update failed: {cache_error}")
+
                 # Schedule any pending tasks
                 schedule_results = self.schedule_pending_tasks()
                 if schedule_results.get("scheduled", 0) > 0:
