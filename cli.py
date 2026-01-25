@@ -173,18 +173,21 @@ def cmd_status(args):
         print("────────────────")
 
         if next_action:
-            print(f"  1. [{next_action.project}] {next_action.title}")
-            print(f"     {next_action.reasoning}")
-            if hasattr(next_action, 'file_context') and next_action.file_context:
-                print(f"     📁 {next_action.file_context}")
+            # Handle both old and new Recommendation models
+            project = getattr(next_action, 'related_projects', ['General'])[0] if hasattr(next_action, 'related_projects') and next_action.related_projects else "General"
+            print(f"  1. [{project}] {next_action.title}")
+            print(f"     {next_action.description}")
+            if hasattr(next_action, 'files') and next_action.files:
+                print(f"     📁 {', '.join(next_action.files[:2])}")
             print()
 
         if alternatives:
             for i, alt in enumerate(alternatives[:2], start=2):
-                print(f"  {i}. [{alt.project}] {alt.title}")
-                print(f"     {alt.reasoning}")
-                if hasattr(alt, 'file_context') and alt.file_context:
-                    print(f"     📁 {alt.file_context}")
+                project = getattr(alt, 'related_projects', ['General'])[0] if hasattr(alt, 'related_projects') and alt.related_projects else "General"
+                print(f"  {i}. [{project}] {alt.title}")
+                print(f"     {alt.description}")
+                if hasattr(alt, 'files') and alt.files:
+                    print(f"     📁 {', '.join(alt.files[:2])}")
                 print()
 
         if not next_action and not alternatives:
@@ -248,7 +251,8 @@ def cmd_status(args):
         if next_action:
             print("💡 NEXT ACTION")
             print("────────────────")
-            print(f"  {next_action.action}")
+            action_text = getattr(next_action, 'action', next_action.title)
+            print(f"  {action_text}")
             if response.command_workflow and response.command_workflow.suggested_command:
                 print(f"  Run: {response.command_workflow.suggested_command}")
             print()

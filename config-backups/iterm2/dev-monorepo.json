@@ -7,12 +7,12 @@
       "Custom Directory": "Yes",
       "Custom Command": "Yes",
       "Command": "/bin/zsh -l -c 'claude --model opus'",
-      "Badge Text": "🤖 OPUS",
+      "Badge Text": "\ud83e\udd16 OPUS",
       "Use Custom Window Title": true,
       "Custom Window Title": "Claude Opus",
       "Background Color": {
         "Red Component": 0.12,
-        "Green Component": 0.10,
+        "Green Component": 0.1,
         "Blue Component": 0.08,
         "Alpha Component": 1,
         "Color Space": "sRGB"
@@ -24,7 +24,11 @@
         "Alpha Component": 0.5,
         "Color Space": "sRGB"
       },
-      "Tags": ["ai", "claude", "opus"],
+      "Tags": [
+        "ai",
+        "claude",
+        "opus"
+      ],
       "Triggers": [
         {
           "regex": "File \"([^\"]+)\", line (\\d+)",
@@ -44,16 +48,9 @@
         {
           "regex": "force.*push.*(main|master)",
           "action": "ShowAlertTrigger",
-          "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+          "parameter": "\u26d4\ufe0f BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         }
-      ],
-      "HotKey Window Reopens On Activation": false,
-      "HotKey Activated By Modifier": false,
-      "HotKey Alternate Shortcuts": [],
-      "HotKey Characters": "1",
-      "HotKey Characters Ignoring Modifiers": "1",
-      "HotKey Key Code": 18,
-      "HotKey Modifier Flags": 262144
+      ]
     },
     {
       "Name": "Sonnet",
@@ -62,12 +59,12 @@
       "Custom Directory": "Yes",
       "Custom Command": "Yes",
       "Command": "/bin/zsh -l -c 'claude --model sonnet'",
-      "Badge Text": "🤖 SONNET",
+      "Badge Text": "\ud83e\udd16 SONNET",
       "Use Custom Window Title": true,
       "Custom Window Title": "Claude Sonnet",
       "Background Color": {
         "Red Component": 0.08,
-        "Green Component": 0.10,
+        "Green Component": 0.1,
         "Blue Component": 0.14,
         "Alpha Component": 1,
         "Color Space": "sRGB"
@@ -79,7 +76,11 @@
         "Alpha Component": 0.5,
         "Color Space": "sRGB"
       },
-      "Tags": ["ai", "claude", "sonnet"],
+      "Tags": [
+        "ai",
+        "claude",
+        "sonnet"
+      ],
       "Triggers": [
         {
           "regex": "File \"([^\"]+)\", line (\\d+)",
@@ -99,16 +100,9 @@
         {
           "regex": "force.*push.*(main|master)",
           "action": "ShowAlertTrigger",
-          "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+          "parameter": "\u26d4\ufe0f BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         }
-      ],
-      "HotKey Window Reopens On Activation": false,
-      "HotKey Activated By Modifier": false,
-      "HotKey Alternate Shortcuts": [],
-      "HotKey Characters": "2",
-      "HotKey Characters Ignoring Modifiers": "2",
-      "HotKey Key Code": 19,
-      "HotKey Modifier Flags": 262144
+      ]
     },
     {
       "Name": "Cortex",
@@ -117,7 +111,7 @@
       "Custom Directory": "Yes",
       "Custom Command": "Yes",
       "Command": "/bin/zsh -l",
-      "Badge Text": "🧠 CORTEX",
+      "Badge Text": "\ud83e\udde0 CORTEX",
       "Use Custom Window Title": true,
       "Custom Window Title": "Cortex - Intelligence",
       "Background Color": {
@@ -134,7 +128,11 @@
         "Alpha Component": 0.5,
         "Color Space": "sRGB"
       },
-      "Tags": ["dev", "python", "ai"],
+      "Tags": [
+        "dev",
+        "python",
+        "ai"
+      ],
       "Triggers": [
         {
           "regex": "File \"([^\"]+)\", line (\\d+)",
@@ -154,20 +152,13 @@
         {
           "regex": "force.*push.*(main|master)",
           "action": "ShowAlertTrigger",
-          "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+          "parameter": "\u26d4\ufe0f BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         },
         {
           "regex": "Batch.*complete|batch_\\d+.*finished",
           "action": "BounceIconTrigger"
         }
-      ],
-      "HotKey Window Reopens On Activation": false,
-      "HotKey Activated By Modifier": false,
-      "HotKey Alternate Shortcuts": [],
-      "HotKey Characters": "3",
-      "HotKey Characters Ignoring Modifiers": "3",
-      "HotKey Key Code": 20,
-      "HotKey Modifier Flags": 262144
+      ]
     },
     {
       "Name": "VortexV2",
@@ -176,7 +167,7 @@
       "Custom Directory": "Yes",
       "Custom Command": "Yes",
       "Command": "/bin/zsh -l",
-      "Badge Text": "🌪️ VORTEX",
+      "Badge Text": "\ud83c\udf2a\ufe0f VORTEX",
       "Use Custom Window Title": true,
       "Custom Window Title": "VortexV2 - Weather API",
       "Background Color": {
@@ -193,7 +184,11 @@
         "Alpha Component": 0.5,
         "Color Space": "sRGB"
       },
-      "Tags": ["dev", "python", "api"],
+      "Tags": [
+        "dev",
+        "python",
+        "api"
+      ],
       "Triggers": [
         {
           "regex": "File \"([^\"]+)\", line (\\d+)",
@@ -213,21 +208,14 @@
         {
           "regex": "force.*push.*(main|master)",
           "action": "ShowAlertTrigger",
-          "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+          "parameter": "\u26d4\ufe0f BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         },
         {
           "regex": "Skipping.*GRIB.*fixture",
           "action": "HighlightLineTrigger",
           "parameter": "yellow"
         }
-      ],
-      "HotKey Window Reopens On Activation": false,
-      "HotKey Activated By Modifier": false,
-      "HotKey Alternate Shortcuts": [],
-      "HotKey Characters": "4",
-      "HotKey Characters Ignoring Modifiers": "4",
-      "HotKey Key Code": 21,
-      "HotKey Modifier Flags": 262144
+      ]
     },
     {
       "Name": "AlphaArena",
@@ -236,7 +224,7 @@
       "Custom Directory": "Yes",
       "Custom Command": "Yes",
       "Command": "/bin/zsh -l",
-      "Badge Text": "📊 ARENA",
+      "Badge Text": "\ud83d\udcca ARENA",
       "Use Custom Window Title": true,
       "Custom Window Title": "Alpha Arena - Trading",
       "Background Color": {
@@ -253,7 +241,11 @@
         "Alpha Component": 0.5,
         "Color Space": "sRGB"
       },
-      "Tags": ["dev", "python", "trading"],
+      "Tags": [
+        "dev",
+        "python",
+        "trading"
+      ],
       "Triggers": [
         {
           "regex": "File \"([^\"]+)\", line (\\d+)",
@@ -273,21 +265,14 @@
         {
           "regex": "force.*push.*(main|master)",
           "action": "ShowAlertTrigger",
-          "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+          "parameter": "\u26d4\ufe0f BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
         },
         {
           "regex": "circular import",
           "action": "HighlightLineTrigger",
           "parameter": "yellow"
         }
-      ],
-      "HotKey Window Reopens On Activation": false,
-      "HotKey Activated By Modifier": false,
-      "HotKey Alternate Shortcuts": [],
-      "HotKey Characters": "5",
-      "HotKey Characters Ignoring Modifiers": "5",
-      "HotKey Key Code": 23,
-      "HotKey Modifier Flags": 262144
+      ]
     }
   ]
 }

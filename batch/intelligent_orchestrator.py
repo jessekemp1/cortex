@@ -254,12 +254,26 @@ class IntelligentBatchOrchestrator:
             )
         )
 
-    def fill_overnight_queue(self, max_jobs: Optional[int] = None) -> List[BatchWorkItem]:
+    def fill_overnight_queue(self, max_jobs: Optional[int] = None, use_optimizer: bool = True) -> List[BatchWorkItem]:
         """
         Fill overnight batch queue to maximize capacity.
 
+        Args:
+            max_jobs: Maximum jobs to queue (overrides capacity calculation)
+            use_optimizer: Use adaptive optimizer for work generation and bin packing
+
         Returns list of jobs to submit for overnight processing.
         """
+        # Option 1: Use adaptive optimizer (recommended)
+        if use_optimizer:
+            try:
+                from batch.optimizer import integrate_with_orchestrator
+                return integrate_with_orchestrator(self.root_dir)
+            except Exception as e:
+                print(f"Warning: Optimizer failed, falling back to basic mode: {e}")
+                # Fall through to basic mode
+
+        # Option 2: Basic mode (legacy)
         # Generate potential work
         work_items = self.generate_work_items()
 
@@ -413,10 +427,16 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Show what would be submitted without actually submitting")
     parser.add_argument("--max-jobs", type=int, help="Maximum number of jobs to queue (overrides capacity calculation)")
     parser.add_argument("--json", action="store_true", help="Output JSON instead of formatted text")
+    parser.add_argument("--no-optimizer", action="store_true", help="Disable adaptive optimizer (use basic mode)")
 
     args = parser.parse_args()
 
     orchestrator = IntelligentBatchOrchestrator()
+
+    # Override fill_overnight_queue if --no-optimizer is set
+    if args.no_optimizer:
+        orchestrator.fill_overnight_queue = lambda **kwargs: orchestrator.fill_overnight_queue(use_optimizer=False, **kwargs)
+
     summary = orchestrator.submit_batch_queue(dry_run=args.dry_run)
 
     if args.json:
