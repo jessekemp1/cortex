@@ -22,6 +22,7 @@ from intelligence.process_monitor.batch_executor import BatchExecutor
 from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 
 from .config import SupervisorConfig
+from .delegator import DelegationPolicy, SupervisorDelegator
 from .health import HealthMonitor
 from .models import TickResult
 
@@ -36,6 +37,7 @@ class CortexSupervisor:
     - HealthMonitor: Detects and heals stuck tasks
     - BatchTaskQueue: Shell task scheduling
     - BatchExecutor: Shell command execution
+    - SupervisorDelegator: Intelligent task routing to specialized agents
 
     Usage:
         supervisor = CortexSupervisor()
@@ -43,12 +45,17 @@ class CortexSupervisor:
         supervisor.start(foreground=True)  # Daemon mode
     """
 
-    def __init__(self, config: Optional[SupervisorConfig] = None):
+    def __init__(
+        self,
+        config: Optional[SupervisorConfig] = None,
+        delegation_policy: Optional[DelegationPolicy] = None,
+    ):
         """
         Initialize the supervisor.
 
         Args:
             config: Supervisor configuration (uses defaults if None)
+            delegation_policy: Delegation policy (uses defaults if None)
         """
         self.config = config or SupervisorConfig()
 
@@ -60,6 +67,7 @@ class CortexSupervisor:
             stale_task_hours=self.config.stale_task_hours,
             max_retries=self.config.max_retries,
         )
+        self.delegator = SupervisorDelegator(policy=delegation_policy)
 
         # Daemon state
         self._shutdown_event = threading.Event()
@@ -460,3 +468,7 @@ class CortexSupervisor:
             "running": len(self.shell_queue.get_running_tasks()),
             "ready": len(self._get_ready_tasks()),
         }
+
+    def get_delegation_summary(self) -> Dict[str, Any]:
+        """Get a summary of delegation status and agent loads."""
+        return self.delegator.get_routing_stats()

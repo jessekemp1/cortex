@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""
+iTerm Profile Manager - Create/manage dynamic iTerm profiles on-demand
+
+Usage:
+  iterm-profile create "Feature-XYZ" --emoji 🚀 --color purple --dir ~/Dev/feature-xyz
+  iterm-profile list
+  iterm-profile remove "Feature-XYZ"
+  iterm-profile themes
+"""
+
+import json
+import sys
+import argparse
+import os
+from pathlib import Path
+from typing import Dict, Optional
+import uuid
+
+PROFILES_PATH = Path.home() / "Library/Application Support/iTerm2/DynamicProfiles/dev-monorepo.json"
+
+# Color themes (RGB components 0.0-1.0)
+COLOR_THEMES = {
+    "orange": {"bg": (0.12, 0.10, 0.08), "badge": (0.9, 0.7, 0.3)},
+    "blue": {"bg": (0.08, 0.10, 0.14), "badge": (0.4, 0.6, 0.9)},
+    "purple": {"bg": (0.15, 0.08, 0.18), "badge": (0.7, 0.3, 0.9)},
+    "green": {"bg": (0.08, 0.15, 0.10), "badge": (0.3, 0.9, 0.5)},
+    "red": {"bg": (0.15, 0.08, 0.08), "badge": (0.9, 0.3, 0.3)},
+    "cyan": {"bg": (0.08, 0.14, 0.16), "badge": (0.3, 0.8, 0.9)},
+    "yellow": {"bg": (0.14, 0.12, 0.08), "badge": (0.9, 0.8, 0.3)},
+    "pink": {"bg": (0.14, 0.08, 0.12), "badge": (0.9, 0.4, 0.7)},
+    "teal": {"bg": (0.08, 0.12, 0.14), "badge": (0.3, 0.7, 0.8)},
+}
+
+# Default triggers (file links, error highlighting, git safety)
+DEFAULT_TRIGGERS = [
+    {
+        "regex": 'File "([^"]+)", line (\\d+)',
+        "action": "MakeHyperlinkTrigger",
+        "parameter": "file://\\1:\\2"
+    },
+    {
+        "regex": "([a-zA-Z0-9_/.\\-]+\\.py):(\\d+)",
+        "action": "MakeHyperlinkTrigger",
+        "parameter": "file://\\1:\\2"
+    },
+    {
+        "regex": "(FAILED|ERROR|AssertionError)",
+        "action": "HighlightLineTrigger",
+        "parameter": "red"
+    },
+    {
+        "regex": "force.*push.*(main|master)",
+        "action": "ShowAlertTrigger",
+        "parameter": "⛔️ BLOCKED: Never force push to main (use --force-with-lease on feature branches)"
+    }
+]
+
+
+def load_profiles() -> Dict:
+    """Load current dynamic profiles"""
+    if not PROFILES_PATH.exists():
+        return {"Profiles": []}
+
+    with open(PROFILES_PATH, 'r') as f:
+        return json.load(f)
+
+
+def save_profiles(data: Dict):
+    """Save profiles back to dynamic profiles file"""
+    PROFILES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(PROFILES_PATH, 'w') as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Profiles saved to {PROFILES_PATH}")
+
+
+def create_profile(
+    name: str,
+    emoji: str = "🔧",
+    color: str = "blue",
+    directory: Optional[str] = None,
+    command: Optional[str] = None,
+    claude_model: Optional[str] = None,
+    tags: Optional[list] = None
+) -> Dict:
+    """Create a new profile configuration"""
+
+    # Generate GUID
+    profile_guid = f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:8]}"
+
+    # Resolve working directory
+    if directory:
+        work_dir = str(Path(directory).expanduser().resolve())
+    else:
+        work_dir = str(Path.home() / "Dev")
+
+    # Determine command
+    if claude_model:
+        cmd = f"/bin/zsh -l -c 'claude --model {claude_model}'"
+    elif command:
+        cmd = command
+    else:
+        cmd = "/bin/zsh -l"
+
+    # Get color theme
+    theme = COLOR_THEMES.get(color, COLOR_THEMES["blue"])
+    bg_r, bg_g, bg_b = theme["bg"]
+    badge_r, badge_g, badge_b = theme["badge"]
+
+    # Default tags - always include "custom" to mark as user-created
+    if tags is None:
+        tags = ["custom"]
+    elif "custom" not in tags:
+        tags.append("custom")
+
+    profile = {
+        "Name": name,
+        "Guid": profile_guid,
+        "Working Directory": work_dir,
+        "Custom Directory": "Yes",
+        "Custom Command": "Yes",
+        "Command": cmd,
+        "Badge Text": f"{emoji} {name.upper()}",
+        "Use Custom Window Title": True,
+        "Custom Window Title": name,
+        "Background Color": {
+            "Red Component": bg_r,
+            "Green Component": bg_g,
+            "Blue Component": bg_b,
+            "Alpha Component": 1,
+            "Color Space": "sRGB"
+        },
+        "Badge Color": {
+            "Red Component": badge_r,
+            "Green Component": badge_g,
+            "Blue Component": badge_b,
+            "Alpha Component": 0.5,
+            "Color Space": "sRGB"
+        },
+        "Tags": tags,
+        "Triggers": DEFAULT_TRIGGERS.copy()
+    }
+
+    return profile
+
+
+def cmd_create(args):
+    """Create a new profile"""
+    data = load_profiles()
+
+    # Check if profile already exists
+    existing_names = [p["Name"] for p in data["Profiles"]]
+    if args.name in existing_names:
+        print(f"❌ Profile '{args.name}' already exists. Use 'remove' first or choose a different name.")
+        return 1
+
+    # Create profile
+    profile = create_profile(
+        name=args.name,
+        emoji=args.emoji,
+        color=args.color,
+        directory=args.dir,
+        command=args.command,
+        claude_model=args.claude_model,
+        tags=args.tags.split(",") if args.tags else None
+    )
+
+    data["Profiles"].append(profile)
+    save_profiles(data)
+
+    print(f"✅ Created profile: {args.name}")
+    print(f"   📛 Badge: {profile['Badge Text']}")
+    print(f"   🎨 Color: {args.color}")
+    print(f"   📁 Directory: {profile['Working Directory']}")
+    print(f"   💻 Command: {profile['Command']}")
+    print(f"\n💡 Open a new iTerm tab and select '{args.name}' from the profile menu")
+
+    return 0
+
+
+def cmd_list(args):
+    """List all profiles"""
+    data = load_profiles()
+
+    if not data["Profiles"]:
+        print("📋 No profiles found")
+        return 0
+
+    print(f"📋 iTerm Profiles ({len(data['Profiles'])} total)\n")
+
+    # Separate permanent and custom profiles
+    permanent = []
+    custom = []
+
+    for p in data["Profiles"]:
+        if "custom" in p.get("Tags", []):
+            custom.append(p)
+        else:
+            permanent.append(p)
+
+    if permanent:
+        print("🔒 Permanent Profiles:")
+        for p in permanent:
+            print(f"   • {p['Name']:15} - {p['Badge Text']:15} - {p['Working Directory']}")
+
+    if custom:
+        print("\n🔧 Custom Profiles:")
+        for p in custom:
+            print(f"   • {p['Name']:15} - {p['Badge Text']:15} - {p['Working Directory']}")
+
+    return 0
+
+
+def cmd_remove(args):
+    """Remove a profile"""
+    data = load_profiles()
+
+    # Find profile
+    profile_to_remove = None
+    for p in data["Profiles"]:
+        if p["Name"] == args.name:
+            profile_to_remove = p
+            break
+
+    if not profile_to_remove:
+        print(f"❌ Profile '{args.name}' not found")
+        return 1
+
+    # Don't allow removing permanent profiles without --force
+    if "custom" not in profile_to_remove.get("Tags", []) and not args.force:
+        print(f"❌ Cannot remove permanent profile '{args.name}' without --force flag")
+        return 1
+
+    # Remove profile
+    data["Profiles"] = [p for p in data["Profiles"] if p["Name"] != args.name]
+    save_profiles(data)
+
+    print(f"✅ Removed profile: {args.name}")
+    return 0
+
+
+def cmd_themes(args):
+    """Show available color themes"""
+    print("🎨 Available Color Themes\n")
+
+    for name, theme in COLOR_THEMES.items():
+        bg = theme["bg"]
+        badge = theme["badge"]
+        print(f"   {name:10} - BG: RGB({bg[0]:.2f}, {bg[1]:.2f}, {bg[2]:.2f})  Badge: RGB({badge[0]:.2f}, {badge[1]:.2f}, {badge[2]:.2f})")
+
+    print("\n💡 Use with: iterm-profile create \"MyProfile\" --color <theme>")
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="iTerm Profile Manager - Create/manage dynamic iTerm profiles",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Create a feature profile
+  iterm-profile create "Feature-XYZ" --emoji 🚀 --color purple --dir ~/Dev/feature-xyz
+
+  # Create a Claude Opus profile for specific task
+  iterm-profile create "Research" --emoji 🔬 --color green --claude-model opus
+
+  # Create with custom command
+  iterm-profile create "Docker" --emoji 🐳 --color cyan --command "docker exec -it mycontainer bash"
+
+  # List all profiles
+  iterm-profile list
+
+  # Remove a custom profile
+  iterm-profile remove "Feature-XYZ"
+
+  # Show available color themes
+  iterm-profile themes
+        """
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Command to run", required=True)
+
+    # Create command
+    create_parser = subparsers.add_parser("create", help="Create a new profile")
+    create_parser.add_argument("name", help="Profile name")
+    create_parser.add_argument("--emoji", default="🔧", help="Badge emoji (default: 🔧)")
+    create_parser.add_argument("--color", default="blue", choices=COLOR_THEMES.keys(), help="Color theme (default: blue)")
+    create_parser.add_argument("--dir", help="Working directory (default: ~/Dev)")
+    create_parser.add_argument("--command", help="Custom shell command")
+    create_parser.add_argument("--claude-model", choices=["opus", "sonnet", "haiku"], help="Use Claude with specific model")
+    create_parser.add_argument("--tags", help="Comma-separated tags")
+    create_parser.set_defaults(func=cmd_create)
+
+    # List command
+    list_parser = subparsers.add_parser("list", help="List all profiles")
+    list_parser.set_defaults(func=cmd_list)
+
+    # Remove command
+    remove_parser = subparsers.add_parser("remove", help="Remove a profile")
+    remove_parser.add_argument("name", help="Profile name to remove")
+    remove_parser.add_argument("--force", action="store_true", help="Force remove permanent profiles")
+    remove_parser.set_defaults(func=cmd_remove)
+
+    # Themes command
+    themes_parser = subparsers.add_parser("themes", help="Show available color themes")
+    themes_parser.set_defaults(func=cmd_themes)
+
+    args = parser.parse_args()
+
+    # Check if a subcommand was provided
+    if not hasattr(args, 'func'):
+        parser.print_help()
+        return 1
+
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
