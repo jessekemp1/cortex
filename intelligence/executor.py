@@ -379,8 +379,19 @@ Output ONLY the JSON, no other text."""
             logger.error("No command specified for bash step")
             return False
 
-        # Determine working directory
+        # Determine working directory from contract signal_id or description
         working_dir = self.root_dir
+
+        # Try to infer project from contract signal_id or title
+        contract_text = f"{contract.contract_id} {contract.title} {contract.description}".lower()
+        if "vortexv2" in contract_text or "vortex/vortexv2" in contract_text:
+            working_dir = self.root_dir / "Vortex" / "VortexV2"
+        elif "alpha_arena" in contract_text or "alpha arena" in contract_text:
+            working_dir = self.root_dir / "alpha_arena"
+        elif "cortex" in contract_text and "vortex" not in contract_text:
+            working_dir = self.root_dir / "cortex"
+
+        # Legacy: check context if provided
         if "project" in getattr(contract, 'context', {}):
             project = contract.context["project"]
             if project == "VortexV2":
@@ -390,17 +401,26 @@ Output ONLY the JSON, no other text."""
             elif project == "Cortex":
                 working_dir = self.root_dir / "cortex"
 
+        # Detect and activate virtual environment
+        command = step.command
+        venv_dir = self._detect_venv(working_dir)
+        if venv_dir:
+            logger.info(f"  Using venv: {venv_dir}")
+            # Prepend venv activation to command
+            command = f"source {venv_dir}/bin/activate && {command}"
+
         logger.info(f"  Running: {step.command}")
         logger.info(f"  Working dir: {working_dir}")
 
         try:
             result = subprocess.run(
-                step.command,
+                command,
                 shell=True,
                 cwd=working_dir,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
+                executable="/bin/bash",  # Required for source command
             )
 
             step.output = result.stdout
@@ -417,6 +437,29 @@ Output ONLY the JSON, no other text."""
             step.error = "Command timed out after 5 minutes"
             logger.error("  ❌ Command timed out")
             return False
+
+    def _detect_venv(self, working_dir: Path) -> Optional[Path]:
+        """
+        Detect virtual environment directory in working_dir.
+
+        Checks for .venv, venv, env directories with bin/python.
+
+        Args:
+            working_dir: Directory to search
+
+        Returns:
+            Path to venv directory, or None if not found
+        """
+        candidates = [".venv", "venv", "env"]
+
+        for candidate in candidates:
+            venv_path = working_dir / candidate
+            python_path = venv_path / "bin" / "python"
+
+            if python_path.exists():
+                return venv_path
+
+        return None
 
     async def _execute_read_step(self, step: ExecutionStep) -> bool:
         """Execute file read step."""
@@ -537,8 +580,19 @@ Output ONLY the JSON, no other text."""
         """
         logger.info(f"  🧪 Running {len(tests)} test criteria...")
 
-        # Determine working directory
+        # Determine working directory (use same logic as _execute_bash_step)
         working_dir = self.root_dir
+
+        # Try to infer project from contract signal_id or title
+        contract_text = f"{contract.contract_id} {contract.title} {contract.description}".lower()
+        if "vortexv2" in contract_text or "vortex/vortexv2" in contract_text:
+            working_dir = self.root_dir / "Vortex" / "VortexV2"
+        elif "alpha_arena" in contract_text or "alpha arena" in contract_text:
+            working_dir = self.root_dir / "alpha_arena"
+        elif "cortex" in contract_text and "vortex" not in contract_text:
+            working_dir = self.root_dir / "cortex"
+
+        # Legacy: check context if provided
         if "project" in getattr(contract, 'context', {}):
             project = contract.context["project"]
             if project == "VortexV2":
@@ -557,6 +611,12 @@ Output ONLY the JSON, no other text."""
             result.test_output = "No executable test command found"
             return False
 
+        # Detect and activate virtual environment
+        venv_dir = self._detect_venv(working_dir)
+        if venv_dir:
+            logger.info(f"  Using venv: {venv_dir}")
+            test_command = f"source {venv_dir}/bin/activate && {test_command}"
+
         logger.info(f"  Running: {test_command}")
 
         try:
@@ -567,6 +627,7 @@ Output ONLY the JSON, no other text."""
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minute timeout for tests
+                executable="/bin/bash",  # Required for source command
             )
 
             result.test_output = test_result.stdout + test_result.stderr
