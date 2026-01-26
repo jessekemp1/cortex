@@ -20,6 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 from .models import Task, TaskPhase, TraceEvent, TraceEventType
 from .database import OrchestrationDatabase
+from .retry_handler import RetryHandler
 
 
 class PhaseTransitionError(Exception):
@@ -76,6 +77,7 @@ class PhaseVerifier:
 
     def __init__(self, db: Optional[OrchestrationDatabase] = None):
         self.db = db or OrchestrationDatabase()
+        self.retry_handler = RetryHandler(self.db)
 
     def can_transition(self, task: Task, to_phase: TaskPhase) -> Tuple[bool, str]:
         """
@@ -148,9 +150,41 @@ class PhaseVerifier:
         if not force:
             result = self.verify_phase_completion(task)
             if not result.passed:
-                raise ValidationFailure(
-                    f"Phase {task.phase.value} verification failed: {result.checks_failed}"
-                )
+                # Consult retry handler before failing
+                error_message = f"Phase {task.phase.value} verification failed: {result.checks_failed}"
+                decision = self.retry_handler.handle_failure(task, error_message, task.phase)
+
+                if decision.should_retry:
+                    # Schedule retry - transition to FAILED with retry config
+                    import uuid
+                    self.db.add_trace_event(TraceEvent(
+                        event_id=str(uuid.uuid4()),
+                        task_id=task.id,
+                        event_type=TraceEventType.TASK_RETRIED,
+                        timestamp=datetime.now(),
+                        message=f"Retry scheduled: {decision.reason}",
+                        details={
+                            "failure_type": decision.failure_type.value,
+                            "retry_in_seconds": decision.delay_seconds,
+                            "retry_count": decision.retry_count,
+                            "reason": decision.reason
+                        }
+                    ))
+
+                    # Don't raise - return failure result so caller can handle
+                    return VerificationResult(
+                        passed=False,
+                        phase=task.phase,
+                        checks_run=result.checks_run,
+                        checks_passed=result.checks_passed,
+                        checks_failed=result.checks_failed,
+                        evidence={"retry_scheduled": True, "retry_in": decision.delay_seconds}
+                    )
+                else:
+                    # Escalate to human - raise with context
+                    raise ValidationFailure(
+                        f"{error_message} | Escalation reason: {decision.reason}"
+                    )
 
         # Record transition in audit trail
         old_phase = task.phase

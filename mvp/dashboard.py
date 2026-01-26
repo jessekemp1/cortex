@@ -168,6 +168,63 @@ def show_health_page():
             else:
                 st.info(f"**{alert.message}**\n\n→ {alert.action}")
 
+    # Orchestration Intelligence
+    st.markdown("---")
+    st.subheader("⚙️ Orchestration Intelligence")
+
+    try:
+        from orchestration.anomaly_detector import OrchestrationAnomalyManager
+        from orchestration.anti_pattern_detector import AntiPatternDetector
+        from orchestration.database import OrchestrationDatabase
+
+        db = OrchestrationDatabase()
+        anomaly_manager = OrchestrationAnomalyManager(db)
+        anti_pattern_detector = AntiPatternDetector(db=None, root_dir=Path.cwd())
+
+        # Detect anomalies
+        orchestration_anomalies = anomaly_manager.detect_all(context={
+            "active_projects": 26,  # TODO: Get from actual state
+            "total_projects": 30,
+            "goals_in_progress": 0,
+            "goals_pending": 9
+        })
+
+        # Detect anti-patterns
+        anti_patterns = anti_pattern_detector.detect_all()
+
+        # Combine and display
+        all_issues = []
+
+        for anomaly in orchestration_anomalies:
+            if anomaly.severity.value.lower() in ["critical", "warning"]:
+                all_issues.append({
+                    "severity": anomaly.severity.value.lower(),
+                    "title": anomaly.title,
+                    "action": anomaly.remediation
+                })
+
+        for pattern in anti_patterns:
+            if pattern.severity.value.lower() in ["critical", "high"]:
+                all_issues.append({
+                    "severity": pattern.severity.value.lower(),
+                    "title": f"{pattern.pattern_type.value}: {pattern.validated_item}",
+                    "action": pattern.suggested_action
+                })
+
+        if not all_issues:
+            st.success("✅ No orchestration issues detected")
+        else:
+            for issue in all_issues:
+                if issue["severity"] in ["critical", "high"]:
+                    st.error(f"**{issue['title']}**\n\n→ {issue['action']}")
+                elif issue["severity"] == "warning":
+                    st.warning(f"**{issue['title']}**\n\n→ {issue['action']}")
+                else:
+                    st.info(f"**{issue['title']}**\n\n→ {issue['action']}")
+
+    except Exception as e:
+        st.warning(f"Orchestration intelligence unavailable: {e}")
+
     # Health history (if available)
     st.markdown("---")
     st.subheader("📈 Health History (24h)")

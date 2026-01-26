@@ -201,48 +201,54 @@ def cmd_status(args):
         in_progress = state.get("goals_in_progress", 0)
         pending = state.get("goals_pending", 0)
 
-        # Anomaly detection
+        # Anomaly detection using OrchestrationAnomalyManager
         anomalies = []
-        if active > 15:
-            active_pct = (active / total * 100) if total > 0 else 0
-            anomalies.append(
-                f"High context-switching risk: {active} active projects ({active_pct:.0f}% of portfolio)"
-            )
+        try:
+            from orchestration.anomaly_detector import OrchestrationAnomalyManager
+            from orchestration.database import OrchestrationDatabase
 
-        if active > 0 and in_progress == 0 and pending > 0:
-            anomalies.append(
-                f"Planning gap: {active} active projects but no goals in progress ({pending} pending)"
-            )
+            db = OrchestrationDatabase()
+            anomaly_manager = OrchestrationAnomalyManager(db)
 
-        # Check for validated-but-undeployed code (anti-pattern)
+            # Detect orchestration anomalies
+            orchestration_anomalies = anomaly_manager.detect_all(context={
+                "active_projects": active,
+                "total_projects": total,
+                "goals_in_progress": in_progress,
+                "goals_pending": pending
+            })
+
+            # Show only CRITICAL and WARNING severity
+            for anomaly in orchestration_anomalies:
+                if anomaly.severity.value.lower() in ["critical", "warning"]:
+                    severity_icon = "🔴" if anomaly.severity.value.lower() == "critical" else "🟡"
+                    anomalies.append(f"{severity_icon} {anomaly.title}")
+
+        except Exception as e:
+            logger.debug(f"Anomaly detector failed: {e}")
+            # Fallback to simple checks
+            if active > 15:
+                active_pct = (active / total * 100) if total > 0 else 0
+                anomalies.append(
+                    f"High context-switching risk: {active} active projects ({active_pct:.0f}% of portfolio)"
+                )
+
+        # Check for anti-patterns (validated-but-undeployed code)
         try:
             from orchestration.anti_pattern_detector import AntiPatternDetector
             detector = AntiPatternDetector(db=None, root_dir=Path(args.root))
             alerts = detector.detect_all()
 
-            critical_alerts = [a for a in alerts if a.severity.value in ["critical", "high"]]
+            # Show CRITICAL and HIGH severity anti-patterns
+            for alert in alerts:
+                if alert.severity.value.lower() in ["critical", "high"]:
+                    severity_icon = "🔴" if alert.severity.value.lower() == "critical" else "🟡"
+                    anomalies.append(
+                        f"{severity_icon} {alert.pattern_type.value}: {alert.validated_item} (validated but not deployed)"
+                    )
 
-            if critical_alerts:
-                anomalies.append(
-                    f"Anti-patterns detected: {len(critical_alerts)} validated improvements not deployed"
-                )
         except Exception as e:
-            # Fallback to simple check if detector fails
             logger.debug(f"Anti-pattern detector failed: {e}")
-            validation_reports = []
-            try:
-                vortex_reports = list(Path(args.root).glob("Vortex/VortexV2/data/validation/*REPORT*.md"))
-                for report in vortex_reports:
-                    content = report.read_text()
-                    if "improvement" in content.lower() or "better" in content.lower():
-                        validation_reports.append(f"VortexV2: {report.name}")
-            except Exception:
-                pass
-
-            if validation_reports:
-                anomalies.append(
-                    f"Validated improvements may not be deployed: {', '.join(validation_reports[:2])}"
-                )
 
         if anomalies:
             print("⚠️  ORCHESTRATION ALERTS")
