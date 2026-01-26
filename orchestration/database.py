@@ -6,6 +6,7 @@ Provides persistent storage for:
 - Worker states (agent capacity tracking)
 - Trace events (audit trail)
 - Validation criteria (test requirements)
+- Anti-pattern alerts (validated-but-undeployed detection)
 
 Schema designed for performance with proper indexes for common queries.
 
@@ -166,6 +167,77 @@ class OrchestrationDatabase:
         """
         )
 
+        # Retry configs table
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS retry_configs (
+                task_id TEXT PRIMARY KEY,
+                max_retries INTEGER DEFAULT 3,
+                current_retry_count INTEGER DEFAULT 0,
+                strategy TEXT NOT NULL,
+                base_delay_seconds INTEGER DEFAULT 60,
+                backoff_multiplier REAL DEFAULT 2.0,
+                max_delay_seconds INTEGER DEFAULT 3600,
+                last_retry_at TEXT,
+                failure_type TEXT,
+                escalated INTEGER DEFAULT 0,
+                escalation_reason TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )
+        """
+        )
+
+        # Anti-pattern alerts table
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS anti_pattern_alerts (
+                id TEXT PRIMARY KEY,
+                pattern_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                project TEXT NOT NULL,
+                validated_item TEXT NOT NULL,
+                validation_source TEXT NOT NULL,
+                validation_date TEXT NOT NULL,
+                production_item TEXT,
+                production_source TEXT,
+                improvement_metrics TEXT DEFAULT '{}',
+                recommendation_priority TEXT,
+                evidence TEXT DEFAULT '[]',
+                suggested_action TEXT NOT NULL,
+                estimated_effort TEXT,
+                blocking_factors TEXT DEFAULT '[]',
+                detected_at TEXT NOT NULL,
+                resolved_at TEXT,
+                resolution_notes TEXT
+            )
+        """
+        )
+
+        # Anomalies table
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS anomalies (
+                anomaly_id TEXT PRIMARY KEY,
+                anomaly_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                detected_at TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                metric_value REAL NOT NULL,
+                threshold_value REAL NOT NULL,
+                affected_entities TEXT DEFAULT '[]',
+                metadata TEXT DEFAULT '{}',
+                remediation TEXT NOT NULL,
+                auto_actionable INTEGER DEFAULT 0,
+                auto_action_command TEXT,
+                first_seen TEXT,
+                occurrence_count INTEGER DEFAULT 1
+            )
+        """
+        )
+
         # Create indexes for performance
         indexes = [
             # Task indexes
@@ -186,6 +258,18 @@ class OrchestrationDatabase:
             "CREATE INDEX IF NOT EXISTS idx_trace_events_task_id ON trace_events(task_id)",
             "CREATE INDEX IF NOT EXISTS idx_trace_events_worker_id ON trace_events(worker_id)",
             "CREATE INDEX IF NOT EXISTS idx_trace_events_type ON trace_events(event_type)",
+            # Retry config indexes
+            "CREATE INDEX IF NOT EXISTS idx_retry_configs_escalated ON retry_configs(escalated)",
+            "CREATE INDEX IF NOT EXISTS idx_retry_configs_failure_type ON retry_configs(failure_type)",
+            # Anomaly indexes
+            "CREATE INDEX IF NOT EXISTS idx_anomalies_type ON anomalies(anomaly_type)",
+            "CREATE INDEX IF NOT EXISTS idx_anomalies_severity ON anomalies(severity)",
+            "CREATE INDEX IF NOT EXISTS idx_anomalies_detected_at ON anomalies(detected_at)",
+            # Anti-pattern alert indexes
+            "CREATE INDEX IF NOT EXISTS idx_alerts_project ON anti_pattern_alerts(project)",
+            "CREATE INDEX IF NOT EXISTS idx_alerts_severity ON anti_pattern_alerts(severity)",
+            "CREATE INDEX IF NOT EXISTS idx_alerts_resolved ON anti_pattern_alerts(resolved_at)",
+            "CREATE INDEX IF NOT EXISTS idx_alerts_pattern_type ON anti_pattern_alerts(pattern_type)",
         ]
 
         for index_sql in indexes:
@@ -795,6 +879,132 @@ class OrchestrationDatabase:
         }
         return mapping.get(state, TaskStatus.PENDING)
 
+    # ==================== Anomaly Operations ====================
+
+    def save_anomalies(self, anomalies: List[Any]) -> None:
+        """
+        Save anomalies to database.
+
+        Args:
+            anomalies: List of OrchestrationAnomaly objects
+        """
+        conn = sqlite3.connect(self.db_path)
+
+        for anomaly in anomalies:
+            anomaly_dict = anomaly.to_dict()
+
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO anomalies VALUES (
+                    :anomaly_id, :anomaly_type, :severity, :detected_at,
+                    :title, :description, :metric_value, :threshold_value,
+                    :affected_entities, :metadata, :remediation,
+                    :auto_actionable, :auto_action_command,
+                    :first_seen, :occurrence_count
+                )
+            """,
+                anomaly_dict,
+            )
+
+        conn.commit()
+        conn.close()
+
+    def get_recent_anomalies(self, days: int = 7) -> List[Any]:
+        """
+        Get recent anomalies from database.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            List of OrchestrationAnomaly objects
+        """
+        from .anomaly_detector import OrchestrationAnomaly
+        from datetime import timedelta
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        cursor = conn.execute(
+            """
+            SELECT * FROM anomalies
+            WHERE detected_at >= ?
+            ORDER BY detected_at DESC
+        """,
+            (cutoff,),
+        )
+
+        anomalies = [
+            OrchestrationAnomaly.from_dict(dict(row)) for row in cursor.fetchall()
+        ]
+        conn.close()
+
+        return anomalies
+
+    def get_anomaly_trend(self, anomaly_type: str, days: int) -> Dict[str, Any]:
+        """
+        Get trend data for a specific anomaly type.
+
+        Args:
+            anomaly_type: Type of anomaly (as string)
+            days: Number of days to analyze
+
+        Returns:
+            Dictionary with trend statistics
+        """
+        from datetime import timedelta
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+        # Get count by day
+        cursor = conn.execute(
+            """
+            SELECT
+                DATE(detected_at) as day,
+                COUNT(*) as count,
+                AVG(metric_value) as avg_metric,
+                MAX(severity) as max_severity
+            FROM anomalies
+            WHERE anomaly_type = ? AND detected_at >= ?
+            GROUP BY DATE(detected_at)
+            ORDER BY day ASC
+        """,
+            (anomaly_type, cutoff),
+        )
+
+        daily_data = [dict(row) for row in cursor.fetchall()]
+
+        # Get overall stats
+        cursor = conn.execute(
+            """
+            SELECT
+                COUNT(*) as total_occurrences,
+                COUNT(DISTINCT anomaly_id) as unique_anomalies,
+                AVG(metric_value) as avg_metric_value,
+                MIN(detected_at) as first_occurrence,
+                MAX(detected_at) as last_occurrence
+            FROM anomalies
+            WHERE anomaly_type = ? AND detected_at >= ?
+        """,
+            (anomaly_type, cutoff),
+        )
+
+        overall_stats = dict(cursor.fetchone())
+
+        conn.close()
+
+        return {
+            "anomaly_type": anomaly_type,
+            "days_analyzed": days,
+            "daily_data": daily_data,
+            "overall_stats": overall_stats,
+        }
+
     # ==================== Statistics ====================
 
     def get_stats(self) -> Dict[str, Any]:
@@ -836,5 +1046,236 @@ class OrchestrationDatabase:
         cursor = conn.execute("SELECT COUNT(*) FROM trace_events")
         stats["total_trace_events"] = cursor.fetchone()[0]
 
+        # Retry config counts
+        cursor = conn.execute("SELECT COUNT(*) FROM retry_configs")
+        stats["total_retry_configs"] = cursor.fetchone()[0]
+
+        cursor = conn.execute(
+            "SELECT COUNT(*) FROM retry_configs WHERE escalated = 1"
+        )
+        stats["escalated_tasks"] = cursor.fetchone()[0]
+
         conn.close()
         return stats
+
+    # ==================== Retry Config Operations ====================
+
+    def create_retry_config(self, task_id: str, config: "RetryConfig") -> None:
+        """
+        Create a retry configuration for a task.
+
+        Args:
+            task_id: Task identifier
+            config: RetryConfig to save
+        """
+
+        conn = sqlite3.connect(self.db_path)
+
+        config_dict = config.to_dict()
+
+        conn.execute(
+            """
+            INSERT INTO retry_configs VALUES (
+                :task_id, :max_retries, :current_retry_count, :strategy,
+                :base_delay_seconds, :backoff_multiplier, :max_delay_seconds,
+                :last_retry_at, :failure_type, :escalated, :escalation_reason,
+                :created_at, :updated_at
+            )
+        """,
+            {
+                "task_id": task_id,
+                **config_dict,
+                "escalated": 1 if config.escalated else 0,
+            },
+        )
+
+        conn.commit()
+        conn.close()
+
+        logger.debug(f"Created retry config for task {task_id}")
+
+    def get_retry_config(self, task_id: str) -> Optional["RetryConfig"]:
+        """
+        Get retry configuration for a task.
+
+        Args:
+            task_id: Task identifier
+
+        Returns:
+            RetryConfig if exists, None otherwise
+        """
+        from .retry_handler import RetryConfig  # Import here to avoid circular dependency
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        cursor = conn.execute(
+            "SELECT * FROM retry_configs WHERE task_id = ?", (task_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if row is None:
+            return None
+
+        # Convert row to dict
+        data = dict(row)
+        data["escalated"] = bool(data["escalated"])
+
+        return RetryConfig.from_dict(data)
+
+    def update_retry_config(self, task_id: str, config: "RetryConfig") -> None:
+        """
+        Update retry configuration for a task.
+
+        Args:
+            task_id: Task identifier
+            config: Updated RetryConfig
+        """
+
+        conn = sqlite3.connect(self.db_path)
+
+        config_dict = config.to_dict()
+
+        conn.execute(
+            """
+            UPDATE retry_configs SET
+                max_retries = :max_retries,
+                current_retry_count = :current_retry_count,
+                strategy = :strategy,
+                base_delay_seconds = :base_delay_seconds,
+                backoff_multiplier = :backoff_multiplier,
+                max_delay_seconds = :max_delay_seconds,
+                last_retry_at = :last_retry_at,
+                failure_type = :failure_type,
+                escalated = :escalated,
+                escalation_reason = :escalation_reason,
+                updated_at = :updated_at
+            WHERE task_id = :task_id
+        """,
+            {
+                "task_id": task_id,
+                **config_dict,
+                "escalated": 1 if config.escalated else 0,
+            },
+        )
+
+        conn.commit()
+        conn.close()
+
+        logger.debug(f"Updated retry config for task {task_id}")
+
+    def get_escalated_tasks(self) -> List[Task]:
+        """
+        Get all tasks that have been escalated for human intervention.
+
+        Returns:
+            List of escalated tasks
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        cursor = conn.execute(
+            """
+            SELECT t.* FROM tasks t
+            JOIN retry_configs rc ON t.id = rc.task_id
+            WHERE rc.escalated = 1
+            ORDER BY rc.updated_at DESC
+        """
+        )
+
+        tasks = []
+        for row in cursor.fetchall():
+            task = self._row_to_task(dict(row))
+            tasks.append(task)
+
+        conn.close()
+        return tasks
+
+    # ==================== Anti-Pattern Alert Operations ====================
+
+    def create_anti_pattern_alert(self, alert) -> None:
+        """
+        Create a new anti-pattern alert.
+
+        Args:
+            alert: AntiPatternAlert to create
+        """
+        conn = sqlite3.connect(self.db_path)
+
+        alert_dict = alert.to_dict()
+
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO anti_pattern_alerts VALUES (
+                :id, :pattern_type, :severity, :project, :validated_item,
+                :validation_source, :validation_date, :production_item,
+                :production_source, :improvement_metrics, :recommendation_priority,
+                :evidence, :suggested_action, :estimated_effort,
+                :blocking_factors, :detected_at, :resolved_at, :resolution_notes
+            )
+        """,
+            alert_dict,
+        )
+
+        conn.commit()
+        conn.close()
+
+    def get_anti_pattern_alerts(
+        self, project: Optional[str] = None, unresolved_only: bool = True
+    ) -> List:
+        """
+        Get anti-pattern alerts, optionally filtered by project.
+
+        Args:
+            project: Filter by project name (optional)
+            unresolved_only: Only return unresolved alerts (default True)
+
+        Returns:
+            List of AntiPatternAlert objects
+        """
+        # Import here to avoid circular dependency
+        from .anti_pattern_detector import AntiPatternAlert
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        query = "SELECT * FROM anti_pattern_alerts WHERE 1=1"
+        params = []
+
+        if project:
+            query += " AND project = ?"
+            params.append(project)
+
+        if unresolved_only:
+            query += " AND resolved_at IS NULL"
+
+        query += " ORDER BY severity DESC, detected_at DESC"
+
+        cursor = conn.execute(query, params)
+        alerts = [AntiPatternAlert.from_dict(dict(row)) for row in cursor.fetchall()]
+        conn.close()
+
+        return alerts
+
+    def resolve_anti_pattern_alert(self, alert_id: str, notes: str) -> None:
+        """
+        Mark an anti-pattern alert as resolved.
+
+        Args:
+            alert_id: Alert ID to resolve
+            notes: Resolution notes
+        """
+        conn = sqlite3.connect(self.db_path)
+
+        conn.execute(
+            """
+            UPDATE anti_pattern_alerts
+            SET resolved_at = ?, resolution_notes = ?
+            WHERE id = ?
+        """,
+            (datetime.now().isoformat(), notes, alert_id),
+        )
+
+        conn.commit()
+        conn.close()
