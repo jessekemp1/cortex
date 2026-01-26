@@ -215,20 +215,34 @@ def cmd_status(args):
             )
 
         # Check for validated-but-undeployed code (anti-pattern)
-        validation_reports = []
         try:
-            vortex_reports = list(Path(args.root).glob("Vortex/VortexV2/data/validation/*REPORT*.md"))
-            for report in vortex_reports:
-                content = report.read_text()
-                if "improvement" in content.lower() or "better" in content.lower():
-                    validation_reports.append(f"VortexV2: {report.name}")
-        except Exception:
-            pass
+            from orchestration.anti_pattern_detector import AntiPatternDetector
+            detector = AntiPatternDetector(db=None, root_dir=Path(args.root))
+            alerts = detector.detect_all()
 
-        if validation_reports:
-            anomalies.append(
-                f"Validated improvements may not be deployed: {', '.join(validation_reports[:2])}"
-            )
+            critical_alerts = [a for a in alerts if a.severity.value in ["critical", "high"]]
+
+            if critical_alerts:
+                anomalies.append(
+                    f"Anti-patterns detected: {len(critical_alerts)} validated improvements not deployed"
+                )
+        except Exception as e:
+            # Fallback to simple check if detector fails
+            logger.debug(f"Anti-pattern detector failed: {e}")
+            validation_reports = []
+            try:
+                vortex_reports = list(Path(args.root).glob("Vortex/VortexV2/data/validation/*REPORT*.md"))
+                for report in vortex_reports:
+                    content = report.read_text()
+                    if "improvement" in content.lower() or "better" in content.lower():
+                        validation_reports.append(f"VortexV2: {report.name}")
+            except Exception:
+                pass
+
+            if validation_reports:
+                anomalies.append(
+                    f"Validated improvements may not be deployed: {', '.join(validation_reports[:2])}"
+                )
 
         if anomalies:
             print("⚠️  ORCHESTRATION ALERTS")
