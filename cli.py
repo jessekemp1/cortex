@@ -196,10 +196,21 @@ def cmd_status(args):
             print()
 
         # === 2. ORCHESTRATION INTELLIGENCE ===
-        active = state.get("active_projects", 0)
-        total = state.get("total_projects", 0)
-        in_progress = state.get("goals_in_progress", 0)
-        pending = state.get("goals_pending", 0)
+        # Get real metrics from strategic documents
+        try:
+            from orchestration.strategic_parser import get_strategic_context
+            strategic_context = get_strategic_context(Path(args.root))
+            active = strategic_context.get("active_projects", state.get("active_projects", 0))
+            total = strategic_context.get("total_projects", state.get("total_projects", 0))
+            in_progress = strategic_context.get("in_progress_goals", state.get("goals_in_progress", 0))
+            pending = strategic_context.get("pending_goals", state.get("goals_pending", 0))
+        except Exception as e:
+            # Fallback to state if parsing fails
+            logger.debug(f"Strategic parser failed: {e}")
+            active = state.get("active_projects", 0)
+            total = state.get("total_projects", 0)
+            in_progress = state.get("goals_in_progress", 0)
+            pending = state.get("goals_pending", 0)
 
         # Anomaly detection using OrchestrationAnomalyManager
         anomalies = []
