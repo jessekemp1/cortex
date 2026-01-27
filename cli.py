@@ -490,6 +490,32 @@ def cmd_briefing(args):
         sys.exit(1)
 
 
+def cmd_reflect(args):
+    """Generate weekly reflection summary from actual work artifacts."""
+    try:
+        from reflection import generate_weekly_reflection, format_reflection
+
+        # Generate reflection
+        reflection = generate_weekly_reflection(
+            root_dir=Path(args.root),
+            days=args.days
+        )
+
+        # Format output
+        if args.json:
+            import json
+            print(json.dumps(reflection, indent=2))
+        else:
+            output = format_reflection(reflection)
+            print(output)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_v2a_batch(args):
     """Manage V2a sprint batch jobs."""
     from pathlib import Path
@@ -2111,6 +2137,20 @@ Deep Mode (Phase 1):
     )
     briefing_parser.add_argument("--no-color", action="store_true", help="Disable color output")
     briefing_parser.set_defaults(func=cmd_briefing)
+
+    # Reflect command
+    reflect_parser = subparsers.add_parser(
+        "reflect",
+        help="Weekly reflection summary from git commits, batch results, and test outcomes"
+    )
+    reflect_parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Number of days to reflect on (default: 7)"
+    )
+    reflect_parser.add_argument("--json", action="store_true", help="Output JSON format")
+    reflect_parser.set_defaults(func=cmd_reflect)
 
     # Git command
     git_parser = subparsers.add_parser("git", help="Show Git/GitHub status")

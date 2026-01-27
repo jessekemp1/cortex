@@ -7,7 +7,7 @@ actual VortexV2 and alpha_arena projects.
 """
 
 from pathlib import Path
-from anti_pattern_detector import AntiPatternDetector, Severity
+from orchestration.anti_pattern_detector import AntiPatternDetector, Severity
 
 def main():
     """Run detection and print results."""
