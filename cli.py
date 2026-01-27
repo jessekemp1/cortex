@@ -45,7 +45,7 @@ except ImportError:
 
 # Model selection intelligence (Week 1)
 try:
-    from datetime import timedelta
+    from datetime import datetime, timedelta
 
     from intelligence.model_selection import (
         ContextAwareModelRecommender,
@@ -1824,6 +1824,77 @@ def cmd_config(args):
         sys.exit(1)
 
 
+def cmd_tooling(args):
+    """Show Claude Code tooling intelligence."""
+    try:
+        from engines.tooling_tracker import get_tracker
+
+        tracker = get_tracker()
+
+        # Handle query argument
+        if args.query:
+            result = tracker.query(args.query)
+            print(result)
+            return
+
+        # Handle specific commands
+        if args.action == "config":
+            config = tracker.get_hook_config()
+            print("╔════════════════════════════════════════════════════╗")
+            print("║         CLAUDE CODE HOOK CONFIGURATION            ║")
+            print("╚════════════════════════════════════════════════════╝")
+            print()
+            for event_type, hooks in config.items():
+                print(f"  {event_type}:")
+                if hooks:
+                    for hook in hooks:
+                        print(f"    • {hook}")
+                else:
+                    print("    (none)")
+                print()
+
+        elif args.action == "commands":
+            snapshot = tracker.get_current_snapshot()
+            print("╔════════════════════════════════════════════════════╗")
+            print("║         AVAILABLE SLASH COMMANDS                   ║")
+            print("╚════════════════════════════════════════════════════╝")
+            print()
+            print(f"Total: {len(snapshot.commands)} commands")
+            print()
+            for i, cmd in enumerate(snapshot.commands, 1):
+                print(f"  {i:2}. /{cmd}")
+                if i % 20 == 0 and i < len(snapshot.commands):
+                    print()
+
+        elif args.action == "changes":
+            days = args.days or 7
+            changes = tracker.get_recent_changes(days=days)
+            print("╔════════════════════════════════════════════════════╗")
+            print(f"║    TOOLING CHANGES (LAST {days} DAYS)                    ║")
+            print("╚════════════════════════════════════════════════════╝")
+            print()
+            if not changes:
+                print("  No tooling changes found.")
+            else:
+                for change in changes[:20]:  # Limit to 20
+                    timestamp = datetime.fromisoformat(change.timestamp)
+                    time_str = timestamp.strftime("%Y-%m-%d %H:%M")
+                    print(f"  [{time_str}] {change.change_type:8} {change.category:10} {change.name}")
+
+        elif args.action == "summary":
+            print(tracker.get_intelligence_summary())
+
+        else:
+            # Default: show summary
+            print(tracker.get_intelligence_summary())
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -2191,6 +2262,25 @@ Deep Mode (Phase 1):
     docs_parser.add_argument("--force", action="store_true", help="Force full re-upload")
     docs_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     docs_parser.set_defaults(func=cmd_docs)
+
+    # Tooling command - Claude Code tooling intelligence
+    tooling_parser = subparsers.add_parser(
+        "tooling", help="Claude Code tooling intelligence (hooks, commands, config)"
+    )
+    tooling_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["config", "commands", "changes", "summary"],
+        default="summary",
+        help="Action to perform (default: summary)",
+    )
+    tooling_parser.add_argument(
+        "--query", "-q", type=str, help="Natural language query about tooling"
+    )
+    tooling_parser.add_argument(
+        "--days", type=int, help="Days of history for 'changes' action (default: 7)"
+    )
+    tooling_parser.set_defaults(func=cmd_tooling)
 
     # Schedule command
     schedule_parser = subparsers.add_parser(
