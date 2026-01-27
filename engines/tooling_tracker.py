@@ -16,6 +16,8 @@ This enables Cortex to answer questions like:
 """
 
 import json
+import os
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -51,9 +53,50 @@ class ToolingSnapshot(BaseModel):
 class ToolingTracker:
     """Tracks Claude Code tooling changes and provides intelligence."""
 
-    def __init__(self):
+    def __init__(self, claude_dir: Optional[Path] = None):
         self.tooling_log = Path.home() / ".cortex" / "tooling_changes.jsonl"
-        self.claude_dir = Path.home() / "Dev" / ".claude"
+        self.claude_dir = claude_dir or self._find_claude_dir()
+
+    def _find_claude_dir(self) -> Path:
+        """
+        Find the .claude directory dynamically.
+
+        Tries in order:
+        1. CLAUDE_DIR environment variable
+        2. Git repository root + .claude
+        3. Current working directory + .claude
+        4. Fallback to ~/Dev/.claude (for backward compatibility)
+        """
+        # Try environment variable first
+        if "CLAUDE_DIR" in os.environ:
+            claude_dir = Path(os.environ["CLAUDE_DIR"])
+            if claude_dir.exists():
+                return claude_dir
+
+        # Try git root + .claude
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                git_root = Path(result.stdout.strip())
+                claude_dir = git_root / ".claude"
+                if claude_dir.exists():
+                    return claude_dir
+        except Exception:
+            pass
+
+        # Try current working directory + .claude
+        cwd_claude = Path.cwd() / ".claude"
+        if cwd_claude.exists():
+            return cwd_claude
+
+        # Fallback to legacy path for backward compatibility
+        return Path.home() / "Dev" / ".claude"
 
     def get_recent_changes(
         self, days: int = 7, category: Optional[str] = None
