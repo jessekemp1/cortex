@@ -1895,6 +1895,132 @@ def cmd_tooling(args):
         sys.exit(1)
 
 
+def cmd_skill(args):
+    """Execute user-defined skills."""
+    import asyncio
+    from skills import get_registry
+
+    registry = get_registry()
+
+    if args.user_command == 'list':
+        # List all skills
+        skills = registry.list_skills()
+        if not skills:
+            print("No skills found in ~/.cortex/skills/")
+            print("\nCreate YAML skill files in ~/.cortex/skills/ directory.")
+            return
+
+        print(f"╔{'═'*70}╗")
+        print(f"║{' '*25}USER SKILLS{' '*34}║")
+        print(f"╚{'═'*70}╝")
+        print()
+
+        for name, skill in sorted(skills.items()):
+            print(f"  📦 {name} (v{skill.version})")
+            print(f"     {skill.description}")
+            print(f"     Triggers: {', '.join(skill.triggers[:3])}")
+            if len(skill.triggers) > 3:
+                print(f"               ... and {len(skill.triggers) - 3} more")
+            print(f"     Steps: {len(skill.steps)} | Priority: {skill.priority}")
+            print()
+
+    elif args.user_command == 'run':
+        # Run a skill
+        if not args.name:
+            print("Error: Skill name required")
+            print("Usage: cortex skill run <name> [--param key=value ...]")
+            sys.exit(1)
+
+        # Parse parameters
+        params = {}
+        if args.param:
+            for param_str in args.param:
+                if '=' not in param_str:
+                    print(f"Error: Invalid parameter format: {param_str}")
+                    print("Use: --param name=value")
+                    sys.exit(1)
+                key, value = param_str.split('=', 1)
+                params[key] = value
+
+        # Execute skill
+        print(f"Executing skill: {args.name}")
+        if params:
+            print(f"Parameters: {params}")
+        print()
+
+        result = asyncio.run(registry.execute_skill(args.name, params))
+
+        # Display results
+        if result['success']:
+            print("✅ Skill completed successfully\n")
+            for step_result in result['results']:
+                print(f"Step: {step_result['name']}")
+                if step_result['stdout']:
+                    print(step_result['stdout'])
+                if step_result.get('stderr'):
+                    print(f"Warnings: {step_result['stderr']}", file=sys.stderr)
+                print()
+        else:
+            print(f"❌ Skill failed at step: {result.get('failed_step', 'unknown')}\n")
+            if 'error' in result:
+                print(f"Error: {result['error']}")
+            for step_result in result['results']:
+                if not step_result['success']:
+                    print(f"\nFailed step: {step_result['name']}")
+                    if step_result.get('stdout'):
+                        print(step_result['stdout'])
+                    if step_result.get('stderr'):
+                        print(f"Error output:\n{step_result['stderr']}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.user_command == 'info':
+        # Show skill details
+        if not args.name:
+            print("Error: Skill name required")
+            sys.exit(1)
+
+        skill = registry.get_skill(args.name)
+        if not skill:
+            print(f"Skill not found: {args.name}")
+            sys.exit(1)
+
+        print(f"╔{'═'*70}╗")
+        print(f"║{' '*20}SKILL: {skill.name}{' '*(49-len(skill.name))}║")
+        print(f"╚{'═'*70}╝")
+        print()
+        print(f"Version: {skill.version}")
+        print(f"Description: {skill.description}")
+        print(f"Priority: {skill.priority}")
+        print(f"Timeout: {skill.timeout}s")
+        print()
+
+        print("Triggers:")
+        for trigger in skill.triggers:
+            print(f"  • {trigger}")
+        print()
+
+        if skill.parameters:
+            print("Parameters:")
+            for param in skill.parameters:
+                req = "required" if param.required else "optional"
+                print(f"  • {param.name} ({param.type}, {req})")
+                if param.description:
+                    print(f"    {param.description}")
+                if param.default is not None:
+                    print(f"    Default: {param.default}")
+                if param.choices:
+                    print(f"    Choices: {', '.join(param.choices)}")
+            print()
+
+        print(f"Steps: ({len(skill.steps)} total)")
+        for i, step in enumerate(skill.steps, 1):
+            print(f"  {i}. {step.name}")
+            print(f"     {step.command[:60]}...")
+            if step.continue_on_error:
+                print("     (continues on error)")
+        print()
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -2420,6 +2546,25 @@ Deep Mode (Phase 1):
     # skill schedule
     skill_schedule_parser = skill_subparsers.add_parser("schedule", help="Run scheduled skills")
     skill_schedule_parser.set_defaults(func=cmd_skill_schedule)
+
+    # User-defined YAML skills
+    skill_user_parser = skill_subparsers.add_parser("user", help="Manage user-defined YAML skills")
+    skill_user_subparsers = skill_user_parser.add_subparsers(dest="user_command", help="User skill commands")
+
+    # skill user list
+    skill_user_list_parser = skill_user_subparsers.add_parser("list", help="List all user skills")
+    skill_user_list_parser.set_defaults(func=cmd_skill)
+
+    # skill user run
+    skill_user_run_parser = skill_user_subparsers.add_parser("run", help="Run a user skill")
+    skill_user_run_parser.add_argument("name", help="Skill name")
+    skill_user_run_parser.add_argument("--param", "-p", action="append", help="Parameter (key=value)")
+    skill_user_run_parser.set_defaults(func=cmd_skill)
+
+    # skill user info
+    skill_user_info_parser = skill_user_subparsers.add_parser("info", help="Show user skill details")
+    skill_user_info_parser.add_argument("name", help="Skill name")
+    skill_user_info_parser.set_defaults(func=cmd_skill)
 
     # Process monitoring commands
     try:
