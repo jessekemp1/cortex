@@ -12,10 +12,14 @@ This creates a self-improving system where Cortex gets smarter the more you use 
 """
 
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+# Add cortex root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from intelligence.prompt_history import (
     PromptHistoryAnalyzer,
@@ -23,7 +27,12 @@ from intelligence.prompt_history import (
     PrioritySignal,
     WorkflowPattern,
 )
-from learning import LearningSystem
+
+try:
+    from learning import LearningSystem
+except ImportError:
+    # LearningSystem is optional
+    LearningSystem = None
 
 
 @dataclass
@@ -47,7 +56,7 @@ class PromptLearningLoop:
 
         self.root_dir = root_dir
         self.analyzer = PromptHistoryAnalyzer()
-        self.learning_system = LearningSystem()
+        self.learning_system = LearningSystem() if LearningSystem else None
 
         # Cache directory for learning data
         self.cache_dir = Path.home() / ".cortex" / "prompt_learning"
@@ -431,15 +440,30 @@ def main():
 
         result = loop.analyze_and_learn(days_back=days)
 
+        if "error" in result:
+            print(f"\n⚠️  {result['error']}")
+            print("\nThis is normal if:")
+            print("  • You haven't used Claude Code much yet")
+            print("  • Your sessions are in a different location")
+            print("  • This is your first time running the analysis")
+            print("\nNext steps:")
+            print("  • Keep using Claude Code for a week")
+            print("  • Run /prompt-learn again")
+            print("  • The system will learn from your conversations")
+            return
+
         print("\n=== LEARNING RESULTS ===")
         print(f"Sessions analyzed: {result['sessions_analyzed']}")
-        print("\nTop priorities:")
-        for priority in result["priorities"][:5]:
-            print(f"  - {priority['category']}: {priority['strength']:.0%} ({priority['trend']})")
 
-        print("\nRecommendations:")
-        for rec in result["recommendations"][:5]:
-            print(f"  [{rec['confidence']:.0%}] {rec['content']}")
+        if result.get("priorities"):
+            print("\nTop priorities:")
+            for priority in result["priorities"][:5]:
+                print(f"  - {priority['category']}: {priority['strength']:.0%} ({priority['trend']})")
+
+        if result.get("recommendations"):
+            print("\nRecommendations:")
+            for rec in result["recommendations"][:5]:
+                print(f"  [{rec['confidence']:.0%}] {rec['content']}")
 
     elif command == "recommendations":
         analysis = loop.analyzer.load_analysis()
