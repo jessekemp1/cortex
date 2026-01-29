@@ -59,17 +59,37 @@ def _save_cache_to_disk(tasks: List[Dict[str, Any]]) -> None:
 
 
 def _discover_tasks_uncached(root_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
-    """Discover tasks without using cache (slow)."""
-    if discover_tasks:
-        # Use the discovery script if available
-        return discover_tasks(root_dir)
-
-    # Fallback: manual discovery
+    """Discover tasks without using cache."""
     if root_dir is None:
         root_dir = Path("/Users/jesse.kemp/Dev")
 
+    # Use efficient directory walking that excludes slow directories
     all_tasks = []
-    for tasks_file in root_dir.rglob("tasks.yaml"):
+
+    # Directories to skip (these are huge and never contain tasks.yaml)
+    skip_dirs = {
+        "node_modules", "venv", ".venv", "env", ".env",
+        "__pycache__", ".git", ".idea", ".vscode",
+        "dist", "build", ".cache", ".tox", ".pytest_cache",
+        "vendor", "target", "coverage", "htmlcov",
+        "site-packages", "lib", "lib64",
+    }
+
+    def walk_filtered(path: Path, max_depth: int = 3, current_depth: int = 0):
+        """Walk directory tree, skipping known slow directories."""
+        if current_depth > max_depth:
+            return
+
+        try:
+            for entry in path.iterdir():
+                if entry.is_file() and entry.name == "tasks.yaml":
+                    yield entry
+                elif entry.is_dir() and entry.name not in skip_dirs:
+                    yield from walk_filtered(entry, max_depth, current_depth + 1)
+        except PermissionError:
+            pass
+
+    for tasks_file in walk_filtered(root_dir):
         try:
             with open(tasks_file, "r") as f:
                 data = yaml.safe_load(f)
