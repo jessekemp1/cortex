@@ -12,19 +12,21 @@ CortexDBx tracks context, strategy, and outcome; calibrates confidence via Beta-
 cortexdbx/
 ├── __init__.py           # Package exports
 ├── synthetic/            # Synthetic data generator (6 domains)
-│   ├── generator.py      # SyntheticDataGenerator, DOMAIN_CONFIGS
-│   └── __init__.py
 ├── calibration/          # Bayesian calibration
-│   ├── engine.py          # CalibrationEngine, CalibrationState
-│   └── __init__.py
-├── sdk/                   # Python SDK
-│   ├── client.py         # CortexDBxClient (local + Spark-ready)
-│   └── __init__.py
+├── sdk/                   # Python SDK (local + Spark-ready)
 ├── agents/                # Agent team architecture
-│   ├── definitions.py    # Agent configs per domain
-│   ├── orchestrator.py   # AgentOrchestrator
-│   └── __init__.py
+├── scripts/               # Local verification
+│   ├── run_e2e_local.sh  # Run unit + e2e tests
+│   └── run_e2e_local.py
+├── notebooks/             # Databricks notebooks
+│   ├── 01_generate_synthetic_data.py
+│   ├── 02_run_calibration.py
+│   └── 03_run_recommendations.py
+├── databricks/            # Databricks deployment
+│   ├── jobs/              # Job JSON definitions
+│   └── README.md          # How to run on Databricks
 └── tests/
+    ├── test_e2e_learning_loop.py  # Full learning loop e2e
     ├── test_generator.py
     ├── test_calibration.py
     ├── test_sdk.py
@@ -64,6 +66,29 @@ recs = client.recommend({"alert_type": "fraud"}, min_confidence=0.5)
 cd /path/to/cortex
 python -m pytest cortexdbx/tests/ -v
 ```
+
+## E2E: Run locally first
+
+Validate the full learning loop (generate, ingest, calibrate, recommend) before Databricks:
+
+```bash
+cd /path/to/cortex
+./cortexdbx/scripts/run_e2e_local.sh
+# or
+python cortexdbx/scripts/run_e2e_local.py
+```
+
+This runs all unit tests and e2e tests (`test_e2e_learning_loop.py`). Success criteria: Brier < 0.25, at least one recommendation for a seen context.
+
+## Databricks: Build and run
+
+Same flow (generate synthetic data, run calibration, write recommendations) on Databricks:
+
+1. Clone the cortex repo into Databricks Repos; set `PYTHONPATH` to the repo root so `import cortexdbx` works.
+2. Run notebooks in order: `01_generate_synthetic_data` -> `02_run_calibration` -> `03_run_recommendations` (or create jobs from `cortexdbx/databricks/jobs/*.json`).
+3. Verify: query `outcomes`, `context_strategy_edges`, and `recommendations` (see verification queries in `cortexdbx/databricks/README.md`).
+
+Full steps, job definitions, and verification: [cortexdbx/databricks/README.md](databricks/README.md).
 
 ## Domains (6 use cases)
 
