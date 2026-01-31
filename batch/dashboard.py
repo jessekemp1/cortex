@@ -12,16 +12,22 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# Try to import batch components
+# Try to import batch components (use absolute imports for module compatibility)
 try:
-    from batch_api_client import BatchAPIClient
+    from batch.batch_api_client import BatchAPIClient
 except ImportError:
-    BatchAPIClient = None
+    try:
+        from batch_api_client import BatchAPIClient
+    except ImportError:
+        BatchAPIClient = None
 
 try:
-    from batch_scheduler import BatchScheduler
+    from batch.batch_scheduler import BatchScheduler
 except ImportError:
-    BatchScheduler = None
+    try:
+        from batch_scheduler import BatchScheduler
+    except ImportError:
+        BatchScheduler = None
 
 
 class BatchDashboard:
