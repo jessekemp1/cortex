@@ -19,7 +19,7 @@ urllib3>=2.0.7,<3.0.0
 PyYAML>=6.0.1,<7.0.0
 
 # Build Tools
-setuptools>=70.0.0
+setuptools>=75.6.0  # CVE-2024-6345 patched in 75.6.0
 
 # =============================================================================
 # CORTEX CORE DEPENDENCIES
