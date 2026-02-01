@@ -90,6 +90,32 @@ try:
 except ImportError:
     DefensivePrompting = None
 
+# AI Engineering: Context Optimizer
+try:
+    from intelligence.context_optimizer import (
+        CategoryType,
+        ContextItem,
+        ContextOptimizer,
+        optimize_prompt_context,
+    )
+
+    CONTEXT_OPTIMIZER_AVAILABLE = True
+except ImportError:
+    CONTEXT_OPTIMIZER_AVAILABLE = False
+    optimize_prompt_context = None
+    ContextOptimizer = None
+    ContextItem = None
+    CategoryType = None
+
+# AI Engineering: Implicit Feedback
+try:
+    from intelligence.feedback.implicit_collector import ImplicitFeedbackCollector
+
+    IMPLICIT_FEEDBACK_AVAILABLE = True
+except ImportError:
+    IMPLICIT_FEEDBACK_AVAILABLE = False
+    ImplicitFeedbackCollector = None
+
 try:
     from config import load_config
 except ImportError:
@@ -175,6 +201,22 @@ class CortexBridge:
         # Phase 1: Advanced Intelligence components
         self.prompt_registry = get_registry() if get_registry else None
         self.defensive = DefensivePrompting() if DefensivePrompting else None
+
+        # AI Engineering: Context Optimizer
+        self.context_optimizer = None
+        if CONTEXT_OPTIMIZER_AVAILABLE and self.config and self.config.context_optimizer_enabled:
+            try:
+                self.context_optimizer = ContextOptimizer()
+            except Exception:
+                self.context_optimizer = None
+
+        # AI Engineering: Implicit Feedback Collector
+        self.implicit_feedback = None
+        if IMPLICIT_FEEDBACK_AVAILABLE and self.config and self.config.implicit_feedback_enabled:
+            try:
+                self.implicit_feedback = ImplicitFeedbackCollector()
+            except Exception:
+                self.implicit_feedback = None
 
         # V2 Prime: Engine initialization
         self._init_v2_prime()
@@ -486,6 +528,51 @@ class CortexBridge:
             "broker_status": self.get_broker_status() if self.broker else None,
         }
 
+    def get_ai_engineering_status(self) -> Dict[str, Any]:
+        """
+        Get AI Engineering module status.
+
+        Returns:
+            Status of AI Engineering modules (Week 2 integrations)
+        """
+        return {
+            "context_optimizer": {
+                "available": CONTEXT_OPTIMIZER_AVAILABLE,
+                "enabled": self.context_optimizer is not None,
+            },
+            "implicit_feedback": {
+                "available": IMPLICIT_FEEDBACK_AVAILABLE,
+                "enabled": self.implicit_feedback is not None,
+                "stats": (
+                    self.implicit_feedback.get_session_stats()
+                    if self.implicit_feedback
+                    else None
+                ),
+            },
+            "tiered_memory": {
+                "available": self.session_mgr is not None
+                and hasattr(self.session_mgr, "tiered_memory")
+                and self.session_mgr.tiered_memory is not None,
+            },
+            "hybrid_retrieval": {
+                "note": "Check PatternMemory.get_stats() for hybrid retrieval status"
+            },
+            "config_flags": {
+                "tiered_memory_enabled": (
+                    self.config.tiered_memory_enabled if self.config else None
+                ),
+                "context_optimizer_enabled": (
+                    self.config.context_optimizer_enabled if self.config else None
+                ),
+                "implicit_feedback_enabled": (
+                    self.config.implicit_feedback_enabled if self.config else None
+                ),
+                "hybrid_retrieval_enabled": (
+                    self.config.hybrid_retrieval_enabled if self.config else None
+                ),
+            },
+        }
+
     # --- 1. Context Bridge ---
 
     def get_context(
@@ -523,6 +610,106 @@ class CortexBridge:
             }
             for p in predictions
         ]
+
+    def get_optimized_context(
+        self,
+        query: str,
+        limit: int = 10,
+        project: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        strategy: str = "importance",
+        include_markers: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Get context optimized for LLM attention patterns.
+
+        Uses the ContextOptimizer to reorder context items based on importance,
+        applying the "lost-in-the-middle" optimization for better LLM attention.
+
+        Args:
+            query: Natural language query
+            limit: Max results to retrieve
+            project: Optional project filter
+            max_tokens: Optional token limit for context
+            strategy: Optimization strategy - "importance" or "category"
+            include_markers: Whether to add position markers like [IMPORTANT]
+
+        Returns:
+            Dict with:
+            - optimized_context: String ready for LLM prompt
+            - items: List of context items with metadata
+            - optimization_applied: Whether optimization was used
+        """
+        # Get raw context items
+        raw_context = self.get_context(query, limit=limit, project=project)
+
+        # Check for errors
+        if raw_context and "error" in raw_context[0]:
+            return {"error": raw_context[0]["error"], "optimization_applied": False}
+
+        # If optimizer not available, return raw context as string
+        if not self.context_optimizer or not CONTEXT_OPTIMIZER_AVAILABLE:
+            context_str = "\n\n".join(
+                f"[{item.get('type', 'data')}] {item.get('title', '')}: {item.get('description', '')}"
+                for item in raw_context
+            )
+            return {
+                "optimized_context": context_str,
+                "items": raw_context,
+                "optimization_applied": False,
+                "reason": "ContextOptimizer not available",
+            }
+
+        # Convert to ContextItem format for optimizer
+        context_items = []
+        for item in raw_context:
+            # Map context types to categories
+            ctx_type = item.get("type", "data")
+            if ctx_type in ("instruction", "system"):
+                category = "instruction"
+            elif ctx_type in ("example", "pattern"):
+                category = "example"
+            elif ctx_type in ("history", "recent"):
+                category = "history"
+            else:
+                category = "data"
+
+            context_items.append({
+                "content": f"{item.get('title', '')}: {item.get('description', '')}",
+                "importance": item.get("confidence", 0.5),
+                "category": category,
+                "source": item.get("file"),
+                "metadata": {"original": item},
+            })
+
+        # Apply optimization
+        try:
+            optimized_str = optimize_prompt_context(
+                context_items,
+                max_tokens=max_tokens,
+                strategy=strategy,
+                include_markers=include_markers,
+            )
+
+            return {
+                "optimized_context": optimized_str,
+                "items": raw_context,
+                "optimization_applied": True,
+                "strategy": strategy,
+                "max_tokens": max_tokens,
+            }
+        except Exception as e:
+            # Fallback to raw context
+            context_str = "\n\n".join(
+                f"[{item.get('type', 'data')}] {item.get('title', '')}: {item.get('description', '')}"
+                for item in raw_context
+            )
+            return {
+                "optimized_context": context_str,
+                "items": raw_context,
+                "optimization_applied": False,
+                "error": str(e),
+            }
 
     # --- 2. Strategy Bridge ---
 
@@ -1377,6 +1564,96 @@ class CortexBridge:
             return engine.get_priority_projects(limit=limit)
         except Exception as e:
             return [{"error": str(e)}]
+
+    # --- Implicit Feedback Methods ---
+
+    def track_recommendation_shown(
+        self, rec_id: str, recommendation: Dict, context: Optional[Dict] = None
+    ) -> bool:
+        """
+        Track when a recommendation is displayed to user.
+
+        Call this when showing recommendations to enable implicit feedback tracking.
+
+        Args:
+            rec_id: Unique recommendation identifier
+            recommendation: The recommendation dict (with title, description, etc.)
+            context: Optional context (project, goal, etc.)
+
+        Returns:
+            True if tracked, False if implicit feedback not available
+        """
+        if not self.implicit_feedback:
+            return False
+
+        try:
+            self.implicit_feedback.track_recommendation_shown(rec_id, recommendation, context)
+            return True
+        except Exception:
+            return False
+
+    def track_action_taken(
+        self, action: str, files: Optional[List[str]] = None, context: Optional[Dict] = None
+    ) -> bool:
+        """
+        Track user action and correlate with pending recommendations.
+
+        Call this when user takes an action (command, file edit, etc.)
+        to automatically detect follows, ignores, and overrides.
+
+        Args:
+            action: Description of action taken
+            files: Files involved in the action
+            context: Additional context
+
+        Returns:
+            True if tracked, False if implicit feedback not available
+        """
+        if not self.implicit_feedback:
+            return False
+
+        try:
+            self.implicit_feedback.track_action_taken(action, files, context)
+            return True
+        except Exception:
+            return False
+
+    def end_feedback_session(self) -> Dict[str, Any]:
+        """
+        End implicit feedback session and mark un-acted recommendations as ignored.
+
+        Call this at end of session or after timeout.
+
+        Returns:
+            Session stats dict
+        """
+        if not self.implicit_feedback:
+            return {"available": False}
+
+        try:
+            stats = self.implicit_feedback.get_session_stats()
+            self.implicit_feedback.session_end()
+            return {"available": True, "session_stats": stats}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def get_implicit_feedback_stats(self, days: int = 7) -> Dict[str, Any]:
+        """
+        Get implicit feedback statistics over time period.
+
+        Args:
+            days: Number of days to analyze
+
+        Returns:
+            Dict with follow rate, ignore rate, average time-to-action, etc.
+        """
+        if not self.implicit_feedback:
+            return {"available": False}
+
+        try:
+            return {"available": True, "stats": self.implicit_feedback.get_stats(days)}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
 
     # --- Batch API Methods ---
 
