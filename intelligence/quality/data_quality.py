@@ -18,7 +18,8 @@ from typing import Any, Dict, List, Optional, Set
 # Add cortex to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from feedback import FeedbackEntry, OutcomeEntry
+# Delay feedback imports to avoid circular dependency
+# from feedback import FeedbackEntry, OutcomeEntry
 from intelligence.memory.pattern_indexer import Pattern
 from intelligence.quality.dimensions import DimensionCheckers
 
@@ -157,7 +158,7 @@ class DataQualityTracker:
             validity=validity,
         )
 
-    def assess_feedback(self, entry: FeedbackEntry) -> QualityDimensions:
+    def assess_feedback(self, entry: "FeedbackEntry") -> QualityDimensions:
         """
         Assess quality of a feedback entry.
 
@@ -211,7 +212,7 @@ class DataQualityTracker:
             validity=validity,
         )
 
-    def assess_outcome(self, outcome: OutcomeEntry) -> QualityDimensions:
+    def assess_outcome(self, outcome: "OutcomeEntry") -> QualityDimensions:
         """
         Assess quality of an outcome entry.
 

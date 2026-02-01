@@ -17,7 +17,7 @@ import anthropic
 
 # Import prompt versioning system
 try:
-    from cortex.prompts import PromptRegistry
+    from prompts import PromptRegistry
 except ImportError:
     PromptRegistry = None
 

@@ -5,7 +5,7 @@ Prompt registry for loading and managing templates.
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from cortex.prompts.base import PromptTemplate
+from prompts.base import PromptTemplate
 
 
 class PromptRegistry:

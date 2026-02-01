@@ -5,7 +5,7 @@ Implements automated quality evaluation using Claude as a judge.
 Part of AI Engineering Improvements Phase 2.
 """
 
-from cortex.intelligence.evaluation.quality_judge import (
+from intelligence.evaluation.quality_judge import (
     QualityJudge,
     PatternScore,
     RecommendationScore,

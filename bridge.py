@@ -81,17 +81,17 @@ except ImportError:
 
 # Phase 1: Advanced Intelligence imports
 try:
-    from cortex.prompts.registry import get_registry
+    from prompts.registry import get_registry
 except ImportError:
     get_registry = None
 
 try:
-    from cortex.intelligence.defensive_prompting import DefensivePrompting
+    from intelligence.defensive_prompting import DefensivePrompting
 except ImportError:
     DefensivePrompting = None
 
 try:
-    from cortex.config import load_config
+    from config import load_config
 except ImportError:
     load_config = None
 
@@ -1096,6 +1096,28 @@ class CortexBridge:
             return result.to_dict()
         except Exception as e:
             return {"error": str(e)}
+
+    def get_prompt_template(self, prompt_name: str, **variables) -> Optional[str]:
+        """
+        Get a prompt template from registry with variables filled in.
+
+        Phase 1 Integration: Uses versioned prompt templates if enabled.
+
+        Args:
+            prompt_name: Name of prompt template
+            **variables: Variables to fill into template
+
+        Returns:
+            Rendered prompt string, or None if template not found
+        """
+        if not self.config or not self.config.prompt_versioning_enabled or not self.prompt_registry:
+            return None
+
+        template = self.prompt_registry.get_prompt(prompt_name, version=self.config.prompt_version)
+        if not template:
+            return None
+
+        return template.render(**variables)
 
     def find_similar_work(self, domain: str, project: str, limit: int = 5) -> List[Dict[str, Any]]:
         """

@@ -1,0 +1,66 @@
+name: bridge_context_query_optimized
+version: "1.1.0"
+description: "Query Cortex bridge with Lost-in-the-Middle context optimization"
+template: |
+  # Context Query
+
+  **Request:** {query}
+  **Project:** {project}
+
+  ## Available Context
+  {available_context}
+
+  ## Instructions
+  Provide relevant context from Cortex's memory to help answer the query.
+
+  Include:
+  1. **Relevant patterns**: Past solutions to similar problems
+  2. **Project state**: Current status and recent changes
+  3. **Dependencies**: Related goals and blockers
+  4. **Recommendations**: Actionable next steps
+
+  ## Response Format
+  Structure the response as:
+
+  ### Context Summary
+  <2-3 sentence overview of relevant context>
+
+  ### Key Patterns
+  - <Pattern 1: title and relevance>
+  - <Pattern 2: title and relevance>
+
+  ### Current State
+  - <Project status>
+  - <Recent activity>
+  - <Active goals>
+
+  ### Recommendations
+  1. <Specific action with rationale>
+  2. <Specific action with rationale>
+
+  Be concise and actionable. Focus on information that directly helps address the query.
+variables:
+  - query
+  - project
+  - available_context
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "Bridge context retrieval with optimization"
+  model: "claude-3-5-sonnet-20241022"
+  # Context optimization settings
+  context_strategy: "importance"  # Order by importance/confidence
+  optimize_context: true
+  max_context_tokens: 1000
+  variable_importance:
+    # Higher importance = prioritized in attention
+    query: 1.0  # Critical - the actual query
+    project: 0.9  # Important context
+    available_context: 0.7  # Supporting data (will be further optimized internally)
+  variable_categories:
+    # Category determines positioning
+    query: "instruction"  # User's request
+    project: "data"  # Context
+    available_context: "data"  # Retrieved patterns/context
