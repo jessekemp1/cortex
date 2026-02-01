@@ -93,8 +93,9 @@ def test_recommendation_accuracy(feedback_logger, learning_system):
     )
 
     # 1 success + 0.5 partial = 1.5 / 3 = 0.5
+    # Use approx due to quality-weighted floating-point calculations
     accuracy = learning_system.calculate_recommendation_accuracy()
-    assert accuracy == 0.5
+    assert accuracy == pytest.approx(0.5, abs=0.001)
 
 
 def test_outcome_patterns(feedback_logger, learning_system):
@@ -304,7 +305,7 @@ def test_get_learning_metrics_comprehensive(feedback_logger, learning_system):
     assert metrics.success_rate == 1 / 3  # 1 success out of 3 followed
     assert metrics.partial_rate == 1 / 3  # 1 partial out of 3 followed
     assert metrics.failed_rate == 1 / 3  # 1 failed out of 3 followed
-    assert metrics.recommendation_accuracy == 0.5  # (1 + 0.5) / 3
+    assert metrics.recommendation_accuracy == pytest.approx(0.5, abs=0.001)  # (1 + 0.5) / 3
 
     assert len(metrics.confidence_calibration) == 3
     assert len(metrics.outcome_patterns) == 3
