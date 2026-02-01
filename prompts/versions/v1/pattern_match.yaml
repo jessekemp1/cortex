@@ -1,0 +1,43 @@
+name: pattern_matching
+version: "1.0.0"
+description: "Match query against stored patterns for retrieval"
+template: |
+  # Pattern Matching
+
+  **Query:** {query}
+
+  ## Available Patterns
+  {patterns}
+
+  ## Task
+  Identify which patterns are most relevant to the query.
+
+  Consider:
+  1. **Direct matches**: Keywords and terms that appear in both
+  2. **Semantic similarity**: Conceptually related even if different words
+  3. **Context relevance**: Patterns that apply to similar situations
+  4. **Recency**: More recent patterns may be more relevant
+
+  ## Response Format
+  Return JSON array of pattern IDs with scores:
+  [
+    {{
+      "pattern_id": "<id>",
+      "relevance_score": <0.0-1.0>,
+      "match_reason": "<brief explanation>"
+    }},
+    ...
+  ]
+
+  Limit to top {limit} most relevant patterns.
+variables:
+  - query
+  - patterns
+  - limit
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "Semantic pattern matching"
+  model: "claude-3-5-haiku-20241022"
