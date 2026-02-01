@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""
+PLUGIN_NAME Plugin Implementation
+
+Brief description of what this plugin does.
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+from cortex.plugins.base import BasePlugin
+
+
+class PLUGINNAMEPlugin(BasePlugin):
+    """
+    PLUGIN_NAME plugin implementation.
+
+    Detailed description of the plugin's purpose and functionality.
+    """
+
+    def __init__(self, plugin_dir: Path):
+        """
+        Initialize plugin.
+
+        Args:
+            plugin_dir: Path to plugin directory
+        """
+        super().__init__(plugin_dir)
+
+        # Initialize plugin-specific attributes
+        self.config_file = Path.home() / ".cortex" / "plugins" / f"{self.metadata.name}.json"
+        self.config = self._load_config()
+
+    def _load_config(self) -> dict:
+        """
+        Load plugin configuration from file.
+
+        Returns:
+            Configuration dict
+        """
+        if self.config_file.exists():
+            try:
+                return json.loads(self.config_file.read_text())
+            except json.JSONDecodeError as e:
+                print(f"Warning: Invalid config file: {e}", file=sys.stderr)
+                return {}
+        return {}
+
+    def _save_config(self, config: dict) -> None:
+        """
+        Save plugin configuration to file.
+
+        Args:
+            config: Configuration dict to save
+        """
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        self.config_file.write_text(json.dumps(config, indent=2))
+
+    def validate_args(self, args: List[str]) -> bool:
+        """
+        Validate arguments before execution.
+
+        Args:
+            args: Command-line arguments
+
+        Returns:
+            True if valid, False otherwise
+        """
+        # Add custom validation logic here
+        # Example: check for required arguments, validate formats, etc.
+        return True
+
+    def setup(self) -> None:
+        """
+        One-time setup before execution.
+
+        Override this to initialize resources, check dependencies, etc.
+        """
+        # Check dependencies
+        missing = self.check_dependencies()
+        if missing:
+            print("Missing dependencies:", file=sys.stderr)
+            for dep in missing:
+                print(f"  - {dep}", file=sys.stderr)
+            raise RuntimeError("Missing required dependencies")
+
+    def teardown(self) -> None:
+        """
+        Cleanup after execution.
+
+        Override this to release resources, close connections, etc.
+        """
+        pass
+
+    def execute(self, args: List[str], **kwargs) -> int:
+        """
+        Execute plugin with arguments.
+
+        Args:
+            args: Command-line arguments
+            **kwargs: Additional context:
+                - current_dir: Path - Current working directory
+                - user: str - Current user
+                - verbose: bool - Verbose output flag
+                - Any other context passed by caller
+
+        Returns:
+            Exit code (0 = success, non-zero = error)
+        """
+        # Handle --help
+        if "--help" in args or "-h" in args:
+            print(self.help())
+            return 0
+
+        # Parse arguments
+        parser = argparse.ArgumentParser(
+            prog=self.metadata.name,
+            description=self.metadata.description,
+            add_help=False,  # We handle --help ourselves
+        )
+
+        # Add your arguments here
+        parser.add_argument(
+            "--option1",
+            action="store_true",
+            help="Description of option1"
+        )
+        parser.add_argument(
+            "--option2",
+            type=str,
+            default="default_value",
+            help="Description of option2"
+        )
+        parser.add_argument(
+            "positional_arg",
+            nargs="?",
+            help="Description of positional argument"
+        )
+
+        try:
+            parsed_args = parser.parse_args(args)
+        except SystemExit:
+            # argparse calls sys.exit on error, catch it
+            return 1
+
+        # Validate arguments
+        if not self.validate_args(args):
+            print("Invalid arguments", file=sys.stderr)
+            print(self.help())
+            return 1
+
+        try:
+            # Setup
+            self.setup()
+
+            # Main plugin logic here
+            print(f"Executing {self.metadata.name}...")
+
+            # Example: Access configuration
+            setting_value = self.config.get("setting1", "default")
+            print(f"Config setting1: {setting_value}")
+
+            # Example: Access kwargs context
+            current_dir = kwargs.get("current_dir", Path.cwd())
+            print(f"Current directory: {current_dir}")
+
+            # Example: Process arguments
+            if parsed_args.option1:
+                print("Option1 is enabled")
+
+            if parsed_args.positional_arg:
+                print(f"Processing: {parsed_args.positional_arg}")
+
+            # Your implementation here
+            result = self._do_main_work(parsed_args)
+
+            if result:
+                print("✅ Success!")
+                return 0
+            else:
+                print("❌ Failed", file=sys.stderr)
+                return 1
+
+        except KeyboardInterrupt:
+            print("\n⚠️  Interrupted by user", file=sys.stderr)
+            return 130
+        except Exception as e:
+            print(f"❌ Error: {e}", file=sys.stderr)
+            if kwargs.get("verbose"):
+                import traceback
+                traceback.print_exc()
+            return 2
+        finally:
+            # Cleanup
+            self.teardown()
+
+    def _do_main_work(self, args: argparse.Namespace) -> bool:
+        """
+        Main plugin logic.
+
+        Args:
+            args: Parsed arguments
+
+        Returns:
+            True if successful, False otherwise
+        """
+        # Implement your main plugin logic here
+        # Return True for success, False for failure
+
+        # Example:
+        # 1. Validate inputs
+        # 2. Process data
+        # 3. Generate output
+        # 4. Return result
+
+        return True
+
+
+# Optional: Add helper functions
+def helper_function(param: str) -> str:
+    """
+    Example helper function.
+
+    Args:
+        param: Input parameter
+
+    Returns:
+        Processed result
+    """
+    return param.upper()
