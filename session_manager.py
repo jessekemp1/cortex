@@ -1,10 +1,24 @@
 # ~/Dev/cortex/session_manager.py
 
 import json
+import logging
 import subprocess
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
+
+# Import TieredMemory for session-aware memory tracking
+try:
+    from intelligence.memory.tiered_memory import MemoryItem, TieredMemory
+
+    TIERED_MEMORY_AVAILABLE = True
+except ImportError:
+    TIERED_MEMORY_AVAILABLE = False
+    TieredMemory = None
+    MemoryItem = None
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -19,8 +33,17 @@ class SessionManager:
     - Recent goals (from commit messages and specs)
     """
 
-    def __init__(self, workspace_root: str = "~/Dev"):
+    def __init__(self, workspace_root: str = "~/Dev", enable_tiered_memory: bool = True):
         self.workspace_root = Path(workspace_root).expanduser()
+
+        # Initialize tiered memory if available and enabled
+        self.tiered_memory: Optional[TieredMemory] = None
+        if enable_tiered_memory and TIERED_MEMORY_AVAILABLE:
+            try:
+                self.tiered_memory = TieredMemory()
+                logger.debug("TieredMemory initialized for session tracking")
+            except Exception as e:
+                logger.warning(f"Failed to initialize TieredMemory: {e}")
 
     def get_context(self, format: str = "terminal") -> str:
         """
@@ -234,4 +257,149 @@ class SessionManager:
         output.append("===================================")
 
         return "\n".join(output)
+
+    # --- Tiered Memory Integration ---
+
+    def record_context(
+        self,
+        content: Dict[str, Any],
+        context_type: str = "session_context",
+        source: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Record context to tiered memory for session-aware tracking.
+
+        Args:
+            content: Context content to record
+            context_type: Type of context (session_context, recommendation, query, etc.)
+            source: Source identifier (file, api, etc.)
+
+        Returns:
+            Memory item ID if recorded, None if tiered memory unavailable
+        """
+        if not self.tiered_memory or not MemoryItem:
+            return None
+
+        try:
+            item_id = f"{context_type}:{uuid.uuid4().hex[:8]}"
+            now = datetime.now()
+
+            item = MemoryItem(
+                id=item_id,
+                content={"type": context_type, "source": source, "data": content},
+                created_at=now,
+                last_accessed=now,
+                access_count=1,
+            )
+
+            self.tiered_memory.record(item)
+            logger.debug(f"Recorded context item {item_id} to tiered memory")
+            return item_id
+
+        except Exception as e:
+            logger.warning(f"Failed to record context: {e}")
+            return None
+
+    def update_outcome(
+        self, item_id: str, outcome: str, quality_score: float
+    ) -> bool:
+        """
+        Update outcome for a recorded context item.
+
+        Args:
+            item_id: Memory item ID from record_context()
+            outcome: Outcome value ("success", "partial", "failed")
+            quality_score: Quality score (0.0-1.0)
+
+        Returns:
+            True if updated, False if tiered memory unavailable or item not found
+        """
+        if not self.tiered_memory:
+            return False
+
+        try:
+            self.tiered_memory.update_outcome(item_id, outcome, quality_score)
+            logger.debug(f"Updated outcome for {item_id}: {outcome} (quality={quality_score})")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to update outcome: {e}")
+            return False
+
+    def query_memory(
+        self,
+        query: str,
+        tiers: Optional[List[str]] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """
+        Query tiered memory for relevant context.
+
+        Args:
+            query: Search query
+            tiers: List of tiers to search (default: all)
+            limit: Maximum results
+
+        Returns:
+            List of matching items with scores and tier info
+        """
+        if not self.tiered_memory:
+            return []
+
+        try:
+            results = self.tiered_memory.query(query, tiers=tiers, limit=limit)
+            return [
+                {
+                    "item": item.to_dict() if hasattr(item, "to_dict") else item,
+                    "score": score,
+                    "tier": tier,
+                }
+                for item, score, tier in results
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to query memory: {e}")
+            return []
+
+    def end_session(self) -> Dict[str, Any]:
+        """
+        End session: promote frequently accessed items, cleanup expired.
+
+        Call this when session ends (e.g., on exit, after idle timeout).
+
+        Returns:
+            Session summary with stats
+        """
+        summary = {
+            "session_ended": datetime.now().isoformat(),
+            "tiered_memory_available": self.tiered_memory is not None,
+        }
+
+        if self.tiered_memory:
+            try:
+                # Get stats before cleanup
+                pre_stats = self.tiered_memory.get_stats()
+                summary["pre_cleanup_stats"] = pre_stats
+
+                # Perform session end processing
+                self.tiered_memory.end_session()
+
+                # Get stats after cleanup
+                post_stats = self.tiered_memory.get_stats()
+                summary["post_cleanup_stats"] = post_stats
+
+                logger.info("Session ended, tiered memory consolidated")
+            except Exception as e:
+                logger.warning(f"Failed to end session cleanly: {e}")
+                summary["error"] = str(e)
+
+        return summary
+
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get tiered memory statistics."""
+        if not self.tiered_memory:
+            return {"available": False, "reason": "TieredMemory not initialized"}
+
+        try:
+            return {"available": True, "stats": self.tiered_memory.get_stats()}
+        except Exception as e:
+            return {"available": False, "error": str(e)}
 

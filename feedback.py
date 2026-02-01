@@ -18,6 +18,15 @@ try:
 except ImportError:
     DataQualityTracker = None  # Optional dependency
 
+# Import tiered memory for outcome updates
+try:
+    from intelligence.memory.tiered_memory import TieredMemory
+
+    TIERED_MEMORY_AVAILABLE = True
+except ImportError:
+    TIERED_MEMORY_AVAILABLE = False
+    TieredMemory = None
+
 
 @dataclass
 class FeedbackEntry:
@@ -77,6 +86,14 @@ class FeedbackLogger:
 
         # Initialize quality tracker
         self.quality_tracker = DataQualityTracker() if DataQualityTracker else None
+
+        # Initialize tiered memory for outcome propagation
+        self.tiered_memory = None
+        if TIERED_MEMORY_AVAILABLE:
+            try:
+                self.tiered_memory = TieredMemory()
+            except Exception:
+                self.tiered_memory = None
 
     def _ensure_log_exists(self):
         """Ensure log file exists with empty array."""
@@ -216,6 +233,18 @@ class FeedbackLogger:
         # Append to JSONL file (one entry per line)
         with open(self.outcomes_file, "a") as f:
             f.write(json.dumps(asdict(entry)) + "\n")
+
+        # Propagate outcome to tiered memory for learning
+        if self.tiered_memory:
+            try:
+                quality_score = context.get("quality_score", 0.5) if context else 0.5
+                self.tiered_memory.update_outcome(
+                    item_id=recommendation_id,
+                    outcome=outcome,
+                    quality_score=quality_score,
+                )
+            except Exception:
+                pass  # Silently fail - tiered memory is optional
 
     def load_outcomes(self) -> List[OutcomeEntry]:
         """Load all outcome entries from JSONL file."""

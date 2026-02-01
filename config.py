@@ -21,6 +21,12 @@ class CortexConfig:
     quality_weighting_enabled: bool = True  # Use quality scores in learning
     prompt_version: str = "v1"  # Default prompt version to use
 
+    # AI Engineering Module Flags (Week 2)
+    tiered_memory_enabled: bool = True  # Use three-tier memory system
+    context_optimizer_enabled: bool = True  # Apply context optimization for LLM prompts
+    hybrid_retrieval_enabled: bool = True  # Use hybrid BM25+embedding retrieval
+    implicit_feedback_enabled: bool = True  # Track implicit user feedback signals
+
 
 def load_config() -> CortexConfig:
     config = CortexConfig()
@@ -55,6 +61,15 @@ def load_config() -> CortexConfig:
                 config.quality_weighting_enabled = data["quality_weighting_enabled"]
             if "prompt_version" in data:
                 config.prompt_version = data["prompt_version"]
+            # AI Engineering Module Flags
+            if "tiered_memory_enabled" in data:
+                config.tiered_memory_enabled = data["tiered_memory_enabled"]
+            if "context_optimizer_enabled" in data:
+                config.context_optimizer_enabled = data["context_optimizer_enabled"]
+            if "hybrid_retrieval_enabled" in data:
+                config.hybrid_retrieval_enabled = data["hybrid_retrieval_enabled"]
+            if "implicit_feedback_enabled" in data:
+                config.implicit_feedback_enabled = data["implicit_feedback_enabled"]
         except ImportError:
             # YAML optional - config will use defaults
             pass
