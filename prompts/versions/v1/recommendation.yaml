@@ -1,0 +1,41 @@
+name: recommendation_generation
+version: "1.0.0"
+description: "Generate actionable recommendations for a project"
+template: |
+  # Generate Recommendation
+
+  **Project:** {project_name}
+  **Context:** {project_context}
+
+  ## Analysis
+  {analysis}
+
+  ## Task
+  Generate a specific, actionable recommendation that:
+  1. Addresses the current project state
+  2. Aligns with active goals: {goals}
+  3. Is achievable in the next work session
+  4. Includes clear success criteria
+
+  ## Recommendation Format
+  Provide:
+  - **Title**: Clear, action-oriented (< 60 chars)
+  - **Rationale**: Why this matters now (2-3 sentences)
+  - **Steps**: Concrete actions to take
+  - **Files**: Specific files to modify (if applicable)
+  - **Confidence**: 0.0-1.0 score based on available context
+  - **Priority**: HIGH/MEDIUM/LOW based on impact and urgency
+
+  Focus on high-value, low-friction actions that move the project forward.
+variables:
+  - project_name
+  - project_context
+  - analysis
+  - goals
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "Smart recommendation generation"
+  model: "claude-3-5-sonnet-20241022"

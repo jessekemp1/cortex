@@ -1,0 +1,49 @@
+name: briefing_generation
+version: "1.0.0"
+description: "Generate daily briefing from project context and goals"
+template: |
+  # Cortex Daily Briefing
+
+  **Current Date:** {date}
+
+  ## Portfolio Pulse
+  {portfolio_pulse}
+
+  ## Active Goals
+  {active_goals}
+
+  ## Recent Activity (Last 24h)
+  {recent_activity}
+
+  ## Priority Actions
+  Generate priority recommendations based on:
+  - Current blockers and bottlenecks
+  - Goal deadlines and dependencies
+  - Patterns in recent activity
+  - Resource availability
+
+  ## Patterns Noticed
+  Analyze activity trends and surface:
+  - Project momentum changes
+  - Emerging bottlenecks
+  - Opportunities for quick wins
+
+  ## Waiting On
+  Identify items requiring decisions or actions:
+  - Blocked goals
+  - Missing configurations
+  - Pending reviews
+
+  Format the briefing as clear, actionable markdown with specific next steps.
+variables:
+  - date
+  - portfolio_pulse
+  - active_goals
+  - recent_activity
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "Daily briefing generation"
+  model: "claude-3-5-sonnet-20241022"
