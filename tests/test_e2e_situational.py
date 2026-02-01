@@ -163,7 +163,15 @@ def test_json_output_format():
 
 # Test Case 4: Status Command
 def test_status_command():
-    """Test Case 4: Status Command - Shows current state summary."""
+    """Test Case 4: Status Command - Shows current state summary.
+
+    The status output includes:
+    - CORTEX header with strategic intelligence branding
+    - STRATEGIC FOCUS with prioritized recommendations
+    - PORTFOLIO STATUS with project counts
+    - NEXT ACTION with top priority
+    - Optional: BLOCKERS, ORCHESTRATION ALERTS
+    """
     stdout, stderr, return_code, exec_time = run_cli_command(["status"])
 
     # Should succeed
@@ -172,21 +180,28 @@ def test_status_command():
     # Should complete within 60 seconds
     assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
-    # Validate output format
-    validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "PROJECTS", "GOALS"])
+    # Validate output format - updated for new actionable status format
+    # Must have: CORTEX header, STRATEGIC FOCUS or NEXT ACTION, PORTFOLIO STATUS
+    validate_text_output(stdout, ["CORTEX", "STRATEGIC", "PORTFOLIO STATUS"])
 
     # Should show project counts
-    assert "Total:" in stdout or "Active" in stdout, "Output should show project counts"
+    assert "Total:" in stdout or "active" in stdout.lower(), "Output should show project counts"
 
-    # Should show goal progress
+    # Should show actionable next steps (focus, action, or blockers)
     assert (
-        "Priority" in stdout or "in progress" in stdout or "pending" in stdout
-    ), "Output should show goal progress"
+        "FOCUS" in stdout or "NEXT ACTION" in stdout or "BLOCKERS" in stdout
+    ), "Output should show actionable next steps"
 
 
 # Test Case 5: With Context Integration
 def test_with_context_integration():
-    """Test Case 5: With Context Integration - Includes context predictions."""
+    """Test Case 5: With Context Integration - Includes context predictions.
+
+    The next --with-context output includes:
+    - CORTEX header
+    - STRATEGIC FOCUS or NEXT ACTION
+    - Optional context predictions if available
+    """
     stdout, stderr, return_code, exec_time = run_cli_command(["next", "--with-context"])
 
     # Should succeed (even if context_intelligence unavailable)
@@ -195,8 +210,8 @@ def test_with_context_integration():
     # Should complete within 60 seconds (context prediction may take longer)
     assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
 
-    # Validate output format
-    validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "NEXT ACTION"])
+    # Validate output format - updated for new actionable format
+    validate_text_output(stdout, ["CORTEX", "NEXT ACTION"])
 
     # Context predictions may or may not be present (depends on availability)
     # If present, should be in output

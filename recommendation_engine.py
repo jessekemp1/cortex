@@ -234,9 +234,11 @@ class RecommendationEngine:
                 from intelligence.recommendations.smart_generator import ProjectActivity
 
                 activity = ProjectActivity(project_id=project_name)
+                # NOTE: Don't pass alerts here - they're already processed above
+                # to avoid duplicate processing (CORTEX-006 performance fix)
                 all_recs = self.smart_generator.generate_all_recommendations(
                     project_id=project_name,
-                    alerts=adapted_alerts if all_alerts else None,
+                    alerts=None,  # Already processed above
                     activity=activity,
                 )
                 # Avoid duplicating alert recs
