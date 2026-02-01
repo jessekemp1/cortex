@@ -1,0 +1,146 @@
+---
+name: PLUGIN_NAME
+version: 1.0.0
+description: Brief one-line description of what this plugin does
+author: Your Name
+requires:
+  python: ">=3.11"
+  packages:
+    - anthropic
+    # Add other required packages
+  optional:
+    # package_name: "Purpose of this optional package"
+tags: [category1, category2]
+enabled: true
+homepage: https://github.com/yourusername/plugin
+repository: https://github.com/yourusername/plugin
+license: MIT
+---
+
+# PLUGIN_NAME Plugin
+
+Detailed description of what this plugin does and why it's useful.
+
+## Usage
+
+```bash
+/PLUGIN_NAME [options] [arguments]
+```
+
+### Options
+
+- `--option1` - Description of option1
+- `--option2 VALUE` - Description of option2 with value
+- `--help, -h` - Show this help message
+
+### Arguments
+
+- `arg1` - Description of first positional argument
+- `arg2` - Description of second positional argument (optional)
+
+## Examples
+
+### Basic Usage
+
+```bash
+$ /PLUGIN_NAME
+Expected output here...
+```
+
+### With Options
+
+```bash
+$ /PLUGIN_NAME --option1 --option2 value arg1
+Expected output here...
+```
+
+### Advanced Usage
+
+```bash
+$ /PLUGIN_NAME --option1 arg1 arg2
+Expected output here...
+```
+
+## Configuration
+
+Optional configuration can be placed in `~/.cortex/plugins/PLUGIN_NAME.json`:
+
+```json
+{
+  "setting1": "value1",
+  "setting2": true,
+  "setting3": 42
+}
+```
+
+### Configuration Options
+
+- `setting1` - Description of setting1
+- `setting2` - Description of setting2
+- `setting3` - Description of setting3
+
+## Implementation Details
+
+### How It Works
+
+Explain the main algorithm or approach:
+
+1. Step 1: What happens first
+2. Step 2: What happens next
+3. Step 3: Final step
+
+### Performance
+
+- Expected runtime: O(n) or "Fast" or specific timing
+- Memory usage: Minimal or specific amount
+- API calls: Number and frequency
+
+### Dependencies
+
+#### Required
+
+- `package1` - Why this is needed
+- `package2` - Why this is needed
+
+#### Optional
+
+- `package3` - What features this enables
+- `package4` - Alternative for what
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue 1: Description of issue**
+
+```
+Error message or symptom
+```
+
+**Solution:** How to fix it
+
+**Issue 2: Description of issue**
+
+```
+Error message or symptom
+```
+
+**Solution:** How to fix it
+
+## Development
+
+### Running Tests
+
+```bash
+pytest cortex/plugins/PLUGIN_NAME/tests/ -v
+```
+
+### Adding Features
+
+Guidelines for extending this plugin...
+
+## See Also
+
+- Related plugin or command
+- External documentation
+- Relevant resources

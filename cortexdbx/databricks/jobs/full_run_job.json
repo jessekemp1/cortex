@@ -1,0 +1,54 @@
+{
+  "name": "cortexdbx-full-run",
+  "tasks": [
+    {
+      "task_key": "generate_data",
+      "notebook_task": {
+        "notebook_path": "/Repos/cortex/cortexdbx/notebooks/01_generate_synthetic_data",
+        "base_parameters": {
+          "catalog": "cortex_catalog",
+          "schema": "cortex_mvp",
+          "outcomes_per_domain": "1000"
+        }
+      },
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 2
+      }
+    },
+    {
+      "task_key": "run_calibration",
+      "depends_on": [{"task_key": "generate_data"}],
+      "notebook_task": {
+        "notebook_path": "/Repos/cortex/cortexdbx/notebooks/02_run_calibration",
+        "base_parameters": {
+          "catalog": "cortex_catalog",
+          "schema": "cortex_mvp"
+        }
+      },
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 2
+      }
+    },
+    {
+      "task_key": "run_recommendations",
+      "depends_on": [{"task_key": "run_calibration"}],
+      "notebook_task": {
+        "notebook_path": "/Repos/cortex/cortexdbx/notebooks/03_run_recommendations",
+        "base_parameters": {
+          "catalog": "cortex_catalog",
+          "schema": "cortex_mvp",
+          "min_confidence": "0.7"
+        }
+      },
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 2
+      }
+    }
+  ]
+}

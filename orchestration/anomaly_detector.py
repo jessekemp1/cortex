@@ -849,10 +849,14 @@ class OrchestrationAnomalyManager:
     - Provides trending analysis
     """
 
-    def __init__(self, db: OrchestrationDatabase):
+    def __init__(self, db: OrchestrationDatabase, enable_alerts: bool = True):
         """Initialize manager with database connection."""
         self.db = db
         self.detectors: List[AnomalyDetector] = []
+        self.enable_alerts = enable_alerts
+
+        # Initialize alert manager (lazy load to avoid circular imports)
+        self._alert_manager = None
 
         # Register all detectors
         self._register_detectors()
@@ -904,6 +908,10 @@ class OrchestrationAnomalyManager:
 
         # Save to database
         self.db.save_anomalies(deduplicated)
+
+        # Send alerts for CRITICAL anomalies (if enabled)
+        if self.enable_alerts:
+            self._send_alerts(deduplicated)
 
         return deduplicated
 
@@ -1013,3 +1021,40 @@ class OrchestrationAnomalyManager:
             Dictionary with trend data
         """
         return self.db.get_anomaly_trend(anomaly_type, days)
+
+    def _send_alerts(self, anomalies: List[OrchestrationAnomaly]) -> None:
+        """
+        Send alerts for CRITICAL anomalies via alert manager.
+
+        Args:
+            anomalies: List of detected anomalies
+        """
+        # Lazy import to avoid circular dependencies
+        if self._alert_manager is None:
+            try:
+                from notifications.alert_manager import AlertManager
+                self._alert_manager = AlertManager()
+            except ImportError:
+                # Alert manager not available, skip notifications
+                return
+
+        # Send alerts for CRITICAL anomalies only
+        for anomaly in anomalies:
+            if anomaly.severity == AnomalySeverity.CRITICAL:
+                try:
+                    self._alert_manager.send_alert(
+                        title=anomaly.title,
+                        message=f"{anomaly.description}\n\nRemediation: {anomaly.remediation}",
+                        severity="CRITICAL",
+                        source="anomaly_detector",
+                        metadata={
+                            "anomaly_id": anomaly.anomaly_id,
+                            "anomaly_type": anomaly.anomaly_type.value,
+                            "affected_entities": anomaly.affected_entities,
+                            "auto_actionable": anomaly.auto_actionable,
+                            "auto_action_command": anomaly.auto_action_command,
+                        },
+                    )
+                except Exception as e:
+                    # Don't fail anomaly detection if alerts fail
+                    print(f"Failed to send alert for anomaly {anomaly.anomaly_id}: {e}")

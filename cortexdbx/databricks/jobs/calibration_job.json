@@ -1,0 +1,24 @@
+{
+  "name": "cortexdbx-calibration",
+  "schedule": {
+    "quartz_cron_expression": "0 0 * * * ?",
+    "timezone_id": "UTC"
+  },
+  "tasks": [
+    {
+      "task_key": "run_calibration",
+      "notebook_task": {
+        "notebook_path": "/Repos/cortex/cortexdbx/notebooks/02_run_calibration",
+        "base_parameters": {
+          "catalog": "cortex_catalog",
+          "schema": "cortex_mvp"
+        }
+      },
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 2
+      }
+    }
+  ]
+}
