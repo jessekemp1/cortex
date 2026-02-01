@@ -1,0 +1,57 @@
+name: quality_evaluation
+version: "1.0.0"
+description: "Evaluate quality of patterns and recommendations"
+template: |
+  # Quality Evaluation
+
+  ## Item to Evaluate
+  **Type:** {item_type}
+  **Content:** {content}
+
+  ## Context
+  {context}
+
+  ## Evaluation Criteria
+  Rate the item on these dimensions (0.0 to 1.0):
+
+  1. **Relevance**: How relevant is this to the context?
+     - 1.0: Highly relevant, directly addresses the need
+     - 0.5: Somewhat relevant, tangentially related
+     - 0.0: Not relevant
+
+  2. **Actionability**: How actionable is this?
+     - 1.0: Clear, specific actions with concrete steps
+     - 0.5: General guidance, requires interpretation
+     - 0.0: Vague, no clear actions
+
+  3. **Specificity**: Is it specific enough to act on?
+     - 1.0: Includes specific files, commands, or steps
+     - 0.5: General direction provided
+     - 0.0: Too abstract to implement
+
+  4. **Accuracy**: Is the information accurate?
+     - 1.0: Factually correct, technically sound
+     - 0.5: Mostly correct with minor issues
+     - 0.0: Contains errors or misconceptions
+
+  ## Response Format
+  Provide JSON with scores and brief justification:
+  {{
+    "relevance": <score>,
+    "actionability": <score>,
+    "specificity": <score>,
+    "accuracy": <score>,
+    "overall": <average>,
+    "reasoning": "<1-2 sentence justification>"
+  }}
+variables:
+  - item_type
+  - content
+  - context
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "AI-as-a-judge quality evaluation"
+  model: "claude-3-5-haiku-20241022"

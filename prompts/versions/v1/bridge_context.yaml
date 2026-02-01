@@ -1,0 +1,52 @@
+name: bridge_context_query
+version: "1.0.0"
+description: "Query Cortex bridge for contextual information"
+template: |
+  # Context Query
+
+  **Request:** {query}
+  **Project:** {project}
+
+  ## Available Context
+  {available_context}
+
+  ## Instructions
+  Provide relevant context from Cortex's memory to help answer the query.
+
+  Include:
+  1. **Relevant patterns**: Past solutions to similar problems
+  2. **Project state**: Current status and recent changes
+  3. **Dependencies**: Related goals and blockers
+  4. **Recommendations**: Actionable next steps
+
+  ## Response Format
+  Structure the response as:
+
+  ### Context Summary
+  <2-3 sentence overview of relevant context>
+
+  ### Key Patterns
+  - <Pattern 1: title and relevance>
+  - <Pattern 2: title and relevance>
+
+  ### Current State
+  - <Project status>
+  - <Recent activity>
+  - <Active goals>
+
+  ### Recommendations
+  1. <Specific action with rationale>
+  2. <Specific action with rationale>
+
+  Be concise and actionable. Focus on information that directly helps address the query.
+variables:
+  - query
+  - project
+  - available_context
+metadata:
+  author: "cortex-team"
+  created: "2026-02-01"
+  usage_count: 0
+  avg_quality_score: null
+  purpose: "Bridge context retrieval"
+  model: "claude-3-5-sonnet-20241022"
