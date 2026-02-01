@@ -79,6 +79,22 @@ except ImportError:
     DeepAnalyzer = None
     DeepIntelligence = None
 
+# Phase 1: Advanced Intelligence imports
+try:
+    from cortex.prompts.registry import get_registry
+except ImportError:
+    get_registry = None
+
+try:
+    from cortex.intelligence.defensive_prompting import DefensivePrompting
+except ImportError:
+    DefensivePrompting = None
+
+try:
+    from cortex.config import load_config
+except ImportError:
+    load_config = None
+
 # V2 Prime: Engine imports
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
@@ -129,6 +145,9 @@ class CortexBridge:
             root_dir = Path("/Users/jesse.kemp/Dev")
         self.root_dir = Path(root_dir)
 
+        # Load configuration
+        self.config = load_config() if load_config else None
+
         # Initialize sub-systems
         self.context_intel = ContextIntelligence(self.root_dir) if ContextIntelligence else None
         self.orchestrator = (
@@ -152,6 +171,10 @@ class CortexBridge:
         # Adaptive Latency: Deep Mode components
         self.latency_manager = AdaptiveLatencyManager() if AdaptiveLatencyManager else None
         self.deep_analyzer = DeepAnalyzer(self.root_dir) if DeepAnalyzer else None
+
+        # Phase 1: Advanced Intelligence components
+        self.prompt_registry = get_registry() if get_registry else None
+        self.defensive = DefensivePrompting() if DefensivePrompting else None
 
         # V2 Prime: Engine initialization
         self._init_v2_prime()
@@ -1049,6 +1072,17 @@ class CortexBridge:
 
         if not IntelligenceQueryType:
             return {"error": "Intelligence models not available"}
+
+        # Phase 1: Apply defensive prompting if enabled
+        if self.config and self.config.defensive_prompting_enabled and self.defensive:
+            validation = self.defensive.validate_input(request)
+            if not validation.valid:
+                return {
+                    "error": "Input validation failed",
+                    "issues": validation.issues,
+                    "severity": validation.severity,
+                }
+            request = validation.sanitized_input
 
         try:
             query_type_enum = IntelligenceQueryType(query_type)

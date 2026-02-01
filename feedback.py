@@ -12,6 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Import quality tracking
+try:
+    from intelligence.quality.data_quality import DataQualityTracker
+except ImportError:
+    DataQualityTracker = None  # Optional dependency
+
 
 @dataclass
 class FeedbackEntry:
@@ -68,6 +74,9 @@ class FeedbackLogger:
         )
         self._ensure_log_exists()
         self._ensure_outcomes_exists()
+
+        # Initialize quality tracker
+        self.quality_tracker = DataQualityTracker() if DataQualityTracker else None
 
     def _ensure_log_exists(self):
         """Ensure log file exists with empty array."""
@@ -192,6 +201,17 @@ class FeedbackLogger:
             notes=notes,
             context=context,
         )
+
+        # Assess quality if quality tracker is available
+        if self.quality_tracker:
+            quality = self.quality_tracker.assess_outcome(entry)
+            self.quality_tracker.track_quality("outcome", quality)
+
+            # Add quality score to context
+            if context is None:
+                context = {}
+            context["quality_score"] = quality.overall_score()
+            entry.context = context
 
         # Append to JSONL file (one entry per line)
         with open(self.outcomes_file, "a") as f:

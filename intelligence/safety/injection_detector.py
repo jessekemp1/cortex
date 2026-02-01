@@ -49,32 +49,32 @@ class InjectionDetector:
     # Common injection patterns with severity levels
     INJECTION_PATTERNS = [
         # Critical: Direct instruction override
-        (r"ignore (previous|above|all|prior) (instructions?|prompts?|rules?)", InjectionSeverity.CRITICAL),
-        (r"disregard (your|the|all) (rules?|guidelines?|instructions?)", InjectionSeverity.CRITICAL),
-        (r"forget (everything|all|previous|your)", InjectionSeverity.CRITICAL),
-        (r"new instructions?:", InjectionSeverity.CRITICAL),
-        (r"system prompt", InjectionSeverity.HIGH),
+        (r"\bignore\s+(all\s+)?(previous\s+|prior\s+|above\s+)?(instructions?|prompts?|rules?)", InjectionSeverity.CRITICAL),
+        (r"\bdisregard\s+(your\s+|the\s+|all\s+)?(rules?|guidelines?|instructions?)", InjectionSeverity.CRITICAL),
+        (r"\bforget\s+(everything|all|previous|your)\b", InjectionSeverity.CRITICAL),
+        (r"\bnew\s+instructions?:\s", InjectionSeverity.CRITICAL),
+        (r"\bsystem\s+prompt\b", InjectionSeverity.HIGH),
 
         # High: Role manipulation
-        (r"you are now (a |an )?(?!cortex)", InjectionSeverity.HIGH),
-        (r"pretend (you are|to be|you're)", InjectionSeverity.HIGH),
-        (r"act as (if|though|a |an )", InjectionSeverity.HIGH),
-        (r"roleplay as", InjectionSeverity.HIGH),
-        (r"simulate (being|a |an )", InjectionSeverity.HIGH),
+        (r"\byou are now (a |an )?(?!cortex)", InjectionSeverity.HIGH),
+        (r"\bpretend (you are|to be|you're)", InjectionSeverity.HIGH),
+        (r"\bact as (if|though|a |an )", InjectionSeverity.HIGH),
+        (r"\broleplay as\b", InjectionSeverity.HIGH),
+        (r"\bsimulate (being|a |an )", InjectionSeverity.HIGH),
 
         # High: Information extraction
-        (r"reveal (your|the) (prompt|instructions?|system message)", InjectionSeverity.HIGH),
-        (r"show me (your|the) (prompt|instructions?|rules?)", InjectionSeverity.HIGH),
-        (r"what are your (instructions?|rules?|prompts?)", InjectionSeverity.HIGH),
-        (r"repeat (your|the) (instructions?|prompt|rules?)", InjectionSeverity.HIGH),
+        (r"\breveal (your|the) (prompt|instructions?|system message)", InjectionSeverity.HIGH),
+        (r"\bshow me (your|the) (prompt|instructions?|rules?)", InjectionSeverity.HIGH),
+        (r"\bwhat are your (instructions?|rules?|prompts?)", InjectionSeverity.HIGH),
+        (r"\brepeat (your|the) (instructions?|prompt|rules?)", InjectionSeverity.HIGH),
 
         # Medium: Constraint bypass attempts
-        (r"without (any )?restrictions?", InjectionSeverity.MEDIUM),
-        (r"bypass (the |your )?safety", InjectionSeverity.MEDIUM),
-        (r"ignore (the |your )?limitations?", InjectionSeverity.MEDIUM),
-        (r"unrestricted mode", InjectionSeverity.MEDIUM),
-        (r"developer mode", InjectionSeverity.MEDIUM),
-        (r"jailbreak", InjectionSeverity.MEDIUM),
+        (r"\bwithout (any )?restrictions?\b", InjectionSeverity.MEDIUM),
+        (r"\bbypass (the |your )?safety\b", InjectionSeverity.MEDIUM),
+        (r"\bignore (the |your )?limitations?\b", InjectionSeverity.MEDIUM),
+        (r"\bunrestricted mode\b", InjectionSeverity.MEDIUM),
+        (r"\bdeveloper mode\b", InjectionSeverity.MEDIUM),
+        (r"\bjailbreak\b", InjectionSeverity.MEDIUM),
 
         # Medium: End-of-instruction markers
         (r"\[/?INST\]", InjectionSeverity.MEDIUM),
@@ -83,9 +83,9 @@ class InjectionDetector:
         (r"###\s*(System|User|Assistant)", InjectionSeverity.MEDIUM),
 
         # Low: Suspicious patterns
-        (r"override (mode|settings?|defaults?)", InjectionSeverity.LOW),
-        (r"change your (behavior|personality|role)", InjectionSeverity.LOW),
-        (r"stop being", InjectionSeverity.LOW),
+        (r"\boverride (mode|settings?|defaults?)", InjectionSeverity.LOW),
+        (r"\bchange your (behavior|personality|role)", InjectionSeverity.LOW),
+        (r"\bstop being\b", InjectionSeverity.LOW),
     ]
 
     def __init__(self, log_path: Optional[Path] = None):

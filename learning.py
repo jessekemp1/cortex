@@ -16,6 +16,18 @@ from typing import Any, Dict, Optional, Tuple
 from batch import BatchConfig, BatchFallback, LearningBatcher, LearningContext
 from feedback import FeedbackLogger
 
+# Import quality tracking
+try:
+    from intelligence.quality.data_quality import DataQualityTracker
+except ImportError:
+    DataQualityTracker = None  # Optional dependency
+
+# Import AI evaluation
+try:
+    from intelligence.evaluation.quality_judge import QualityJudge
+except ImportError:
+    QualityJudge = None  # Optional dependency
+
 
 @dataclass
 class LearningMetrics:
@@ -41,9 +53,17 @@ class LearningSystem:
         self.outcomes_file = outcomes_file
         self.feedback_logger = FeedbackLogger()
 
+        # Initialize quality tracker
+        self.quality_tracker = DataQualityTracker() if DataQualityTracker else None
+
+        # Initialize AI quality judge
+        self.quality_judge = QualityJudge() if QualityJudge else None
+
     def calculate_recommendation_accuracy(self) -> float:
         """
         Calculate recommendation accuracy: % of followed recommendations that succeeded.
+
+        Quality-weighted: High-quality outcomes contribute more to the accuracy calculation.
 
         Returns:
             Success rate (0.0-1.0), or 0.0 if no data
@@ -59,13 +79,35 @@ class LearningSystem:
         if not followed:
             return 0.0
 
-        # Count successes (including partial as 0.5 success)
-        success_count = sum(
-            1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0
-            for o in followed
-        )
+        # Count successes with quality weighting if available
+        if self.quality_tracker:
+            weighted_success = 0.0
+            total_weight = 0.0
 
-        return success_count / len(followed)
+            for outcome in followed:
+                # Assess quality
+                quality = self.quality_tracker.assess_outcome(outcome)
+                weight = quality.overall_score()
+
+                # Calculate success value
+                if outcome.outcome == "success":
+                    success_value = 1.0
+                elif outcome.outcome == "partial":
+                    success_value = 0.5
+                else:
+                    success_value = 0.0
+
+                weighted_success += success_value * weight
+                total_weight += weight
+
+            return weighted_success / total_weight if total_weight > 0 else 0.0
+        else:
+            # Fallback to unweighted calculation
+            success_count = sum(
+                1.0 if o.outcome == "success" else 0.5 if o.outcome == "partial" else 0.0
+                for o in followed
+            )
+            return success_count / len(followed)
 
     def get_outcome_patterns(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -162,6 +204,160 @@ class LearningSystem:
                 calibration[bucket] = 0.0
 
         return calibration
+
+    def get_ai_confidence_calibration(self) -> Dict[str, Any]:
+        """
+        Get AI-evaluated confidence calibration.
+
+        Compares AI quality scores with actual outcome success rates.
+        This helps understand if high AI scores predict successful outcomes.
+
+        Returns:
+            Dictionary with AI score buckets and their correlation with outcomes:
+            {
+                "ai_scores": {
+                    "high (0.8-1.0)": {"count": 10, "avg_outcome": 0.85},
+                    "medium (0.5-0.8)": {"count": 15, "avg_outcome": 0.65},
+                    "low (0.0-0.5)": {"count": 5, "avg_outcome": 0.40}
+                },
+                "correlation": 0.75,  # Correlation between AI score and outcome
+                "insights": ["High AI scores correlate with 85% success rate"]
+            }
+        """
+        if not self.quality_judge:
+            return {
+                "ai_scores": {},
+                "correlation": 0.0,
+                "insights": ["AI evaluation not available"],
+            }
+
+        # Load AI evaluations
+        evaluations = self.quality_judge.load_evaluations(item_type="recommendation")
+
+        # Load outcomes
+        outcomes = self.feedback_logger.load_outcomes()
+
+        if not evaluations or not outcomes:
+            return {
+                "ai_scores": {},
+                "correlation": 0.0,
+                "insights": ["Insufficient data for calibration"],
+            }
+
+        # Match evaluations to outcomes by recommendation_id
+        eval_by_id = {}
+        for eval_entry in evaluations:
+            item_id = eval_entry.get("item_id")
+            if item_id:
+                eval_by_id[item_id] = eval_entry
+
+        # Group by AI score bucket
+        buckets = {
+            "high (0.8-1.0)": [],
+            "medium (0.5-0.8)": [],
+            "low (0.0-0.5)": [],
+        }
+
+        matched_pairs = []  # (ai_score, outcome_score) for correlation
+
+        for outcome in outcomes:
+            if not outcome.followed:
+                continue
+
+            # Find matching evaluation
+            eval_entry = eval_by_id.get(outcome.recommendation_id)
+            if not eval_entry:
+                continue
+
+            ai_score = eval_entry.get("score", {}).get("overall", 0.0)
+
+            # Categorize by AI score
+            if ai_score >= 0.8:
+                bucket = "high (0.8-1.0)"
+            elif ai_score >= 0.5:
+                bucket = "medium (0.5-0.8)"
+            else:
+                bucket = "low (0.0-0.5)"
+
+            # Calculate outcome score
+            if outcome.outcome == "success":
+                outcome_score = 1.0
+            elif outcome.outcome == "partial":
+                outcome_score = 0.5
+            else:
+                outcome_score = 0.0
+
+            buckets[bucket].append(outcome_score)
+            matched_pairs.append((ai_score, outcome_score))
+
+        # Calculate bucket statistics
+        ai_scores = {}
+        for bucket, outcomes_list in buckets.items():
+            if outcomes_list:
+                ai_scores[bucket] = {
+                    "count": len(outcomes_list),
+                    "avg_outcome": round(sum(outcomes_list) / len(outcomes_list), 3),
+                }
+            else:
+                ai_scores[bucket] = {"count": 0, "avg_outcome": 0.0}
+
+        # Calculate correlation (simple Pearson correlation)
+        correlation = 0.0
+        insights = []
+
+        if len(matched_pairs) >= 3:
+            # Calculate Pearson correlation
+            import statistics
+
+            ai_vals = [p[0] for p in matched_pairs]
+            outcome_vals = [p[1] for p in matched_pairs]
+
+            if len(set(ai_vals)) > 1 and len(set(outcome_vals)) > 1:
+                # Calculate correlation
+                ai_mean = statistics.mean(ai_vals)
+                outcome_mean = statistics.mean(outcome_vals)
+
+                numerator = sum(
+                    (ai - ai_mean) * (out - outcome_mean)
+                    for ai, out in zip(ai_vals, outcome_vals)
+                )
+                ai_var = sum((ai - ai_mean) ** 2 for ai in ai_vals)
+                outcome_var = sum((out - outcome_mean) ** 2 for out in outcome_vals)
+
+                if ai_var > 0 and outcome_var > 0:
+                    correlation = numerator / (ai_var * outcome_var) ** 0.5
+
+        # Generate insights
+        if correlation > 0.7:
+            insights.append(
+                f"Strong positive correlation ({correlation:.2f}): "
+                "High AI scores reliably predict success"
+            )
+        elif correlation > 0.4:
+            insights.append(
+                f"Moderate correlation ({correlation:.2f}): "
+                "AI scores somewhat predictive of outcomes"
+            )
+        else:
+            insights.append(
+                f"Weak correlation ({correlation:.2f}): "
+                "AI scores may need recalibration"
+            )
+
+        # Add bucket-specific insights
+        for bucket, stats in ai_scores.items():
+            if stats["count"] >= 3:
+                insights.append(
+                    f"{bucket}: {stats['count']} recommendations, "
+                    f"{stats['avg_outcome']:.0%} success rate"
+                )
+
+        return {
+            "ai_scores": ai_scores,
+            "correlation": round(correlation, 3),
+            "insights": insights,
+            "sample_size": len(matched_pairs),
+        }
 
     def get_learning_metrics(self) -> LearningMetrics:
         """

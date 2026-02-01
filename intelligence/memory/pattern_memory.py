@@ -24,6 +24,16 @@ from intelligence.memory.pattern_indexer import (
     PatternSearcher,
 )
 
+try:
+    from intelligence.embeddings_client import EmbeddingsClient
+    from intelligence.memory.hybrid_retriever import HybridRetriever
+
+    HYBRID_RETRIEVAL_AVAILABLE = True
+except ImportError:
+    HYBRID_RETRIEVAL_AVAILABLE = False
+    EmbeddingsClient = None
+    HybridRetriever = None
+
 
 @dataclass
 class SimilarWork:
@@ -56,7 +66,20 @@ class SimilarWork:
 class PatternMemory:
     """High-level API for pattern recognition and memory."""
 
-    def __init__(self, root_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        root_dir: Optional[Path] = None,
+        use_hybrid_retrieval: bool = True,
+        hybrid_alpha: float = 0.5,
+    ):
+        """
+        Initialize pattern memory.
+
+        Args:
+            root_dir: Root directory for indexing (default: /Users/jesse.kemp/Dev)
+            use_hybrid_retrieval: Use hybrid BM25+embedding retrieval (default: True)
+            hybrid_alpha: Weight for hybrid retrieval (0=BM25, 1=embedding, 0.5=equal)
+        """
         if root_dir is None:
             root_dir = Path("/Users/jesse.kemp/Dev")
 
@@ -65,7 +88,23 @@ class PatternMemory:
 
         # Load cached patterns
         self.patterns = self.indexer.load_patterns()
+
+        # Initialize searcher (backward compatible)
         self.searcher = PatternSearcher(self.patterns) if self.patterns else None
+
+        # Initialize hybrid retriever if available
+        self.use_hybrid_retrieval = use_hybrid_retrieval and HYBRID_RETRIEVAL_AVAILABLE
+        self.hybrid_alpha = hybrid_alpha
+        self.hybrid_retriever = None
+
+        if self.use_hybrid_retrieval and self.patterns:
+            try:
+                embeddings_client = EmbeddingsClient()
+                self.hybrid_retriever = HybridRetriever(self.patterns, embeddings_client)
+            except Exception as e:
+                # Fall back to keyword-only search
+                self.use_hybrid_retrieval = False
+                self.hybrid_retriever = None
 
     def find_similar_solutions(
         self,
@@ -127,7 +166,13 @@ class PatternMemory:
         if not self.searcher:
             return []
 
-        results = self.searcher.search(context, limit=limit)
+        # Use hybrid retrieval if available, otherwise fall back to keyword search
+        if self.use_hybrid_retrieval and self.hybrid_retriever:
+            results = self.hybrid_retriever.search(
+                context, limit=limit, alpha=self.hybrid_alpha
+            )
+        else:
+            results = self.searcher.search(context, limit=limit)
 
         patterns = []
         for pattern, score in results:
@@ -201,6 +246,17 @@ class PatternMemory:
         self.patterns = self.indexer.load_patterns()
         self.searcher = PatternSearcher(self.patterns)
 
+        # Reinitialize hybrid retriever if enabled
+        if self.use_hybrid_retrieval:
+            try:
+                embeddings_client = EmbeddingsClient()
+                self.hybrid_retriever = HybridRetriever(self.patterns, embeddings_client)
+                # Invalidate old embeddings cache
+                if self.hybrid_retriever:
+                    self.hybrid_retriever.invalidate_cache()
+            except Exception:
+                pass
+
         total = sum(len(patterns) for patterns in all_patterns.values())
         print(f"Indexed {total} patterns from {len(git_repos)} projects")
 
@@ -233,6 +289,7 @@ class PatternMemory:
                 "projects": 0,
                 "pattern_types": {},
                 "cache_exists": False,
+                "hybrid_retrieval": False,
             }
 
         # Count by project
@@ -243,13 +300,21 @@ class PatternMemory:
         for p in self.patterns:
             pattern_types[p.pattern_type] = pattern_types.get(p.pattern_type, 0) + 1
 
-        return {
+        stats = {
             "total_patterns": len(self.patterns),
             "projects": len(projects),
             "pattern_types": pattern_types,
             "cache_exists": True,
             "cache_path": str(self.indexer.cache_dir / "patterns.json"),
+            "hybrid_retrieval": self.use_hybrid_retrieval,
+            "hybrid_alpha": self.hybrid_alpha if self.use_hybrid_retrieval else None,
         }
+
+        # Add hybrid retriever stats if available
+        if self.hybrid_retriever:
+            stats["hybrid_stats"] = self.hybrid_retriever.get_stats()
+
+        return stats
 
 
 def main():
