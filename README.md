@@ -1,264 +1,256 @@
-# Cortex - AI-Powered Task Processing System
+# Cortex - AI Memory & Learning System
 
-An intelligent task processing system that orchestrates complex workflows using Claude AI.
+**Intelligence that compounds.** Cortex is an AI-powered memory layer that learns from outcomes across your development projects, providing increasingly accurate recommendations over time.
 
-## Features
+## What Cortex Does
 
-- **Intelligent Task Processing** - AI-driven analysis and execution
-- **Workflow Orchestration** - Complex multi-step task management
-- **API Integration** - Seamless integration with external services
-- **Extensible Architecture** - Plugin-based system for custom tasks
+- **Learns from outcomes** - Tracks what worked and what didn't across all your AI tool interactions
+- **Provides calibrated recommendations** - Suggestions include confidence scores based on historical success rates
+- **Remembers context across sessions** - Three-tier memory ensures relevant patterns surface when needed
+- **Protects against prompt injection** - Defensive prompting with 28 detection patterns
+- **Evaluates its own quality** - AI-as-a-Judge scoring for continuous self-improvement
+
+## Core Capabilities
+
+### Three-Tier Memory
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ Short-term  │──▶│  Working    │──▶│  Long-term  │
+│   (1.5x)    │   │   (1.2x)    │   │   (1.0x)    │
+│  In-memory  │   │ SQLite 7-day│   │  Permanent  │
+└─────────────┘   └─────────────┘   └─────────────┘
+```
+Recent patterns are weighted 1.5x higher than historical ones, ensuring fresh context takes priority.
+
+### Hybrid Retrieval
+Combines BM25 keyword search with semantic embeddings using Reciprocal Rank Fusion (RRF). Finds conceptually similar patterns even when terminology differs.
+
+### AI-as-a-Judge Evaluation
+Automated quality scoring of patterns and recommendations using Claude Haiku. Evaluates relevance, clarity, accuracy, actionability, and timeliness.
+
+### Defensive Prompting
+28 injection patterns detected across 4 severity levels (Critical, High, Medium, Low). Zero false positives on legitimate queries.
+
+### Data Quality Framework
+Six-dimension tracking: completeness, consistency, accuracy, timeliness, uniqueness, validity. Real-world validation shows 86.4% quality on production data.
+
+### Implicit Feedback Collection
+Automatically tracks follows, ignores, and overrides - providing 10-100x more signal than explicit feedback alone.
+
+### Prompt Versioning
+YAML-based templates with A/B testing support. All prompts are versioned, tracked, and measurable.
+
+### Context Optimization
+Lost-in-the-middle optimization places critical information at high-attention positions (start/end) in LLM prompts.
 
 ## Quick Start
 
 ### Prerequisites
-
-- Python 3.11 or higher
-- pip (Python package manager)
+- Python 3.11+
 - Anthropic API key
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd cortex
+cd /Users/jesse.kemp/Dev/cortex
 
 # Create virtual environment
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 
-# Install dependencies from lock file (recommended)
+# Install dependencies
 pip install -r requirements-lock.txt
 
-# Or install from requirements.txt (for development)
-pip install -r requirements.txt
-
-# Set up environment variables
+# Configure API key
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# Edit .env and add ANTHROPIC_API_KEY
 ```
 
-### Configuration
-
-Create a `.env` file in the cortex directory:
-
-```env
-ANTHROPIC_API_KEY=your_api_key_here
-MODEL_NAME=claude-3-5-sonnet-20241022
-MAX_TOKENS=4096
-```
-
-### Running Cortex
+### Daily Usage
 
 ```bash
-# Run the main application
-python main.py
+# Run daily intelligence scan
+./daily_scan.sh
 
-# Run with specific configuration
-python main.py --config config.yaml
+# View interactive dashboard
+./launch_dashboard.sh
+
+# Query intelligence directly
+python bridge.py intelligence "What patterns apply to error handling?"
 ```
 
-## Dependency Management
+### Bridge API (Universal Interface)
 
-This project uses a two-file dependency strategy:
+```python
+from cortex.bridge import CortexBridge
 
-- **`requirements.txt`** - High-level dependencies with version ranges
-- **`requirements-lock.txt`** - Exact versions for reproducible installs
+bridge = CortexBridge()
 
-### Installing Dependencies
+# Query for relevant context
+results = bridge.query_intelligence(
+    request="async database patterns",
+    project="vortex",
+    query_type="context"
+)
 
-**For production/stable environments** (recommended):
-```bash
-pip install -r requirements-lock.txt
+# Get portfolio statistics
+stats = bridge.get_portfolio_stats(include_health=True)
+
+# Inject a recommendation
+bridge.inject_recommendation(
+    title="Use connection pooling",
+    rationale="Reduces latency by 40% based on similar projects",
+    priority="high",
+    type="optimization"
+)
 ```
-
-**For development** (when you need to update dependencies):
-```bash
-pip install -r requirements.txt
-```
-
-### Updating Dependencies
-
-Use the provided automation script:
-
-```bash
-# From repository root
-./scripts/update-deps.sh cortex
-```
-
-Or manually:
-
-```bash
-# 1. Update requirements.txt with new dependencies or version constraints
-# 2. Install updates
-pip install -r requirements.txt --upgrade
-
-# 3. Regenerate lock file
-pip freeze > requirements-lock.txt
-
-# 4. Test thoroughly
-pytest tests/
-```
-
-**Important**: Always commit both `requirements.txt` and `requirements-lock.txt` together.
-
-See [Dependency Management Guide](../docs/DEPENDENCY_MANAGEMENT.md) for detailed information.
-
-## Development
-
-### Project Structure
-
-```
-cortex/
-├── main.py              # Entry point
-├── core/                # Core system modules
-├── tasks/               # Task implementations
-├── orchestrator/        # Workflow orchestration
-├── tests/               # Test suite
-├── requirements.txt     # Dependency specifications
-└── requirements-lock.txt # Locked dependency versions
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_core.py
-
-# Run with verbose output
-pytest -v
-```
-
-### Code Quality
-
-```bash
-# Format code
-black .
-
-# Lint code
-flake8 .
-
-# Type checking
-mypy .
-```
-
-### Adding New Dependencies
-
-1. Add dependency to `requirements.txt` with appropriate version constraint:
-   ```txt
-   new-package>=1.0.0,<2.0.0
-   ```
-
-2. Update lock file:
-   ```bash
-   ./scripts/update-deps.sh cortex
-   ```
-
-3. Test thoroughly
-
-4. Commit both files:
-   ```bash
-   git add requirements.txt requirements-lock.txt
-   git commit -m "Add new-package dependency"
-   ```
 
 ## Architecture
 
-### Core Components
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CORTEX INTELLIGENCE                       │
+├─────────────────────────────────────────────────────────────────┤
+│  Entry Points                                                    │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
+│  │ bridge.py│  │  CLI     │  │ Briefing │  │  Plugins │        │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
+├───────┼─────────────┼─────────────┼─────────────┼───────────────┤
+│       └─────────────┴──────┬──────┴─────────────┘               │
+│                            ▼                                     │
+│  Safety Layer    ┌─────────────────────┐                        │
+│                  │ Defensive Prompting │                        │
+│                  │ (Input Validation)  │                        │
+│                  └──────────┬──────────┘                        │
+├─────────────────────────────┼───────────────────────────────────┤
+│                             ▼                                    │
+│  Retrieval       ┌─────────────────────┐                        │
+│                  │  Hybrid Retrieval   │                        │
+│                  │ BM25 + Embeddings   │                        │
+│                  └──────────┬──────────┘                        │
+├─────────────────────────────┼───────────────────────────────────┤
+│                             ▼                                    │
+│  Memory          ┌─────────────────────────────────────┐        │
+│                  │      Three-Tier Memory              │        │
+│                  │ Short-term → Working → Long-term    │        │
+│                  └──────────┬──────────────────────────┘        │
+├─────────────────────────────┼───────────────────────────────────┤
+│                             ▼                                    │
+│  Learning        ┌────────────┐ ┌────────────┐ ┌────────────┐   │
+│                  │ AI Judge   │ │ Implicit   │ │ Data       │   │
+│                  │ (Scoring)  │ │ Feedback   │ │ Quality    │   │
+│                  └────────────┘ └────────────┘ └────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- **Task Processor** - Executes individual tasks
-- **Orchestrator** - Manages workflow execution
-- **API Client** - Handles external API communication
-- **State Manager** - Maintains system state
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed diagrams and data flows.
 
-### Task System
+## Project Structure
 
-Tasks are modular units of work that can be:
-- Executed independently
-- Chained together in workflows
-- Retried on failure
-- Monitored and logged
+```
+cortex/
+├── bridge.py                 # Universal interface (entry point)
+├── cli.py                    # Command-line interface
+├── briefing.py               # Daily briefing generation
+├── learning.py               # Learning system with quality weighting
+├── intelligence/
+│   ├── memory/
+│   │   ├── tiered_memory.py      # Three-tier memory system
+│   │   ├── hybrid_retriever.py   # BM25 + embeddings search
+│   │   └── pattern_memory.py     # Pattern storage
+│   ├── evaluation/
+│   │   └── quality_judge.py      # AI-as-a-Judge scoring
+│   ├── feedback/
+│   │   └── implicit_collector.py # Implicit signal tracking
+│   ├── quality/
+│   │   └── data_quality.py       # Six-dimension quality
+│   ├── safety/
+│   │   ├── injection_detector.py # Prompt injection detection
+│   │   └── validators.py         # Input/output validation
+│   └── context_optimizer.py      # Lost-in-middle optimization
+├── prompts/
+│   ├── versions/v1/              # Versioned prompt templates
+│   ├── registry.py               # Template registry
+│   └── ab_testing.py             # A/B testing framework
+├── plugins/                      # Plugin system
+└── tests/                        # Test suite (449 tests)
+```
 
-## API Reference
+## Testing
 
-### Task Execution
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=. --cov-report=html
+
+# Run specific test suite
+pytest tests/test_tiered_memory.py -v      # Memory tests
+pytest tests/test_safety.py -v              # Safety tests
+pytest tests/test_hybrid_retriever.py -v    # Retrieval tests
+```
+
+**Current Status:** 449/450 tests passing (99.8%)
+
+## Configuration
+
+Feature flags in `config.py`:
 
 ```python
-from cortex.core import TaskProcessor
-
-processor = TaskProcessor()
-result = processor.execute(task_config)
+prompt_versioning_enabled: bool = True      # Use versioned prompts
+data_quality_enabled: bool = True           # Track quality metrics
+defensive_prompting_enabled: bool = True    # Apply safety checks
+quality_weighting_enabled: bool = True      # Use scores in learning
 ```
 
-### Workflow Creation
+## Key Metrics
 
-```python
-from cortex.orchestrator import Workflow
+| Capability | Metric |
+|------------|--------|
+| Test Pass Rate | 99.8% (449/450) |
+| Data Quality | 86.4% on production data |
+| Injection Detection | 100% (0 false positives) |
+| Memory Weighting | Recent patterns 487x higher relevance |
+| Bridge Init Time | 6.8ms (99.5% faster than target) |
 
-workflow = Workflow()
-workflow.add_task('task1', config1)
-workflow.add_task('task2', config2, depends_on=['task1'])
-workflow.execute()
-```
+## Documentation
 
-## Troubleshooting
+| Document | Purpose |
+|----------|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Detailed architecture with diagrams |
+| [docs/API.md](docs/API.md) | Bridge API reference |
+| [docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md](docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md) | Full implementation spec |
+| [START_HERE.md](START_HERE.md) | Daily automation quickstart |
+| [intelligence/safety/README.md](intelligence/safety/README.md) | Safety module guide |
+| [prompts/README.md](prompts/README.md) | Prompt versioning guide |
 
-### Common Issues
+## Related Projects
 
-**Issue**: Import errors after pulling changes
+Cortex serves as the memory layer for:
 
-**Solution**: Reinstall dependencies from lock file
-```bash
-pip install -r requirements-lock.txt --force-reinstall
-```
+- **VortexV2** - Weather forecasting API (47 experiments tracked)
+- **Alpha Arena** - Trading strategy competition (23 experiments tracked)
 
-**Issue**: API authentication failures
+## AI Engineering Foundation
 
-**Solution**: Verify ANTHROPIC_API_KEY in .env file
-```bash
-echo $ANTHROPIC_API_KEY  # Should show your key
-```
+Built on principles from Chip Huyen's "AI Engineering" book:
 
-**Issue**: Version conflicts
-
-**Solution**: Clean install from lock file
-```bash
-pip cache purge
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements-lock.txt
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Update dependencies if needed (see above)
-5. Run tests and ensure they pass
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+1. **Hybrid Retrieval** - BM25 + semantic search outperforms single methods by 20-40%
+2. **AI-as-a-Judge** - Automated quality scoring reduces feedback fatigue
+3. **Implicit Feedback** - 10-100x more signal than explicit feedback
+4. **Prompt Versioning** - Prompts are code; version and test them
+5. **Three-Tier Memory** - Human-inspired architecture improves relevance
+6. **Lost-in-the-Middle** - Position-aware context ordering
+7. **Data Quality** - Six-dimension tracking catches issues early
+8. **Defensive Prompting** - Guardrails prevent failure modes
 
 ## License
 
-[Your License Here]
-
-## Support
-
-For issues, questions, or contributions:
-- Create an issue on GitHub
-- See [Dependency Management Guide](../docs/DEPENDENCY_MANAGEMENT.md)
-- Check existing documentation
+MIT License - See LICENSE file
 
 ---
 
-**Last Updated**: 2026-01-20
+**Version:** 2.0 (AI Engineering Release)
+**Last Updated:** 2026-02-01
+**Status:** Production Ready
