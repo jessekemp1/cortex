@@ -1,0 +1,151 @@
+{
+  "projects": [
+    {
+      "name": "Cortex Command Center",
+      "path": "/Users/jesse.kemp/Dev/cortex/site",
+      "type": "react",
+      "port": 5173,
+      "start_command": "npm run dev",
+      "status": "stopped"
+    },
+    {
+      "name": "Cortex Orchestration",
+      "path": "/Users/jesse.kemp/Dev/cortex/dashboard",
+      "type": "streamlit",
+      "port": 8502,
+      "start_command": "streamlit run app.py --server.port 8502",
+      "status": "stopped"
+    },
+    {
+      "name": "Cortex Bridge API",
+      "path": "/Users/jesse.kemp/Dev/cortex/api",
+      "type": "fastapi",
+      "port": 8765,
+      "start_command": "uvicorn api.bridge_endpoint:app --port 8765",
+      "status": "running",
+      "pid": 59924
+    },
+    {
+      "name": "VortexV2",
+      "path": "/Users/jesse.kemp/Dev/Vortex/VortexV2",
+      "type": "mixed",
+      "port": null,
+      "start_command": null,
+      "status": "stopped",
+      "services": [
+        {
+          "name": "API",
+          "port": 8000,
+          "start_command": "uvicorn app.main:app --port 8000",
+          "status": "running",
+          "pid": 57312
+        },
+        {
+          "name": "UI",
+          "port": 8503,
+          "start_command": "streamlit run ui/command_center.py --server.port 8503"
+        }
+      ]
+    },
+    {
+      "name": "VortexV3",
+      "path": "/Users/jesse.kemp/Dev/Vortex/VortexV3",
+      "type": "react",
+      "port": 5173,
+      "start_command": "npm run dev",
+      "status": "stopped"
+    },
+    {
+      "name": "Alpha Arena",
+      "path": "/Users/jesse.kemp/Dev/alpha_arena",
+      "type": "streamlit",
+      "port": 8503,
+      "start_command": "streamlit run app.py --server.port 8503",
+      "status": "stopped"
+    },
+    {
+      "name": "Kempion Research",
+      "path": "/Users/jesse.kemp/Dev/kempion-research-site",
+      "type": "react",
+      "port": 5173,
+      "start_command": "npm run dev",
+      "status": "stopped"
+    },
+    {
+      "name": "DJ CoPilot",
+      "path": "/Users/jesse.kemp/Dev/DJ-CoPilot",
+      "type": "react",
+      "port": null,
+      "start_command": null,
+      "status": "stopped"
+    }
+  ],
+  "running_processes": {
+    "6379": {
+      "pid": 2026,
+      "command": "redis-ser",
+      "status": "running"
+    },
+    "3000": {
+      "pid": 2036,
+      "command": "node",
+      "status": "running"
+    },
+    "5432": {
+      "pid": 2043,
+      "command": "postgres",
+      "status": "running"
+    },
+    "11434": {
+      "pid": 4590,
+      "command": "ollama",
+      "status": "running"
+    },
+    "59830": {
+      "pid": 15918,
+      "command": "Code\\x20H",
+      "status": "running"
+    },
+    "8081": {
+      "pid": 23899,
+      "command": "node",
+      "status": "running"
+    },
+    "8000": {
+      "pid": 57312,
+      "command": "Python",
+      "status": "running"
+    },
+    "7679": {
+      "pid": 43930,
+      "command": "Google",
+      "status": "running"
+    },
+    "8765": {
+      "pid": 59924,
+      "command": "Python",
+      "status": "running"
+    },
+    "3002": {
+      "pid": 70350,
+      "command": "node",
+      "status": "running"
+    },
+    "61885": {
+      "pid": 78785,
+      "command": "Cursor",
+      "status": "running"
+    },
+    "57429": {
+      "pid": 78785,
+      "command": "Cursor",
+      "status": "running"
+    },
+    "3333": {
+      "pid": 95518,
+      "command": "Python",
+      "status": "running"
+    }
+  },
+  "generated_at": "2026-02-03T19:28:44Z"
+}
