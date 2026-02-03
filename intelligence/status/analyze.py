@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
 Enhanced status analysis CLI - Present Cortex intelligence in readable format.
+
+Includes:
+- Semantic grouping of uncommitted changes
+- Git hygiene checks (prevents mega-PRs)
+- Actionable commit recommendations
 """
 
 import sys
@@ -10,6 +15,36 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from intelligence.status.git_status_analyzer import GitStatusAnalyzer
+from intelligence.status.git_hygiene import GitHygieneAnalyzer
+
+
+def format_hygiene_for_cli(report) -> str:
+    """Format hygiene report as a compact CLI section."""
+    status_icons = {
+        "ok": "✅",
+        "warning": "⚠️",
+        "alert": "🔴",
+        "critical": "🚨"
+    }
+
+    lines = [
+        "",
+        "🧹 GIT HYGIENE",
+        "=" * 60,
+        f"Status: {status_icons[report.overall_status]} {report.overall_status.upper()}",
+        f"  • Uncommitted: {report.uncommitted_lines:,} lines / {report.uncommitted_files} files",
+        f"  • Branch age: {report.branch_age_days:.1f} days",
+        f"  • Commits ahead: {report.commits_ahead}",
+    ]
+
+    if report.alerts:
+        lines.append("")
+        for alert in report.alerts:
+            icon = status_icons[alert.level]
+            lines.append(f"{icon} {alert.message}")
+            lines.append(f"   → {alert.recommendation}")
+
+    return "\n".join(lines)
 
 
 def format_for_cli(suggestions):
@@ -94,6 +129,15 @@ def main():
         print("❌ Not in a git repository")
         sys.exit(1)
 
+    # Run hygiene check first (automated)
+    try:
+        hygiene_analyzer = GitHygieneAnalyzer(repo_path)
+        hygiene_report = hygiene_analyzer.analyze()
+        print(format_hygiene_for_cli(hygiene_report))
+    except Exception as e:
+        print(f"⚠️ Hygiene check failed: {e}")
+
+    # Then run semantic grouping
     analyzer = GitStatusAnalyzer(repo_path)
     groups = analyzer.analyze_uncommitted_changes()
     suggestions = analyzer.suggest_commit_sequence(groups)
