@@ -13,6 +13,7 @@ Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -73,10 +74,16 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS - Allow Moltbot and localhost
+# CORS - Allow Moltbot, React frontend, and localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:18789", "http://localhost:18789", "http://localhost:*"],
+    allow_origins=[
+        "http://127.0.0.1:18789",  # Moltbot
+        "http://localhost:18789",  # Moltbot
+        "http://localhost:5173",    # React dev server
+        "http://127.0.0.1:5173",    # React dev server
+        "http://localhost:*"        # Other local services
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -273,6 +280,231 @@ async def query_graph(
             "node_type": node_type,
             "count": len(nodes),
             "nodes": nodes
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Batch Management Endpoints
+# ============================================================================
+
+# Lazy-loaded batch client and queue manager
+_batch_client: Optional[Any] = None
+_queue_manager: Optional[Any] = None
+
+
+def get_batch_client():
+    """Get or create batch API client."""
+    global _batch_client
+    if _batch_client is None:
+        try:
+            from cortex.batch.batch_api_client import BatchAPIClient
+            _batch_client = BatchAPIClient()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to initialize batch client: {e}")
+    return _batch_client
+
+
+def get_queue_manager():
+    """Get or create queue manager."""
+    global _queue_manager
+    if _queue_manager is None:
+        try:
+            from cortex.batch.queue_manager import BatchQueueManager
+            _queue_manager = BatchQueueManager()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to initialize queue manager: {e}")
+    return _queue_manager
+
+
+@app.get("/batches")
+async def list_batches(limit: int = Query(20, description="Max batches to return")):
+    """
+    List active and recent batch jobs.
+
+    Returns batch status from Anthropic API.
+    """
+    try:
+        client = get_batch_client()
+        batches = client.list_batches(limit=limit)
+        return {"batches": batches}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/batches/{batch_id}")
+async def get_batch_status(batch_id: str):
+    """
+    Get detailed status for a specific batch.
+
+    Returns progress, request counts, and completion status.
+    """
+    try:
+        client = get_batch_client()
+        status = client.get_batch_status(batch_id)
+        return status
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Batch not found: {e}")
+
+
+@app.post("/batches/{batch_id}/cancel")
+async def cancel_batch(batch_id: str):
+    """
+    Cancel a running batch job.
+
+    Returns updated batch status after cancellation.
+    """
+    try:
+        client = get_batch_client()
+        result = client.cancel_batch(batch_id)
+        return {"status": "cancelled", "batch_id": batch_id, "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/queue")
+async def get_queue():
+    """
+    Get pending tasks in the batch queue.
+
+    Returns tasks waiting for submission.
+    """
+    try:
+        mgr = get_queue_manager()
+        queue_data = mgr.load_queue()
+        return {
+            "tasks": queue_data.get("priority_jobs", []),
+            "metadata": queue_data.get("queue_metadata", {})
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AddTaskRequest(BaseModel):
+    """Request model for adding a task to the queue."""
+    title: str = Field(..., description="Task title")
+    description: str = Field(..., description="Task description")
+    priority: str = Field(default="NORMAL", description="Task priority: CRITICAL, HIGH, NORMAL, LOW")
+    estimated_tokens: int = Field(default=5000, description="Estimated token count")
+    tasks: List[Dict[str, Any]] = Field(default_factory=list, description="Subtasks to execute")
+
+
+@app.post("/queue")
+async def add_task(task: AddTaskRequest):
+    """
+    Add a new task to the batch queue.
+
+    Task will be submitted automatically when capacity allows.
+    """
+    try:
+        mgr = get_queue_manager()
+        queue_data = mgr.load_queue()
+
+        # Create new task entry
+        new_task = {
+            "id": f"task_{int(time.time())}",
+            "title": task.title,
+            "description": task.description,
+            "priority": task.priority,
+            "estimated_tokens": task.estimated_tokens,
+            "tasks": task.tasks or [],
+            "created_at": datetime.now().isoformat(),
+            "status": "pending"
+        }
+
+        queue_data.setdefault("priority_jobs", []).append(new_task)
+        mgr.save_queue(queue_data)
+
+        return {"status": "added", "task": new_task}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UpdateTaskRequest(BaseModel):
+    """Request model for updating task priority."""
+    priority: str = Field(..., description="New priority: CRITICAL, HIGH, NORMAL, LOW")
+
+
+@app.patch("/queue/{task_id}")
+async def update_task_priority(task_id: str, update: UpdateTaskRequest):
+    """
+    Update the priority of a queued task.
+    """
+    try:
+        mgr = get_queue_manager()
+        queue_data = mgr.load_queue()
+
+        # Find and update task
+        for task in queue_data.get("priority_jobs", []):
+            if task.get("id") == task_id:
+                task["priority"] = update.priority
+                mgr.save_queue(queue_data)
+                return {"status": "updated", "task": task}
+
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/queue/{task_id}")
+async def delete_task(task_id: str):
+    """
+    Remove a task from the queue.
+    """
+    try:
+        mgr = get_queue_manager()
+        queue_data = mgr.load_queue()
+
+        # Filter out the task
+        tasks = queue_data.get("priority_jobs", [])
+        new_tasks = [t for t in tasks if t.get("id") != task_id]
+
+        if len(new_tasks) == len(tasks):
+            raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+        queue_data["priority_jobs"] = new_tasks
+        mgr.save_queue(queue_data)
+
+        return {"status": "deleted", "task_id": task_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics")
+async def get_metrics(days: int = Query(7, description="Days of history to include")):
+    """
+    Get usage metrics and cost savings.
+
+    Returns batch API usage stats and savings vs interactive mode.
+    """
+    try:
+        client = get_batch_client()
+
+        # Get recent batches for metrics calculation
+        batches = client.list_batches(limit=100)
+
+        # Calculate metrics
+        total_requests = sum(b.get("request_counts", {}).get("total", 0) for b in batches)
+        succeeded = sum(b.get("request_counts", {}).get("succeeded", 0) for b in batches)
+        errored = sum(b.get("request_counts", {}).get("errored", 0) for b in batches)
+
+        # Estimate cost savings (batch API is 50% cheaper)
+        # Rough estimate based on average request cost
+        estimated_savings = total_requests * 0.005  # ~$0.005 saved per request
+
+        return {
+            "period_days": days,
+            "total_requests": total_requests,
+            "successful_requests": succeeded,
+            "failed_requests": errored,
+            "success_rate": (succeeded / total_requests * 100) if total_requests > 0 else 100.0,
+            "estimated_savings_usd": round(estimated_savings, 2),
+            "batch_count": len(batches)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
