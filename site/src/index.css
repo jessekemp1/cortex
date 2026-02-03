@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-cortex-border;
+  }
+
+  body {
+    @apply bg-cortex-bg text-cortex-text-primary;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar for dark theme */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-cortex-surface;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-cortex-border rounded;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-cortex-text-muted;
+  }
+
+  /* Tactical grid pattern for backgrounds */
+  .tactical-grid {
+    background-image:
+      linear-gradient(rgba(42, 45, 58, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(42, 45, 58, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
