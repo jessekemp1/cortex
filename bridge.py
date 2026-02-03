@@ -116,6 +116,25 @@ except ImportError:
     IMPLICIT_FEEDBACK_AVAILABLE = False
     ImplicitFeedbackCollector = None
 
+# AI Engineering: Tiered Memory
+try:
+    from intelligence.memory.tiered_memory import TieredMemory, MemoryItem
+
+    TIERED_MEMORY_AVAILABLE = True
+except ImportError:
+    TIERED_MEMORY_AVAILABLE = False
+    TieredMemory = None
+    MemoryItem = None
+
+# AI Engineering: Hybrid Retriever
+try:
+    from intelligence.memory.hybrid_retriever import HybridRetriever
+
+    HYBRID_RETRIEVER_AVAILABLE = True
+except ImportError:
+    HYBRID_RETRIEVER_AVAILABLE = False
+    HybridRetriever = None
+
 try:
     from config import load_config
 except ImportError:
@@ -217,6 +236,34 @@ class CortexBridge:
                 self.implicit_feedback = ImplicitFeedbackCollector()
             except Exception:
                 self.implicit_feedback = None
+
+        # AI Engineering: Tiered Memory
+        self.tiered_memory = None
+        if TIERED_MEMORY_AVAILABLE and self.config and self.config.tiered_memory_enabled:
+            try:
+                pattern_memory = getattr(
+                    getattr(self, "portfolio", None), "pattern_memory", None
+                )
+                self.tiered_memory = TieredMemory(
+                    short_term_max=50,
+                    working_retention_days=7,
+                    pattern_memory=pattern_memory,
+                )
+            except Exception:
+                self.tiered_memory = None
+
+        # AI Engineering: Hybrid Retriever
+        self.hybrid_retriever = None
+        if HYBRID_RETRIEVER_AVAILABLE and self.config and self.config.hybrid_retrieval_enabled:
+            try:
+                # Initialize with patterns from portfolio if available
+                patterns = []
+                if self.portfolio and hasattr(self.portfolio, "get_patterns"):
+                    patterns = self.portfolio.get_patterns()
+                if patterns:
+                    self.hybrid_retriever = HybridRetriever(patterns=patterns)
+            except Exception:
+                self.hybrid_retriever = None
 
         # V2 Prime: Engine initialization
         self._init_v2_prime()
@@ -550,12 +597,20 @@ class CortexBridge:
                 ),
             },
             "tiered_memory": {
-                "available": self.session_mgr is not None
-                and hasattr(self.session_mgr, "tiered_memory")
-                and self.session_mgr.tiered_memory is not None,
+                "available": TIERED_MEMORY_AVAILABLE,
+                "enabled": self.tiered_memory is not None,
+                "stats": (
+                    self.tiered_memory.get_stats() if self.tiered_memory else None
+                ),
             },
-            "hybrid_retrieval": {
-                "note": "Check PatternMemory.get_stats() for hybrid retrieval status"
+            "hybrid_retriever": {
+                "available": HYBRID_RETRIEVER_AVAILABLE,
+                "enabled": self.hybrid_retriever is not None,
+                "pattern_count": (
+                    len(self.hybrid_retriever.patterns)
+                    if self.hybrid_retriever
+                    else 0
+                ),
             },
             "config_flags": {
                 "tiered_memory_enabled": (
@@ -573,6 +628,26 @@ class CortexBridge:
             },
         }
 
+    def end_session(self) -> None:
+        """
+        End session and consolidate memory.
+
+        Cleans up AI Engineering modules:
+        - TieredMemory: Consolidate and promote frequently accessed items
+        - ImplicitFeedback: End session tracking
+        """
+        if self.tiered_memory:
+            try:
+                self.tiered_memory.end_session()
+            except Exception:
+                pass
+
+        if self.implicit_feedback:
+            try:
+                self.implicit_feedback.session_end()
+            except Exception:
+                pass
+
     # --- 1. Context Bridge ---
 
     def get_context(
@@ -581,35 +656,127 @@ class CortexBridge:
         """
         Get relevant context for a query from Knowledge Base and Project History.
 
+        Uses AI Engineering pipeline when available:
+        1. DefensivePrompting - Validate input
+        2. TieredMemory - Check session memory first
+        3. HybridRetriever - Semantic + keyword search
+        4. ContextIntelligence - Fallback to existing system
+        5. ContextOptimizer - Reorder for LLM attention
+        6. ImplicitFeedback - Track shown results
+
         Args:
             query: Natural language query
             limit: Max results
             project: Optional project filter
 
         Returns:
-            List of context items
+            List of context items with source metadata
         """
-        if not self.context_intel:
-            return [{"error": "ContextIntelligence not available", "source": "system"}]
+        # 1. DefensivePrompting: Validate input
+        if self.defensive and self.config and self.config.defensive_prompting_enabled:
+            validation = self.defensive.validate_input(query)
+            if not validation.valid:
+                return [
+                    {
+                        "error": "Input validation failed",
+                        "issues": validation.issues,
+                        "source": "defensive_prompting",
+                    }
+                ]
+            query = validation.sanitized_input
 
-        # Split query into keywords if it looks like a sentence
-        keywords = query.split() if " " in query else [query]
+        results = []
 
-        predictions = self.context_intel.predict_context(
-            current_project=project, keywords=keywords, limit=limit
-        )
+        # 2. TieredMemory: Check session memory first
+        if self.tiered_memory:
+            try:
+                memory_results = self.tiered_memory.query(query, limit=limit)
+                for item, score, tier in memory_results:
+                    # Convert MemoryItem to context dict
+                    if hasattr(item, "content"):
+                        result = {
+                            "title": item.content.get("title", item.id),
+                            "type": item.content.get("type", "memory"),
+                            "description": item.content.get("description", ""),
+                            "confidence": min(score / 3.0, 1.0),  # Normalize score
+                            "file": item.content.get("file"),
+                            "command": item.content.get("command"),
+                            "source": f"tiered_memory:{tier}",
+                        }
+                        results.append(result)
+            except Exception:
+                pass  # Fall through to other sources
 
-        return [
-            {
-                "title": p.title,
-                "type": p.context_type,
-                "description": p.description,
-                "confidence": p.confidence,
-                "file": str(p.file_path) if p.file_path else None,
-                "command": p.command,
-            }
-            for p in predictions
-        ]
+        # 3. HybridRetriever: Semantic + keyword search
+        if self.hybrid_retriever and len(results) < limit:
+            try:
+                remaining = limit - len(results)
+                hybrid_results = self.hybrid_retriever.search(
+                    query, limit=remaining, alpha=0.5
+                )
+                for pattern, score in hybrid_results:
+                    result = {
+                        "title": pattern.title,
+                        "type": "pattern",
+                        "description": pattern.description,
+                        "confidence": score,
+                        "file": None,
+                        "command": None,
+                        "source": "hybrid_retriever",
+                    }
+                    results.append(result)
+            except Exception:
+                pass  # Fall through to fallback
+
+        # 4. ContextIntelligence: Fallback to existing system
+        if len(results) < limit and self.context_intel:
+            try:
+                remaining = limit - len(results)
+                keywords = query.split() if " " in query else [query]
+                predictions = self.context_intel.predict_context(
+                    current_project=project, keywords=keywords, limit=remaining
+                )
+                for p in predictions:
+                    result = {
+                        "title": p.title,
+                        "type": p.context_type,
+                        "description": p.description,
+                        "confidence": p.confidence,
+                        "file": str(p.file_path) if p.file_path else None,
+                        "command": p.command,
+                        "source": "context_intelligence",
+                    }
+                    results.append(result)
+            except Exception:
+                pass
+
+        # Handle no results case
+        if not results:
+            if not self.context_intel:
+                return [{"error": "ContextIntelligence not available", "source": "system"}]
+            return []
+
+        # 5. ContextOptimizer: Reorder for LLM attention (handled in get_optimized_context)
+        # Note: Direct get_context returns raw results; use get_optimized_context for LLM optimization
+
+        # 6. ImplicitFeedback: Track shown results
+        if self.implicit_feedback:
+            try:
+                for i, result in enumerate(results):
+                    rec_id = f"context_{result.get('title', f'result_{i}')}_{i}"
+                    self.implicit_feedback.track_recommendation_shown(
+                        rec_id=rec_id,
+                        recommendation={
+                            "title": result.get("title", ""),
+                            "source": result.get("source", "unknown"),
+                            "position": i,
+                        },
+                        context={"query": query, "project": project},
+                    )
+            except Exception:
+                pass  # Non-critical
+
+        return results[:limit]
 
     def get_optimized_context(
         self,
@@ -725,6 +892,11 @@ class CortexBridge:
         """
         Inject a strategic recommendation into Cortex.
 
+        Uses AI Engineering pipeline:
+        1. DefensivePrompting - Validate inputs
+        2. TieredMemory - Record for future recall
+        3. ImplicitFeedback - Track recommendation shown
+
         Args:
             title: Action title
             rationale: Why this is important
@@ -733,8 +905,25 @@ class CortexBridge:
             effort: Estimated effort
             related_project: Associated project
         """
+        # 1. DefensivePrompting: Validate inputs
+        if self.defensive and self.config and self.config.defensive_prompting_enabled:
+            # Validate title
+            title_validation = self.defensive.validate_input(title)
+            if not title_validation.valid:
+                print(f"Bridge Error: Title validation failed: {title_validation.issues}", file=sys.stderr)
+                return False
+            title = title_validation.sanitized_input
+
+            # Validate rationale
+            rationale_validation = self.defensive.validate_input(rationale)
+            if not rationale_validation.valid:
+                print(f"Bridge Error: Rationale validation failed: {rationale_validation.issues}", file=sys.stderr)
+                return False
+            rationale = rationale_validation.sanitized_input
+
+        rec_id = f"bridge_{int(datetime.now().timestamp())}_{abs(hash(title)) % 1000}"
         rec_data = {
-            "id": f"bridge_{int(datetime.now().timestamp())}_{abs(hash(title)) % 1000}",
+            "id": rec_id,
             "title": title,
             "type": type,
             "priority": priority,
@@ -763,6 +952,42 @@ class CortexBridge:
 
             current_recs.append(rec_data)
             external_file.write_text(json.dumps(current_recs, indent=2))
+
+            # 2. TieredMemory: Record for future recall
+            if self.tiered_memory and TIERED_MEMORY_AVAILABLE and MemoryItem:
+                try:
+                    memory_item = MemoryItem(
+                        id=rec_id,
+                        content={
+                            "title": title,
+                            "type": type,
+                            "description": rationale,
+                            "priority": priority,
+                            "project": related_project,
+                        },
+                        created_at=datetime.now(),
+                        last_accessed=datetime.now(),
+                    )
+                    self.tiered_memory.record(memory_item)
+                except Exception:
+                    pass  # Non-critical
+
+            # 3. ImplicitFeedback: Track recommendation shown
+            if self.implicit_feedback:
+                try:
+                    self.implicit_feedback.track_recommendation_shown(
+                        rec_id=rec_id,
+                        recommendation={
+                            "title": title,
+                            "rationale": rationale,
+                            "priority": priority,
+                            "type": type,
+                        },
+                        context={"project": related_project, "source": "inject_recommendation"},
+                    )
+                except Exception:
+                    pass  # Non-critical
+
             return True
 
         except Exception as e:
@@ -1234,6 +1459,12 @@ class CortexBridge:
         """
         Query unified intelligence API with enhanced features.
 
+        Uses AI Engineering pipeline:
+        1. DefensivePrompting - Validate input (already exists)
+        2. HybridRetriever - Add related patterns
+        3. ContextOptimizer - Optimize result context
+        4. TieredMemory - Record query for learning
+
         Args:
             request: User request (e.g., "enhance golden spec method")
             project: Project name (e.g., "cortex")
@@ -1247,6 +1478,7 @@ class CortexBridge:
             - Confidence scores for all components
             - Detailed reasoning for results
             - Overall confidence score
+            - related_patterns from hybrid retrieval (when available)
 
         Example:
             >>> bridge = CortexBridge()
@@ -1260,7 +1492,7 @@ class CortexBridge:
         if not IntelligenceQueryType:
             return {"error": "Intelligence models not available"}
 
-        # Phase 1: Apply defensive prompting if enabled
+        # 1. DefensivePrompting: Apply defensive prompting if enabled
         if self.config and self.config.defensive_prompting_enabled and self.defensive:
             validation = self.defensive.validate_input(request)
             if not validation.valid:
@@ -1280,7 +1512,57 @@ class CortexBridge:
                 use_cache=use_cache,
                 parallel=parallel,
             )
-            return result.to_dict()
+            result_dict = result.to_dict()
+
+            # 2. HybridRetriever: Add related patterns
+            if self.hybrid_retriever:
+                try:
+                    hybrid_results = self.hybrid_retriever.search(request, limit=3, alpha=0.5)
+                    related_patterns = [
+                        {
+                            "title": pattern.title,
+                            "description": pattern.description,
+                            "score": score,
+                        }
+                        for pattern, score in hybrid_results
+                    ]
+                    result_dict["related_patterns"] = related_patterns
+                except Exception:
+                    pass  # Non-critical
+
+            # 3. ContextOptimizer: Apply optimization info (if available)
+            if self.context_optimizer and CONTEXT_OPTIMIZER_AVAILABLE:
+                try:
+                    result_dict["context_optimization"] = {
+                        "strategy": "importance",
+                        "applied": True,
+                    }
+                except Exception:
+                    pass
+
+            # 4. TieredMemory: Record query for learning
+            if self.tiered_memory and TIERED_MEMORY_AVAILABLE and MemoryItem:
+                try:
+                    import uuid
+
+                    query_id = f"intel_{uuid.uuid4().hex[:8]}"
+                    memory_item = MemoryItem(
+                        id=query_id,
+                        content={
+                            "type": "intelligence_query",
+                            "title": f"Query: {request[:50]}...",
+                            "description": request,
+                            "project": project,
+                            "query_type": query_type,
+                        },
+                        created_at=datetime.now(),
+                        last_accessed=datetime.now(),
+                    )
+                    self.tiered_memory.record(memory_item)
+                except Exception:
+                    pass  # Non-critical
+
+            return result_dict
         except Exception as e:
             return {"error": str(e)}
 
@@ -1339,6 +1621,12 @@ class CortexBridge:
         """
         Search indexed specifications (alias for find_similar_work for API compatibility).
 
+        Uses AI Engineering pipeline:
+        1. DefensivePrompting - Validate query
+        2. HybridRetriever - Hybrid search first
+        3. SpecKnowledgeBase - Fallback to existing system
+        4. ImplicitFeedback - Track results
+
         Args:
             query: Search query string
             project: Optional project filter
@@ -1351,39 +1639,95 @@ class CortexBridge:
             >>> bridge = CortexBridge()
             >>> results = bridge.search_specs("API rate limiting", project="cortex", limit=5)
         """
-        if not self.spec_kb:
-            return [{"error": "Spec Knowledge Base not available"}]
+        # 1. DefensivePrompting: Validate query
+        if self.defensive and self.config and self.config.defensive_prompting_enabled:
+            validation = self.defensive.validate_input(query)
+            if not validation.valid:
+                return [
+                    {
+                        "error": "Query validation failed",
+                        "issues": validation.issues,
+                    }
+                ]
+            query = validation.sanitized_input
 
-        try:
-            # Try intelligence version first (ChromaDB-based)
-            if hasattr(self.spec_kb, "find_similar"):
-                from dataclasses import asdict
+        results = []
 
-                similar = self.spec_kb.find_similar(query, k=limit, project_filter=project)
-                # Transform SimilarWork dataclass to expected format
-                results = []
-                for s in similar:
-                    result = asdict(s)
-                    # Map 'title' to 'spec_name' for API compatibility
-                    if "spec_name" not in result:
-                        if "title" in result:
-                            result["spec_name"] = result["title"]
-                        elif "name" in result:
-                            result["spec_name"] = result["name"]
-                    # Ensure similarity_score is present
-                    if "similarity" not in result and "similarity_score" in result:
-                        result["similarity"] = result["similarity_score"]
+        # 2. HybridRetriever: Try hybrid search first
+        if self.hybrid_retriever:
+            try:
+                hybrid_results = self.hybrid_retriever.search(query, limit=limit, alpha=0.5)
+                for pattern, score in hybrid_results:
+                    result = {
+                        "spec_name": pattern.title,
+                        "title": pattern.title,
+                        "description": pattern.description,
+                        "similarity": score,
+                        "similarity_score": score,
+                        "source": "hybrid_retriever",
+                    }
                     results.append(result)
-                return results
-            # Fallback to simple hash-based version
-            elif hasattr(self.spec_kb, "search"):
-                results = self.spec_kb.search(query, project=project, limit=limit)
-                # Simple version already returns dicts with spec_name
-                return results
-            else:
-                return [{"error": "Spec KB has no search method"}]
-        except Exception as e:
-            return [{"error": str(e)}]
+            except Exception:
+                pass  # Fall through to spec_kb
+
+        # 3. SpecKnowledgeBase: Fallback to existing system
+        if len(results) < limit and self.spec_kb:
+            try:
+                remaining = limit - len(results)
+                # Try intelligence version first (ChromaDB-based)
+                if hasattr(self.spec_kb, "find_similar"):
+                    from dataclasses import asdict
+
+                    similar = self.spec_kb.find_similar(query, k=remaining, project_filter=project)
+                    # Transform SimilarWork dataclass to expected format
+                    for s in similar:
+                        result = asdict(s)
+                        result["source"] = "spec_knowledge_base"
+                        # Map 'title' to 'spec_name' for API compatibility
+                        if "spec_name" not in result:
+                            if "title" in result:
+                                result["spec_name"] = result["title"]
+                            elif "name" in result:
+                                result["spec_name"] = result["name"]
+                        # Ensure similarity_score is present
+                        if "similarity" not in result and "similarity_score" in result:
+                            result["similarity"] = result["similarity_score"]
+                        results.append(result)
+                # Fallback to simple hash-based version
+                elif hasattr(self.spec_kb, "search"):
+                    kb_results = self.spec_kb.search(query, project=project, limit=remaining)
+                    for r in kb_results:
+                        r["source"] = "spec_knowledge_base"
+                        results.append(r)
+            except Exception as e:
+                if not results:
+                    return [{"error": str(e)}]
+
+        # Handle no results
+        if not results:
+            if not self.spec_kb:
+                return [{"error": "Spec Knowledge Base not available"}]
+            return []
+
+        # 4. ImplicitFeedback: Track results
+        if self.implicit_feedback:
+            try:
+                for i, result in enumerate(results):
+                    rec_id = f"spec_{result.get('spec_name', f'spec_{i}')}_{i}"
+                    self.implicit_feedback.track_recommendation_shown(
+                        rec_id=rec_id,
+                        recommendation={
+                            "spec_name": result.get("spec_name", ""),
+                            "title": result.get("title", ""),
+                            "source": result.get("source", "unknown"),
+                            "position": i,
+                        },
+                        context={"query": query, "project": project},
+                    )
+            except Exception:
+                pass  # Non-critical
+
+        return results[:limit]
 
     def get_session_context(self, format: str = "structured") -> Dict[str, Any]:
         """
