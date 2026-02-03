@@ -1,0 +1,31 @@
+{
+  "snapshots": [
+    {
+      "timestamp": "2026-02-03T15:35:12.300473",
+      "date": "2026-02-03",
+      "day_of_validation": 4,
+      "batch_queue": {
+        "queued": 1384,
+        "running": 0,
+        "completed_today": 0
+      },
+      "supervisor": {
+        "running": false,
+        "pid": null
+      },
+      "dashboard": {
+        "running": false,
+        "port": 8502,
+        "uptime_hours": null
+      },
+      "infrastructure": {
+        "ports_in_use": 17,
+        "services": 2
+      },
+      "projects": {
+        "total": 8,
+        "running": 2
+      }
+    }
+  ]
+}
