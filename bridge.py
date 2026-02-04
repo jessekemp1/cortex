@@ -256,12 +256,29 @@ class CortexBridge:
         self.hybrid_retriever = None
         if HYBRID_RETRIEVER_AVAILABLE and self.config and self.config.hybrid_retrieval_enabled:
             try:
-                # Initialize with patterns from portfolio if available
-                patterns = []
-                if self.portfolio and hasattr(self.portfolio, "get_patterns"):
-                    patterns = self.portfolio.get_patterns()
-                if patterns:
-                    self.hybrid_retriever = HybridRetriever(patterns=patterns)
+                # Priority 1: Reuse TieredMemory's existing hybrid retriever (already has 397+ patterns)
+                if (
+                    self.tiered_memory
+                    and hasattr(self.tiered_memory, "long_term")
+                    and hasattr(self.tiered_memory.long_term, "pattern_memory")
+                ):
+                    pm = self.tiered_memory.long_term.pattern_memory
+                    if hasattr(pm, "hybrid_retriever") and pm.hybrid_retriever:
+                        self.hybrid_retriever = pm.hybrid_retriever
+
+                # Priority 2: Create new retriever from TieredMemory patterns
+                if not self.hybrid_retriever and self.tiered_memory:
+                    if hasattr(self.tiered_memory.long_term, "pattern_memory"):
+                        pm = self.tiered_memory.long_term.pattern_memory
+                        if hasattr(pm, "patterns") and pm.patterns:
+                            self.hybrid_retriever = HybridRetriever(patterns=pm.patterns)
+
+                # Priority 3: Fall back to portfolio patterns
+                if not self.hybrid_retriever and self.portfolio:
+                    if hasattr(self.portfolio, "get_patterns"):
+                        patterns = self.portfolio.get_patterns()
+                        if patterns:
+                            self.hybrid_retriever = HybridRetriever(patterns=patterns)
             except Exception:
                 self.hybrid_retriever = None
 
