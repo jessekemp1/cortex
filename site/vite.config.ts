@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,  // Cortex Command Center - avoid conflict with VortexV3/Kempion
+    port: 5173,  // Cortex Command Center
     host: true,
   },
 })
