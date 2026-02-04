@@ -14,7 +14,8 @@
       "type": "streamlit",
       "port": 8502,
       "start_command": "streamlit run app.py --server.port 8502",
-      "status": "stopped"
+      "status": "running",
+      "pid": 64551
     },
     {
       "name": "Cortex Bridge API",
@@ -22,8 +23,7 @@
       "type": "fastapi",
       "port": 8765,
       "start_command": "uvicorn api.bridge_endpoint:app --port 8765",
-      "status": "running",
-      "pid": 59924
+      "status": "stopped"
     },
     {
       "name": "VortexV2",
@@ -38,7 +38,7 @@
           "port": 8000,
           "start_command": "uvicorn app.main:app --port 8000",
           "status": "running",
-          "pid": 57312
+          "pid": 78205
         },
         {
           "name": "UI",
@@ -51,7 +51,7 @@
       "name": "VortexV3",
       "path": "/Users/jesse.kemp/Dev/Vortex/VortexV3",
       "type": "react",
-      "port": 5173,
+      "port": 3002,
       "start_command": "npm run dev",
       "status": "stopped"
     },
@@ -59,17 +59,18 @@
       "name": "Alpha Arena",
       "path": "/Users/jesse.kemp/Dev/alpha_arena",
       "type": "streamlit",
-      "port": 8503,
-      "start_command": "streamlit run app.py --server.port 8503",
+      "port": 8504,
+      "start_command": "streamlit run ui/command_center.py --server.port 8504",
       "status": "stopped"
     },
     {
       "name": "Kempion Research",
       "path": "/Users/jesse.kemp/Dev/kempion-research-site",
       "type": "react",
-      "port": 5173,
+      "port": 5176,
       "start_command": "npm run dev",
-      "status": "stopped"
+      "status": "running",
+      "pid": 89891
     },
     {
       "name": "DJ CoPilot",
@@ -111,24 +112,19 @@
       "command": "node",
       "status": "running"
     },
-    "8000": {
-      "pid": 57312,
+    "8502": {
+      "pid": 64551,
       "command": "Python",
       "status": "running"
     },
     "7679": {
-      "pid": 43930,
+      "pid": 71342,
       "command": "Google",
       "status": "running"
     },
-    "8765": {
-      "pid": 59924,
+    "8000": {
+      "pid": 78205,
       "command": "Python",
-      "status": "running"
-    },
-    "3002": {
-      "pid": 70350,
-      "command": "node",
       "status": "running"
     },
     "61885": {
@@ -141,11 +137,16 @@
       "command": "Cursor",
       "status": "running"
     },
+    "5176": {
+      "pid": 89891,
+      "command": "node",
+      "status": "running"
+    },
     "3333": {
       "pid": 95518,
       "command": "Python",
       "status": "running"
     }
   },
-  "generated_at": "2026-02-03T19:28:44Z"
+  "generated_at": "2026-02-04T17:13:49Z"
 }

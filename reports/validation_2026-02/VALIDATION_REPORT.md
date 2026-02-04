@@ -79,11 +79,37 @@ cortex batch list
 cortex supervisor status
 ```
 
-**Latest Snapshot** (Feb 3):
-- Queued: _TBD_
-- Running: _TBD_
-- Completed: _TBD_
-- Supervisor PID: _TBD_
+**Latest Snapshot** (Feb 4, 11:22 AM):
+- **Remediation Queue**: 2,525 jobs discovered (growing from 1,384 → 2,525 in 20 hours)
+- **Batch Daemon**: ✅ Running (PID 2040, uptime 314 hours since Jan 22)
+- **API Batches**: 67 completed, 100% success rate on recent submissions
+- **Daemon Queue**: 0 pending, 5 processing, 0 completed (7d)
+- **Dashboard**: ✅ Running on port 8502
+
+### ⚠️ CRITICAL VALIDATION FINDING (Day 5/7)
+
+**Issue**: Queue disconnection between job discovery and batch orchestration
+- **What works**: Job discovery system correctly identifies 2,525 tasks across projects
+- **What works**: Manual batch submission (`/batch-submit`) completes successfully
+- **What works**: Batch daemon runs stably (314h uptime, no crashes)
+- **What's broken**: Remediation queue (`~/.cortex/batches/remediation_queue.json`) not feeding into batch daemon
+- **Impact**: Advertised "overnight queue filling" feature is non-functional
+- **Root cause**: Two separate queue implementations that don't communicate
+
+**Evidence**:
+```bash
+# Remediation queue (job discovery)
+$ cat ~/.cortex/batches/remediation_queue.json | jq '.priority_jobs | length'
+2525  # Jobs waiting
+
+# Batch daemon queue (orchestration)
+$ python -m cortex.cli batch status
+Pending: 0  # Daemon sees nothing
+
+# Conclusion: Plumbing not connected
+```
+
+**Validation Assessment**: This is a **P0 blocker** for SHIP recommendation. The system advertises automated batch orchestration but only manual submission works.
 
 ---
 
@@ -169,7 +195,8 @@ cortex supervisor status
 |------|-------|----------|------------|-----------|
 | Feb 2 | React frontend orphaned | MEDIUM | Integrated API endpoints | ~40 min |
 | Feb 3 | Port conflicts (3 projects) | LOW | Launch Control detected + fixed | ~15 min |
-| - | - | - | - | - |
+| Feb 4 | Queue disconnection (remediation → daemon) | **CRITICAL** | Documented, needs v2 design | TBD |
+| Feb 4 | Metrics collector reporting daemon as "not running" | LOW | Daemon uses PID 2040, not "cortex supervisor" | ~10 min |
 
 ---
 
@@ -214,9 +241,13 @@ cortex supervisor status
 - ✅ Fixed 3 port conflicts
 - ✅ Created 3 git commits (4,060 lines)
 
-**Day 5 (Feb 4)**: ⏳ Pending
-- Collect daily metrics
-- Monitor batch queue overnight
+**Day 5 (Feb 4)**: 🔴 Critical Finding
+- ⚠️ **Discovered queue disconnection** (remediation queue not feeding batch daemon)
+- ✅ Investigated batch orchestration (Option A from /next)
+- ✅ Validated daemon health (314h uptime, stable)
+- ✅ Documented P0 blocker in validation report
+- ✅ Collected metrics snapshot (2,525 jobs in discovery queue)
+- 📊 **Decision**: Preliminary ITERATE recommendation
 
 **Day 6 (Feb 5)**: ⏳ Pending
 - Collect daily metrics
@@ -257,11 +288,11 @@ tail -50 ~/.cortex/logs/supervisor.log  # Recent activity
 ## 9. Success Criteria
 
 ### Must Have (P0)
-- [ ] Dashboard uptime >99%
-- [ ] Zero critical anomalies unresolved
-- [ ] Batch queue utilization >50% overnight
-- [ ] No data loss or corruption
-- [ ] All tests passing
+- [x] Dashboard uptime >99% ✅ **PASSING** (stable across 3 snapshots, 20+ hours)
+- [ ] Zero critical anomalies unresolved ❌ **FAILING** (queue disconnection found Day 5)
+- [ ] Batch queue utilization >50% overnight ❌ **FAILING** (0% - queue not connected)
+- [x] No data loss or corruption ✅ **PASSING** (all systems stable)
+- [ ] All tests passing ⚠️ **NOT VERIFIED** (need test run)
 
 ### Should Have (P1)
 - [ ] Context switching reduced to <15 projects
@@ -278,21 +309,52 @@ tail -50 ~/.cortex/logs/supervisor.log  # Recent activity
 
 ## 10. Final Recommendation
 
-_[To be completed on Feb 7, 2026]_
+_[Preliminary assessment Day 5/7, final on Feb 7, 2026]_
+
+### Current Status: **LEANING ITERATE**
+
+**P0 Criteria**: 2/5 passing, 2/5 failing, 1/5 not verified
+- ✅ Dashboard stability: Proven
+- ✅ Data integrity: Proven
+- ❌ Batch orchestration: Broken (queue disconnection)
+- ❌ Critical anomalies: 1 unresolved
+- ⚠️ Tests: Not verified
 
 ### Ship Criteria
-✅ All P0 criteria met
-✅ No blocking issues
-✅ Performance within targets
-✅ Validation successful
+❌ All P0 criteria met (2/5 failing)
+❌ No blocking issues (queue disconnection is blocker)
+✅ Performance within targets (dashboard stable)
+⚠️ Validation successful (caught the issue!)
 
 ### Iterate Criteria
-❌ Critical bugs found
-❌ Performance below targets
-❌ Anomaly detection unreliable
-❌ Need architectural changes
+✅ Critical bug found (queue disconnection)
+❌ Performance below targets (dashboard performing well)
+⚠️ Anomaly detection unreliable (not tested)
+✅ Need architectural changes (queue integration needs redesign)
 
-### Decision: _TBD_
+### Preliminary Decision: **ITERATE**
+
+**Reasoning**:
+1. **Core feature broken**: "Overnight batch orchestration" advertised but non-functional
+2. **Validation worked**: We caught it - that's success for the validation process
+3. **Partial value delivered**: Manual batch submission works, dashboard stable
+4. **Clear path forward**: Need to connect remediation_queue.json to batch daemon
+
+**What works well**:
+- Dashboard (8502): Stable, no crashes, good UX
+- Manual batch API: 67 completed jobs, 100% success
+- Job discovery: 2,525 tasks identified correctly
+- Infrastructure: Launch Control, Command Center operational
+
+**What needs fixing**:
+- Queue integration (P0 blocker)
+- Test verification (P0 requirement)
+- Metrics collector (reports daemon as "not running" incorrectly)
+
+### Remaining Validation Days (2 left)
+- **Day 6 (Feb 5)**: Run full test suite, verify what works
+- **Day 7 (Feb 6)**: Final metrics, document lessons learned
+- **Final Report (Feb 7)**: Complete assessment, confirm ITERATE recommendation
 
 ---
 

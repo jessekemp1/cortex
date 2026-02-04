@@ -50,7 +50,9 @@ def scan_projects() -> List[Dict]:
 
         elif info["type"] == "streamlit":
             project["port"] = detect_streamlit_port(project_path)
-            project["start_command"] = f"streamlit run app.py --server.port {project['port']}"
+            # Alpha Arena uses ui/command_center.py (Mission Control), not app.py
+            app_file = "ui/command_center.py" if "alpha" in info["name"].lower() else "app.py"
+            project["start_command"] = f"streamlit run {app_file} --server.port {project['port']}"
 
         elif info["type"] == "fastapi":
             project["port"] = 8765 if "cortex" in path_str else 8000
@@ -82,8 +84,21 @@ def detect_vite_port(package_json_path: Path) -> int:
     if vite_config.exists():
         content = vite_config.read_text()
         if "port:" in content:
-            # Parse port from config
-            pass
+            # Parse port from config using regex
+            import re
+            match = re.search(r'port:\s*(\d+)', content)
+            if match:
+                return int(match.group(1))
+
+    # Project-specific defaults to avoid conflicts
+    project_path_str = str(package_json_path.parent)
+    if "VortexV3" in project_path_str:
+        return 3002  # VortexV3 uses 3002 per PORT_ALLOCATION.md
+    elif "kempion" in project_path_str.lower():
+        return 5174  # Kempion Research uses 5174
+    elif "cortex/site" in project_path_str:
+        return 5173  # Cortex Command Center keeps 5173
+
     return 5173  # Default Vite port
 
 
@@ -94,14 +109,18 @@ def detect_streamlit_port(project_path: Path) -> int:
     if config_file.exists():
         content = config_file.read_text()
         if "port" in content:
-            # Parse port
-            pass
+            import re
+            match = re.search(r'port\s*=\s*(\d+)', content)
+            if match:
+                return int(match.group(1))
 
-    # Default ports by project
+    # Default ports by project (avoid conflicts)
     if "cortex" in str(project_path):
-        return 8502
+        return 8502  # Cortex Orchestration
     elif "alpha" in str(project_path).lower():
-        return 8503
+        return 8504  # Alpha Arena (changed from 8503 to avoid VortexV2 UI conflict)
+    elif "vortex" in str(project_path).lower():
+        return 8503  # VortexV2 UI
     return 8501
 
 
