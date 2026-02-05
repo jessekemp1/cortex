@@ -79,6 +79,16 @@ cp .env.example .env
 python bridge.py intelligence "What patterns apply to error handling?"
 ```
 
+## Future Integrations
+
+Cortex is designed to integrate across multiple projects, learning from outcomes and improving recommendations through cross-domain pattern matching.
+
+**Current integrations**: VortexV2 (weather validation), Alpha Arena (planned)
+
+**Planned**: Kempion Research Site chatbot (Q2 2026) - automated pattern discovery from chat interactions, outcome-driven learning, adaptive knowledge base
+
+See: [FUTURE_INTEGRATIONS.md](./FUTURE_INTEGRATIONS.md) for roadmap and technical details
+
 ### Bridge API (Universal Interface)
 
 ```python
