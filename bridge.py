@@ -140,6 +140,17 @@ try:
 except ImportError:
     load_config = None
 
+# Synthetic Data Engine
+try:
+    from synthetic.generator import SyntheticGenerator
+    from synthetic.schemas import GenerationRequest
+
+    SYNTHETIC_AVAILABLE = True
+except ImportError:
+    SYNTHETIC_AVAILABLE = False
+    SyntheticGenerator = None
+    GenerationRequest = None
+
 # V2 Prime: Engine imports
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
@@ -281,6 +292,14 @@ class CortexBridge:
                             self.hybrid_retriever = HybridRetriever(patterns=patterns)
             except Exception:
                 self.hybrid_retriever = None
+
+        # Synthetic Data Engine
+        self.synthetic_generator = None
+        if SYNTHETIC_AVAILABLE:
+            try:
+                self.synthetic_generator = SyntheticGenerator()
+            except Exception:
+                self.synthetic_generator = None
 
         # V2 Prime: Engine initialization
         self._init_v2_prime()
@@ -1464,6 +1483,60 @@ class CortexBridge:
             return {"error": str(e)}
 
     # --- Intelligence Enhancement Methods ---
+
+    def generate_synthetic(
+        self,
+        data_type: str = "profiles",
+        count: int = 100,
+        segment: Optional[str] = None,
+        province: Optional[str] = None,
+        risk_profile: Optional[str] = None,
+        min_quality: float = 0.7,
+        output_format: str = "jsonl",
+    ) -> Dict[str, Any]:
+        """
+        Generate synthetic Canadian FinServ data.
+
+        Args:
+            data_type: "profiles" or "transactions"
+            count: Number of records to generate
+            segment: Target customer segment (e.g., "mass_affluent")
+            province: Target province (e.g., "ON")
+            risk_profile: For transactions — "low", "medium", "high"
+            min_quality: Minimum quality score threshold (0.0-1.0)
+            output_format: "jsonl", "json", or "csv"
+
+        Returns:
+            Dict with generation results and metadata
+        """
+        if not SYNTHETIC_AVAILABLE or not self.synthetic_generator:
+            return {"error": "Synthetic data engine not available", "available": False}
+
+        request = GenerationRequest(
+            data_type=data_type,
+            count=count,
+            segment=segment,
+            province=province,
+            risk_profile=risk_profile,
+            include_risk_flags=risk_profile is not None,
+            min_quality_score=min_quality,
+            output_format=output_format,
+        )
+
+        result = self.synthetic_generator.generate(request)
+
+        return {
+            "success": True,
+            "summary": result.summary(),
+            "records_generated": result.records_generated,
+            "records_passed": result.records_passed_quality,
+            "records_rejected": result.records_rejected,
+            "avg_quality": result.average_quality_score,
+            "quality_distribution": result.quality_distribution,
+            "output_path": result.output_path,
+            "flywheel_id": result.flywheel_id,
+            "generation_time_s": result.generation_time_seconds,
+        }
 
     def query_intelligence(
         self,

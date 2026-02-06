@@ -27,6 +27,9 @@ class CortexConfig:
     hybrid_retrieval_enabled: bool = True  # Use hybrid BM25+embedding retrieval
     implicit_feedback_enabled: bool = True  # Track implicit user feedback signals
 
+    # Synthetic Data Engine
+    synthetic_enabled: bool = True  # Enable synthetic FinServ data generation
+
 
 def load_config() -> CortexConfig:
     config = CortexConfig()
