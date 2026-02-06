@@ -2,12 +2,14 @@
 """
 Feedback Flywheel Orchestrator — Automated quality improvement loop.
 
-Chains 4 feedback layers (Phase 2) that run after every generation:
+Chains 6 feedback layers (Phase 2+3) that run after every generation:
 
   Layer 1: Quality Gate — Per-record 6-dimension quality scoring
   Layer 2: Statistical Fidelity — KS, chi-squared, JSD vs KB benchmarks
   Layer 3: Cross-Field Consistency — Multivariate coherence validation
   Layer 4: Risk Model Validation — AML rule engine pass-through
+  Layer 5: Discriminator Feedback — XGBoost + SHAP distinguishability test
+  Layer 6: Downstream Task (TSTR) — Train-on-synthetic, test-on-real utility
 
 Each layer produces feedback signals that are aggregated into a
 correction vector. The corrections are bounded by knowledge base
@@ -28,11 +30,31 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from synthetic.constraints import ConstraintEngine, ConstraintReport
+from synthetic.constraints import ConstraintEngine
 from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.quality import SyntheticQualityTracker
-from synthetic.risk_validator import RiskReport, RiskValidator
+from synthetic.risk_validator import RiskValidator
 from synthetic.schemas import CustomerProfile, GenerationRequest, Transaction
+
+# Lazy imports for heavy Phase 3 deps (xgboost, shap, sklearn)
+_discriminator_cls = None
+_tstr_cls = None
+
+
+def _get_discriminator():
+    global _discriminator_cls
+    if _discriminator_cls is None:
+        from synthetic.discriminator import Discriminator
+        _discriminator_cls = Discriminator
+    return _discriminator_cls
+
+
+def _get_tstr():
+    global _tstr_cls
+    if _tstr_cls is None:
+        from synthetic.tstr import TSTRFramework
+        _tstr_cls = TSTRFramework
+    return _tstr_cls
 
 
 @dataclass
@@ -112,17 +134,20 @@ class Flywheel:
     """
     Feedback flywheel orchestrator.
 
-    Runs layers 1-4 sequentially on each generated batch, aggregates
+    Runs layers 1-6 sequentially on each generated batch, aggregates
     feedback, computes bounded corrections, and logs cycle metrics
-    for trend analysis.
+    for trend analysis. Layers 5-6 (discriminator, TSTR) require
+    sklearn/xgboost and are skipped gracefully if unavailable.
     """
 
     # Layer confidence weights for feedback aggregation
     LAYER_WEIGHTS = {
-        1: 0.25,  # Quality Gate — foundational
-        2: 0.30,  # Statistical Fidelity — strongest signal
-        3: 0.20,  # Cross-Field Consistency — catches multivariate issues
-        4: 0.25,  # Risk Model — highest domain value
+        1: 0.20,  # Quality Gate — foundational
+        2: 0.25,  # Statistical Fidelity — strongest signal
+        3: 0.15,  # Cross-Field Consistency — catches multivariate issues
+        4: 0.20,  # Risk Model — highest domain value
+        5: 0.10,  # Discriminator — XGBoost distinguishability
+        6: 0.10,  # TSTR — downstream task utility
     }
 
     # Correction bounds (max adjustment per dimension per cycle)
@@ -153,9 +178,10 @@ class Flywheel:
         transactions: Optional[List[Transaction]] = None,
         request: Optional[GenerationRequest] = None,
         flywheel_id: str = "",
+        skip_heavy_layers: bool = False,
     ) -> FlywheelReport:
         """
-        Execute all 4 layers on a generated batch.
+        Execute all 6 layers on a generated batch.
 
         At least one of profiles or transactions must be provided.
 
@@ -164,6 +190,7 @@ class Flywheel:
             transactions: Generated transactions
             request: Original generation request
             flywheel_id: ID linking to the generation run
+            skip_heavy_layers: Skip L5/L6 (useful for quick validation)
 
         Returns:
             FlywheelReport with per-layer results and correction vector
