@@ -209,10 +209,15 @@ class TSTRFramework:
         X_synth, y_synth = _prepare(synthetic)
         X_ref, y_ref = _prepare(reference)
 
-        # Split reference into train and test
-        X_ref_train, X_test, y_ref_train, y_test = train_test_split(
-            X_ref, y_ref, test_size=0.3, random_state=42, stratify=y_ref
-        )
+        # Split reference into train and test (stratified, fallback to random)
+        try:
+            X_ref_train, X_test, y_ref_train, y_test = train_test_split(
+                X_ref, y_ref, test_size=0.3, random_state=42, stratify=y_ref
+            )
+        except ValueError:
+            X_ref_train, X_test, y_ref_train, y_test = train_test_split(
+                X_ref, y_ref, test_size=0.3, random_state=42
+            )
 
         # Train on synthetic, test on reference test set
         clf_synth = RandomForestClassifier(n_estimators=50, random_state=42)
@@ -275,9 +280,15 @@ class TSTRFramework:
         X_synth, y_synth = _prepare(synthetic, fit=True)
         X_ref, y_ref = _prepare(reference)
 
-        X_ref_train, X_test, y_ref_train, y_test = train_test_split(
-            X_ref, y_ref, test_size=0.3, random_state=42, stratify=y_ref
-        )
+        # Stratified split, fall back to non-stratified if rare classes exist
+        try:
+            X_ref_train, X_test, y_ref_train, y_test = train_test_split(
+                X_ref, y_ref, test_size=0.3, random_state=42, stratify=y_ref
+            )
+        except ValueError:
+            X_ref_train, X_test, y_ref_train, y_test = train_test_split(
+                X_ref, y_ref, test_size=0.3, random_state=42
+            )
 
         clf_synth = RandomForestClassifier(n_estimators=50, random_state=42)
         clf_synth.fit(X_synth, y_synth)
