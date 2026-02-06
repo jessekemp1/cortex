@@ -239,6 +239,24 @@ class Flywheel:
             if l4.passed:
                 report.layers_passed += 1
 
+        # Layer 5: Discriminator Feedback (requires >= 30 profiles, sklearn+xgboost)
+        if profiles and len(profiles) >= 30 and not skip_heavy_layers:
+            l5 = self._run_layer5_discriminator(profiles)
+            if l5 is not None:
+                report.layer_results.append(l5)
+                report.layers_executed += 1
+                if l5.passed:
+                    report.layers_passed += 1
+
+        # Layer 6: TSTR Downstream Tasks (requires >= 50 profiles, sklearn)
+        if profiles and len(profiles) >= 50 and not skip_heavy_layers:
+            l6 = self._run_layer6_tstr(profiles, transactions)
+            if l6 is not None:
+                report.layer_results.append(l6)
+                report.layers_executed += 1
+                if l6.passed:
+                    report.layers_passed += 1
+
         # Aggregate feedback and compute corrections
         report.corrections = self._aggregate_corrections(report.layer_results)
 
@@ -496,6 +514,120 @@ class Flywheel:
             execution_time_ms=elapsed_ms,
         )
 
+    def _run_layer5_discriminator(
+        self, profiles: List[CustomerProfile]
+    ) -> Optional[LayerResult]:
+        """
+        Layer 5: Discriminator feedback via XGBoost + SHAP.
+
+        Trains a binary classifier to distinguish synthetic from reference.
+        AUC < 0.65 = synthetic is near-indistinguishable from reference.
+        Returns None if dependencies unavailable.
+        """
+        start = time.time()
+
+        try:
+            DiscriminatorCls = _get_discriminator()
+            disc = DiscriminatorCls(kb=self.kb)
+            disc_report = disc.train_and_evaluate(profiles)
+        except ImportError:
+            return None  # xgboost/shap not installed
+        except Exception:
+            return None  # Graceful fallback
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        # Convert AUC to a "goodness" score: lower AUC = better synthetic data
+        # AUC 0.5 = perfect (random), AUC 1.0 = worst (fully distinguishable)
+        # Score: 1.0 at AUC=0.5, 0.0 at AUC=1.0
+        score = max(0.0, 1.0 - (disc_report.auc_roc - 0.5) * 2)
+
+        # Extract SHAP feedback as correction signals
+        shap_corrections = {}
+        for fi in disc_report.feature_importances[:5]:
+            if fi.direction in ("too_high", "too_low"):
+                # Correction in opposite direction
+                sign = -1.0 if fi.direction == "too_high" else 1.0
+                shap_corrections[fi.feature] = sign * fi.importance
+
+        return LayerResult(
+            layer_num=5,
+            layer_name="discriminator_feedback",
+            passed=disc_report.passed,  # AUC < 0.65
+            score=score,
+            feedback={
+                "auc_roc": round(disc_report.auc_roc, 4),
+                "accuracy": round(disc_report.accuracy, 4),
+                "passed": disc_report.passed,
+                "top_distinguishing_features": disc_report.top_distinguishing_features,
+                "shap_corrections": {
+                    k: round(v, 6) for k, v in shap_corrections.items()
+                },
+                "feature_importances": [
+                    fi.to_dict() for fi in disc_report.feature_importances[:5]
+                ],
+            },
+            execution_time_ms=elapsed_ms,
+        )
+
+    def _run_layer6_tstr(
+        self,
+        profiles: List[CustomerProfile],
+        transactions: Optional[List[Transaction]] = None,
+    ) -> Optional[LayerResult]:
+        """
+        Layer 6: Train-on-Synthetic, Test-on-Real (TSTR) evaluation.
+
+        Trains ML models on synthetic data and tests on reference data.
+        Performance gap < 5% = synthetic data is useful for downstream tasks.
+        Returns None if dependencies unavailable.
+        """
+        start = time.time()
+
+        try:
+            TSTRCls = _get_tstr()
+            tstr = TSTRCls(kb=self.kb)
+            tstr_report = tstr.evaluate_all(
+                synthetic_profiles=profiles,
+                synthetic_transactions=transactions,
+            )
+        except ImportError:
+            return None  # sklearn not installed
+        except Exception:
+            return None  # Graceful fallback
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        # Score based on average delta (0 delta = perfect)
+        # Map to 0-1 range: 0 delta → 1.0, ±0.10 delta → 0.0
+        avg_abs_delta = sum(abs(t.delta) for t in tstr_report.tasks) / max(len(tstr_report.tasks), 1)
+        score = max(0.0, 1.0 - avg_abs_delta * 10)  # 0.10 delta → 0.0
+
+        # Build task-level corrections from failed tasks
+        task_corrections = {}
+        for task in tstr_report.tasks:
+            if not task.passed:
+                task_corrections[f"tstr_{task.task_name}"] = task.delta
+
+        return LayerResult(
+            layer_num=6,
+            layer_name="tstr_utility",
+            passed=tstr_report.all_passed,
+            score=score,
+            feedback={
+                "all_passed": tstr_report.all_passed,
+                "avg_delta": round(tstr_report.avg_delta, 4),
+                "worst_delta": round(tstr_report.worst_delta, 4),
+                "task_results": [t.to_dict() for t in tstr_report.tasks],
+                "task_corrections": {
+                    k: round(v, 6) for k, v in task_corrections.items()
+                },
+                "n_synthetic_train": tstr_report.n_synthetic_train,
+                "n_test": tstr_report.n_test,
+            },
+            execution_time_ms=elapsed_ms,
+        )
+
     # --- Feedback Aggregation ---
 
     def _aggregate_corrections(
@@ -534,6 +666,17 @@ class Flywheel:
                 for check, rate in rates.items():
                     if rate > 0.05:  # > 5% inconsistency
                         corrections["adjustments"][f"fix_{check}"] = -rate * weight
+
+            elif lr.layer_name == "discriminator_feedback":
+                shap_corr = lr.feedback.get("shap_corrections", {})
+                for feat, correction in shap_corr.items():
+                    current = corrections["adjustments"].get(feat, 0.0)
+                    corrections["adjustments"][feat] = current + correction * weight
+
+            elif lr.layer_name == "tstr_utility":
+                task_corr = lr.feedback.get("task_corrections", {})
+                for task, delta in task_corr.items():
+                    corrections["adjustments"][task] = delta * weight
 
         if total_weight > 0:
             corrections["weighted_score"] = round(
