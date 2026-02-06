@@ -11,7 +11,7 @@ Unique approach: Cortex's outcome flywheel means synthetic data
 improves from real usage feedback, not just statistical plausibility.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .schemas import (
     CustomerProfile,
@@ -30,6 +30,8 @@ from .quality import SyntheticQualityTracker
 from .constraints import ConstraintEngine, ConstraintReport, ConstraintResult
 from .risk_validator import RiskValidator, RiskReport, RuleResult, AdversarialResult
 from .flywheel import Flywheel, FlywheelReport, LayerResult
+from .discriminator import Discriminator, DiscriminatorReport, FeatureImportance
+from .tstr import TSTRFramework, TSTRReport, TaskResult
 
 __all__ = [
     # Core
@@ -47,6 +49,13 @@ __all__ = [
     "Flywheel",
     "FlywheelReport",
     "LayerResult",
+    # Phase 3: Discriminator + TSTR
+    "Discriminator",
+    "DiscriminatorReport",
+    "FeatureImportance",
+    "TSTRFramework",
+    "TSTRReport",
+    "TaskResult",
     # Schemas
     "CustomerProfile",
     "Transaction",
