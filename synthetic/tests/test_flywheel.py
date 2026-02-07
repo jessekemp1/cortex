@@ -69,7 +69,7 @@ class TestFlywheelCycle:
             transactions=sample_transactions,
             flywheel_id="test-003",
         )
-        assert report.layers_executed == 6  # All 6 layers (L1-L6)
+        assert report.layers_executed == 7  # All 7 layers (L1-L7)
 
     def test_cycle_skip_heavy_layers(self, flywheel, sample_profiles, sample_transactions):
         report = flywheel.run_cycle(
@@ -274,6 +274,47 @@ class TestLayer6TSTR:
         report = flywheel.run_cycle(profiles=profiles, flywheel_id="l6-small")
         l6_results = [lr for lr in report.layer_results if lr.layer_num == 6]
         assert len(l6_results) == 0  # Skipped
+
+
+class TestLayer7Privacy:
+    """Test Layer 7: Privacy Audit via flywheel."""
+
+    def test_layer7_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-test")
+        l7_results = [lr for lr in report.layer_results if lr.layer_num == 7]
+        assert len(l7_results) == 1
+        assert l7_results[0].layer_name == "privacy_audit"
+
+    def test_layer7_reports_dcr(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-dcr")
+        l7 = next(lr for lr in report.layer_results if lr.layer_num == 7)
+        assert "dcr_mean" in l7.feedback
+        assert "dcr_min" in l7.feedback
+        assert "dcr_pass_rate" in l7.feedback
+
+    def test_layer7_reports_mia(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-mia")
+        l7 = next(lr for lr in report.layer_results if lr.layer_num == 7)
+        assert "mia_accuracy" in l7.feedback
+        assert 0.0 <= l7.feedback["mia_accuracy"] <= 1.0
+
+    def test_layer7_skipped_for_small_batch(self, flywheel):
+        """Layer 7 needs >= 20 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(15)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l7-small")
+        l7_results = [lr for lr in report.layer_results if lr.layer_num == 7]
+        assert len(l7_results) == 0  # Skipped
 
 
 class TestCorrections:
