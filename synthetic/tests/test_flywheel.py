@@ -8,13 +8,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.constraints import ConstraintEngine
-from synthetic.flywheel import Flywheel, FlywheelReport, LayerResult
+from synthetic.flywheel import Flywheel, FlywheelReport
 from synthetic.generator import SyntheticGenerator
 from synthetic.knowledge_base import CanadianFinServKB
-from synthetic.quality import SyntheticQualityTracker
-from synthetic.risk_validator import RiskValidator
-from synthetic.schemas import CustomerProfile, GenerationRequest, Transaction
+from synthetic.schemas import CustomerProfile, GenerationRequest
 
 
 @pytest.fixture
@@ -57,7 +54,7 @@ class TestFlywheelCycle:
     def test_cycle_with_profiles(self, flywheel, sample_profiles):
         report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="test-001")
         assert isinstance(report, FlywheelReport)
-        assert report.layers_executed >= 3  # L1, L2, L3 should run
+        assert report.layers_executed >= 3  # L1, L2, L3 always; L5, L6 if deps available
         assert report.overall_score > 0
 
     def test_cycle_with_transactions(self, flywheel, sample_transactions):
@@ -72,7 +69,16 @@ class TestFlywheelCycle:
             transactions=sample_transactions,
             flywheel_id="test-003",
         )
-        assert report.layers_executed == 4  # All 4 layers
+        assert report.layers_executed == 7  # All 7 layers (L1-L7)
+
+    def test_cycle_skip_heavy_layers(self, flywheel, sample_profiles, sample_transactions):
+        report = flywheel.run_cycle(
+            profiles=sample_profiles,
+            transactions=sample_transactions,
+            flywheel_id="test-skip",
+            skip_heavy_layers=True,
+        )
+        assert report.layers_executed == 4  # Only L1-L4
 
     def test_cycle_increments(self, flywheel, sample_profiles):
         r1 = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="t1")
@@ -188,6 +194,127 @@ class TestLayer4Risk:
         l4 = next(lr for lr in report.layer_results if lr.layer_num == 4)
         assert "detection_rate" in l4.feedback
         assert 0.0 <= l4.feedback["detection_rate"] <= 1.0
+
+
+class TestLayer5Discriminator:
+    """Test Layer 5: Discriminator Feedback via flywheel."""
+
+    def test_layer5_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l5-test")
+        l5_results = [lr for lr in report.layer_results if lr.layer_num == 5]
+        assert len(l5_results) == 1
+        assert l5_results[0].layer_name == "discriminator_feedback"
+
+    def test_layer5_reports_auc(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l5-auc")
+        l5 = next(lr for lr in report.layer_results if lr.layer_num == 5)
+        assert "auc_roc" in l5.feedback
+        assert 0.0 <= l5.feedback["auc_roc"] <= 1.0
+
+    def test_layer5_reports_shap_corrections(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l5-shap")
+        l5 = next(lr for lr in report.layer_results if lr.layer_num == 5)
+        assert "shap_corrections" in l5.feedback
+        assert "top_distinguishing_features" in l5.feedback
+
+    def test_layer5_skipped_for_small_batch(self, flywheel):
+        """Layer 5 needs >= 30 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(20)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l5-small")
+        l5_results = [lr for lr in report.layer_results if lr.layer_num == 5]
+        assert len(l5_results) == 0  # Skipped
+
+
+class TestLayer6TSTR:
+    """Test Layer 6: TSTR via flywheel."""
+
+    def test_layer6_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l6-test")
+        l6_results = [lr for lr in report.layer_results if lr.layer_num == 6]
+        assert len(l6_results) == 1
+        assert l6_results[0].layer_name == "tstr_utility"
+
+    def test_layer6_reports_task_results(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l6-tasks")
+        l6 = next(lr for lr in report.layer_results if lr.layer_num == 6)
+        assert "task_results" in l6.feedback
+        assert len(l6.feedback["task_results"]) >= 3  # At least 3 profile tasks
+
+    def test_layer6_reports_delta(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l6-delta")
+        l6 = next(lr for lr in report.layer_results if lr.layer_num == 6)
+        assert "avg_delta" in l6.feedback
+        assert "worst_delta" in l6.feedback
+
+    def test_layer6_skipped_for_small_batch(self, flywheel):
+        """Layer 6 needs >= 50 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(40)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l6-small")
+        l6_results = [lr for lr in report.layer_results if lr.layer_num == 6]
+        assert len(l6_results) == 0  # Skipped
+
+
+class TestLayer7Privacy:
+    """Test Layer 7: Privacy Audit via flywheel."""
+
+    def test_layer7_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-test")
+        l7_results = [lr for lr in report.layer_results if lr.layer_num == 7]
+        assert len(l7_results) == 1
+        assert l7_results[0].layer_name == "privacy_audit"
+
+    def test_layer7_reports_dcr(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-dcr")
+        l7 = next(lr for lr in report.layer_results if lr.layer_num == 7)
+        assert "dcr_mean" in l7.feedback
+        assert "dcr_min" in l7.feedback
+        assert "dcr_pass_rate" in l7.feedback
+
+    def test_layer7_reports_mia(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l7-mia")
+        l7 = next(lr for lr in report.layer_results if lr.layer_num == 7)
+        assert "mia_accuracy" in l7.feedback
+        assert 0.0 <= l7.feedback["mia_accuracy"] <= 1.0
+
+    def test_layer7_skipped_for_small_batch(self, flywheel):
+        """Layer 7 needs >= 20 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(15)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l7-small")
+        l7_results = [lr for lr in report.layer_results if lr.layer_num == 7]
+        assert len(l7_results) == 0  # Skipped
 
 
 class TestCorrections:
