@@ -2,7 +2,7 @@
 """
 Feedback Flywheel Orchestrator — Automated quality improvement loop.
 
-Chains 6 feedback layers (Phase 2+3) that run after every generation:
+Chains 7 feedback layers (Phase 2-4) that run after every generation:
 
   Layer 1: Quality Gate — Per-record 6-dimension quality scoring
   Layer 2: Statistical Fidelity — KS, chi-squared, JSD vs KB benchmarks
@@ -10,6 +10,7 @@ Chains 6 feedback layers (Phase 2+3) that run after every generation:
   Layer 4: Risk Model Validation — AML rule engine pass-through
   Layer 5: Discriminator Feedback — XGBoost + SHAP distinguishability test
   Layer 6: Downstream Task (TSTR) — Train-on-synthetic, test-on-real utility
+  Layer 7: Privacy Audit — DCR, NNDR, MIA resistance checks
 
 Each layer produces feedback signals that are aggregated into a
 correction vector. The corrections are bounded by knowledge base
@@ -36,9 +37,10 @@ from synthetic.quality import SyntheticQualityTracker
 from synthetic.risk_validator import RiskValidator
 from synthetic.schemas import CustomerProfile, GenerationRequest, Transaction
 
-# Lazy imports for heavy Phase 3 deps (xgboost, shap, sklearn)
+# Lazy imports for heavy Phase 3-4 deps (xgboost, shap, sklearn)
 _discriminator_cls = None
 _tstr_cls = None
+_privacy_cls = None
 
 
 def _get_discriminator():
@@ -55,6 +57,14 @@ def _get_tstr():
         from synthetic.tstr import TSTRFramework
         _tstr_cls = TSTRFramework
     return _tstr_cls
+
+
+def _get_privacy():
+    global _privacy_cls
+    if _privacy_cls is None:
+        from synthetic.privacy import PrivacyEngine
+        _privacy_cls = PrivacyEngine
+    return _privacy_cls
 
 
 @dataclass
@@ -134,9 +144,9 @@ class Flywheel:
     """
     Feedback flywheel orchestrator.
 
-    Runs layers 1-6 sequentially on each generated batch, aggregates
+    Runs layers 1-7 sequentially on each generated batch, aggregates
     feedback, computes bounded corrections, and logs cycle metrics
-    for trend analysis. Layers 5-6 (discriminator, TSTR) require
+    for trend analysis. Layers 5-7 (discriminator, TSTR, privacy) require
     sklearn/xgboost and are skipped gracefully if unavailable.
     """
 
@@ -146,8 +156,9 @@ class Flywheel:
         2: 0.25,  # Statistical Fidelity — strongest signal
         3: 0.15,  # Cross-Field Consistency — catches multivariate issues
         4: 0.20,  # Risk Model — highest domain value
-        5: 0.10,  # Discriminator — XGBoost distinguishability
-        6: 0.10,  # TSTR — downstream task utility
+        5: 0.08,  # Discriminator — XGBoost distinguishability
+        6: 0.08,  # TSTR — downstream task utility
+        7: 0.09,  # Privacy Audit — DCR, NNDR, MIA
     }
 
     # Correction bounds (max adjustment per dimension per cycle)
@@ -181,7 +192,7 @@ class Flywheel:
         skip_heavy_layers: bool = False,
     ) -> FlywheelReport:
         """
-        Execute all 6 layers on a generated batch.
+        Execute all 7 layers on a generated batch.
 
         At least one of profiles or transactions must be provided.
 
@@ -255,6 +266,15 @@ class Flywheel:
                 report.layer_results.append(l6)
                 report.layers_executed += 1
                 if l6.passed:
+                    report.layers_passed += 1
+
+        # Layer 7: Privacy Audit (requires >= 20 profiles)
+        if profiles and len(profiles) >= 20 and not skip_heavy_layers:
+            l7 = self._run_layer7_privacy(profiles)
+            if l7 is not None:
+                report.layer_results.append(l7)
+                report.layers_executed += 1
+                if l7.passed:
                     report.layers_passed += 1
 
         # Aggregate feedback and compute corrections
@@ -628,6 +648,58 @@ class Flywheel:
             execution_time_ms=elapsed_ms,
         )
 
+    def _run_layer7_privacy(
+        self, profiles: List[CustomerProfile]
+    ) -> Optional[LayerResult]:
+        """
+        Layer 7: Privacy audit via DCR, NNDR, and MIA.
+
+        Ensures no synthetic record is too close to a reference individual.
+        Provides noise calibration feedback for low-privacy dimensions.
+        Returns None if dependencies unavailable.
+        """
+        start = time.time()
+
+        try:
+            PrivacyCls = _get_privacy()
+            engine = PrivacyCls(kb=self.kb)
+            privacy_report = engine.evaluate(profiles)
+        except ImportError:
+            return None
+        except Exception:
+            return None
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        # Score: weighted combination of pass rates and MIA resistance
+        dcr_component = privacy_report.dcr_pass_rate
+        nndr_component = privacy_report.nndr_pass_rate
+        mia_component = max(0.0, 1.0 - (privacy_report.mia_accuracy - 0.5) * 10)
+        score = (dcr_component * 0.4 + nndr_component * 0.3 + mia_component * 0.3)
+
+        return LayerResult(
+            layer_num=7,
+            layer_name="privacy_audit",
+            passed=privacy_report.passed,
+            score=score,
+            feedback={
+                "dcr_mean": round(privacy_report.mean_dcr, 6),
+                "dcr_min": round(privacy_report.min_dcr, 6),
+                "dcr_pass_rate": round(privacy_report.dcr_pass_rate, 4),
+                "nndr_mean": round(privacy_report.mean_nndr, 6),
+                "nndr_min": round(privacy_report.min_nndr, 6),
+                "nndr_pass_rate": round(privacy_report.nndr_pass_rate, 4),
+                "mia_accuracy": round(privacy_report.mia_accuracy, 4),
+                "mia_advantage": round(privacy_report.mia_advantage, 4),
+                "passed": privacy_report.passed,
+                "noise_adjustments": {
+                    k: round(v, 6) for k, v in privacy_report.noise_adjustments.items()
+                },
+                "low_privacy_dimensions": list(privacy_report.low_privacy_dimensions.keys()),
+            },
+            execution_time_ms=elapsed_ms,
+        )
+
     # --- Feedback Aggregation ---
 
     def _aggregate_corrections(
@@ -677,6 +749,13 @@ class Flywheel:
                 task_corr = lr.feedback.get("task_corrections", {})
                 for task, delta in task_corr.items():
                     corrections["adjustments"][task] = delta * weight
+
+            elif lr.layer_name == "privacy_audit":
+                noise_adj = lr.feedback.get("noise_adjustments", {})
+                for feat, noise in noise_adj.items():
+                    key = f"noise_{feat}"
+                    current = corrections["adjustments"].get(key, 0.0)
+                    corrections["adjustments"][key] = current + noise * weight
 
         if total_weight > 0:
             corrections["weighted_score"] = round(
