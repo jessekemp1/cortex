@@ -47,3 +47,11 @@ uvicorn
 
 # Rate Limiting
 slowapi
+
+# =============================================================================
+# SYNTHETIC DATA ENGINE
+# =============================================================================
+
+# Discriminator / Statistical Testing
+xgboost>=2.0.0
+shap>=0.44.0

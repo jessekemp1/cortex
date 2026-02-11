@@ -116,6 +116,9 @@ class BriefingData:
     )
     velocity_metrics: Optional[Dict[str, Any]] = None  # ROI, time savings
 
+    # Overnight batch insights (surfaced from completed AI analysis tasks)
+    batch_insights: Optional[Dict[str, Any]] = None
+
 
 class BriefingGenerator:
     """Generate daily briefings from cross-project data."""
@@ -228,6 +231,9 @@ class BriefingGenerator:
             except Exception as e:
                 print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
 
+        # 5b. Get overnight batch insights from completed tasks
+        batch_insights = self._get_batch_insights()
+
         # 6. Get work absorber status
         work_progress = None
         try:
@@ -298,6 +304,8 @@ class BriefingGenerator:
             resource_intelligence=resource_intelligence,
             orchestration_advisory=orchestration_advisory,
             velocity_metrics=velocity_metrics,
+            # Overnight batch insights
+            batch_insights=batch_insights,
         )
 
         return briefing
@@ -1108,6 +1116,100 @@ class BriefingGenerator:
             )
             return None
 
+    def _get_batch_insights(self) -> Optional[Dict[str, Any]]:
+        """
+        Extract overnight batch insights from completed AI analysis tasks.
+
+        Queries the SQLite batch queue for tasks completed in the last 24h,
+        groups them by category (json_job_id prefix), and extracts the first
+        ~200 chars of each result as a summary.
+        """
+        try:
+            import sqlite3
+            from pathlib import Path
+
+            db_path = Path.home() / ".cortex" / "batch_queue.db"
+            if not db_path.exists():
+                return None
+
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT
+                    json_extract(metadata, '$.json_job_id') as job_id,
+                    json_extract(metadata, '$.source') as source,
+                    description,
+                    length(stdout) as output_size,
+                    substr(stdout, 1, 300) as output_preview,
+                    completed_at,
+                    actual_duration_seconds
+                FROM batch_tasks
+                WHERE state = 'completed'
+                    AND json_extract(metadata, '$.sync_origin') = 'queue_sync'
+                    AND completed_at >= datetime('now', '-24 hours')
+                    AND stdout IS NOT NULL
+                    AND length(stdout) > 50
+                ORDER BY completed_at DESC
+                LIMIT 20
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows:
+                return None
+
+            # Group by category, stripping instance-specific suffixes.
+            # "commit-analysis-87f54fbd" -> "commit-analysis" (hex hash)
+            # "strategic-planning-20260209" -> "strategic-planning" (date)
+            # "docs-completeness" -> "docs-completeness" (keep — suffix is a word)
+            import re
+
+            def _job_category(job_id: str) -> str:
+                parts = job_id.rsplit("-", 1)
+                if len(parts) == 2:
+                    suffix = parts[1]
+                    # Strip hex hashes (e.g. 87f54fbd) or dates (20260209)
+                    if re.fullmatch(r"[0-9a-f]{6,}", suffix) or re.fullmatch(r"\d{8,}", suffix):
+                        return parts[0]
+                return job_id
+
+            categories = {}
+            for row in rows:
+                job_id = row["job_id"] or "unknown"
+                category = _job_category(job_id)
+
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append(
+                    {
+                        "job_id": job_id,
+                        "description": row["description"],
+                        "output_size": row["output_size"],
+                        "preview": row["output_preview"],
+                        "duration_s": row["actual_duration_seconds"],
+                    }
+                )
+
+            return {
+                "total_completed_24h": len(rows),
+                "categories": {
+                    cat: {
+                        "count": len(items),
+                        "total_output_kb": round(sum(i["output_size"] for i in items) / 1024, 1),
+                        "sample_description": items[0]["description"],
+                    }
+                    for cat, items in categories.items()
+                },
+                "total_output_kb": round(sum(r["output_size"] for r in rows) / 1024, 1),
+                "avg_duration_s": round(
+                    sum(r["actual_duration_seconds"] or 0 for r in rows) / len(rows), 1
+                ),
+            }
+
+        except Exception as e:
+            print(f"Warning: Could not get batch insights: {e}", file=sys.stderr)
+            return None
+
     def _get_velocity_metrics(self) -> Optional[Dict[str, Any]]:
         """Get velocity and ROI metrics from MetricsTracker."""
         if not self.metrics_tracker:
@@ -1349,7 +1451,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         status_color = (
             GREEN
             if pacing.get("status") == "under_budget"
-            else YELLOW if pacing.get("status") in ["on_track", "elevated"] else RED
+            else YELLOW
+            if pacing.get("status") in ["on_track", "elevated"]
+            else RED
         )
         lines.append(
             f"  {emoji} {BOLD}Pacing:{RESET} {status_color}{status}{RESET} ({daily_hrs:.1f}h/day vs {target_hrs:.1f}h target)"
@@ -1529,7 +1633,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         mem_color = (
             RED
             if rs["memory_usage_percent"] > 80
-            else YELLOW if rs["memory_usage_percent"] > 60 else GREEN
+            else YELLOW
+            if rs["memory_usage_percent"] > 60
+            else GREEN
         )
 
         lines.append(
@@ -1547,7 +1653,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         alerts_color = (
             RED
             if rs.get("critical_alerts", 0) > 0
-            else YELLOW if rs.get("alerts_count", 0) > 5 else ""
+            else YELLOW
+            if rs.get("alerts_count", 0) > 5
+            else ""
         )
         waste_color = YELLOW if rs.get("waste_items", 0) > 10 else ""
 
@@ -1599,7 +1707,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                         if elapsed_sec < 60:
                             elapsed = f" ({elapsed_sec:.0f}s elapsed)"
                         else:
-                            elapsed = f" ({elapsed_sec/60:.1f}m elapsed)"
+                            elapsed = f" ({elapsed_sec / 60:.1f}m elapsed)"
                     lines.append(f"     • {desc}{elapsed}")
                 if len(running_tasks) > 3:
                     lines.append(f"     ... and {len(running_tasks) - 3} more")
@@ -1627,7 +1735,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                         elif time_until < 60:
                             when = f" (in {time_until:.0f}s)"
                         elif time_until < 3600:
-                            when = f" (in {time_until/60:.0f}m)"
+                            when = f" (in {time_until / 60:.0f}m)"
                         elif time_until < 86400:
                             when = f" (at {task.scheduled_time.strftime('%H:%M')})"
                         else:
@@ -1673,11 +1781,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                     duration = ""
                     if task.actual_duration_seconds is not None:
                         if task.actual_duration_seconds < 1:
-                            duration = f" ({task.actual_duration_seconds*1000:.0f}ms)"
+                            duration = f" ({task.actual_duration_seconds * 1000:.0f}ms)"
                         elif task.actual_duration_seconds < 60:
                             duration = f" ({task.actual_duration_seconds:.1f}s)"
                         else:
-                            duration = f" ({task.actual_duration_seconds/60:.1f}m)"
+                            duration = f" ({task.actual_duration_seconds / 60:.1f}m)"
                     lines.append(f"     • {desc}{duration}")
                 lines.append("")
 
@@ -1719,6 +1827,43 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                     lines.append("")
 
             lines.append("")
+
+    # Overnight Batch Insights (AI analysis results from last 24h)
+    if briefing.batch_insights:
+        bi = briefing.batch_insights
+        lines.append(f"{BOLD}🔬 OVERNIGHT BATCH INSIGHTS{RESET}")
+        lines.append(
+            f"  {bi['total_completed_24h']} analyses completed "
+            f"({bi['total_output_kb']:.0f} KB output, "
+            f"avg {bi['avg_duration_s']:.0f}s each)"
+        )
+        lines.append("")
+
+        # Show categories with counts
+        category_labels = {
+            "commit-analysis": "Commit Reviews",
+            "security-commit": "Security Scans",
+            "test-failure": "Test Failure Analysis",
+            "todo-analysis": "TODO/FIXME Scans",
+            "strategic-planning": "Strategic Planning",
+            "performance-analysis": "Performance Analysis",
+            "dependency-audit": "Dependency Audit",
+            "docs-completeness": "Documentation Audit",
+            "code-quality-scan": "Code Quality",
+            "test-coverage-analysis": "Test Coverage Gaps",
+            "api-docs-generation": "API Docs",
+        }
+        for cat, info in sorted(bi["categories"].items(), key=lambda x: -x[1]["count"]):
+            label = category_labels.get(cat, cat.replace("-", " ").title())
+            lines.append(f"  • {label}: {info['count']} runs, {info['total_output_kb']:.0f} KB")
+
+        lines.append("")
+        lines.append(
+            f"  💡 Query results: {BLUE}sqlite3 ~/.cortex/batch_queue.db "
+            f'"SELECT description, substr(stdout,1,500) FROM batch_tasks '
+            f"WHERE state='completed' ORDER BY completed_at DESC LIMIT 5;\"{RESET}"
+        )
+        lines.append("")
 
     # V2a Sprint Batch Status (if active)
     if briefing.batch_queue_status and "v2a_sprint" in briefing.batch_queue_status:
@@ -1785,7 +1930,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                 if est_remaining < 60:
                     est_text = f"{est_remaining:.0f} minutes"
                 else:
-                    est_text = f"{est_remaining/60:.1f} hours"
+                    est_text = f"{est_remaining / 60:.1f} hours"
                 lines.append(f"\n  Estimated remaining: {est_text}")
 
             lines.append(f"  💡 Check status: {BLUE}cortex v2a-batch status{RESET}")
@@ -1798,7 +1943,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             priority_color = (
                 RED
                 if action["priority"] == "HIGH"
-                else YELLOW if action["priority"] == "MEDIUM" else GREEN
+                else YELLOW
+                if action["priority"] == "MEDIUM"
+                else GREEN
             )
 
             # Title with project inline
@@ -1956,7 +2103,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             best = im.get("best_performing_type")
             if best:
                 lines.append(
-                    f"  {GREEN}Best performing:{RESET} {best['type']} ({best['success_rate']*100:.0f}% success)"
+                    f"  {GREEN}Best performing:{RESET} {best['type']} ({best['success_rate'] * 100:.0f}% success)"
                 )
 
             # Confidence calibration insight

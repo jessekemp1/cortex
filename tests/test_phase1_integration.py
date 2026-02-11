@@ -32,7 +32,6 @@ def test_config_loading():
     assert hasattr(config, "prompt_version"), "Should have prompt_version"
 
     print("✓ Config loading test passed")
-    return True
 
 
 def test_bridge_initialization():
@@ -44,7 +43,6 @@ def test_bridge_initialization():
     assert bridge.defensive is not None, "Defensive prompting should be initialized"
 
     print("✓ Bridge initialization test passed")
-    return True
 
 
 def test_defensive_prompting():
@@ -70,7 +68,6 @@ def test_defensive_prompting():
     assert result.severity == "error", "Oversized input should be error"
 
     print("✓ Defensive prompting test passed")
-    return True
 
 
 def test_security_logging():
@@ -96,7 +93,6 @@ def test_security_logging():
     assert "injection_attempt" in stats["by_type"], "Should track by type"
 
     print("✓ Security logging test passed")
-    return True
 
 
 def test_data_quality_integration():
@@ -130,7 +126,6 @@ def test_data_quality_integration():
     ), "Quality score should be between 0 and 1"
 
     print("✓ Data quality integration test passed")
-    return True
 
 
 def test_quality_weighted_learning():
@@ -146,7 +141,6 @@ def test_quality_weighted_learning():
     assert accuracy <= 1.0, "Accuracy should be at most 1.0"
 
     print(f"✓ Quality-weighted learning test passed (accuracy: {accuracy:.1%})")
-    return True
 
 
 def test_bridge_defensive_integration():
@@ -167,7 +161,6 @@ def test_bridge_defensive_integration():
         )
 
     print("✓ Bridge defensive integration test passed")
-    return True
 
 
 def test_graceful_degradation():
@@ -189,7 +182,6 @@ def test_graceful_degradation():
     assert bridge is not None, "Bridge should initialize even with features disabled"
 
     print("✓ Graceful degradation test passed")
-    return True
 
 
 def run_all_tests():

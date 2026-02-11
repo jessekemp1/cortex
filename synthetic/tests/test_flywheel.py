@@ -69,7 +69,7 @@ class TestFlywheelCycle:
             transactions=sample_transactions,
             flywheel_id="test-003",
         )
-        assert report.layers_executed == 7  # All 7 layers (L1-L7)
+        assert report.layers_executed == 9  # All 9 layers (L1-L9)
 
     def test_cycle_skip_heavy_layers(self, flywheel, sample_profiles, sample_transactions):
         report = flywheel.run_cycle(
@@ -315,6 +315,146 @@ class TestLayer7Privacy:
         report = flywheel.run_cycle(profiles=profiles, flywheel_id="l7-small")
         l7_results = [lr for lr in report.layer_results if lr.layer_num == 7]
         assert len(l7_results) == 0  # Skipped
+
+
+class TestLayer8BehavioralFidelity:
+    """Test Layer 8: Behavioral Fidelity via flywheel."""
+
+    def test_layer8_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l8-test")
+        l8_results = [lr for lr in report.layer_results if lr.layer_num == 8]
+        assert len(l8_results) == 1
+        assert l8_results[0].layer_name == "behavioral_fidelity"
+
+    def test_layer8_reports_checks(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l8-checks")
+        l8 = next(lr for lr in report.layer_results if lr.layer_num == 8)
+        assert "checks" in l8.feedback
+        assert "overall_score" in l8.feedback
+        assert "segment_scores" in l8.feedback
+
+    def test_layer8_score_in_range(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l8-score")
+        l8 = next(lr for lr in report.layer_results if lr.layer_num == 8)
+        assert 0.0 <= l8.score <= 1.0
+
+    def test_layer8_reports_agent_info(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l8-agents")
+        l8 = next(lr for lr in report.layer_results if lr.layer_num == 8)
+        assert l8.feedback["n_agents"] > 0
+        assert l8.feedback["n_steps"] > 0
+
+    def test_layer8_skipped_for_small_batch(self, flywheel):
+        """Layer 8 needs >= 10 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(5)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l8-small")
+        l8_results = [lr for lr in report.layer_results if lr.layer_num == 8]
+        assert len(l8_results) == 0  # Skipped
+
+    def test_layer8_skipped_when_heavy_layers_skipped(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(
+            profiles=sample_profiles,
+            flywheel_id="l8-skip-heavy",
+            skip_heavy_layers=True,
+        )
+        l8_results = [lr for lr in report.layer_results if lr.layer_num == 8]
+        assert len(l8_results) == 0  # Skipped
+
+
+class TestLayer9TemporalCoherence:
+    """Test Layer 9: Temporal Coherence via flywheel."""
+
+    def test_layer9_runs_with_enough_profiles(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l9-test")
+        l9_results = [lr for lr in report.layer_results if lr.layer_num == 9]
+        assert len(l9_results) == 1
+        assert l9_results[0].layer_name == "temporal_coherence"
+
+    def test_layer9_reports_checks(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l9-checks")
+        l9 = next(lr for lr in report.layer_results if lr.layer_num == 9)
+        assert "checks" in l9.feedback
+        assert "overall_score" in l9.feedback
+
+    def test_layer9_score_in_range(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l9-score")
+        l9 = next(lr for lr in report.layer_results if lr.layer_num == 9)
+        assert 0.0 <= l9.score <= 1.0
+
+    def test_layer9_reports_agent_info(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(profiles=sample_profiles, flywheel_id="l9-agents")
+        l9 = next(lr for lr in report.layer_results if lr.layer_num == 9)
+        assert l9.feedback["n_agents"] > 0
+        assert l9.feedback["n_steps"] > 0
+
+    def test_layer9_skipped_for_small_batch(self, flywheel):
+        """Layer 9 needs >= 10 profiles."""
+        profiles = [
+            CustomerProfile(
+                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
+                segment="mass_market", annual_income=50000.0,
+                household_income=80000.0, credit_score=700,
+                products_held=["chequing"], total_deposits=10000.0,
+                total_credit_outstanding=0.0, digital_adoption="hybrid",
+                primary_channel="mobile", tenure_years=5.0,
+                products_per_household=1,
+            )
+            for i in range(5)
+        ]
+        report = flywheel.run_cycle(profiles=profiles, flywheel_id="l9-small")
+        l9_results = [lr for lr in report.layer_results if lr.layer_num == 9]
+        assert len(l9_results) == 0  # Skipped
+
+    def test_layer9_skipped_when_heavy_layers_skipped(self, flywheel, sample_profiles):
+        report = flywheel.run_cycle(
+            profiles=sample_profiles,
+            flywheel_id="l9-skip-heavy",
+            skip_heavy_layers=True,
+        )
+        l9_results = [lr for lr in report.layer_results if lr.layer_num == 9]
+        assert len(l9_results) == 0  # Skipped
+
+
+class TestL8L9GracefulDegradation:
+    """Test that L8/L9 degrade gracefully when Pupil is unavailable."""
+
+    def test_flywheel_works_without_pupil_layers(self, flywheel, sample_profiles):
+        """Core layers (L1-L3) still run even if L8/L9 were to fail."""
+        report = flywheel.run_cycle(
+            profiles=sample_profiles,
+            flywheel_id="graceful-test",
+            skip_heavy_layers=True,
+        )
+        assert report.layers_executed >= 3  # L1, L2, L3 at minimum
+        assert report.overall_score > 0
+
+    def test_layers_executed_increases_with_l8_l9(self, flywheel, sample_profiles, sample_transactions):
+        """L8 and L9 should increase layers_executed over L1-L7."""
+        report_without = flywheel.run_cycle(
+            profiles=sample_profiles,
+            transactions=sample_transactions,
+            flywheel_id="count-without",
+            skip_heavy_layers=True,
+        )
+        report_with = flywheel.run_cycle(
+            profiles=sample_profiles,
+            transactions=sample_transactions,
+            flywheel_id="count-with",
+            skip_heavy_layers=False,
+        )
+        # With all layers should have more than just L1-L4
+        assert report_with.layers_executed > report_without.layers_executed
 
 
 class TestCorrections:

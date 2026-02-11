@@ -20,6 +20,9 @@ from typing import Dict, List, Any
 CORTEX_DIR = Path.home() / ".cortex"
 BATCH_DIR = CORTEX_DIR / "batch"
 RESULTS_DIR = BATCH_DIR / "results"
+# The actual batch results live under ~/.cortex/batches/ (plural), not ~/.cortex/batch/results/
+# monitor_batch_overnight.py and queue_manager write results to ~/.cortex/batches/
+BATCHES_DIR = CORTEX_DIR / "batches"
 SESSION_CACHE = CORTEX_DIR / "session_cache.json"
 BRIEFING_CACHE = CORTEX_DIR / "briefing_cache.json"
 
@@ -28,29 +31,91 @@ def get_overnight_results() -> List[Dict[str, Any]]:
     """
     Fetch batch job results from overnight processing.
 
+    Searches multiple result locations:
+    1. ~/.cortex/batch/results/ (legacy path for inline results)
+    2. ~/.cortex/batches/remediation_queue.json (completed jobs from queue_manager)
+    3. ~/.cortex/batches/msgbatch_*_results/ (results from monitor_batch_overnight.py)
+
     Returns:
         List of result dictionaries with job metadata and outcomes
     """
     results = []
-
-    # Check for completed results files
-    if not RESULTS_DIR.exists():
-        return results
-
     cutoff = datetime.now() - timedelta(hours=12)
 
-    for result_file in RESULTS_DIR.glob("*.json"):
-        try:
-            data = json.loads(result_file.read_text())
+    # Source 1: Legacy results directory (~/.cortex/batch/results/)
+    if RESULTS_DIR.exists():
+        for result_file in RESULTS_DIR.glob("*.json"):
+            try:
+                data = json.loads(result_file.read_text())
+                completed_at = data.get("completed_at")
+                if completed_at:
+                    completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+                    if completed_dt.replace(tzinfo=None) > cutoff:
+                        results.append(data)
+            except Exception:
+                continue
 
-            # Check if this is from overnight
-            completed_at = data.get("completed_at")
-            if completed_at:
-                completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
-                if completed_dt.replace(tzinfo=None) > cutoff:
-                    results.append(data)
+    # Source 2: Completed jobs from remediation_queue.json
+    queue_file = BATCHES_DIR / "remediation_queue.json"
+    if queue_file.exists():
+        try:
+            queue_data = json.loads(queue_file.read_text())
+            for job in queue_data.get("priority_jobs", []):
+                if job.get("status") == "completed":
+                    completed_at = job.get("completed_at")
+                    if completed_at:
+                        try:
+                            completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+                            if completed_dt.replace(tzinfo=None) > cutoff:
+                                results.append({
+                                    "job_id": job.get("id"),
+                                    "title": job.get("description", ""),
+                                    "status": "completed",
+                                    "completed_at": completed_at,
+                                    "source": job.get("source", "other"),
+                                    "type": job.get("source", "other"),
+                                    "output": json.dumps(job.get("final_status", {})),
+                                    "tokens_used": job.get("estimated_total_tokens", 0),
+                                })
+                        except (ValueError, TypeError):
+                            continue
         except Exception:
-            continue
+            pass
+
+    # Source 3: Batch result directories (~/.cortex/batches/msgbatch_*_results/)
+    if BATCHES_DIR.exists():
+        for result_dir in BATCHES_DIR.glob("msgbatch_*_results"):
+            for result_file in result_dir.glob("*.json"):
+                try:
+                    file_mtime = datetime.fromtimestamp(result_file.stat().st_mtime)
+                    if file_mtime > cutoff:
+                        data = json.loads(result_file.read_text())
+                        # Normalize result format
+                        if isinstance(data, list):
+                            for item in data:
+                                results.append({
+                                    "job_id": item.get("custom_id", result_file.stem),
+                                    "title": item.get("custom_id", result_file.stem),
+                                    "status": item.get("status", "completed"),
+                                    "completed_at": file_mtime.isoformat(),
+                                    "source": "research",
+                                    "type": "batch_api",
+                                    "output": json.dumps(item.get("result", {}))[:500],
+                                    "tokens_used": 0,
+                                })
+                        elif isinstance(data, dict):
+                            results.append({
+                                "job_id": data.get("custom_id", result_file.stem),
+                                "title": data.get("custom_id", result_file.stem),
+                                "status": data.get("status", "completed"),
+                                "completed_at": file_mtime.isoformat(),
+                                "source": "research",
+                                "type": "batch_api",
+                                "output": json.dumps(data)[:500],
+                                "tokens_used": 0,
+                            })
+                except Exception:
+                    continue
 
     return results
 

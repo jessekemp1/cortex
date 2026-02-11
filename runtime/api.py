@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import structlog
 from cortex.runtime.models import WebhookEvent
 from cortex.runtime.storage.metrics import MetricsCollector
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -66,7 +66,9 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         health_status = {
             "status": "healthy",
             "service": "cortex-runtime",
-            "timestamp": executor.history.metrics.get("last_run_timestamp", None),
+            "timestamp": getattr(executor.history, "metrics", {}).get("last_run_timestamp", None)
+            if hasattr(executor.history, "metrics")
+            else None,
         }
 
         # Try to integrate with supervisor health monitoring
@@ -88,7 +90,9 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
                 "issues": [
                     {
                         "type": issue.issue_type,
-                        "target": issue.target_id[:8] if len(issue.target_id) > 8 else issue.target_id,
+                        "target": issue.target_id[:8]
+                        if len(issue.target_id) > 8
+                        else issue.target_id,
                         "severity": issue.severity,
                         "description": issue.description,
                         "auto_healable": issue.auto_healable,
@@ -117,14 +121,14 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
             # Supervisor not available - basic health only
             health_status["health_monitor"] = {
                 "enabled": False,
-                "reason": "supervisor module not available"
+                "reason": "supervisor module not available",
             }
         except Exception as e:
             # Health check failed but runtime is still up
             health_status["health_monitor"] = {
                 "enabled": True,
                 "error": str(e),
-                "status": "check_failed"
+                "status": "check_failed",
             }
             logger.warning(f"Health monitoring check failed: {e}")
 
@@ -136,10 +140,7 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         """Health check endpoint (legacy path)."""
         # Return simplified health for backward compatibility
         full_health = await health()
-        return {
-            "status": full_health.get("status", "healthy"),
-            "service": "cortex-runtime"
-        }
+        return {"status": full_health.get("status", "healthy"), "service": "cortex-runtime"}
 
     # ==================== Metrics ====================
 
@@ -187,7 +188,9 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
 
     @app.post("/api/v1/runtime/agents/{agent_id}/trigger")
     @limiter.limit("10/minute")
-    async def trigger_agent(request: Request, agent_id: str, context: Optional[Dict[str, Any]] = None):
+    async def trigger_agent(
+        request: Request, agent_id: str, context: Optional[Dict[str, Any]] = None
+    ):
         """Manually trigger an agent."""
         if agent_id not in executor.agents:
             raise HTTPException(status_code=404, detail="Agent not found")
@@ -280,16 +283,16 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
             <h2>System Metrics</h2>
             <table>
                 <tr><th>Metric</th><th>Value</th></tr>
-                <tr><td>Total Executions</td><td>{metrics.get('total_executions', 0)}</td></tr>
-                <tr><td>Success Rate</td><td>{metrics.get('success_rate', 0):.1f}%</td></tr>
-                <tr><td>Active Agents</td><td>{metrics.get('agents_active', 0)}</td></tr>
-                <tr><td>Last 24h</td><td>{metrics.get('last_24_hours', 0)}</td></tr>
+                <tr><td>Total Executions</td><td>{metrics.get("total_executions", 0)}</td></tr>
+                <tr><td>Success Rate</td><td>{metrics.get("success_rate", 0):.1f}%</td></tr>
+                <tr><td>Active Agents</td><td>{metrics.get("agents_active", 0)}</td></tr>
+                <tr><td>Last 24h</td><td>{metrics.get("last_24_hours", 0)}</td></tr>
             </table>
 
             <h2>Registered Agents ({len(agents)})</h2>
             <table>
                 <tr><th>Agent ID</th><th>Name</th><th>Status</th></tr>
-                {''.join(f'<tr><td>{a["agent_id"]}</td><td>{a["name"]}</td><td class="{a["status"]}">{a["status"]}</td></tr>' for a in agents)}
+                {"".join(f'<tr><td>{a["agent_id"]}</td><td>{a["name"]}</td><td class="{a["status"]}">{a["status"]}</td></tr>' for a in agents)}
             </table>
 
             <p><small>Auto-refreshes every 30 seconds</small></p>

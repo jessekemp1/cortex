@@ -2,7 +2,7 @@
 """
 Feedback Flywheel Orchestrator — Automated quality improvement loop.
 
-Chains 7 feedback layers (Phase 2-4) that run after every generation:
+Chains 9 feedback layers (Phase 2-5B) that run after every generation:
 
   Layer 1: Quality Gate — Per-record 6-dimension quality scoring
   Layer 2: Statistical Fidelity — KS, chi-squared, JSD vs KB benchmarks
@@ -11,6 +11,8 @@ Chains 7 feedback layers (Phase 2-4) that run after every generation:
   Layer 5: Discriminator Feedback — XGBoost + SHAP distinguishability test
   Layer 6: Downstream Task (TSTR) — Train-on-synthetic, test-on-real utility
   Layer 7: Privacy Audit — DCR, NNDR, MIA resistance checks
+  Layer 8: Behavioral Fidelity — Pupil simulation behavioral benchmarks
+  Layer 9: Temporal Coherence — Pupil simulation time-series validation
 
 Each layer produces feedback signals that are aggregated into a
 correction vector. The corrections are bounded by knowledge base
@@ -42,6 +44,11 @@ _discriminator_cls = None
 _tstr_cls = None
 _privacy_cls = None
 
+# Lazy imports for Phase 5B deps (Pupil simulation pipeline)
+_behavioral_fidelity_cls = None
+_temporal_coherence_cls = None
+_pupil_bridge_cls = None
+
 
 def _get_discriminator():
     global _discriminator_cls
@@ -65,6 +72,30 @@ def _get_privacy():
         from synthetic.privacy import PrivacyEngine
         _privacy_cls = PrivacyEngine
     return _privacy_cls
+
+
+def _get_behavioral_fidelity():
+    global _behavioral_fidelity_cls
+    if _behavioral_fidelity_cls is None:
+        from synthetic.pupil.behavioral_fidelity import BehavioralFidelityValidator
+        _behavioral_fidelity_cls = BehavioralFidelityValidator
+    return _behavioral_fidelity_cls
+
+
+def _get_temporal_coherence():
+    global _temporal_coherence_cls
+    if _temporal_coherence_cls is None:
+        from synthetic.pupil.temporal_coherence import TemporalCoherenceValidator
+        _temporal_coherence_cls = TemporalCoherenceValidator
+    return _temporal_coherence_cls
+
+
+def _get_pupil_bridge():
+    global _pupil_bridge_cls
+    if _pupil_bridge_cls is None:
+        from synthetic.pupil.bridge import PupilBridge
+        _pupil_bridge_cls = PupilBridge
+    return _pupil_bridge_cls
 
 
 @dataclass
@@ -144,10 +175,12 @@ class Flywheel:
     """
     Feedback flywheel orchestrator.
 
-    Runs layers 1-7 sequentially on each generated batch, aggregates
+    Runs layers 1-9 sequentially on each generated batch, aggregates
     feedback, computes bounded corrections, and logs cycle metrics
     for trend analysis. Layers 5-7 (discriminator, TSTR, privacy) require
-    sklearn/xgboost and are skipped gracefully if unavailable.
+    sklearn/xgboost and are skipped gracefully if unavailable. Layers 8-9
+    (behavioral fidelity, temporal coherence) require the Pupil simulation
+    pipeline and are skipped gracefully if unavailable.
     """
 
     # Layer confidence weights for feedback aggregation
@@ -159,6 +192,8 @@ class Flywheel:
         5: 0.08,  # Discriminator — XGBoost distinguishability
         6: 0.08,  # TSTR — downstream task utility
         7: 0.09,  # Privacy Audit — DCR, NNDR, MIA
+        8: 0.08,  # Behavioral Fidelity — Pupil simulation benchmarks
+        9: 0.08,  # Temporal Coherence — Pupil time-series validation
     }
 
     # Correction bounds (max adjustment per dimension per cycle)
@@ -192,7 +227,7 @@ class Flywheel:
         skip_heavy_layers: bool = False,
     ) -> FlywheelReport:
         """
-        Execute all 7 layers on a generated batch.
+        Execute all 9 layers on a generated batch.
 
         At least one of profiles or transactions must be provided.
 
@@ -276,6 +311,36 @@ class Flywheel:
                 report.layers_executed += 1
                 if l7.passed:
                     report.layers_passed += 1
+
+        # Layer 8: Behavioral Fidelity (requires profiles, Pupil pipeline)
+        if profiles and len(profiles) >= 10 and not skip_heavy_layers:
+            l8 = self._run_layer8_behavioral_fidelity(profiles)
+            if l8 is not None:
+                report.layer_results.append(l8)
+                report.layers_executed += 1
+                if l8.passed:
+                    report.layers_passed += 1
+
+        # Layer 9: Temporal Coherence (requires profiles, Pupil pipeline)
+        if profiles and len(profiles) >= 10 and not skip_heavy_layers:
+            l9 = self._run_layer9_temporal_coherence(profiles)
+            if l9 is not None:
+                report.layer_results.append(l9)
+                report.layers_executed += 1
+                if l9.passed:
+                    report.layers_passed += 1
+
+        # Calibrate Pupil segment parameters from L8/L9 feedback
+        l8_result = next(
+            (lr for lr in report.layer_results if lr.layer_name == "behavioral_fidelity"),
+            None,
+        )
+        l9_result = next(
+            (lr for lr in report.layer_results if lr.layer_name == "temporal_coherence"),
+            None,
+        )
+        if l8_result or l9_result:
+            self._calibrate_pupil_segments(l8_result, l9_result, cycle_id)
 
         # Aggregate feedback and compute corrections
         report.corrections = self._aggregate_corrections(report.layer_results)
@@ -700,6 +765,123 @@ class Flywheel:
             execution_time_ms=elapsed_ms,
         )
 
+    def _run_layer8_behavioral_fidelity(
+        self, profiles: List[CustomerProfile]
+    ) -> Optional[LayerResult]:
+        """
+        Layer 8: Behavioral fidelity via Pupil simulation.
+
+        Generates a SimulationResult from profiles using PupilBridge,
+        then validates behavioral benchmarks (churn rates, product adoption,
+        deposit sensitivity, credit score ranges, lifecycle transitions).
+        Returns None if Pupil pipeline is unavailable.
+        """
+        start = time.time()
+
+        try:
+            BridgeCls = _get_pupil_bridge()
+            ValidatorCls = _get_behavioral_fidelity()
+
+            bridge = BridgeCls()
+            sim_result = bridge.from_profiles(profiles, months=12, seed=42)
+
+            validator = ValidatorCls()
+            fidelity_report = validator.validate(sim_result)
+        except ImportError:
+            return None  # Pupil pipeline not available
+        except Exception:
+            return None  # Graceful fallback
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        return LayerResult(
+            layer_num=8,
+            layer_name="behavioral_fidelity",
+            passed=fidelity_report.passed,
+            score=fidelity_report.overall_score,
+            feedback={
+                "overall_score": round(fidelity_report.overall_score, 4),
+                "passed": fidelity_report.passed,
+                "n_agents": fidelity_report.n_agents,
+                "n_steps": fidelity_report.n_steps,
+                "checks": [c.to_dict() for c in fidelity_report.checks],
+                "segment_scores": {
+                    k: round(v, 4) for k, v in fidelity_report.segment_scores.items()
+                },
+            },
+            execution_time_ms=elapsed_ms,
+        )
+
+    def _run_layer9_temporal_coherence(
+        self, profiles: List[CustomerProfile]
+    ) -> Optional[LayerResult]:
+        """
+        Layer 9: Temporal coherence via Pupil simulation.
+
+        Generates a SimulationResult from profiles using PupilBridge,
+        then validates time-series properties (satisfaction autocorrelation,
+        churn monotonicity, deposit smoothness, unemployment responsiveness,
+        state transition validity).
+        Returns None if Pupil pipeline is unavailable.
+        """
+        start = time.time()
+
+        try:
+            BridgeCls = _get_pupil_bridge()
+            ValidatorCls = _get_temporal_coherence()
+
+            bridge = BridgeCls()
+            sim_result = bridge.from_profiles(profiles, months=12, seed=42)
+
+            validator = ValidatorCls()
+            coherence_report = validator.validate(sim_result)
+        except ImportError:
+            return None  # Pupil pipeline not available
+        except Exception:
+            return None  # Graceful fallback
+
+        elapsed_ms = (time.time() - start) * 1000
+
+        return LayerResult(
+            layer_num=9,
+            layer_name="temporal_coherence",
+            passed=coherence_report.passed,
+            score=coherence_report.overall_score,
+            feedback={
+                "overall_score": round(coherence_report.overall_score, 4),
+                "passed": coherence_report.passed,
+                "n_agents": coherence_report.n_agents,
+                "n_steps": coherence_report.n_steps,
+                "checks": [c.to_dict() for c in coherence_report.checks],
+            },
+            execution_time_ms=elapsed_ms,
+        )
+
+    # --- Pupil Calibration ---
+
+    def _calibrate_pupil_segments(
+        self,
+        l8_result: Optional[LayerResult],
+        l9_result: Optional[LayerResult],
+        cycle_id: str,
+    ):
+        """
+        Feed L8/L9 results back into Pupil segment parameters.
+
+        Gracefully degrades if the calibrator is unavailable.
+        """
+        try:
+            from synthetic.pupil.calibrator import SegmentCalibrator
+
+            calibrator = SegmentCalibrator()
+            calibrator.calibrate_from_feedback(
+                l8_feedback=l8_result.feedback if l8_result else None,
+                l9_feedback=l9_result.feedback if l9_result else None,
+                cycle_id=cycle_id,
+            )
+        except (ImportError, Exception):
+            pass  # Graceful degradation
+
     # --- Feedback Aggregation ---
 
     def _aggregate_corrections(
@@ -756,6 +938,23 @@ class Flywheel:
                     key = f"noise_{feat}"
                     current = corrections["adjustments"].get(key, 0.0)
                     corrections["adjustments"][key] = current + noise * weight
+
+            elif lr.layer_name == "behavioral_fidelity":
+                # Extract per-segment fidelity scores as correction signals
+                seg_scores = lr.feedback.get("segment_scores", {})
+                for segment, seg_score in seg_scores.items():
+                    if seg_score < 0.7:  # Below threshold — needs correction
+                        key = f"behavioral_{segment}"
+                        corrections["adjustments"][key] = (seg_score - 1.0) * weight
+
+            elif lr.layer_name == "temporal_coherence":
+                # Extract per-check scores as correction signals
+                for check in lr.feedback.get("checks", []):
+                    if check.get("score", 1.0) < 0.7:
+                        key = f"temporal_{check['check_name']}"
+                        corrections["adjustments"][key] = (
+                            (check["score"] - 1.0) * weight
+                        )
 
         if total_weight > 0:
             corrections["weighted_score"] = round(

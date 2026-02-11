@@ -20,6 +20,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+# Ensure parent directory is on path so "from batch.xxx import ..." works
+# when this script is run directly (e.g., by launchd)
+_cortex_root = str(Path(__file__).resolve().parent.parent)
+if _cortex_root not in sys.path:
+    sys.path.insert(0, _cortex_root)
+
 
 @dataclass
 class BatchCapacity:
@@ -382,6 +388,16 @@ class IntelligentBatchOrchestrator:
                 job_summary["submitted"] = "dry_run"
 
             summary["jobs"].append(job_summary)
+
+        # Sync all queued JSON jobs to SQLite ONCE after all submissions
+        if not dry_run and any(j.get("submitted") is True for j in summary["jobs"]):
+            try:
+                from batch.orchestrator import BatchOrchestrator
+                orch = BatchOrchestrator()
+                synced = orch.sync_to_daemon()
+                summary["synced_to_daemon"] = synced
+            except Exception as e:
+                summary["sync_error"] = str(e)
 
         return summary
 
