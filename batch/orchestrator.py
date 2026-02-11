@@ -304,6 +304,10 @@ class BatchOrchestrator:
         """
         Submit job to API batch queue (remediation_queue.json).
 
+        Deduplicates by job ID: if a job with the same ID already exists
+        in 'queued' status, it is replaced rather than appended.
+        Completed/submitted jobs are preserved.
+
         Args:
             job_data: Job definition
 
@@ -327,6 +331,7 @@ class BatchOrchestrator:
             "estimated_total_tokens": job_data.get("estimated_total_tokens", 0),
             "request_count": len(job_data.get("tasks", [])),
             "depends_on": job_data.get("depends_on", []),
+            "queued_at": datetime.now().isoformat(),
         }
 
         # Add optional fields
@@ -335,8 +340,21 @@ class BatchOrchestrator:
         if "project" in job_data:
             job_definition["project"] = job_data["project"]
 
-        # Append to queue
-        queue_data["priority_jobs"].append(job_definition)
+        # Deduplicate: replace existing queued job with same ID, preserve completed/submitted
+        existing_ids = {
+            (i, job["id"], job.get("status"))
+            for i, job in enumerate(queue_data["priority_jobs"])
+        }
+        replaced = False
+        for idx, existing_job in enumerate(queue_data["priority_jobs"]):
+            if existing_job["id"] == job_id and existing_job.get("status") == "queued":
+                queue_data["priority_jobs"][idx] = job_definition
+                replaced = True
+                logger.debug(f"Replaced existing queued job: {job_id}")
+                break
+
+        if not replaced:
+            queue_data["priority_jobs"].append(job_definition)
 
         # Update metadata
         queue_data["queue_metadata"]["total_jobs"] = len(queue_data["priority_jobs"])
@@ -357,6 +375,25 @@ class BatchOrchestrator:
         logger.info(f"   Tokens: {job_data.get('estimated_total_tokens', 0):,}")
 
         return job_id
+
+    def sync_to_daemon(self) -> int:
+        """
+        Sync all queued JSON jobs to SQLite so the daemon can execute them.
+
+        Call this ONCE after all submissions are complete, not per-job.
+        """
+        try:
+            from .queue_sync import sync_json_to_sqlite
+        except ImportError:
+            from batch.queue_sync import sync_json_to_sqlite
+        try:
+            synced = sync_json_to_sqlite()
+            if synced > 0:
+                logger.info(f"Synced {synced} jobs to daemon queue")
+            return synced
+        except Exception as e:
+            logger.warning(f"Queue sync failed (daemon won't see jobs): {e}")
+            return 0
 
     def get_status(self, job_id: str) -> Optional[JobStatus]:
         """

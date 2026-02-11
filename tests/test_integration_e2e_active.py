@@ -27,10 +27,8 @@ def test_get_real_recommendation():
         # rationale may be called description in some Recommendation classes
         assert hasattr(rec, "rationale") or hasattr(rec, "description")
         print(f"✓ Got recommendation: {rec.title}")
-        return rec
     else:
         print("⚠ No recommendations available (no goals in ACTION_PLAN.md?)")
-        return None
 
 
 def test_recommendation_to_agent_conversion():

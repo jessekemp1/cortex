@@ -7,9 +7,11 @@ Handles:
 - Error handling and retries
 - Capacity checking before execution
 - Concurrent task execution
+- AI task dispatch via Anthropic Batch API (not subprocess)
 """
 
 import logging
+import os
 import sqlite3
 import subprocess
 import threading
@@ -19,10 +21,125 @@ from typing import Any, Callable, Dict, Optional
 
 from .batch_queue import BatchTask, BatchTaskQueue, TaskState
 
+# Task types that should be dispatched to the Anthropic API, not subprocess.
+# These tasks have prompts in the 'command' field, not shell commands.
+AI_TASK_TYPES = frozenset({
+    "research",
+    "analysis",
+    "planning",
+    "investigation",
+    "review",
+    "security",
+    "documentation",
+    "pattern",
+    "recommendation",
+    "bandwidth_experiment",
+})
+
+
+def _load_api_key() -> Optional[str]:
+    """
+    Load Anthropic API key from environment or secrets file.
+
+    Checks in order:
+    1. ANTHROPIC_API_KEY environment variable
+    2. ~/.cortex/secrets/anthropic_batch_key file (used by .envrc)
+
+    Returns:
+        API key string or None if not found.
+    """
+    # 1. Environment variable (set by .envrc or launchd plist)
+    key = os.getenv("ANTHROPIC_API_KEY")
+    if key:
+        return key
+
+    # 2. Secrets file (same source as .envrc uses)
+    secrets_file = Path.home() / ".cortex" / "secrets" / "anthropic_batch_key"
+    if secrets_file.exists():
+        try:
+            key = secrets_file.read_text().strip()
+            if key:
+                return key
+        except (IOError, OSError):
+            pass
+
+    return None
+
+
+def _is_shell_command(command: str) -> bool:
+    """
+    Heuristic to detect whether a command string is a shell command vs an AI prompt.
+
+    Shell commands typically start with a known executable or path.
+    AI prompts start with natural language words like "Plan", "Research", etc.
+
+    Args:
+        command: The command/prompt string to classify.
+
+    Returns:
+        True if this looks like a shell command, False if it looks like a prompt.
+    """
+    if not command or not command.strip():
+        return False
+
+    stripped = command.strip()
+
+    # Shell commands start with known patterns
+    shell_indicators = [
+        "cd ",
+        "python",
+        "pytest",
+        "pip ",
+        "npm ",
+        "node ",
+        "echo ",
+        "cat ",
+        "grep ",
+        "find ",
+        "ls ",
+        "mkdir ",
+        "rm ",
+        "cp ",
+        "mv ",
+        "chmod ",
+        "git ",
+        "docker ",
+        "make ",
+        "bash ",
+        "sh ",
+        "zsh ",
+        "/",  # absolute path
+        "./",  # relative path
+        "export ",
+        "source ",
+        "curl ",
+        "wget ",
+    ]
+
+    for indicator in shell_indicators:
+        if stripped.startswith(indicator):
+            return True
+
+    # If the first word looks like a file path, it's a command.
+    # Skip bracket-prefixed strings like "[TODO/FIXME analysis: ...]"
+    # which are section headers in AI prompts, not paths.
+    first_word = stripped.split()[0] if stripped.split() else ""
+    if not first_word.startswith("["):
+        if "/" in first_word or first_word.endswith(".py") or first_word.endswith(".sh"):
+            return True
+
+    return False
+
 
 class BatchExecutor:
     """
     Executes batch tasks with capacity awareness and error handling.
+
+    Routes tasks to the correct backend:
+    - Shell tasks (task_type in known shell types, or command looks like a shell command)
+      are executed via subprocess.run().
+    - AI tasks (task_type in AI_TASK_TYPES, or command looks like a prompt)
+      are dispatched to the Anthropic Messages API.
     """
 
     def __init__(
@@ -57,6 +174,155 @@ class BatchExecutor:
         """Backward compatibility property for shutdown state."""
         return self._shutdown_event.is_set()
 
+    def _is_ai_task(self, task: BatchTask) -> bool:
+        """
+        Determine if a task should be dispatched to the Anthropic API
+        rather than executed as a shell command.
+
+        Uses two signals:
+        1. task_type is in AI_TASK_TYPES (explicit routing)
+        2. The command field does not look like a shell command (fallback heuristic)
+
+        Args:
+            task: The batch task to classify.
+
+        Returns:
+            True if the task should go to the Anthropic API.
+        """
+        # Explicit task type check
+        if task.task_type in AI_TASK_TYPES:
+            return True
+
+        # Heuristic: if the command doesn't look like a shell command, it's a prompt
+        if not _is_shell_command(task.command):
+            self.logger.warning(
+                f"Task {task.task_id} (type={task.task_type}) has non-shell command, "
+                f"routing to AI API. First 60 chars: {task.command[:60]!r}"
+            )
+            return True
+
+        return False
+
+    def _execute_ai_task(self, task: BatchTask) -> bool:
+        """
+        Execute an AI task by sending the prompt to the Anthropic Messages API.
+
+        Uses the synchronous (non-batch) Messages API for individual task execution.
+        The task's 'command' field contains the prompt text, and 'description' provides
+        context for logging.
+
+        Args:
+            task: BatchTask with prompt text in the command field.
+
+        Returns:
+            True if the API call succeeded, False otherwise.
+        """
+        started_at = datetime.now()
+        self.queue.update_task_state(task.task_id, TaskState.RUNNING, started_at=started_at)
+
+        try:
+            # Load API key
+            api_key = _load_api_key()
+            if not api_key:
+                error_msg = (
+                    "ANTHROPIC_API_KEY not available. Set the environment variable or "
+                    "create ~/.cortex/secrets/anthropic_batch_key"
+                )
+                self.logger.error(f"Task {task.task_id}: {error_msg}")
+                self.queue.update_task_state(
+                    task.task_id,
+                    TaskState.FAILED,
+                    started_at=started_at,
+                    completed_at=datetime.now(),
+                    error_message=error_msg,
+                )
+                return False
+
+            # Import anthropic SDK
+            try:
+                import anthropic
+            except ImportError:
+                error_msg = "anthropic SDK not installed. Install with: pip install anthropic"
+                self.logger.error(f"Task {task.task_id}: {error_msg}")
+                self.queue.update_task_state(
+                    task.task_id,
+                    TaskState.FAILED,
+                    started_at=started_at,
+                    completed_at=datetime.now(),
+                    error_message=error_msg,
+                )
+                return False
+
+            # Create client and send request
+            client = anthropic.Anthropic(api_key=api_key)
+            prompt = task.command  # The "command" field contains the prompt for AI tasks
+
+            self.logger.info(
+                f"Task {task.task_id}: Sending to Anthropic API "
+                f"(type={task.task_type}, prompt_len={len(prompt)})"
+            )
+
+            # Use model from batch config or default
+            model = os.getenv("CORTEX_BATCH_MODEL", "claude-sonnet-4-20250514")
+
+            message = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            # Extract response text
+            response_text = ""
+            for block in message.content:
+                if hasattr(block, "text"):
+                    response_text += block.text
+
+            completed_at = datetime.now()
+
+            # Store result in stdout field (reusing existing schema)
+            self.queue.update_task_state(
+                task.task_id,
+                TaskState.COMPLETED,
+                started_at=started_at,
+                completed_at=completed_at,
+                exit_code=0,
+                stdout=response_text[:10000],  # Limit to 10KB
+                stderr="",
+            )
+
+            self.logger.info(
+                f"Task {task.task_id} completed via API "
+                f"(response_len={len(response_text)}, "
+                f"input_tokens={message.usage.input_tokens}, "
+                f"output_tokens={message.usage.output_tokens})"
+            )
+
+            # Trigger dependent tasks (V2a batch orchestration)
+            self.queue.trigger_dependent_tasks(task.task_id)
+
+            return True
+
+        except Exception as e:
+            completed_at = datetime.now()
+            error_msg = f"Anthropic API error: {e}"
+            self.queue.update_task_state(
+                task.task_id,
+                TaskState.FAILED,
+                started_at=started_at,
+                completed_at=completed_at,
+                error_message=error_msg,
+            )
+            self.logger.error(f"Task {task.task_id} failed with API exception: {e}")
+
+            # Attempt retry if within limits
+            if task.retry_count + 1 <= task.max_retries:
+                self.logger.info(
+                    f"Retrying task {task.task_id} (retry {task.retry_count + 1}/{task.max_retries})"
+                )
+                self.queue.retry_task(task.task_id)
+
+            return False
+
     def execute_task(
         self,
         task: BatchTask,
@@ -65,12 +331,14 @@ class BatchExecutor:
         timeout: Optional[int] = None,
     ) -> bool:
         """
-        Execute a single task.
+        Execute a single task. Routes to the correct backend:
+        - AI tasks -> Anthropic Messages API
+        - Shell tasks -> subprocess.run()
 
         Args:
             task: BatchTask to execute
-            cwd: Working directory for execution
-            env: Environment variables
+            cwd: Working directory for execution (shell tasks only)
+            env: Environment variables (shell tasks only)
             timeout: Execution timeout in seconds
 
         Returns:
@@ -86,6 +354,12 @@ class BatchExecutor:
                 error_message="Empty command not allowed"
             )
             return False
+
+        # Route AI tasks to the Anthropic API instead of subprocess
+        if self._is_ai_task(task):
+            return self._execute_ai_task(task)
+
+        # === Shell task execution below ===
 
         # Validate timeout is reasonable
         if timeout is None:
@@ -346,9 +620,15 @@ class BatchExecutor:
 
         return results
 
-    def schedule_pending_tasks(self) -> Dict[str, Any]:
+    def schedule_pending_tasks(self, max_per_cycle: int = 5) -> Dict[str, Any]:
         """
         Schedule pending tasks using capacity-aware scheduling.
+
+        Processes at most max_per_cycle tasks to avoid blocking the
+        daemon loop. Remaining tasks are scheduled in subsequent cycles.
+
+        Args:
+            max_per_cycle: Maximum tasks to schedule per cycle (default: 5)
 
         Returns:
             Dictionary with scheduling summary
@@ -361,7 +641,7 @@ class BatchExecutor:
 
         results = {"total_pending": len(pending_tasks), "scheduled": 0, "tasks": []}
 
-        for task in pending_tasks:
+        for task in pending_tasks[:max_per_cycle]:
             # Use capacity scheduler to determine optimal time
             from .scheduler import SchedulingPriority, TaskType
 
@@ -421,7 +701,9 @@ class BatchExecutor:
         """
         self.logger.info(f"Starting scheduler daemon (interval: {interval_seconds}s)")
 
+        cycle = 0
         while not self._shutdown_event.is_set():
+            cycle += 1
             try:
                 # Update session cache for fast startup (lightweight operation)
                 try:
@@ -436,12 +718,8 @@ class BatchExecutor:
                 except Exception as cache_error:
                     self.logger.debug(f"Session cache update failed: {cache_error}")
 
-                # Schedule any pending tasks
-                schedule_results = self.schedule_pending_tasks()
-                if schedule_results.get("scheduled", 0) > 0:
-                    self.logger.info(f"Scheduled {schedule_results['scheduled']} tasks")
-
-                # Process scheduled tasks that are ready
+                # EXECUTE FIRST: Process scheduled tasks that are ready
+                # This runs before scheduling to avoid being blocked by slow scheduling
                 process_results = self.process_scheduled_tasks()
                 if process_results["executed"] > 0:
                     self.logger.info(f"Executed {process_results['executed']} tasks")
@@ -449,6 +727,20 @@ class BatchExecutor:
                 if process_results["deferred"] > 0:
                     self.logger.info(
                         f"Deferred {process_results['deferred']} tasks due to capacity"
+                    )
+
+                # THEN SCHEDULE: Move pending tasks to scheduled (max 5 per cycle)
+                schedule_results = self.schedule_pending_tasks()
+                if schedule_results.get("scheduled", 0) > 0:
+                    self.logger.info(f"Scheduled {schedule_results['scheduled']} tasks")
+
+                # Heartbeat every 10 cycles (~10 min) for daemon health monitoring
+                if cycle % 10 == 0:
+                    pending = schedule_results.get("total_pending", 0)
+                    running = len(self._running_tasks)
+                    self.logger.info(
+                        f"Heartbeat: cycle={cycle}, running={running}, "
+                        f"pending={pending}, ready={process_results.get('total_ready', 0)}"
                     )
 
             except Exception as e:

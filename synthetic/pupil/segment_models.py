@@ -13,8 +13,31 @@ to make decisions at each simulation step. Parameters are deliberately
 conservative — better to underpredict churn than overpredict.
 """
 
-from dataclasses import dataclass
-from typing import Dict, List
+import json
+import os
+from dataclasses import dataclass, fields
+from pathlib import Path
+from typing import Any, Dict, List
+
+
+def _default_data_dir():
+    """Resolve default data directory for Pupil calibration data.
+
+    Priority:
+    1. PUPIL_DATA_DIR environment variable
+    2. ~/.cortex/synthetic/pupil/ (if it exists — backward compat)
+    3. ~/.pupil/
+    """
+    env_dir = os.environ.get("PUPIL_DATA_DIR")
+    if env_dir:
+        return Path(env_dir)
+    cortex_dir = Path.home() / ".cortex" / "synthetic" / "pupil"
+    if cortex_dir.exists():
+        return cortex_dir
+    return Path.home() / ".pupil"
+
+
+DEFAULT_DATA_DIR = _default_data_dir()
 
 
 @dataclass
@@ -264,6 +287,44 @@ SEGMENT_MODELS: Dict[str, SegmentBehavior] = {
 }
 
 
-def get_behavior(segment: str) -> SegmentBehavior:
-    """Get behavioral model for a segment. Falls back to mass_market."""
-    return SEGMENT_MODELS.get(segment, MASS_MARKET)
+def _load_calibrated_overrides(segment: str) -> Dict[str, Any]:
+    """Load calibrated parameter overrides for a segment.
+
+    Reads from ~/.cortex/synthetic/pupil/calibrated_segments.json.
+    Returns empty dict if file missing or segment not calibrated.
+    """
+    cal_file = DEFAULT_DATA_DIR / "calibrated_segments.json"
+    if not cal_file.exists():
+        return {}
+    try:
+        with open(cal_file) as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data.get(segment, {})
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+
+def get_behavior(segment: str, use_calibrated: bool = True) -> SegmentBehavior:
+    """Get behavioral model for a segment. Falls back to mass_market.
+
+    Args:
+        segment: Segment name (e.g. "mass_market", "affluent")
+        use_calibrated: If True, apply calibrated overrides from the
+            feedback loop. Set False for pure CBA baseline.
+
+    Returns:
+        SegmentBehavior with optionally calibrated parameters.
+    """
+    baseline = SEGMENT_MODELS.get(segment, MASS_MARKET)
+    if not use_calibrated:
+        return baseline
+    overrides = _load_calibrated_overrides(segment)
+    if not overrides:
+        return baseline
+    params = {f.name: getattr(baseline, f.name) for f in fields(baseline)}
+    for param, value in overrides.items():
+        if param in params and param not in ("segment_name", "preferred_products", "target_products"):
+            params[param] = value
+    return SegmentBehavior(**params)

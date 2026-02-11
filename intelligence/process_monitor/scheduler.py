@@ -80,14 +80,17 @@ class CapacityScheduler:
         self.monitor = process_monitor
 
         # Minimum resource thresholds for different task types
+        # CPU thresholds: AI_INFERENCE lowered because batch AI tasks are
+        # remote API calls (Anthropic), not local computation. The daemon's
+        # own monitoring overhead (~30-50% CPU) was causing all tasks to defer.
         self.min_cpu_percent = {
             TaskType.TEST: 30.0,
             TaskType.BUILD: 40.0,
             TaskType.DEPLOY: 50.0,
-            TaskType.AI_INFERENCE: 60.0,
+            TaskType.AI_INFERENCE: 15.0,
             TaskType.HEAVY_COMPUTATION: 70.0,
             TaskType.BATCH_PROCESSING: 50.0,
-            TaskType.GENERAL: 30.0,
+            TaskType.GENERAL: 20.0,
         }
 
         self.min_memory_mb = {

@@ -232,9 +232,13 @@ Please provide a comprehensive implementation plan and any code changes needed."
         return stats
 
     def monitor_and_update_status(self):
-        """Check status of submitted jobs and update queue"""
+        """Check status of submitted jobs and update queue, write results for morning processor"""
         queue_data = self.load_queue()
         updated = False
+
+        # Ensure results directory exists for morning processor
+        results_dir = Path.home() / ".cortex" / "batch" / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
 
         for job in queue_data["priority_jobs"]:
             if job["status"] == "submitted" and "batch_id" in job:
@@ -243,7 +247,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
                 try:
                     status = self.client.get_batch_status(batch_id)
 
-                    if status["status"] == "ended":
+                    if status["status"] in ("ended", "completed"):
                         # Batch completed
                         job["status"] = "completed"
                         job["completed_at"] = datetime.now().isoformat()
@@ -251,6 +255,25 @@ Please provide a comprehensive implementation plan and any code changes needed."
                         updated = True
                         logger.info(
                             f"✅ Job {job['id']} completed (batch {batch_id})"
+                        )
+
+                        # Write result file for morning processor to find
+                        result_data = {
+                            "job_id": job["id"],
+                            "batch_id": batch_id,
+                            "title": job.get("description", ""),
+                            "status": "completed",
+                            "completed_at": job["completed_at"],
+                            "source": job.get("source", "other"),
+                            "type": job.get("source", "other"),
+                            "output": json.dumps(status),
+                            "tokens_used": job.get("estimated_total_tokens", 0),
+                            "request_counts": status.get("request_counts", {}),
+                        }
+                        result_file = results_dir / f"{job['id']}_{batch_id}.json"
+                        result_file.write_text(json.dumps(result_data, indent=2))
+                        logger.info(
+                            f"   Result written to: {result_file}"
                         )
 
                 except Exception as e:
