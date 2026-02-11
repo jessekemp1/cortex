@@ -17,14 +17,19 @@ Usage:
 import argparse
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# Add batch module to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add cortex intelligence module to path
+cortex_root = Path(__file__).parent.parent
+sys.path.insert(0, str(cortex_root))
 
-from batch_scheduler import BatchScheduler
+try:
+    from intelligence.process_monitor.batch_queue import BatchTaskQueue
+except ImportError:
+    # Fallback error message if BatchTaskQueue not available
+    print("Error: BatchTaskQueue not found. Ensure cortex is properly installed.", file=sys.stderr)
+    sys.exit(1)
 
 # Common prompt templates for different batch types
 TEMPLATES = {
@@ -41,7 +46,6 @@ Files to review:
 {context}
 
 Provide specific, actionable feedback with file:line references.""",
-
     "docs": """Generate comprehensive documentation for:
 
 {files}
@@ -54,7 +58,6 @@ Include:
 5. Dependencies and integration points
 
 Format as markdown suitable for project documentation.""",
-
     "research": """Research question: {topic}
 
 Please provide:
@@ -66,7 +69,6 @@ Please provide:
 6. Next Steps - what to do with this information
 
 Focus on practical applicability to development work.""",
-
     "security": """Perform comprehensive security audit across active projects:
 
 1. Dependency vulnerabilities - check for known CVEs
@@ -78,7 +80,6 @@ Focus on practical applicability to development work.""",
 7. Error handling - information leakage in errors
 
 Provide specific findings with severity ratings (Critical/High/Medium/Low).""",
-
     "patterns": """Analyze codebase for:
 
 1. Anti-patterns - code smells, complexity issues, circular imports
@@ -89,7 +90,6 @@ Provide specific findings with severity ratings (Critical/High/Medium/Low).""",
 6. Testing gaps - untested critical paths
 
 Provide specific examples with file:line references and improvement suggestions.""",
-
     "test-gaps": """Analyze test coverage for:
 
 {files}
@@ -111,15 +111,15 @@ def get_file_content(file_path: Path, max_lines: int = 500) -> str:
         return f"(File not found: {file_path})"
 
     try:
-        lines = file_path.read_text().split('\n')
+        lines = file_path.read_text().split("\n")
         if len(lines) > max_lines:
-            return '\n'.join(lines[:max_lines]) + f"\n\n... (truncated, {len(lines)} lines total)"
+            return "\n".join(lines[:max_lines]) + f"\n\n... (truncated, {len(lines)} lines total)"
         return file_path.read_text()
     except Exception as e:
         return f"(Error reading file: {e})"
 
 
-def collect_files(path: str, extensions: tuple = ('.py', '.js', '.ts', '.tsx')) -> list:
+def collect_files(path: str, extensions: tuple = (".py", ".js", ".ts", ".tsx")) -> list:
     """Collect relevant source files from path."""
     target = Path(path)
 
@@ -129,11 +129,15 @@ def collect_files(path: str, extensions: tuple = ('.py', '.js', '.ts', '.tsx')) 
     if target.is_dir():
         files = []
         for ext in extensions:
-            files.extend(target.rglob(f'*{ext}'))
+            files.extend(target.rglob(f"*{ext}"))
         # Filter out venv, node_modules, etc.
-        files = [f for f in files if not any(
-            skip in str(f) for skip in ['venv/', 'node_modules/', '__pycache__/', '.git/']
-        )]
+        files = [
+            f
+            for f in files
+            if not any(
+                skip in str(f) for skip in ["venv/", "node_modules/", "__pycache__/", ".git/"]
+            )
+        ]
         return sorted(files)[:20]  # Limit to 20 files
 
     return []
@@ -144,7 +148,7 @@ def submit_batch(
     target: Optional[str] = None,
     context: str = "",
     priority: str = "normal",
-    deadline_hours: int = 24
+    deadline_hours: int = 24,
 ) -> dict:
     """
     Submit a batch job using templates.
@@ -159,7 +163,7 @@ def submit_batch(
     Returns:
         dict with submission details
     """
-    scheduler = BatchScheduler()
+    queue = BatchTaskQueue()
 
     # Build prompt from template
     template = TEMPLATES.get(batch_type)
@@ -207,53 +211,117 @@ def submit_batch(
     if context:
         prompt += f"\n\nAdditional context:\n{context}"
 
-    # Schedule the task
-    task = scheduler.schedule_task(
-        title=title,
-        description=f"{batch_type.title()} batch job",
-        prompt=prompt,
+    # Map batch_type to task_type for AI task routing
+    # These types are in AI_TASK_TYPES (batch_executor.py:26-37)
+    task_type_mapping = {
+        "review": "review",
+        "docs": "documentation",
+        "research": "research",
+        "security": "security",
+        "patterns": "pattern",
+        "test-gaps": "analysis",
+    }
+    task_type = task_type_mapping.get(batch_type, "analysis")
+
+    # Estimate tokens (rough approximation: ~4 chars per token)
+    estimated_input_tokens = len(prompt) // 4
+    estimated_output_tokens = 4000  # Generous output limit for analysis tasks
+
+    # Add task to queue (daemon will pick it up and route to Anthropic API)
+    task = queue.add_task(
+        command=prompt,  # For AI tasks, command field contains the prompt
+        task_type=task_type,  # AI task type for routing
+        description=f"{batch_type.title()} batch job: {title}",
         priority=priority,
-        deadline_hours=deadline_hours,
+        scheduled_time=None,  # Run ASAP (daemon processes immediately)
+        estimated_duration_minutes=10.0,  # Rough estimate for AI tasks
+        metadata={
+            "batch_type": batch_type,
+            "title": title,
+            "estimated_input_tokens": estimated_input_tokens,
+            "estimated_output_tokens": estimated_output_tokens,
+            "deadline_hours": deadline_hours,
+        },
     )
 
     return {
         "success": True,
-        "task_id": task.id,
-        "title": task.title,
+        "task_id": task.task_id,
+        "title": title,
         "priority": priority,
-        "estimated_tokens": task.estimated_input_tokens + task.estimated_output_tokens,
-        "submit_after": task.submit_after.strftime("%Y-%m-%d %I:%M %p") if task.submit_after else "Now",
-        "deadline": task.deadline.strftime("%Y-%m-%d %I:%M %p") if task.deadline else "None",
+        "estimated_tokens": estimated_input_tokens + estimated_output_tokens,
+        "submit_after": "Now (daemon will process)",
+        "deadline": f"{deadline_hours}h",
         "cost_savings": "50% vs real-time",
     }
 
 
 def show_pending():
     """Show pending batch jobs."""
-    scheduler = BatchScheduler()
-    pending = scheduler.get_pending_tasks()
-    submitted = scheduler.get_submitted_tasks()
+    queue = BatchTaskQueue()
+    stats = queue.get_queue_stats()
+
+    # Get tasks in various states
+    pending = queue.get_pending_tasks()
+    scheduled = queue.get_scheduled_tasks()
+    running = queue.get_running_tasks()
+    completed = queue.get_task_history(limit=5, state=None)
 
     print("\n" + "=" * 60)
     print("BATCH JOB QUEUE STATUS")
     print("=" * 60)
 
+    # Show queue stats
+    print("\nQueue Stats:")
+    print(f"  Pending:    {stats.get('pending_count', 0)}")
+    print(f"  Scheduled:  {stats.get('scheduled_count', 0)}")
+    print(f"  Running:    {stats.get('running_count', 0)}")
+    print(f"  Completed:  {stats.get('completed_count', 0)}")
+    print(f"  Failed:     {stats.get('failed_count', 0)}")
+    if stats.get("success_rate"):
+        print(f"  Success:    {stats['success_rate'] * 100:.1f}%")
+
     if pending:
         print(f"\n📋 PENDING ({len(pending)} jobs)")
         print("-" * 40)
         for task in pending:
-            submit_time = task.submit_after.strftime("%I:%M %p") if task.submit_after else "Now"
-            print(f"  [{task.priority.upper():6}] {task.title[:45]}")
-            print(f"           Submit: {submit_time} | Tokens: ~{task.estimated_input_tokens:,}")
+            title = (
+                task.metadata.get("title", task.description)
+                if hasattr(task, "metadata") and isinstance(task.metadata, dict)
+                else task.description
+            )
+            print(f"  [{task.priority.upper():6}] {title[:45]}")
+            print(f"           Type: {task.task_type} | ID: {task.task_id[:8]}")
 
-    if submitted:
-        print(f"\n⚙️  PROCESSING ({len(submitted)} jobs)")
+    if scheduled:
+        print(f"\n📅 SCHEDULED ({len(scheduled)} jobs)")
         print("-" * 40)
-        for task in submitted:
-            print(f"  [{task.batch_id[:15]}...] {task.title[:40]}")
+        for task in scheduled:
+            title = (
+                task.metadata.get("title", task.description)
+                if hasattr(task, "metadata") and isinstance(task.metadata, dict)
+                else task.description
+            )
+            schedule_time = (
+                task.scheduled_time.strftime("%I:%M %p") if task.scheduled_time else "ASAP"
+            )
+            print(f"  [{task.priority.upper():6}] {title[:45]}")
+            print(f"           Schedule: {schedule_time} | ID: {task.task_id[:8]}")
 
-    if not pending and not submitted:
-        print("\n  No pending or processing jobs.")
+    if running:
+        print(f"\n⚙️  RUNNING ({len(running)} jobs)")
+        print("-" * 40)
+        for task in running:
+            title = (
+                task.metadata.get("title", task.description)
+                if hasattr(task, "metadata") and isinstance(task.metadata, dict)
+                else task.description
+            )
+            print(f"  {title[:45]}")
+            print(f"           ID: {task.task_id[:8]}")
+
+    if not pending and not scheduled and not running:
+        print("\n  No pending, scheduled, or running jobs.")
         print("  Use: quick_batch.py <type> [args] to submit work")
 
     print()
@@ -273,41 +341,27 @@ Examples:
   %(prog)s patterns                   # Code pattern analysis
   %(prog)s test-gaps cortex/tests/    # Find test gaps
   %(prog)s status                     # Show pending jobs
-        """
+        """,
     )
 
     parser.add_argument(
         "type",
         choices=["review", "docs", "research", "security", "patterns", "test-gaps", "status"],
-        help="Type of batch job"
+        help="Type of batch job",
     )
+    parser.add_argument("target", nargs="?", help="File/directory path or research topic")
+    parser.add_argument("--context", "-c", default="", help="Additional context for the job")
     parser.add_argument(
-        "target",
-        nargs="?",
-        help="File/directory path or research topic"
-    )
-    parser.add_argument(
-        "--context", "-c",
-        default="",
-        help="Additional context for the job"
-    )
-    parser.add_argument(
-        "--priority", "-p",
+        "--priority",
+        "-p",
         choices=["low", "normal", "high"],
         default="normal",
-        help="Job priority (default: normal)"
+        help="Job priority (default: normal)",
     )
     parser.add_argument(
-        "--deadline", "-d",
-        type=int,
-        default=24,
-        help="Hours until results needed (default: 24)"
+        "--deadline", "-d", type=int, default=24, help="Hours until results needed (default: 24)"
     )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
