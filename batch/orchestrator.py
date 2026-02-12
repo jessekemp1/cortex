@@ -136,6 +136,25 @@ class BatchOrchestrator:
         if not self.queue_file.exists():
             self._init_queue_file()
 
+    def _atomic_write_json(self, path: Path, data: dict) -> None:
+        """Write JSON atomically: temp file + rename to prevent corruption."""
+        import os
+        import tempfile
+
+        dir_path = str(path.parent)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".json.tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.rename(tmp_path, str(path))
+        except BaseException:
+            # Clean up temp file on any failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def _init_queue_file(self):
         """Initialize empty queue file."""
         initial_queue = {
@@ -150,8 +169,7 @@ class BatchOrchestrator:
                 "check_interval_seconds": 300,
             },
         }
-        with open(self.queue_file, "w") as f:
-            json.dump(initial_queue, f, indent=2)
+        self._atomic_write_json(self.queue_file, initial_queue)
         logger.info(f"Initialized API batch queue: {self.queue_file}")
 
     def detect_job_type(self, job_data: Dict[str, Any]) -> JobBackend:
@@ -200,7 +218,9 @@ class BatchOrchestrator:
             return JobBackend.API
 
         # Default to LOCAL for backward compatibility
-        logger.warning(f"Ambiguous job type, defaulting to LOCAL: {job_data.get('description', 'unknown')}")
+        logger.warning(
+            f"Ambiguous job type, defaulting to LOCAL: {job_data.get('description', 'unknown')}"
+        )
         return JobBackend.LOCAL
 
     def submit_job(
@@ -342,8 +362,7 @@ class BatchOrchestrator:
 
         # Deduplicate: replace existing queued job with same ID, preserve completed/submitted
         existing_ids = {
-            (i, job["id"], job.get("status"))
-            for i, job in enumerate(queue_data["priority_jobs"])
+            (i, job["id"], job.get("status")) for i, job in enumerate(queue_data["priority_jobs"])
         }
         replaced = False
         for idx, existing_job in enumerate(queue_data["priority_jobs"]):
@@ -365,9 +384,8 @@ class BatchOrchestrator:
             job.get("estimated_total_tokens", 0) for job in queue_data["priority_jobs"]
         )
 
-        # Save queue
-        with open(self.queue_file, "w") as f:
-            json.dump(queue_data, f, indent=2)
+        # Save queue (atomic write prevents corruption on interrupted writes)
+        self._atomic_write_json(self.queue_file, queue_data)
 
         logger.info(f"✅ Submitted to API backend: {job_id}")
         logger.info(f"   Queue: {self.queue_file}")
@@ -545,9 +563,7 @@ class BatchOrchestrator:
             monitor = ProcessMonitor()
             tasks = monitor.batch_queue.get_task_history(limit=limit)
 
-            return [
-                self._get_local_status(task.task_id) for task in tasks if task.task_id
-            ]
+            return [self._get_local_status(task.task_id) for task in tasks if task.task_id]
         except Exception as e:
             logger.error(f"Error listing local jobs: {e}")
             return []
@@ -578,7 +594,9 @@ def main():
     parser.add_argument("action", choices=["submit", "status", "list"], help="Action to perform")
     parser.add_argument("--job-file", type=Path, help="Job definition JSON file")
     parser.add_argument("--job-id", help="Job ID for status lookup")
-    parser.add_argument("--backend", choices=["local", "api", "both"], default="both", help="Backend filter")
+    parser.add_argument(
+        "--backend", choices=["local", "api", "both"], default="both", help="Backend filter"
+    )
     parser.add_argument("--limit", type=int, default=50, help="Max jobs to list")
 
     args = parser.parse_args()
@@ -637,7 +655,9 @@ def main():
                 print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
                 print(f"   ID: {job.id} | State: {job.state.value}")
                 if job.metadata.get("tokens"):
-                    print(f"   Tokens: {job.metadata['tokens']:,} | Tasks: {job.metadata.get('tasks', 0)}")
+                    print(
+                        f"   Tokens: {job.metadata['tokens']:,} | Tasks: {job.metadata.get('tasks', 0)}"
+                    )
 
         print(f"\nTotal: {len(jobs)} jobs ({len(local_jobs)} local, {len(api_jobs)} api)")
 

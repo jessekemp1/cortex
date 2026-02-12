@@ -141,9 +141,22 @@ def sync_json_to_sqlite(queue_path: Path = JSON_QUEUE) -> int:
         synced_count += 1
         logger.info(f"Synced job {job_id} -> SQLite ({task_type}, {priority})")
 
-    # Persist the status updates back to JSON
-    with open(queue_path, "w") as f:
-        json.dump(queue_data, f, indent=2)
+    # Persist the status updates back to JSON (atomic write prevents corruption)
+    import os
+    import tempfile
+
+    dir_path = str(queue_path.parent)
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".json.tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(queue_data, f, indent=2)
+        os.rename(tmp_path, str(queue_path))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
     if synced_count > 0:
         logger.info(f"Synced {synced_count} jobs from JSON to SQLite")
