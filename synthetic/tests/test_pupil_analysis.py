@@ -8,18 +8,17 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.schemas import CustomerProfile
+from synthetic.pupil.analysis import (
+    AnalysisReport,
+    MarketAnalyzer,
+)
 from synthetic.pupil.market_env import (
     CompetitionEvent,
     EventType,
     build_timeline,
 )
 from synthetic.pupil.simulation import SimulationEngine
-from synthetic.pupil.analysis import (
-    AnalysisReport,
-    MarketAnalyzer,
-)
-
+from synthetic.schemas import CustomerProfile
 
 # ============================================================================
 # Fixtures
@@ -68,13 +67,15 @@ def mixed_simulation_result():
         ("small_business", 6, 85000, 40000, 700),
     ]:
         for _ in range(count):
-            profiles.append(make_profile(
-                profile_id=f"mix-{idx}",
-                segment=seg,
-                credit_score=credit,
-                annual_income=income,
-                total_deposits=deposits,
-            ))
+            profiles.append(
+                make_profile(
+                    profile_id=f"mix-{idx}",
+                    segment=seg,
+                    credit_score=credit,
+                    annual_income=income,
+                    total_deposits=deposits,
+                )
+            )
             idx += 1
 
     engine = SimulationEngine(seed=42)
@@ -89,12 +90,14 @@ def stress_simulation_result():
     profiles = []
     for i in range(60):
         seg = "mass_market" if i < 30 else "new_to_canada"
-        profiles.append(make_profile(
-            profile_id=f"stress-{i}",
-            segment=seg,
-            credit_score=680 if seg == "mass_market" else 620,
-            total_deposits=20000 if seg == "mass_market" else 5000,
-        ))
+        profiles.append(
+            make_profile(
+                profile_id=f"stress-{i}",
+                segment=seg,
+                credit_score=680 if seg == "mass_market" else 620,
+                total_deposits=20000 if seg == "mass_market" else 5000,
+            )
+        )
 
     engine = SimulationEngine(seed=42)
     engine.generate_agents(profiles)
@@ -103,14 +106,16 @@ def stress_simulation_result():
         rate_schedule={0: 4.50, 3: 5.25, 6: 5.75},
         unemployment_schedule={0: 6.1, 4: 8.0, 8: 9.0},
         events={
-            2: [CompetitionEvent(
-                event_type=EventType.PRODUCT_LAUNCH,
-                institution="EQ Bank",
-                description="High-yield HISA",
-                product="savings",
-                rate_offered=5.5,
-                impact_magnitude=0.9,
-            )],
+            2: [
+                CompetitionEvent(
+                    event_type=EventType.PRODUCT_LAUNCH,
+                    institution="EQ Bank",
+                    description="High-yield HISA",
+                    product="savings",
+                    rate_offered=5.5,
+                    impact_magnitude=0.9,
+                )
+            ],
         },
     )
     return engine.run(timeline)
@@ -215,7 +220,8 @@ class TestMigrationFlows:
         """Stress scenario should produce active→at_risk transitions."""
         report = analyzer.analyze(stress_simulation_result)
         active_to_risk = [
-            f for f in report.migration_flows
+            f
+            for f in report.migration_flows
             if f.from_state == "active" and f.to_state == "at_risk"
         ]
         # Under stress, agents should move to at_risk
@@ -263,8 +269,7 @@ class TestDepositTrajectory:
         report = analyzer.analyze(mixed_simulation_result)
         for i in range(1, len(report.deposit_trajectory)):
             assert (
-                report.deposit_trajectory[i]["n_active"]
-                <= report.deposit_trajectory[0]["n_active"]
+                report.deposit_trajectory[i]["n_active"] <= report.deposit_trajectory[0]["n_active"]
             )
 
 
@@ -329,8 +334,7 @@ class TestAnalysisConsistency:
         report = analyzer.analyze(mixed_simulation_result)
         segment_churned = sum(sa.churn_count for sa in report.segment_analyses)
         final_churned = sum(
-            1 for s in mixed_simulation_result.final_snapshots
-            if s["state"] == "churned"
+            1 for s in mixed_simulation_result.final_snapshots if s["state"] == "churned"
         )
         assert segment_churned == final_churned
 
@@ -362,10 +366,12 @@ class TestModuleImports:
             PersonaAgent,
             SimulationEngine,
         )
+
         assert SimulationEngine is not None
         assert MarketAnalyzer is not None
         assert PersonaAgent is not None
 
     def test_pupil_version(self):
         from synthetic.pupil import __version__
+
         assert __version__ == "0.1.0"

@@ -60,11 +60,11 @@ except ImportError:
 # Adaptive Latency (Deep Mode) imports
 try:
     from cortex.intelligence.adaptive_latency import (
+        DEEP_MODE,
+        FAST_MODE,
         AdaptiveLatencyManager,
         AnalysisMode,
         SessionContext,
-        DEEP_MODE,
-        FAST_MODE,
     )
 except ImportError:
     AdaptiveLatencyManager = None
@@ -118,7 +118,7 @@ except ImportError:
 
 # AI Engineering: Tiered Memory
 try:
-    from intelligence.memory.tiered_memory import TieredMemory, MemoryItem
+    from intelligence.memory.tiered_memory import MemoryItem, TieredMemory
 
     TIERED_MEMORY_AVAILABLE = True
 except ImportError:
@@ -252,9 +252,7 @@ class CortexBridge:
         self.tiered_memory = None
         if TIERED_MEMORY_AVAILABLE and self.config and self.config.tiered_memory_enabled:
             try:
-                pattern_memory = getattr(
-                    getattr(self, "portfolio", None), "pattern_memory", None
-                )
+                pattern_memory = getattr(getattr(self, "portfolio", None), "pattern_memory", None)
                 self.tiered_memory = TieredMemory(
                     short_term_max=50,
                     working_retention_days=7,
@@ -627,25 +625,19 @@ class CortexBridge:
                 "available": IMPLICIT_FEEDBACK_AVAILABLE,
                 "enabled": self.implicit_feedback is not None,
                 "stats": (
-                    self.implicit_feedback.get_session_stats()
-                    if self.implicit_feedback
-                    else None
+                    self.implicit_feedback.get_session_stats() if self.implicit_feedback else None
                 ),
             },
             "tiered_memory": {
                 "available": TIERED_MEMORY_AVAILABLE,
                 "enabled": self.tiered_memory is not None,
-                "stats": (
-                    self.tiered_memory.get_stats() if self.tiered_memory else None
-                ),
+                "stats": (self.tiered_memory.get_stats() if self.tiered_memory else None),
             },
             "hybrid_retriever": {
                 "available": HYBRID_RETRIEVER_AVAILABLE,
                 "enabled": self.hybrid_retriever is not None,
                 "pattern_count": (
-                    len(self.hybrid_retriever.patterns)
-                    if self.hybrid_retriever
-                    else 0
+                    len(self.hybrid_retriever.patterns) if self.hybrid_retriever else 0
                 ),
             },
             "config_flags": {
@@ -747,9 +739,7 @@ class CortexBridge:
         if self.hybrid_retriever and len(results) < limit:
             try:
                 remaining = limit - len(results)
-                hybrid_results = self.hybrid_retriever.search(
-                    query, limit=remaining, alpha=0.5
-                )
+                hybrid_results = self.hybrid_retriever.search(query, limit=remaining, alpha=0.5)
                 for pattern, score in hybrid_results:
                     result = {
                         "title": pattern.title,
@@ -877,13 +867,15 @@ class CortexBridge:
             else:
                 category = "data"
 
-            context_items.append({
-                "content": f"{item.get('title', '')}: {item.get('description', '')}",
-                "importance": item.get("confidence", 0.5),
-                "category": category,
-                "source": item.get("file"),
-                "metadata": {"original": item},
-            })
+            context_items.append(
+                {
+                    "content": f"{item.get('title', '')}: {item.get('description', '')}",
+                    "importance": item.get("confidence", 0.5),
+                    "category": category,
+                    "source": item.get("file"),
+                    "metadata": {"original": item},
+                }
+            )
 
         # Apply optimization
         try:
@@ -946,14 +938,20 @@ class CortexBridge:
             # Validate title
             title_validation = self.defensive.validate_input(title)
             if not title_validation.valid:
-                print(f"Bridge Error: Title validation failed: {title_validation.issues}", file=sys.stderr)
+                print(
+                    f"Bridge Error: Title validation failed: {title_validation.issues}",
+                    file=sys.stderr,
+                )
                 return False
             title = title_validation.sanitized_input
 
             # Validate rationale
             rationale_validation = self.defensive.validate_input(rationale)
             if not rationale_validation.valid:
-                print(f"Bridge Error: Rationale validation failed: {rationale_validation.issues}", file=sys.stderr)
+                print(
+                    f"Bridge Error: Rationale validation failed: {rationale_validation.issues}",
+                    file=sys.stderr,
+                )
                 return False
             rationale = rationale_validation.sanitized_input
 
@@ -3239,7 +3237,9 @@ class CortexBridge:
 
     # ==================== Deep Mode Integration ====================
 
-    def analyze_deep(self, project: Optional[str] = None, output_json: bool = False) -> Dict[str, Any]:
+    def analyze_deep(
+        self, project: Optional[str] = None, output_json: bool = False
+    ) -> Dict[str, Any]:
         """
         Run comprehensive deep analysis (Depth-First Architecture).
 
@@ -3273,8 +3273,7 @@ class CortexBridge:
 
         # Get deep mode configuration
         config = self.latency_manager.select_mode(
-            requested_mode=AnalysisMode.DEEP if AnalysisMode else None,
-            context=None
+            requested_mode=AnalysisMode.DEEP if AnalysisMode else None, context=None
         )
 
         # Run deep analysis
@@ -3314,7 +3313,7 @@ class CortexBridge:
                 result = self.unified_intel.query_intelligence(
                     request=f"Quick status check for {project}",
                     project=project,
-                    query_type="status"
+                    query_type="status",
                 )
                 return result
             else:
@@ -3322,7 +3321,7 @@ class CortexBridge:
                 return {
                     "project": project,
                     "status": "quick mode",
-                    "message": "UnifiedIntelligence not available, returning basic context"
+                    "message": "UnifiedIntelligence not available, returning basic context",
                 }
         except Exception as e:
             return {"error": f"Quick analysis failed: {str(e)}"}
@@ -3358,12 +3357,11 @@ class CortexBridge:
 
         # Select mode adaptively
         config = self.latency_manager.select_mode(
-            requested_mode=AnalysisMode.AUTO if AnalysisMode else None,
-            context=session_ctx
+            requested_mode=AnalysisMode.AUTO if AnalysisMode else None, context=session_ctx
         )
 
         # Route to appropriate analysis
-        mode_name = config.mode_name if hasattr(config, 'mode_name') else "deep"
+        mode_name = config.mode_name if hasattr(config, "mode_name") else "deep"
 
         if mode_name == "fast":
             return self.analyze_quick(project)
@@ -3386,7 +3384,7 @@ class CortexBridge:
                 capture_output=True,
                 text=True,
                 timeout=1,
-                cwd=self.root_dir
+                cwd=self.root_dir,
             )
             if result.returncode == 0:
                 repo_path = Path(result.stdout.strip())
@@ -3409,7 +3407,6 @@ class CortexBridge:
         if not SessionContext:
             return None
 
-
         project_path = self.root_dir / project
 
         # Check for uncommitted changes
@@ -3424,7 +3421,7 @@ class CortexBridge:
                 cwd=project_path,
                 capture_output=True,
                 text=True,
-                timeout=2
+                timeout=2,
             )
             has_uncommitted = len(status_result.stdout.strip()) > 0
         except Exception:
@@ -3436,7 +3433,7 @@ class CortexBridge:
             project_name=project,
             has_uncommitted_changes=has_uncommitted,
             branch_is_stale=branch_is_stale,
-            user_preference=None
+            user_preference=None,
         )
 
     def _serialize_deep_intelligence(self, intelligence) -> Dict[str, Any]:
@@ -3667,13 +3664,13 @@ def main():
     rec_sub = rec_parser.add_subparsers(dest="rec_command", help="Recommendation command")
 
     # recommendations report - full smart recommendations report
-    rec_report_parser = rec_sub.add_parser("report", help="Get full recommendations report")
+    rec_sub.add_parser("report", help="Get full recommendations report")
 
     # recommendations next - single next action
-    rec_next_parser = rec_sub.add_parser("next", help="Get recommended next action")
+    rec_sub.add_parser("next", help="Get recommended next action")
 
     # recommendations alerts - risk alerts
-    rec_alerts_parser = rec_sub.add_parser("alerts", help="Get risk alerts")
+    rec_sub.add_parser("alerts", help="Get risk alerts")
 
     # recommendations priorities - priority projects
     rec_priorities_parser = rec_sub.add_parser("priorities", help="Get priority projects")

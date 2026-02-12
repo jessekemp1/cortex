@@ -8,7 +8,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 def load_jsonl(path: Path) -> List[Dict[str, Any]]:

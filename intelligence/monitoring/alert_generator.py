@@ -7,7 +7,7 @@ Generates alerts based on trend analysis and project health metrics.
 import os
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 

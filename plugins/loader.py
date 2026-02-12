@@ -109,8 +109,7 @@ class PluginLoader:
         try:
             # Dynamic import
             spec = importlib.util.spec_from_file_location(
-                f"cortex.plugins.{plugin_name}.plugin",
-                plugin_py
+                f"cortex.plugins.{plugin_name}.plugin", plugin_py
             )
 
             if spec is None or spec.loader is None:
@@ -125,16 +124,15 @@ class PluginLoader:
             plugin_class = None
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and issubclass(attr, BasePlugin)
-                    and attr != BasePlugin
-                ):
+                if isinstance(attr, type) and issubclass(attr, BasePlugin) and attr != BasePlugin:
                     plugin_class = attr
                     break
 
             if plugin_class is None:
-                print(f"Warning: No BasePlugin subclass found in {plugin_name}/plugin.py", file=sys.stderr)
+                print(
+                    f"Warning: No BasePlugin subclass found in {plugin_name}/plugin.py",
+                    file=sys.stderr,
+                )
                 return None
 
             # Instantiate plugin
@@ -158,6 +156,7 @@ class PluginLoader:
         except Exception as e:
             print(f"Error loading plugin '{plugin_name}': {e}", file=sys.stderr)
             import traceback
+
             traceback.print_exc()
             return None
 
@@ -183,9 +182,7 @@ class PluginLoader:
         # Return filtered dict based on skip_disabled
         if skip_disabled:
             return {
-                name: plugin
-                for name, plugin in self.plugins.items()
-                if plugin.metadata.enabled
+                name: plugin for name, plugin in self.plugins.items() if plugin.metadata.enabled
             }
         else:
             return self.plugins
@@ -241,14 +238,16 @@ class PluginLoader:
             # Check dependencies
             missing_deps = plugin.check_dependencies()
 
-            result.append({
-                "name": name,
-                "version": plugin.metadata.version,
-                "description": plugin.metadata.description,
-                "enabled": plugin.metadata.enabled,
-                "missing_dependencies": missing_deps,
-                "tags": plugin.metadata.tags,
-            })
+            result.append(
+                {
+                    "name": name,
+                    "version": plugin.metadata.version,
+                    "description": plugin.metadata.description,
+                    "enabled": plugin.metadata.enabled,
+                    "missing_dependencies": missing_deps,
+                    "tags": plugin.metadata.tags,
+                }
+            )
 
         return sorted(result, key=lambda x: x["name"])
 

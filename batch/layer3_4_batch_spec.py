@@ -220,7 +220,7 @@ Include Alert dataclass, alert rules, and formatting methods.
                 "messages": [
                     {
                         "role": "user",
-                        "content": f"""You are integrating Layer 3 (Warning System) into the inject_context.py hook.
+                        "content": """You are integrating Layer 3 (Warning System) into the inject_context.py hook.
 
 # Context
 
@@ -267,21 +267,21 @@ def get_enhanced_context() -> str:
         # Project name with tech stack
         tech = profile.tech_stack.to_compact_str()
         if tech:
-            parts.append(f"Project: {{profile.project_name}} ({{tech}})")
+            parts.append(f"Project: {profile.project_name} ({tech})")
         else:
-            parts.append(f"Project: {{profile.project_name}}")
+            parts.append(f"Project: {profile.project_name}")
 
         # Git branch
         try:
             branch = subprocess.check_output(...)
             if branch:
-                parts.append(f"Branch: {{branch}}")
+                parts.append(f"Branch: {branch}")
         except Exception:
             pass
 
         # Warning (most important one)
         if profile.warnings:
-            parts.append(f"⚠️  {{profile.warnings[0]}}")
+            parts.append(f"⚠️  {profile.warnings[0]}")
 
         return " | ".join(parts)
 
@@ -445,7 +445,7 @@ Include all methods, comprehensive intelligence gathering, and step generation l
                 "messages": [
                     {
                         "role": "user",
-                        "content": f"""You are integrating Layer 4 (Smart Recommendations) into the recommendation engine.
+                        "content": """You are integrating Layer 4 (Smart Recommendations) into the recommendation engine.
 
 # Your Task
 
@@ -527,7 +527,7 @@ Show the modified code for:
                 "messages": [
                     {
                         "role": "user",
-                        "content": f"""You are creating CLI commands and documentation for Layers 3-4.
+                        "content": """You are creating CLI commands and documentation for Layers 3-4.
 
 # Your Task
 
@@ -601,8 +601,8 @@ def save_batch_spec(output_path: Path):
     output_path.write_text(json.dumps(spec, indent=2))
     print(f"✅ Saved batch spec to {output_path}")
     print(f"   Total requests: {len(requests)}")
-    print(f"   Layer 3 requests: 4")
-    print(f"   Layer 4 requests: 4")
+    print("   Layer 3 requests: 4")
+    print("   Layer 4 requests: 4")
 
 
 if __name__ == "__main__":

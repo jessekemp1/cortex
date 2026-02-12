@@ -46,7 +46,10 @@ def get_branch_name(repo_path: str = ".") -> str:
     try:
         return subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=repo_path, capture_output=True, text=True, timeout=5,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=5,
         ).stdout.strip()
     except Exception:
         return ""
@@ -56,7 +59,10 @@ def get_commits_ahead(branch: str, base: str = "main", repo_path: str = ".") -> 
     try:
         result = subprocess.run(
             ["git", "rev-list", "--count", f"{base}..{branch}"],
-            cwd=repo_path, capture_output=True, text=True, timeout=5,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return int(result.stdout.strip())
     except Exception:
@@ -67,7 +73,10 @@ def get_branch_age_days(branch: str, base: str = "main", repo_path: str = ".") -
     try:
         result = subprocess.run(
             ["git", "log", "--format=%aI", "--reverse", f"{base}..{branch}"],
-            cwd=repo_path, capture_output=True, text=True, timeout=5,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         lines = [l.strip() for l in result.stdout.strip().splitlines() if l.strip()]
         if not lines:
@@ -82,7 +91,10 @@ def check_open_pr(branch: str, repo_path: str = ".") -> dict | None:
     try:
         result = subprocess.run(
             ["gh", "pr", "view", branch, "--json", "number,state,mergeable,title"],
-            cwd=repo_path, capture_output=True, text=True, timeout=10,
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             return json.loads(result.stdout)
@@ -91,7 +103,9 @@ def check_open_pr(branch: str, repo_path: str = ".") -> dict | None:
     return None
 
 
-def determine_state(branch: str, commits_ahead: int, age_days: float, pr_info: dict | None) -> BranchState:
+def determine_state(
+    branch: str, commits_ahead: int, age_days: float, pr_info: dict | None
+) -> BranchState:
     if pr_info:
         if pr_info.get("state") == "OPEN":
             if pr_info.get("mergeable") == "MERGEABLE":
@@ -129,6 +143,7 @@ def get_status_line(repo_path: str = ".") -> str:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Cortex V1 Branch Lifecycle Manager")
     parser.add_argument("--repo", default=".", help="Repository path")
     parser.add_argument("--json", action="store_true")
@@ -140,10 +155,18 @@ def main():
         age = get_branch_age_days(branch, repo_path=args.repo)
         pr_info = check_open_pr(branch, args.repo)
         state = determine_state(branch, commits, age, pr_info)
-        print(json.dumps({
-            "branch": branch, "state": state.value,
-            "commits_ahead": commits, "age_days": round(age, 1), "pr": pr_info,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "branch": branch,
+                    "state": state.value,
+                    "commits_ahead": commits,
+                    "age_days": round(age, 1),
+                    "pr": pr_info,
+                },
+                indent=2,
+            )
+        )
     else:
         print(get_status_line(args.repo))
 

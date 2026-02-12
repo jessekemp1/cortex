@@ -93,9 +93,7 @@ class TestingEnforcer:
         evidence_file = self.evidence_dir / f"{feature_name}.json"
 
         if not evidence_file.exists():
-            self._log_violation(
-                feature_name=feature_name, reason="No test evidence file found"
-            )
+            self._log_violation(feature_name=feature_name, reason="No test evidence file found")
 
             raise MissingTestEvidence(
                 f"\n❌ CANNOT PROCEED WITHOUT TEST EVIDENCE\n"
@@ -131,9 +129,7 @@ class TestingEnforcer:
 
         # Verify completeness
         if not evidence.is_complete():
-            self._log_violation(
-                feature_name=feature_name, reason="Incomplete test evidence"
-            )
+            self._log_violation(feature_name=feature_name, reason="Incomplete test evidence")
 
             missing = []
             if not evidence.user_command_tested or not evidence.user_command_output:
@@ -157,9 +153,9 @@ class TestingEnforcer:
 
         # Evidence is complete
         print(f"\n✅ Test evidence verified for: {feature_name}")
-        print(f"   User command: TESTED")
-        print(f"   Edge cases: TESTED")
-        print(f"   Regression: PASSED")
+        print("   User command: TESTED")
+        print("   Edge cases: TESTED")
+        print("   Regression: PASSED")
         print(f"   Timestamp: {evidence.timestamp}\n")
 
         return evidence
@@ -205,7 +201,7 @@ class TestingEnforcer:
 
         # Check for test evidence
         try:
-            evidence = self.require_evidence(feature_name)
+            self.require_evidence(feature_name)
             print("   ✅ Delivery claim approved\n")
             return True
 

@@ -14,18 +14,13 @@ from pathlib import Path
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from intelligence.status.git_status_analyzer import GitStatusAnalyzer
 from intelligence.status.git_hygiene import GitHygieneAnalyzer
+from intelligence.status.git_status_analyzer import GitStatusAnalyzer
 
 
 def format_hygiene_for_cli(report) -> str:
     """Format hygiene report as a compact CLI section."""
-    status_icons = {
-        "ok": "✅",
-        "warning": "⚠️",
-        "alert": "🔴",
-        "critical": "🚨"
-    }
+    status_icons = {"ok": "✅", "warning": "⚠️", "alert": "🔴", "critical": "🚨"}
 
     lines = [
         "",
@@ -54,7 +49,9 @@ def format_for_cli(suggestions):
     # Header
     total_files = sum(len(s.group.files) for s in suggestions)
     output.append("\n🧠 Cortex Status Intelligence")
-    output.append(f"📊 Analyzed {total_files} uncommitted files → {len(suggestions)} suggested commits\n")
+    output.append(
+        f"📊 Analyzed {total_files} uncommitted files → {len(suggestions)} suggested commits\n"
+    )
 
     # Categorize suggestions
     ready_now = [s for s in suggestions if s.priority <= 2 and not s.blockers]

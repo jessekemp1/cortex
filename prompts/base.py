@@ -46,9 +46,7 @@ class PromptTemplate:
         # Validate all required variables are provided
         missing = set(self.variables) - set(kwargs.keys())
         if missing:
-            raise ValueError(
-                f"Missing required variables for prompt '{self.name}': {missing}"
-            )
+            raise ValueError(f"Missing required variables for prompt '{self.name}': {missing}")
 
         # Perform substitution
         try:

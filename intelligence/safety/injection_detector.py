@@ -49,25 +49,28 @@ class InjectionDetector:
     # Common injection patterns with severity levels
     INJECTION_PATTERNS = [
         # Critical: Direct instruction override
-        (r"\bignore\s+(all\s+)?(previous\s+|prior\s+|above\s+)?(instructions?|prompts?|rules?)", InjectionSeverity.CRITICAL),
-        (r"\bdisregard\s+(your\s+|the\s+|all\s+)?(rules?|guidelines?|instructions?)", InjectionSeverity.CRITICAL),
+        (
+            r"\bignore\s+(all\s+)?(previous\s+|prior\s+|above\s+)?(instructions?|prompts?|rules?)",
+            InjectionSeverity.CRITICAL,
+        ),
+        (
+            r"\bdisregard\s+(your\s+|the\s+|all\s+)?(rules?|guidelines?|instructions?)",
+            InjectionSeverity.CRITICAL,
+        ),
         (r"\bforget\s+(everything|all|previous|your)\b", InjectionSeverity.CRITICAL),
         (r"\bnew\s+instructions?:\s", InjectionSeverity.CRITICAL),
         (r"\bsystem\s+prompt\b", InjectionSeverity.HIGH),
-
         # High: Role manipulation
         (r"\byou are now (a |an )?(?!cortex)", InjectionSeverity.HIGH),
         (r"\bpretend (you are|to be|you're)", InjectionSeverity.HIGH),
         (r"\bact as (if|though|a |an )", InjectionSeverity.HIGH),
         (r"\broleplay as\b", InjectionSeverity.HIGH),
         (r"\bsimulate (being|a |an )", InjectionSeverity.HIGH),
-
         # High: Information extraction
         (r"\breveal (your|the) (prompt|instructions?|system message)", InjectionSeverity.HIGH),
         (r"\bshow me (your|the) (prompt|instructions?|rules?)", InjectionSeverity.HIGH),
         (r"\bwhat are your (instructions?|rules?|prompts?)", InjectionSeverity.HIGH),
         (r"\brepeat (your|the) (instructions?|prompt|rules?)", InjectionSeverity.HIGH),
-
         # Medium: Constraint bypass attempts
         (r"\bwithout (any )?restrictions?\b", InjectionSeverity.MEDIUM),
         (r"\bbypass (the |your )?safety\b", InjectionSeverity.MEDIUM),
@@ -75,13 +78,11 @@ class InjectionDetector:
         (r"\bunrestricted mode\b", InjectionSeverity.MEDIUM),
         (r"\bdeveloper mode\b", InjectionSeverity.MEDIUM),
         (r"\bjailbreak\b", InjectionSeverity.MEDIUM),
-
         # Medium: End-of-instruction markers
         (r"\[/?INST\]", InjectionSeverity.MEDIUM),
         (r"<\|im_start\|>", InjectionSeverity.MEDIUM),
         (r"<\|im_end\|>", InjectionSeverity.MEDIUM),
         (r"###\s*(System|User|Assistant)", InjectionSeverity.MEDIUM),
-
         # Low: Suspicious patterns
         (r"\boverride (mode|settings?|defaults?)", InjectionSeverity.LOW),
         (r"\bchange your (behavior|personality|role)", InjectionSeverity.LOW),
@@ -142,6 +143,7 @@ class InjectionDetector:
         try:
             with open(self.log_path, "a") as f:
                 import json
+
                 f.write(json.dumps(attempt.to_dict()) + "\n")
         except Exception as e:
             self.logger.error(f"Failed to log injection attempt: {e}")

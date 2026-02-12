@@ -26,7 +26,6 @@ from typing import Any, Dict, Optional
 
 from .segment_models import DEFAULT_DATA_DIR, SEGMENT_MODELS
 
-
 # ============================================================================
 # Constants
 # ============================================================================
@@ -131,9 +130,7 @@ class SegmentCalibrator:
     # L8 → Deltas (per-segment)
     # ------------------------------------------------------------------
 
-    def _deltas_from_l8(
-        self, feedback: Dict[str, Any]
-    ) -> Dict[str, Dict[str, float]]:
+    def _deltas_from_l8(self, feedback: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
         """
         Map L8 check failures to per-segment parameter deltas.
 
@@ -162,9 +159,7 @@ class SegmentCalibrator:
 
         return deltas
 
-    def _extract_churn_deltas(
-        self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]
-    ):
+    def _extract_churn_deltas(self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]):
         """
         Churn overshoot → decrease base_annual_churn_rate.
         Churn undershoot → increase base_annual_churn_rate.
@@ -193,9 +188,7 @@ class SegmentCalibrator:
             delta = -error * 0.5
             deltas.setdefault(segment, {})["base_annual_churn_rate"] = delta
 
-    def _extract_adoption_deltas(
-        self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]
-    ):
+    def _extract_adoption_deltas(self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]):
         """
         If adoption rank ordering is wrong, nudge propensity.
         Since L8 gives us per-segment adoption rates, we can compare
@@ -218,9 +211,7 @@ class SegmentCalibrator:
             elif rate > 0 and behavior.product_adoption_propensity < 0.05:
                 deltas.setdefault(segment, {})["product_adoption_propensity"] = -0.02
 
-    def _extract_deposit_deltas(
-        self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]
-    ):
+    def _extract_deposit_deltas(self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]):
         """
         Deposit sensitivity failing (deposits crashed) → adjust
         savings_rate_threshold to make agents less sensitive to rate changes.
@@ -239,9 +230,7 @@ class SegmentCalibrator:
                 for segment in SEGMENT_MODELS:
                     deltas.setdefault(segment, {})["savings_rate_threshold"] = -0.1
 
-    def _extract_credit_deltas(
-        self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]
-    ):
+    def _extract_credit_deltas(self, check: Dict[str, Any], deltas: Dict[str, Dict[str, float]]):
         """
         Credit score range violations → increase credit_recovery_rate
         and raise payment_miss_threshold so fewer agents hit floor.
@@ -253,18 +242,18 @@ class SegmentCalibrator:
         if violations > 0:
             # Apply small corrections globally
             for segment in SEGMENT_MODELS:
-                deltas.setdefault(segment, {}).update({
-                    "credit_recovery_rate": 0.3,
-                    "payment_miss_threshold": 10,
-                })
+                deltas.setdefault(segment, {}).update(
+                    {
+                        "credit_recovery_rate": 0.3,
+                        "payment_miss_threshold": 10,
+                    }
+                )
 
     # ------------------------------------------------------------------
     # L9 → Deltas (global)
     # ------------------------------------------------------------------
 
-    def _deltas_from_l9(
-        self, feedback: Dict[str, Any]
-    ) -> Dict[str, float]:
+    def _deltas_from_l9(self, feedback: Dict[str, Any]) -> Dict[str, float]:
         """
         Map L9 check failures to global parameter deltas.
 

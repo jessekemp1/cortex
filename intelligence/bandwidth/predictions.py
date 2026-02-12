@@ -256,11 +256,7 @@ class PredictionTracker:
         cutoff = datetime.now() - timedelta(days=days)
         predictions = self._load_all_predictions()
 
-        return [
-            p
-            for p in predictions
-            if p.outcome is None and p.timestamp > cutoff
-        ]
+        return [p for p in predictions if p.outcome is None and p.timestamp > cutoff]
 
     def _load_all_predictions(self) -> List[Prediction]:
         """Load all predictions from file."""

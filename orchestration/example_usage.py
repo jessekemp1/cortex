@@ -10,15 +10,15 @@ Demonstrates:
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from orchestration.scheduler import TaskScheduler
 from orchestration.task import Task, TaskPriority
 from orchestration.task_queue import TaskQueue
-from orchestration.scheduler import TaskScheduler
 
 
 def example_basic_usage():
@@ -202,7 +202,9 @@ def example_cost_optimization():
 
     for task in tasks:
         decision = scheduler.enqueue_and_schedule(task)
-        print(f"✓ {task.title}: {task.total_estimated_tokens:,} tokens -> {decision.execution_mode}")
+        print(
+            f"✓ {task.title}: {task.total_estimated_tokens:,} tokens -> {decision.execution_mode}"
+        )
 
     savings = scheduler.estimate_batch_cost_savings()
 

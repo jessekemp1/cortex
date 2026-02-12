@@ -4,14 +4,14 @@ Example: Integrating Cortex Safety Module with bridge.py
 This demonstrates how to add defensive prompting to bridge.py methods.
 """
 
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
 from cortex.intelligence.safety import (
+    InjectionDetector,
     InputValidator,
     OutputValidator,
     apply_guardrails,
-    InjectionDetector,
 )
 
 # Setup logging
@@ -26,7 +26,7 @@ class SafeCortexBridge:
         self.input_validator = InputValidator(
             max_length=10000,
             min_length=1,
-            allowed_domains=["development", "project_management", "testing"]
+            allowed_domains=["development", "project_management", "testing"],
         )
         self.output_validator = OutputValidator(min_confidence=0.3)
         self.injection_detector = InjectionDetector()
@@ -37,10 +37,7 @@ class SafeCortexBridge:
         # etc.
 
     def get_context(
-        self,
-        query: str,
-        limit: int = 5,
-        project: Optional[str] = None
+        self, query: str, limit: int = 5, project: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get relevant context with input validation and guardrails.
@@ -57,21 +54,21 @@ class SafeCortexBridge:
                 logger.error(f"Input validation failed: {error.message}")
 
             # Return error response instead of crashing
-            return [{
-                "error": "Invalid query",
-                "details": [e.message for e in validation_result.get_errors()],
-                "source": "safety_validation"
-            }]
+            return [
+                {
+                    "error": "Invalid query",
+                    "details": [e.message for e in validation_result.get_errors()],
+                    "source": "safety_validation",
+                }
+            ]
 
         # Log warnings but continue
         for warning in validation_result.get_warnings():
             logger.warning(f"Input validation warning: {warning.message}")
 
         # 2. Apply guardrails to query
-        guarded_query = apply_guardrails(
-            query,
-            query_type="context",
-            context_description="code patterns and project history"
+        apply_guardrails(
+            query, query_type="context", context_description="code patterns and project history"
         )
 
         # 3. Call original intelligence method
@@ -99,11 +96,7 @@ class SafeCortexBridge:
         return predictions
 
     def inject_recommendation(
-        self,
-        title: str,
-        rationale: str,
-        priority: str = "medium",
-        **kwargs
+        self, title: str, rationale: str, priority: str = "medium", **kwargs
     ) -> Dict[str, Any]:
         """
         Inject recommendation with validation.
@@ -118,7 +111,7 @@ class SafeCortexBridge:
             return {
                 "success": False,
                 "error": "Validation failed",
-                "details": [e.message for e in validation_result.get_errors()]
+                "details": [e.message for e in validation_result.get_errors()],
             }
 
         # 2. No guardrails needed for injection (it's data, not a query)
@@ -138,14 +131,10 @@ class SafeCortexBridge:
         return {
             "success": True,
             "recommendation_id": "example_123",
-            "message": "Recommendation injected (example)"
+            "message": "Recommendation injected (example)",
         }
 
-    def intelligence_query(
-        self,
-        query: str,
-        query_type: str = "general"
-    ) -> Dict[str, Any]:
+    def intelligence_query(self, query: str, query_type: str = "general") -> Dict[str, Any]:
         """
         General intelligence query with full safety pipeline.
 
@@ -157,11 +146,11 @@ class SafeCortexBridge:
         if not validation_result.passed:
             return {
                 "error": "Invalid query",
-                "validation_errors": [e.to_dict() for e in validation_result.get_errors()]
+                "validation_errors": [e.to_dict() for e in validation_result.get_errors()],
             }
 
         # 2. Apply guardrails
-        guarded_query = apply_guardrails(
+        apply_guardrails(
             query,
             query_type=query_type,
             domain="software development",
@@ -212,17 +201,14 @@ def example_usage():
 
     # Example 3: Intelligence query
     print("Example 3: Intelligence query")
-    result = bridge.intelligence_query(
-        "Analyze VortexV2 architecture",
-        query_type="context"
-    )
+    result = bridge.intelligence_query("Analyze VortexV2 architecture", query_type="context")
     print(f"Result: {result}\n")
 
     # Example 4: Recommendation injection
     print("Example 4: Recommendation injection")
     result = bridge.inject_recommendation(
         title="Improve error handling",
-        rationale="Based on pattern analysis, async errors need better handling"
+        rationale="Based on pattern analysis, async errors need better handling",
     )
     print(f"Result: {result}\n")
 
@@ -230,8 +216,7 @@ def example_usage():
 if __name__ == "__main__":
     # Setup logging to see warnings
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     example_usage()

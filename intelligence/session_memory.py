@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class SessionEntry:
     """A session memory entry."""
+
     timestamp: datetime
     session_type: str  # "work", "eod", "briefing", "manual"
     summary: str
@@ -288,12 +289,8 @@ class SessionMemory:
 
         return {
             "total_sessions": len(sessions),
-            "oldest_session": min(s.timestamp for s in sessions).isoformat()
-            if sessions
-            else None,
-            "newest_session": max(s.timestamp for s in sessions).isoformat()
-            if sessions
-            else None,
+            "oldest_session": min(s.timestamp for s in sessions).isoformat() if sessions else None,
+            "newest_session": max(s.timestamp for s in sessions).isoformat() if sessions else None,
             "preferences_count": pref_count,
         }
 

@@ -41,8 +41,10 @@ def sample_profiles(generator):
 def sample_transactions(generator):
     """Generate 100 transactions with risk flags."""
     request = GenerationRequest(
-        data_type="transactions", count=100,
-        include_risk_flags=True, risk_profile="high",
+        data_type="transactions",
+        count=100,
+        include_risk_flags=True,
+        risk_profile="high",
     )
     txns, _ = generator._generate_transactions(request)
     return txns
@@ -167,12 +169,15 @@ class TestAMLDetectionTask:
     def test_aml_skipped_with_few_transactions(self, tstr, sample_profiles, generator):
         """AML task requires >= 20 transactions."""
         req = GenerationRequest(
-            data_type="transactions", count=10,
-            include_risk_flags=True, risk_profile="high",
+            data_type="transactions",
+            count=10,
+            include_risk_flags=True,
+            risk_profile="high",
         )
         txns, _ = generator._generate_transactions(req)
         report = tstr.evaluate_all(
-            sample_profiles, synthetic_transactions=txns,
+            sample_profiles,
+            synthetic_transactions=txns,
         )
         aml_tasks = [t for t in report.tasks if t.task_name == "aml_detection"]
         assert len(aml_tasks) == 0  # Not enough transactions
@@ -183,38 +188,50 @@ class TestTSTRPassFail:
 
     def test_delta_calculation(self):
         task = TaskResult(
-            task_name="test", metric_name="accuracy",
-            synthetic_score=0.85, reference_score=0.90,
-            delta=-0.05, passed=True, detail="test",
+            task_name="test",
+            metric_name="accuracy",
+            synthetic_score=0.85,
+            reference_score=0.90,
+            delta=-0.05,
+            passed=True,
+            detail="test",
         )
         assert task.delta == -0.05
 
     def test_all_passed_true(self):
-        report = TSTRReport(tasks=[
-            TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
-            TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
-        ])
+        report = TSTRReport(
+            tasks=[
+                TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
+                TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
+            ]
+        )
         assert report.all_passed is True
 
     def test_all_passed_false(self):
-        report = TSTRReport(tasks=[
-            TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
-            TaskResult("t2", "acc", 0.70, 0.85, -0.15, False, "bad"),
-        ])
+        report = TSTRReport(
+            tasks=[
+                TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
+                TaskResult("t2", "acc", 0.70, 0.85, -0.15, False, "bad"),
+            ]
+        )
         assert report.all_passed is False
 
     def test_avg_delta(self):
-        report = TSTRReport(tasks=[
-            TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
-            TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
-        ])
+        report = TSTRReport(
+            tasks=[
+                TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
+                TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
+            ]
+        )
         assert report.avg_delta == pytest.approx(0.0, abs=1e-9)
 
     def test_worst_delta(self):
-        report = TSTRReport(tasks=[
-            TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
-            TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
-        ])
+        report = TSTRReport(
+            tasks=[
+                TaskResult("t1", "acc", 0.85, 0.87, -0.02, True, "ok"),
+                TaskResult("t2", "acc", 0.90, 0.88, 0.02, True, "ok"),
+            ]
+        )
         assert report.worst_delta == -0.02
 
     def test_same_kb_data_should_have_small_delta(self, tstr, sample_profiles):
@@ -227,8 +244,7 @@ class TestTSTRPassFail:
                 assert task.delta is not None
             else:
                 assert abs(task.delta) < 0.30, (
-                    f"Task {task.task_name} delta {task.delta:+.3f} "
-                    f"too large for same-KB data"
+                    f"Task {task.task_name} delta {task.delta:+.3f} " f"too large for same-KB data"
                 )
 
 

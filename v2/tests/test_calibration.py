@@ -1,7 +1,5 @@
 """Tests for ML confidence calibration."""
 
-from datetime import datetime
-
 import pytest
 from cortex.v2.learning.calibration import (
     CalibrationResult,

@@ -41,23 +41,29 @@ except ImportError as e:
 # Pydantic Models
 # ============================================================================
 
+
 class IntelligenceQuery(BaseModel):
     """Request model for intelligence queries."""
+
     request: str = Field(..., description="User request or query")
     project: str = Field(default="cortex", description="Project name")
-    query_type: str = Field(default="spec", description="Query type: spec, impl, analysis, research")
+    query_type: str = Field(
+        default="spec", description="Query type: spec, impl, analysis, research"
+    )
     use_cache: bool = Field(default=True, description="Use query cache")
     parallel: bool = Field(default=True, description="Query sources in parallel")
 
 
 class RecommendationRequest(BaseModel):
     """Request model for recommendations."""
+
     project: Optional[str] = Field(default=None, description="Filter by project")
     limit: int = Field(default=5, description="Max recommendations to return")
 
 
 class StatusResponse(BaseModel):
     """Response model for status check."""
+
     status: str
     version: str
     available_projects: List[str]
@@ -80,9 +86,9 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:18789",  # Moltbot
         "http://localhost:18789",  # Moltbot
-        "http://localhost:5173",    # React dev server
-        "http://127.0.0.1:5173",    # React dev server
-        "http://localhost:*"        # Other local services
+        "http://localhost:5173",  # React dev server
+        "http://127.0.0.1:5173",  # React dev server
+        "http://localhost:*",  # Other local services
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -108,16 +114,20 @@ def get_anomaly_manager() -> OrchestrationAnomalyManager:
     if _anomaly_manager is None:
         try:
             from cortex.orchestration.database import OrchestrationDatabase
+
             db = OrchestrationDatabase()
             _anomaly_manager = OrchestrationAnomalyManager(db)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to initialize anomaly manager: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to initialize anomaly manager: {e}"
+            )
     return _anomaly_manager
 
 
 # ============================================================================
 # Health & Status Endpoints
 # ============================================================================
+
 
 @app.get("/", response_model=Dict[str, str])
 async def root():
@@ -140,7 +150,7 @@ async def health():
 async def status():
     """Get comprehensive Cortex status."""
     try:
-        bridge = get_bridge()
+        get_bridge()
         anomaly_mgr = get_anomaly_manager()
 
         # Get active anomalies
@@ -160,6 +170,7 @@ async def status():
 # ============================================================================
 # Intelligence Endpoints
 # ============================================================================
+
 
 @app.post("/intelligence/query")
 async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
@@ -189,7 +200,7 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
 @app.get("/intelligence/recommendations")
 async def get_recommendations(
     project: Optional[str] = Query(None, description="Filter by project"),
-    limit: int = Query(5, description="Max recommendations")
+    limit: int = Query(5, description="Max recommendations"),
 ) -> Dict[str, Any]:
     """
     Get Cortex recommendations based on current context.
@@ -200,7 +211,9 @@ async def get_recommendations(
 
         # Filter by project if specified
         if project and "recommendations" in recommendations:
-            filtered = [r for r in recommendations["recommendations"] if r.get("project") == project]
+            filtered = [
+                r for r in recommendations["recommendations"] if r.get("project") == project
+            ]
             recommendations["recommendations"] = filtered[:limit]
         elif "recommendations" in recommendations:
             recommendations["recommendations"] = recommendations["recommendations"][:limit]
@@ -214,10 +227,13 @@ async def get_recommendations(
 # Anomaly Detection Endpoints
 # ============================================================================
 
+
 @app.get("/anomalies")
 async def get_anomalies(
-    severity: Optional[str] = Query(None, description="Filter by severity: CRITICAL, WARNING, INFO"),
-    anomaly_type: Optional[str] = Query(None, description="Filter by type")
+    severity: Optional[str] = Query(
+        None, description="Filter by severity: CRITICAL, WARNING, INFO"
+    ),
+    anomaly_type: Optional[str] = Query(None, description="Filter by type"),
 ) -> Dict[str, Any]:
     """
     Get current orchestration anomalies.
@@ -249,7 +265,7 @@ async def get_anomalies(
                     "detected_at": a.detected_at.isoformat() if a.detected_at else None,
                 }
                 for a in anomalies
-            ]
+            ],
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -259,10 +275,11 @@ async def get_anomalies(
 # Context Graph Endpoints
 # ============================================================================
 
+
 @app.get("/graph/query")
 async def query_graph(
     node_type: str = Query(..., description="Node type to query"),
-    filters: Optional[str] = Query(None, description="JSON filters")
+    filters: Optional[str] = Query(None, description="JSON filters"),
 ) -> Dict[str, Any]:
     """
     Query Cortex context graph.
@@ -271,16 +288,13 @@ async def query_graph(
     """
     try:
         import json
+
         bridge = get_bridge()
 
         filter_dict = json.loads(filters) if filters else None
         nodes = bridge.query_graph(node_type=node_type, filters=filter_dict)
 
-        return {
-            "node_type": node_type,
-            "count": len(nodes),
-            "nodes": nodes
-        }
+        return {"node_type": node_type, "count": len(nodes), "nodes": nodes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -300,6 +314,7 @@ def get_batch_client():
     if _batch_client is None:
         try:
             from cortex.batch.batch_api_client import BatchAPIClient
+
             _batch_client = BatchAPIClient()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to initialize batch client: {e}")
@@ -312,6 +327,7 @@ def get_queue_manager():
     if _queue_manager is None:
         try:
             from cortex.batch.queue_manager import BatchQueueManager
+
             _queue_manager = BatchQueueManager()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to initialize queue manager: {e}")
@@ -375,7 +391,7 @@ async def get_queue():
         queue_data = mgr.load_queue()
         return {
             "tasks": queue_data.get("priority_jobs", []),
-            "metadata": queue_data.get("queue_metadata", {})
+            "metadata": queue_data.get("queue_metadata", {}),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -383,9 +399,12 @@ async def get_queue():
 
 class AddTaskRequest(BaseModel):
     """Request model for adding a task to the queue."""
+
     title: str = Field(..., description="Task title")
     description: str = Field(..., description="Task description")
-    priority: str = Field(default="NORMAL", description="Task priority: CRITICAL, HIGH, NORMAL, LOW")
+    priority: str = Field(
+        default="NORMAL", description="Task priority: CRITICAL, HIGH, NORMAL, LOW"
+    )
     estimated_tokens: int = Field(default=5000, description="Estimated token count")
     tasks: List[Dict[str, Any]] = Field(default_factory=list, description="Subtasks to execute")
 
@@ -410,7 +429,7 @@ async def add_task(task: AddTaskRequest):
             "estimated_tokens": task.estimated_tokens,
             "tasks": task.tasks or [],
             "created_at": datetime.now().isoformat(),
-            "status": "pending"
+            "status": "pending",
         }
 
         queue_data.setdefault("priority_jobs", []).append(new_task)
@@ -423,6 +442,7 @@ async def add_task(task: AddTaskRequest):
 
 class UpdateTaskRequest(BaseModel):
     """Request model for updating task priority."""
+
     priority: str = Field(..., description="New priority: CRITICAL, HIGH, NORMAL, LOW")
 
 
@@ -504,7 +524,7 @@ async def get_metrics(days: int = Query(7, description="Days of history to inclu
             "failed_requests": errored,
             "success_rate": (succeeded / total_requests * 100) if total_requests > 0 else 100.0,
             "estimated_savings_usd": round(estimated_savings, 2),
-            "batch_count": len(batches)
+            "batch_count": len(batches),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -514,12 +534,11 @@ async def get_metrics(days: int = Query(7, description="Days of history to inclu
 # Utility Endpoints
 # ============================================================================
 
+
 @app.get("/projects")
 async def list_projects() -> Dict[str, List[str]]:
     """List available projects."""
-    return {
-        "projects": ["cortex", "vortex", "alpha_arena", "kempion"]
-    }
+    return {"projects": ["cortex", "vortex", "alpha_arena", "kempion"]}
 
 
 # ============================================================================
@@ -528,6 +547,7 @@ async def list_projects() -> Dict[str, List[str]]:
 
 if __name__ == "__main__":
     import uvicorn
+
     print("🧠 Starting Cortex Bridge API on http://127.0.0.1:8765")
     print("📚 API docs: http://127.0.0.1:8765/docs")
     print("🦞 Ready for Moltbot integration!")

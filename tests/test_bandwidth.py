@@ -299,7 +299,7 @@ class TestDashboard:
         """Test dashboard renders without data."""
         from intelligence.bandwidth.dashboard import render_dashboard
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory():
             # Override storage directory (dashboard uses default)
             # This test just ensures no crashes with empty data
             output = render_dashboard(days=7)
@@ -405,7 +405,7 @@ class TestIntegration:
 
             # 3. Record prediction and outcome
             tracker = PredictionTracker(storage_dir=storage_dir)
-            pred = tracker.record_prediction(
+            tracker.record_prediction(
                 prediction_id="integration_pred",
                 confidence=0.9,
                 domain="code",

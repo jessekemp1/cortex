@@ -47,34 +47,34 @@ class SegmentBehavior:
     segment_name: str
 
     # Churn / switching
-    base_annual_churn_rate: float       # Annual probability of leaving
-    rate_sensitivity: float             # 0-1: how rate changes affect decisions
-    fee_sensitivity: float              # 0-1: how fee changes matter
-    competitor_susceptibility: float    # 0-1: response to competitor offers
+    base_annual_churn_rate: float  # Annual probability of leaving
+    rate_sensitivity: float  # 0-1: how rate changes affect decisions
+    fee_sensitivity: float  # 0-1: how fee changes matter
+    competitor_susceptibility: float  # 0-1: response to competitor offers
 
     # Product behavior
     product_adoption_propensity: float  # 0-1: likelihood of adding products/year
-    target_products: int                # Typical product count
-    preferred_products: List[str]       # Products this segment gravitates toward
+    target_products: int  # Typical product count
+    preferred_products: List[str]  # Products this segment gravitates toward
 
     # Financial behavior
-    savings_rate_threshold: float       # Min rate to keep savings (vs switching)
-    mortgage_likelihood: float          # Probability of having/getting mortgage
-    investment_propensity: float        # 0-1: likelihood of investment products
+    savings_rate_threshold: float  # Min rate to keep savings (vs switching)
+    mortgage_likelihood: float  # Probability of having/getting mortgage
+    investment_propensity: float  # 0-1: likelihood of investment products
 
     # Stress response
-    unemployment_sensitivity: float     # 0-1: how unemployment affects behavior
-    payment_miss_threshold: int         # Credit score below which misses start
-    default_threshold: int              # Credit score below which defaults start
-    credit_recovery_rate: float         # Points/month credit recovers
+    unemployment_sensitivity: float  # 0-1: how unemployment affects behavior
+    payment_miss_threshold: int  # Credit score below which misses start
+    default_threshold: int  # Credit score below which defaults start
+    credit_recovery_rate: float  # Points/month credit recovers
 
     # Digital behavior
-    digital_preference: float           # 0-1: digital channel preference
-    fintech_openness: float             # 0-1: willingness to use fintech
+    digital_preference: float  # 0-1: digital channel preference
+    fintech_openness: float  # 0-1: willingness to use fintech
 
     # Lifecycle
     avg_tenure_years: float
-    loyalty_bonus_per_year: float       # Churn reduction per year of tenure
+    loyalty_bonus_per_year: float  # Churn reduction per year of tenure
 
 
 # ============================================================================
@@ -112,7 +112,12 @@ MASS_AFFLUENT = SegmentBehavior(
     product_adoption_propensity=0.25,
     target_products=4,
     preferred_products=[
-        "chequing", "savings", "tfsa", "rrsp", "credit_card", "mortgage",
+        "chequing",
+        "savings",
+        "tfsa",
+        "rrsp",
+        "credit_card",
+        "mortgage",
     ],
     savings_rate_threshold=3.5,
     mortgage_likelihood=0.55,
@@ -136,8 +141,15 @@ AFFLUENT = SegmentBehavior(
     product_adoption_propensity=0.20,
     target_products=6,
     preferred_products=[
-        "chequing", "savings", "tfsa", "rrsp", "mortgage", "heloc",
-        "investment_account", "credit_card", "insurance_life",
+        "chequing",
+        "savings",
+        "tfsa",
+        "rrsp",
+        "mortgage",
+        "heloc",
+        "investment_account",
+        "credit_card",
+        "insurance_life",
     ],
     savings_rate_threshold=4.0,
     mortgage_likelihood=0.70,
@@ -161,8 +173,16 @@ HIGH_NET_WORTH = SegmentBehavior(
     product_adoption_propensity=0.15,
     target_products=7,
     preferred_products=[
-        "chequing", "savings", "tfsa", "rrsp", "mortgage", "heloc",
-        "investment_account", "gic", "insurance_life", "insurance_home",
+        "chequing",
+        "savings",
+        "tfsa",
+        "rrsp",
+        "mortgage",
+        "heloc",
+        "investment_account",
+        "gic",
+        "insurance_life",
+        "insurance_home",
     ],
     savings_rate_threshold=4.5,
     mortgage_likelihood=0.75,
@@ -186,8 +206,16 @@ ULTRA_HNW = SegmentBehavior(
     product_adoption_propensity=0.10,
     target_products=8,
     preferred_products=[
-        "chequing", "savings", "tfsa", "rrsp", "mortgage", "heloc",
-        "investment_account", "gic", "insurance_life", "insurance_home",
+        "chequing",
+        "savings",
+        "tfsa",
+        "rrsp",
+        "mortgage",
+        "heloc",
+        "investment_account",
+        "gic",
+        "insurance_life",
+        "insurance_home",
         "insurance_auto",
     ],
     savings_rate_threshold=4.5,
@@ -212,7 +240,11 @@ SMALL_BUSINESS = SegmentBehavior(
     product_adoption_propensity=0.20,
     target_products=4,
     preferred_products=[
-        "chequing", "savings", "credit_card", "personal_loan", "insurance_life",
+        "chequing",
+        "savings",
+        "credit_card",
+        "personal_loan",
+        "insurance_life",
     ],
     savings_rate_threshold=3.5,
     mortgage_likelihood=0.35,
@@ -236,8 +268,12 @@ COMMERCIAL = SegmentBehavior(
     product_adoption_propensity=0.15,
     target_products=5,
     preferred_products=[
-        "chequing", "savings", "credit_card", "personal_loan",
-        "investment_account", "insurance_life",
+        "chequing",
+        "savings",
+        "credit_card",
+        "personal_loan",
+        "investment_account",
+        "insurance_life",
     ],
     savings_rate_threshold=4.0,
     mortgage_likelihood=0.50,
@@ -325,6 +361,10 @@ def get_behavior(segment: str, use_calibrated: bool = True) -> SegmentBehavior:
         return baseline
     params = {f.name: getattr(baseline, f.name) for f in fields(baseline)}
     for param, value in overrides.items():
-        if param in params and param not in ("segment_name", "preferred_products", "target_products"):
+        if param in params and param not in (
+            "segment_name",
+            "preferred_products",
+            "target_products",
+        ):
             params[param] = value
     return SegmentBehavior(**params)

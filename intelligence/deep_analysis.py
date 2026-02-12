@@ -7,16 +7,17 @@ Prioritizes quality over latency.
 Design: Simple, synchronous, comprehensive
 """
 
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
-import subprocess
 
 
 @dataclass
 class GitAnalysis:
     """Comprehensive git analysis"""
+
     commits: List[Dict]
     commit_count: int
     authors: List[str]
@@ -31,6 +32,7 @@ class GitAnalysis:
 @dataclass
 class HealthAnalysis:
     """Fresh health analysis (no caching)"""
+
     score: int
     assessment: str
     trend: str
@@ -45,6 +47,7 @@ class HealthAnalysis:
 @dataclass
 class SpecMatch:
     """Relevant specification match"""
+
     title: str
     path: str
     similarity: float
@@ -54,6 +57,7 @@ class SpecMatch:
 @dataclass
 class PatternMatch:
     """Cross-project pattern match"""
+
     name: str
     description: str
     projects: List[str]
@@ -64,6 +68,7 @@ class PatternMatch:
 @dataclass
 class CodeQuality:
     """Code quality metrics"""
+
     linting_issues: int
     complexity_score: float
     test_coverage: Optional[float]
@@ -75,6 +80,7 @@ class CodeQuality:
 @dataclass
 class DependencyGraph:
     """Project dependency analysis"""
+
     dependencies: Dict[str, List[str]]
     circular_deps: List[List[str]]
     depth: int
@@ -84,6 +90,7 @@ class DependencyGraph:
 @dataclass
 class DeepIntelligence:
     """Comprehensive deep intelligence result"""
+
     timestamp: datetime
     project: str
     mode: str
@@ -139,9 +146,7 @@ class DeepAnalyzer:
         dependency_graph = self._analyze_dependencies(project_path, config)
 
         # Generate insights
-        warnings = self._generate_warnings(
-            git_analysis, health_analysis, quality_analysis
-        )
+        warnings = self._generate_warnings(git_analysis, health_analysis, quality_analysis)
         recommendations = self._generate_recommendations(
             git_analysis, health_analysis, spec_matches, pattern_matches
         )
@@ -197,13 +202,15 @@ class DeepAnalyzer:
                         continue
                     parts = line.split("|")
                     if len(parts) >= 5:
-                        commits.append({
-                            "hash": parts[0],
-                            "author": parts[1],
-                            "email": parts[2],
-                            "date": parts[3],
-                            "message": parts[4],
-                        })
+                        commits.append(
+                            {
+                                "hash": parts[0],
+                                "author": parts[1],
+                                "email": parts[2],
+                                "date": parts[3],
+                                "message": parts[4],
+                            }
+                        )
 
             # Get authors
             authors = list(set(c["author"] for c in commits))
@@ -471,9 +478,7 @@ class DeepAnalyzer:
             tech_debt_markers=todos + fixmes,
         )
 
-    def _analyze_dependencies(
-        self, project_path: Path, config: Dict
-    ) -> Optional[DependencyGraph]:
+    def _analyze_dependencies(self, project_path: Path, config: Dict) -> Optional[DependencyGraph]:
         """
         Analyze project dependencies
 
@@ -517,25 +522,31 @@ class DeepAnalyzer:
         recommendations = []
 
         if git.uncommitted_files > 20:
-            recommendations.append({
-                "priority": "high",
-                "title": "Commit or clean up uncommitted work",
-                "rationale": f"{git.uncommitted_files} uncommitted files reduce project health",
-            })
+            recommendations.append(
+                {
+                    "priority": "high",
+                    "title": "Commit or clean up uncommitted work",
+                    "rationale": f"{git.uncommitted_files} uncommitted files reduce project health",
+                }
+            )
 
         if len(git.stale_branches) > 0:
-            recommendations.append({
-                "priority": "medium",
-                "title": "Clean up stale branches",
-                "rationale": f"{len(git.stale_branches)} branches haven't been updated in 60+ days",
-            })
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "title": "Clean up stale branches",
+                    "rationale": f"{len(git.stale_branches)} branches haven't been updated in 60+ days",
+                }
+            )
 
         if health.commits_7d == 0:
-            recommendations.append({
-                "priority": "medium",
-                "title": "Investigate lack of recent activity",
-                "rationale": "No commits in the last 7 days",
-            })
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "title": "Investigate lack of recent activity",
+                    "rationale": "No commits in the last 7 days",
+                }
+            )
 
         return recommendations
 

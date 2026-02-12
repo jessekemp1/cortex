@@ -24,7 +24,7 @@ Architecture:
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -35,6 +35,7 @@ from synthetic.schemas import GenerationRequest, Transaction
 @dataclass
 class RuleResult:
     """Result from applying a single AML rule to a transaction."""
+
     rule_name: str
     triggered: bool
     confidence: float  # 0.0-1.0 — how confident the rule is
@@ -52,6 +53,7 @@ class RuleResult:
 @dataclass
 class RiskReport:
     """Aggregate report from validating a batch of transactions."""
+
     total_transactions: int = 0
     flagged_by_generator: int = 0  # Generator labeled as suspicious
     detected_by_rules: int = 0  # Rules independently detected
@@ -121,6 +123,7 @@ class RiskReport:
 @dataclass
 class AdversarialResult:
     """Result from an adversarial generation loop."""
+
     rounds_executed: int
     converged: bool
     detection_rates: List[float]
@@ -186,9 +189,7 @@ class RiskValidator:
         """
         report = RiskReport(total_transactions=len(transactions))
         report.rule_coverage = {name: 0 for name in self._rules}
-        report.per_rule_results = {
-            name: {"triggered": 0, "missed": 0} for name in self._rules
-        }
+        report.per_rule_results = {name: {"triggered": 0, "missed": 0} for name in self._rules}
 
         for txn in transactions:
             generator_flagged = txn.risk_flag != "none"
@@ -222,11 +223,14 @@ class RiskValidator:
 
             # Track which generator-flagged patterns the rules missed
             if generator_flagged and not any_rule_triggered:
-                report.per_rule_results.get(
-                    txn.risk_flag, {"triggered": 0, "missed": 0}
-                )["missed"] = report.per_rule_results.get(
-                    txn.risk_flag, {"triggered": 0, "missed": 0}
-                ).get("missed", 0) + 1
+                report.per_rule_results.get(txn.risk_flag, {"triggered": 0, "missed": 0})[
+                    "missed"
+                ] = (
+                    report.per_rule_results.get(txn.risk_flag, {"triggered": 0, "missed": 0}).get(
+                        "missed", 0
+                    )
+                    + 1
+                )
 
         return report
 
@@ -330,7 +334,9 @@ class RiskValidator:
         lower_bound = threshold * 0.85  # $8,500
 
         is_deposit_or_withdrawal = txn.transaction_type in (
-            "deposit", "withdrawal", "wire_domestic",
+            "deposit",
+            "withdrawal",
+            "wire_domestic",
         )
         amount_in_range = lower_bound <= txn.amount < threshold
 
@@ -362,7 +368,9 @@ class RiskValidator:
         to other accounts or institutions.
         """
         is_transfer = txn.transaction_type in (
-            "wire_domestic", "wire_international", "transfer",
+            "wire_domestic",
+            "wire_international",
+            "transfer",
         )
         is_large = txn.amount >= 15_000
 
@@ -392,7 +400,10 @@ class RiskValidator:
         (e.g., $5,000, $10,000) suggest structuring or laundering.
         """
         is_wire_or_transfer = txn.transaction_type in (
-            "wire_domestic", "wire_international", "transfer", "e_transfer",
+            "wire_domestic",
+            "wire_international",
+            "transfer",
+            "e_transfer",
         )
         is_round = txn.amount >= 1_000 and txn.amount % 1_000 == 0
         is_large_round = txn.amount >= 5_000 and txn.amount % 5_000 == 0
@@ -420,8 +431,16 @@ class RiskValidator:
         FINTRAC requires enhanced due diligence for these countries.
         """
         high_risk_countries = {
-            "IR", "KP", "SY", "MM", "AF",  # FATF blacklist
-            "YE", "LY", "SO", "SD", "VE",  # FATF grey list (partial)
+            "IR",
+            "KP",
+            "SY",
+            "MM",
+            "AF",  # FATF blacklist
+            "YE",
+            "LY",
+            "SO",
+            "SD",
+            "VE",  # FATF grey list (partial)
         }
 
         triggered = (
@@ -531,31 +550,40 @@ class RiskValidator:
 
         # If false negatives are high, generator patterns are too subtle
         if report.false_negative_rate > 0.1:
-            corrections["adjustments"].append({
-                "type": "increase_signal",
-                "reason": f"FN rate {report.false_negative_rate:.1%} > 10%",
-                "action": "Make risk patterns more detectable",
-            })
+            corrections["adjustments"].append(
+                {
+                    "type": "increase_signal",
+                    "reason": f"FN rate {report.false_negative_rate:.1%} > 10%",
+                    "action": "Make risk patterns more detectable",
+                }
+            )
 
         # If false positives are high, normal transactions look suspicious
         if report.false_positive_rate > 0.05:
-            corrections["adjustments"].append({
-                "type": "reduce_noise",
-                "reason": f"FP rate {report.false_positive_rate:.1%} > 5%",
-                "action": "Ensure normal transactions stay well below thresholds",
-            })
+            corrections["adjustments"].append(
+                {
+                    "type": "reduce_noise",
+                    "reason": f"FP rate {report.false_positive_rate:.1%} > 5%",
+                    "action": "Ensure normal transactions stay well below thresholds",
+                }
+            )
 
         # Check per-rule coverage gaps
         for rule_name, stats in report.per_rule_results.items():
             if stats["triggered"] == 0 and rule_name in (
-                "structuring", "rapid_movement", "round_amounts", "geographic_risk"
+                "structuring",
+                "rapid_movement",
+                "round_amounts",
+                "geographic_risk",
             ):
-                corrections["adjustments"].append({
-                    "type": "add_pattern",
-                    "rule": rule_name,
-                    "reason": f"Rule '{rule_name}' never triggered",
-                    "action": f"Ensure generator produces {rule_name} patterns",
-                })
+                corrections["adjustments"].append(
+                    {
+                        "type": "add_pattern",
+                        "rule": rule_name,
+                        "reason": f"Rule '{rule_name}' never triggered",
+                        "action": f"Ensure generator produces {rule_name} patterns",
+                    }
+                )
 
         return corrections
 

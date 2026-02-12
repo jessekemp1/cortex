@@ -9,8 +9,8 @@ Based on: "AI Engineering" by Chip Huyen, Chapter 4 (Prompt Engineering)
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class CategoryType(str, Enum):
@@ -58,12 +58,14 @@ class OptimizationStrategy:
     end_weight: float = 0.9  # High attention (recency)
 
     # Category priorities (higher = more important)
-    category_priority: Dict[CategoryType, float] = field(default_factory=lambda: {
-        CategoryType.INSTRUCTION: 1.0,  # Critical - always at start
-        CategoryType.EXAMPLE: 0.8,  # Important - near start
-        CategoryType.DATA: 0.6,  # Medium - at end (recency)
-        CategoryType.HISTORY: 0.4,  # Low - in middle (acceptable loss)
-    })
+    category_priority: Dict[CategoryType, float] = field(
+        default_factory=lambda: {
+            CategoryType.INSTRUCTION: 1.0,  # Critical - always at start
+            CategoryType.EXAMPLE: 0.8,  # Important - near start
+            CategoryType.DATA: 0.6,  # Medium - at end (recency)
+            CategoryType.HISTORY: 0.4,  # Low - in middle (acceptable loss)
+        }
+    )
 
     # Distribution ratios (how to split items across positions)
     start_ratio: float = 0.33  # Top 1/3 to start
@@ -131,17 +133,16 @@ class ContextOptimizer:
 
         # Distribute remainder to end (most benefit from extra items)
         start_count = third
-        middle_count = third
         end_count = third + remainder
 
         # Most important third → START
         start_items = sorted_items[:start_count]
 
         # Middle importance third → END (recency helps)
-        end_items = sorted_items[start_count:start_count + end_count]
+        end_items = sorted_items[start_count : start_count + end_count]
 
         # Least important third → MIDDLE (will lose attention)
-        middle_items = sorted_items[start_count + end_count:]
+        middle_items = sorted_items[start_count + end_count :]
 
         # Combine: start + middle + end
         return start_items + middle_items + end_items
@@ -165,9 +166,7 @@ class ContextOptimizer:
             return []
 
         # Group by category
-        by_category: Dict[CategoryType, List[ContextItem]] = {
-            cat: [] for cat in CategoryType
-        }
+        by_category: Dict[CategoryType, List[ContextItem]] = {cat: [] for cat in CategoryType}
 
         for item in items:
             by_category[item.category].append(item)
@@ -308,7 +307,7 @@ class ContextOptimizer:
         # Keep start and end items, truncate middle
         start_items = items[:start_count]
         end_items = items[-end_count:] if end_count > 0 else []
-        middle_items = items[start_count:len(items) - end_count]
+        middle_items = items[start_count : len(items) - end_count]
 
         # Calculate tokens for start and end
         start_tokens = sum(item.tokens or 0 for item in start_items)

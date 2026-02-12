@@ -18,8 +18,8 @@ from pathlib import Path
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.generator import SyntheticGenerator
+from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.quality import SyntheticQualityTracker
 from synthetic.schemas import GenerationRequest
 
@@ -72,6 +72,7 @@ def demo_profiles():
     if result.output_path:
         profiles = []
         from synthetic.schemas import CustomerProfile
+
         with open(result.output_path) as f:
             for line in f:
                 data = json.loads(line)
@@ -132,8 +133,10 @@ def demo_profiles():
         print(f"  {len(outcomes)} generation runs logged for flywheel learning")
         if outcomes:
             latest = outcomes[-1]
-            print(f"  Latest: {latest['data_type']} | {latest['count_generated']} records | "
-                  f"avg quality {latest['avg_quality']:.3f}")
+            print(
+                f"  Latest: {latest['data_type']} | {latest['count_generated']} records | "
+                f"avg quality {latest['avg_quality']:.3f}"
+            )
     else:
         print("  No outcomes logged yet (first run)")
 

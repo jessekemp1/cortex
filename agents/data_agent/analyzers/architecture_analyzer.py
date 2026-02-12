@@ -1,9 +1,8 @@
 """Architecture Analyzer - Detect architectural patterns and design decisions."""
 
-import ast
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class ArchitectureAnalyzer:
         patterns = []
 
         # Check Python files for patterns
-        python_files = list(self.project_path.rglob("*.py"))[:50]  # Sample first 50
+        list(self.project_path.rglob("*.py"))[:50]  # Sample first 50
 
         # MVC pattern
         if self._has_mvc_structure():

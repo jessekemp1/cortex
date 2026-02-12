@@ -228,9 +228,17 @@ class TestRuleAdherenceHook:
         import rule_adherence_hook
 
         # Patch the module-level constants
-        with patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"), \
-             patch.object(rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"), \
-             patch.object(rule_adherence_hook, "SESSION_STATE_FILE", tmp_path / ".cortex" / "session_read_files.json"):
+        with (
+            patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"),
+            patch.object(
+                rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"
+            ),
+            patch.object(
+                rule_adherence_hook,
+                "SESSION_STATE_FILE",
+                tmp_path / ".cortex" / "session_read_files.json",
+            ),
+        ):
 
             # Create cortex dir
             (tmp_path / ".cortex").mkdir(parents=True, exist_ok=True)
@@ -254,9 +262,17 @@ class TestRuleAdherenceHook:
         import rule_adherence_hook
 
         # Patch the module-level constants
-        with patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"), \
-             patch.object(rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"), \
-             patch.object(rule_adherence_hook, "SESSION_STATE_FILE", tmp_path / ".cortex" / "session_read_files.json"):
+        with (
+            patch.object(rule_adherence_hook, "CORTEX_DATA", tmp_path / ".cortex"),
+            patch.object(
+                rule_adherence_hook, "RULE_EVENTS_FILE", tmp_path / ".cortex" / "rule_events.jsonl"
+            ),
+            patch.object(
+                rule_adherence_hook,
+                "SESSION_STATE_FILE",
+                tmp_path / ".cortex" / "session_read_files.json",
+            ),
+        ):
 
             (tmp_path / ".cortex").mkdir(parents=True, exist_ok=True)
 

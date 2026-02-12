@@ -12,7 +12,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 @dataclass
 class StrategicBatchJob:
     """A strategic planning/research batch job"""
+
     id: str
     title: str
     description: str
@@ -43,11 +44,12 @@ class StrategicBatchOrchestrator:
         jobs = []
 
         # 1. VortexV2: Next Phase Planning (Priority A completed, what's next?)
-        jobs.append(StrategicBatchJob(
-            id="vortexv2-next-phase",
-            title="VortexV2: Next Phase Strategic Planning",
-            description="Plan next development phase after successful V2 launch: revenue model, enterprise features, API v3 roadmap",
-            prompt="""VortexV2 has successfully shipped production API with 552 passing tests and validated ensemble weights.
+        jobs.append(
+            StrategicBatchJob(
+                id="vortexv2-next-phase",
+                title="VortexV2: Next Phase Strategic Planning",
+                description="Plan next development phase after successful V2 launch: revenue model, enterprise features, API v3 roadmap",
+                prompt="""VortexV2 has successfully shipped production API with 552 passing tests and validated ensemble weights.
 
 Analyze and plan the NEXT PHASE for VortexV2:
 
@@ -84,19 +86,21 @@ Provide:
 - Architecture decision records (ADRs) for key choices
 - Risk assessment and mitigation strategies
 - 90-day execution plan""",
-            priority="high",
-            category="planning",
-            estimated_tokens=60000,
-            projects=["VortexV2"],
-            deadline_hours=48
-        ))
+                priority="high",
+                category="planning",
+                estimated_tokens=60000,
+                projects=["VortexV2"],
+                deadline_hours=48,
+            )
+        )
 
         # 2. Alpha Arena: Trading Strategy Expansion Research
-        jobs.append(StrategicBatchJob(
-            id="alpha-arena-strategy-research",
-            title="Alpha Arena: Advanced Trading Strategy Research",
-            description="Research and design next-generation trading strategies beyond current ensemble approach",
-            prompt="""Alpha Arena has 113+ passing tests and validated signal generation pipeline.
+        jobs.append(
+            StrategicBatchJob(
+                id="alpha-arena-strategy-research",
+                title="Alpha Arena: Advanced Trading Strategy Research",
+                description="Research and design next-generation trading strategies beyond current ensemble approach",
+                prompt="""Alpha Arena has 113+ passing tests and validated signal generation pipeline.
 
 Research and design ADVANCED TRADING STRATEGIES for next phase:
 
@@ -140,19 +144,21 @@ Provide:
 - Infrastructure requirements (compute, storage, latency)
 - Implementation timeline (3-6 months)
 - Risk/reward analysis""",
-            priority="high",
-            category="research",
-            estimated_tokens=65000,
-            projects=["alpha_arena"],
-            deadline_hours=48
-        ))
+                priority="high",
+                category="research",
+                estimated_tokens=65000,
+                projects=["alpha_arena"],
+                deadline_hours=48,
+            )
+        )
 
         # 3. Cortex: Intelligence Platform Evolution
-        jobs.append(StrategicBatchJob(
-            id="cortex-evolution-strategy",
-            title="Cortex: Evolution into Full Intelligence Platform",
-            description="Strategic roadmap for Cortex evolution: from task orchestrator to comprehensive dev intelligence platform",
-            prompt="""Cortex has successfully integrated runtime, batch API optimization, and intelligent orchestration.
+        jobs.append(
+            StrategicBatchJob(
+                id="cortex-evolution-strategy",
+                title="Cortex: Evolution into Full Intelligence Platform",
+                description="Strategic roadmap for Cortex evolution: from task orchestrator to comprehensive dev intelligence platform",
+                prompt="""Cortex has successfully integrated runtime, batch API optimization, and intelligent orchestration.
 
 Design EVOLUTION ROADMAP to transform Cortex into a comprehensive development intelligence platform:
 
@@ -197,19 +203,21 @@ Provide:
    - Revenue potential analysis (TAM, pricing)
 - Build vs buy analysis for components
 - Go-to-market strategy if productized""",
-            priority="high",
-            category="planning",
-            estimated_tokens=70000,
-            projects=["cortex"],
-            deadline_hours=72
-        ))
+                priority="high",
+                category="planning",
+                estimated_tokens=70000,
+                projects=["cortex"],
+                deadline_hours=72,
+            )
+        )
 
         # 4. Cross-Project Integration Opportunities
-        jobs.append(StrategicBatchJob(
-            id="cross-project-integration",
-            title="Cross-Project Integration & Synergy Analysis",
-            description="Identify high-value integration opportunities across VortexV2, Alpha Arena, and Cortex",
-            prompt="""Analyze integration opportunities across the portfolio to create force multiplier effects:
+        jobs.append(
+            StrategicBatchJob(
+                id="cross-project-integration",
+                title="Cross-Project Integration & Synergy Analysis",
+                description="Identify high-value integration opportunities across VortexV2, Alpha Arena, and Cortex",
+                prompt="""Analyze integration opportunities across the portfolio to create force multiplier effects:
 
 **Current State:**
 - VortexV2: Weather forecasting API (production-ready)
@@ -251,19 +259,21 @@ Provide:
 - Revenue potential for each integration
 - Development timeline and resource needs
 - Risk analysis (tight coupling, maintenance burden)""",
-            priority="high",
-            category="integration",
-            estimated_tokens=55000,
-            projects=["VortexV2", "alpha_arena", "cortex"],
-            deadline_hours=48
-        ))
+                priority="high",
+                category="integration",
+                estimated_tokens=55000,
+                projects=["VortexV2", "alpha_arena", "cortex"],
+                deadline_hours=48,
+            )
+        )
 
         # 5. Mobile (Vital): Architecture & Tech Stack Research
-        jobs.append(StrategicBatchJob(
-            id="mobile-vital-architecture",
-            title="Mobile (Vital): Architecture & Tech Stack Deep Dive",
-            description="Research optimal architecture and tech stack for Vital mobile health app",
-            prompt="""Mobile (Vital) is a Priority B project in Expo development phase.
+        jobs.append(
+            StrategicBatchJob(
+                id="mobile-vital-architecture",
+                title="Mobile (Vital): Architecture & Tech Stack Deep Dive",
+                description="Research optimal architecture and tech stack for Vital mobile health app",
+                prompt="""Mobile (Vital) is a Priority B project in Expo development phase.
 
 Research and recommend OPTIMAL ARCHITECTURE and TECH STACK:
 
@@ -308,19 +318,21 @@ Provide:
 - Development timeline estimate (MVP → v1 → scale)
 - Cost analysis (services, tools, infrastructure)
 - Team composition needed (roles, skills)""",
-            priority="normal",
-            category="architecture",
-            estimated_tokens=58000,
-            projects=["mobile"],
-            deadline_hours=72
-        ))
+                priority="normal",
+                category="architecture",
+                estimated_tokens=58000,
+                projects=["mobile"],
+                deadline_hours=72,
+            )
+        )
 
         # 6. Commercial Value Analysis
-        jobs.append(StrategicBatchJob(
-            id="portfolio-commercial-analysis",
-            title="Portfolio Commercial Value & Monetization Analysis",
-            description="Analyze commercial potential and monetization strategies across all projects",
-            prompt="""Conduct comprehensive COMMERCIAL VALUE ANALYSIS across the portfolio:
+        jobs.append(
+            StrategicBatchJob(
+                id="portfolio-commercial-analysis",
+                title="Portfolio Commercial Value & Monetization Analysis",
+                description="Analyze commercial potential and monetization strategies across all projects",
+                prompt="""Conduct comprehensive COMMERCIAL VALUE ANALYSIS across the portfolio:
 
 **Projects to Analyze:**
 1. VortexV2 (weather API - production ready)
@@ -376,19 +388,21 @@ Provide:
 - 2-year revenue roadmap across portfolio
 - Resource allocation recommendation
 - Quick wins for near-term revenue""",
-            priority="high",
-            category="commercial",
-            estimated_tokens=65000,
-            projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot", "Aio"],
-            deadline_hours=72
-        ))
+                priority="high",
+                category="commercial",
+                estimated_tokens=65000,
+                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot", "Aio"],
+                deadline_hours=72,
+            )
+        )
 
         # 7. Technical Debt & Infrastructure Audit
-        jobs.append(StrategicBatchJob(
-            id="tech-debt-audit",
-            title="Portfolio-Wide Technical Debt & Infrastructure Audit",
-            description="Comprehensive audit of technical debt, infrastructure gaps, and optimization opportunities",
-            prompt="""Conduct COMPREHENSIVE TECHNICAL DEBT AUDIT across all active projects:
+        jobs.append(
+            StrategicBatchJob(
+                id="tech-debt-audit",
+                title="Portfolio-Wide Technical Debt & Infrastructure Audit",
+                description="Comprehensive audit of technical debt, infrastructure gaps, and optimization opportunities",
+                prompt="""Conduct COMPREHENSIVE TECHNICAL DEBT AUDIT across all active projects:
 
 **Audit Dimensions:**
 
@@ -449,19 +463,21 @@ Provide:
 - Strategic investments (>1 month, transformational)
 - Cost optimization opportunities with projected savings
 - 6-month remediation roadmap""",
-            priority="high",
-            category="planning",
-            estimated_tokens=70000,
-            projects=["VortexV2", "alpha_arena", "cortex", "mobile", "Aio"],
-            deadline_hours=72
-        ))
+                priority="high",
+                category="planning",
+                estimated_tokens=70000,
+                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "Aio"],
+                deadline_hours=72,
+            )
+        )
 
         # 8. AI/ML Integration Opportunities
-        jobs.append(StrategicBatchJob(
-            id="ai-ml-opportunities",
-            title="AI/ML Integration Opportunities Across Portfolio",
-            description="Research how AI/ML can enhance each project and identify new AI-powered product opportunities",
-            prompt="""Research AI/ML INTEGRATION OPPORTUNITIES across portfolio and new product ideas:
+        jobs.append(
+            StrategicBatchJob(
+                id="ai-ml-opportunities",
+                title="AI/ML Integration Opportunities Across Portfolio",
+                description="Research how AI/ML can enhance each project and identify new AI-powered product opportunities",
+                prompt="""Research AI/ML INTEGRATION OPPORTUNITIES across portfolio and new product ideas:
 
 **Per-Project AI/ML Enhancements:**
 
@@ -529,12 +545,13 @@ Provide:
 - Model training infrastructure needs
 - Development timeline and costs
 - Competitive analysis (existing AI solutions)""",
-            priority="normal",
-            category="research",
-            estimated_tokens=68000,
-            projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot"],
-            deadline_hours=96
-        ))
+                priority="normal",
+                category="research",
+                estimated_tokens=68000,
+                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot"],
+                deadline_hours=96,
+            )
+        )
 
         return jobs
 
@@ -583,7 +600,7 @@ Provide:
                         ],
                         capture_output=True,
                         text=True,
-                        timeout=30
+                        timeout=30,
                     )
                     job_summary["submitted"] = result.returncode == 0
                     job_summary["error"] = result.stderr if result.returncode != 0 else None
@@ -611,23 +628,33 @@ Provide:
         print()
 
         print("By Category:")
-        for category, count in summary['by_category'].items():
+        for category, count in summary["by_category"].items():
             if count > 0:
                 print(f"  {category.capitalize()}: {count}")
         print()
 
         print("By Priority:")
-        for priority, count in summary['by_priority'].items():
+        for priority, count in summary["by_priority"].items():
             if count > 0:
                 print(f"  {priority.capitalize()}: {count}")
         print()
 
         print("📋 STRATEGIC JOBS")
         print("────────────────")
-        for job in summary['jobs']:
-            status_icon = "✅" if job.get("submitted") == True else ("🔄" if job.get("submitted") == "dry_run" else "❌")
-            category_emoji = {"planning": "📋", "research": "🔬", "architecture": "🏗️", "commercial": "💰", "integration": "🔗"}
-            emoji = category_emoji.get(job['category'], "📝")
+        for job in summary["jobs"]:
+            status_icon = (
+                "✅"
+                if job.get("submitted")
+                else ("🔄" if job.get("submitted") == "dry_run" else "❌")
+            )
+            category_emoji = {
+                "planning": "📋",
+                "research": "🔬",
+                "architecture": "🏗️",
+                "commercial": "💰",
+                "integration": "🔗",
+            }
+            emoji = category_emoji.get(job["category"], "📝")
 
             print(f"{status_icon} {emoji} [{job['priority'].upper()}] {job['title']}")
             print(f"   Tokens: {job['tokens']:,} | Projects: {', '.join(job['projects'])}")

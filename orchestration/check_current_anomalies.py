@@ -5,7 +5,8 @@ Run with: python -m orchestration.check_current_anomalies
 """
 
 from pathlib import Path
-from .anomaly_detector import OrchestrationAnomalyManager, AnomalySeverity
+
+from .anomaly_detector import AnomalySeverity, OrchestrationAnomalyManager
 from .database import OrchestrationDatabase
 
 
@@ -31,7 +32,9 @@ def main():
     print("\n📊 Current State:")
     print(f"  Tasks by status: {stats.get('tasks_by_status', {})}")
     print(f"  Tasks by phase: {stats.get('tasks_by_phase', {})}")
-    print(f"  Workers: {stats.get('total_workers', 0)} total, {stats.get('available_workers', 0)} available")
+    print(
+        f"  Workers: {stats.get('total_workers', 0)} total, {stats.get('available_workers', 0)} available"
+    )
 
     # Initialize anomaly manager
     manager = OrchestrationAnomalyManager(db)

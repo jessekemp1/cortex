@@ -60,7 +60,7 @@ class V2aSprintOrchestrator:
             List of SprintTask definitions
         """
         vortex_root = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
-        cortex_root = Path("/Users/jesse.kemp/Dev/cortex")
+        Path("/Users/jesse.kemp/Dev/cortex")
 
         tasks = []
 

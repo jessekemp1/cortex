@@ -5,7 +5,6 @@ Demo/Test mode for Prompt Learning - Shows how it works with synthetic data.
 
 import json
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from prompt_learning import PromptLearningLoop
 
@@ -49,7 +48,11 @@ def create_demo_sessions():
         sessions.append(
             {
                 "session_id": f"mixed_session_{i}",
-                "cwd": "/Users/jesse.kemp/Dev/alpha_arena" if i % 2 else "/Users/jesse.kemp/Dev/Vortex/VortexV2",
+                "cwd": (
+                    "/Users/jesse.kemp/Dev/alpha_arena"
+                    if i % 2
+                    else "/Users/jesse.kemp/Dev/Vortex/VortexV2"
+                ),
                 "start_time": now - timedelta(days=10 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=10 - i)}],
                 "responses": [{"stop_reason": "end_turn", "error": None}],
@@ -111,7 +114,11 @@ def run_demo():
     priorities = loop.analyzer.analyze_priorities(sessions, lookback_days=7)
 
     for i, priority in enumerate(priorities, 1):
-        arrow = "📈" if priority.trend == "increasing" else "📉" if priority.trend == "decreasing" else "➡️"
+        arrow = (
+            "📈"
+            if priority.trend == "increasing"
+            else "📉" if priority.trend == "decreasing" else "➡️"
+        )
         print(f"{i}. {priority.category.upper()}")
         print(f"   Strength: {priority.strength:.0%} of recent work")
         print(f"   Trend: {arrow} {priority.trend}")

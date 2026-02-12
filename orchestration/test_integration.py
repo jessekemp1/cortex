@@ -5,15 +5,15 @@ Integration test for Phase Verifier + Retry Handler + Anomaly Detection.
 Verifies that all components work together correctly.
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from orchestration.verifier import PhaseVerifier, ValidationFailure
-from orchestration.task import Task, TaskPhase, TaskPriority
-from orchestration.models import ValidationCriteria
-from orchestration.database import OrchestrationDatabase
 from orchestration.anomaly_detector import OrchestrationAnomalyManager
 from orchestration.anti_pattern_detector import AntiPatternDetector
+from orchestration.database import OrchestrationDatabase
+from orchestration.models import ValidationCriteria
+from orchestration.task import Task, TaskPhase, TaskPriority
+from orchestration.verifier import PhaseVerifier, ValidationFailure
 
 
 def test_integration_verifier_with_retry():
@@ -27,20 +27,19 @@ def test_integration_verifier_with_retry():
 
     # Create task with unique ID
     import uuid
+
     task_id = f"integration-test-{uuid.uuid4().hex[:8]}"
     task = Task(
         id=task_id,
         title="Test retry integration",
         description="Verify retry handler kicks in on validation failure",
         priority=TaskPriority.B,
-        phase=TaskPhase.IMPLEMENTING
+        phase=TaskPhase.IMPLEMENTING,
     )
     db.create_task(task)
 
     # Set validation criteria that will fail (missing files)
-    task.validation_criteria = ValidationCriteria(
-        required_files=["/nonexistent/file.py"]
-    )
+    task.validation_criteria = ValidationCriteria(required_files=["/nonexistent/file.py"])
 
     print(f"\n✓ Task created: {task.title}")
     print(f"  Phase: {task.phase.value}")
@@ -77,16 +76,22 @@ def test_integration_anomaly_detection():
     manager = OrchestrationAnomalyManager(db)
 
     # Detect with realistic context
-    anomalies = manager.detect_all(context={
-        "active_projects": 26,
-        "total_projects": 30,
-        "goals_in_progress": 0,
-        "goals_pending": 9
-    })
+    anomalies = manager.detect_all(
+        context={
+            "active_projects": 26,
+            "total_projects": 30,
+            "goals_in_progress": 0,
+            "goals_pending": 9,
+        }
+    )
 
     print(f"\n✓ Detected {len(anomalies)} anomalies:")
     for anomaly in anomalies:
-        severity_icon = "🔴" if anomaly.severity.value.lower() == "critical" else "🟡" if anomaly.severity.value.lower() == "warning" else "📊"
+        severity_icon = (
+            "🔴"
+            if anomaly.severity.value.lower() == "critical"
+            else "🟡" if anomaly.severity.value.lower() == "warning" else "📊"
+        )
         print(f"  {severity_icon} [{anomaly.severity.value}] {anomaly.title}")
 
     print("\n" + "=" * 70 + "\n")
@@ -126,13 +131,14 @@ def test_integration_full_workflow():
     verifier = PhaseVerifier(db)
 
     import uuid
+
     task_id = f"integration-full-{uuid.uuid4().hex[:8]}"
     task = Task(
         id=task_id,
         title="Full workflow test",
         description="Test complete workflow with all components",
         priority=TaskPriority.A,
-        phase=TaskPhase.QUEUED
+        phase=TaskPhase.QUEUED,
     )
     db.create_task(task)
 
@@ -143,7 +149,7 @@ def test_integration_full_workflow():
     verifier.transition(task, TaskPhase.INVESTIGATING, force=True)
 
     # Create investigation report
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
         f.write("""
         # Investigation Report
 
@@ -163,7 +169,7 @@ def test_integration_full_workflow():
     verifier.transition(task, TaskPhase.PLANNING)
 
     # Create plan
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
         f.write("""
         # Implementation Plan
 
@@ -188,9 +194,7 @@ def test_integration_full_workflow():
 
     # Phase 4: IMPLEMENTING → TESTING
     print("  [4/5] IMPLEMENTING → TESTING")
-    task.validation_criteria = ValidationCriteria(
-        test_commands=["echo 'tests pass'"]
-    )
+    task.validation_criteria = ValidationCriteria(test_commands=["echo 'tests pass'"])
     verifier.transition(task, TaskPhase.TESTING, force=True)
 
     # Phase 5: TESTING → COMPLETED

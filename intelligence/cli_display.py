@@ -6,12 +6,13 @@ Provides rich, actionable terminal output for Cortex deep mode analysis.
 Follows depth-first design: actionable information first, progressive disclosure.
 """
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 
 # ANSI Color Codes
 class Colors:
     """Terminal color codes for rich output"""
+
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
@@ -53,14 +54,16 @@ def format_git_summary(git_data: Dict[str, Any]) -> str:
     """Format git analysis summary"""
     lines = []
 
-    commit_count = git_data.get('commit_count', 0)
-    days_analyzed = git_data.get('days_analyzed', 0)
-    uncommitted_count = git_data.get('uncommitted_count', 0)
-    branch = git_data.get('branch', 'unknown')
+    commit_count = git_data.get("commit_count", 0)
+    days_analyzed = git_data.get("days_analyzed", 0)
+    uncommitted_count = git_data.get("uncommitted_count", 0)
+    branch = git_data.get("branch", "unknown")
 
     lines.append(f"{Colors.BOLD}Git Analysis:{Colors.RESET}")
     lines.append(f"  Branch: {Colors.CYAN}{branch}{Colors.RESET}")
-    lines.append(f"  Commits analyzed: {Colors.BOLD}{commit_count}{Colors.RESET} ({days_analyzed} days)")
+    lines.append(
+        f"  Commits analyzed: {Colors.BOLD}{commit_count}{Colors.RESET} ({days_analyzed} days)"
+    )
 
     if uncommitted_count > 0:
         lines.append(f"  Uncommitted files: {Colors.YELLOW}{uncommitted_count}{Colors.RESET}")
@@ -74,9 +77,9 @@ def format_quality_metrics(quality_data: Dict[str, Any]) -> str:
     """Format code quality metrics"""
     lines = []
 
-    tech_debt = quality_data.get('tech_debt_markers', 0)
-    test_coverage = quality_data.get('test_coverage_pct', None)
-    complexity = quality_data.get('avg_complexity', None)
+    tech_debt = quality_data.get("tech_debt_markers", 0)
+    test_coverage = quality_data.get("test_coverage_pct", None)
+    complexity = quality_data.get("avg_complexity", None)
 
     lines.append(f"{Colors.BOLD}Code Quality:{Colors.RESET}")
 
@@ -126,15 +129,15 @@ def format_warnings(warnings: List) -> str:
             lines.append(f"  🟡 {Colors.YELLOW}[WARNING]{Colors.RESET} {warning}")
         else:
             # Dict warning with metadata
-            severity = warning.get('severity', 'medium')
-            message = warning.get('message', 'Unknown warning')
-            category = warning.get('category', 'general')
+            severity = warning.get("severity", "medium")
+            message = warning.get("message", "Unknown warning")
+            category = warning.get("category", "general")
 
             # Severity color
-            if severity == 'critical':
+            if severity == "critical":
                 color = Colors.RED
                 emoji = "🔴"
-            elif severity == 'high':
+            elif severity == "high":
                 color = Colors.YELLOW
                 emoji = "🟡"
             else:
@@ -156,15 +159,15 @@ def format_recommendations(recommendations: List[Dict[str, Any]]) -> str:
 
     for i, rec in enumerate(recommendations, 1):
         # Handle both 'action'/'title' keys
-        action = rec.get('action') or rec.get('title', 'Unknown action')
-        rationale = rec.get('rationale', '')
-        priority = rec.get('priority', 'medium')
+        action = rec.get("action") or rec.get("title", "Unknown action")
+        rationale = rec.get("rationale", "")
+        priority = rec.get("priority", "medium")
 
         # Priority indicator
-        if priority == 'high':
+        if priority == "high":
             color = Colors.RED
             emoji = "🔥"
-        elif priority == 'medium':
+        elif priority == "medium":
             color = Colors.YELLOW
             emoji = "⭐"
         else:
@@ -187,9 +190,9 @@ def format_deep_intelligence_compact(result: Any) -> str:
     lines = []
 
     # Header
-    project = getattr(result, 'project', 'unknown')
-    mode = getattr(result, 'mode', 'deep')
-    latency_ms = getattr(result, 'latency_ms', 0)
+    project = getattr(result, "project", "unknown")
+    mode = getattr(result, "mode", "deep")
+    latency_ms = getattr(result, "latency_ms", 0)
 
     lines.append("")
     lines.append(f"{Colors.BOLD}{'='*60}{Colors.RESET}")
@@ -199,41 +202,45 @@ def format_deep_intelligence_compact(result: Any) -> str:
     lines.append("")
 
     # Health Score (prominent)
-    health = getattr(result, 'health', None)
+    health = getattr(result, "health", None)
     if health:
-        score = getattr(health, 'score', 0)
-        assessment = getattr(health, 'assessment', 'unknown')
+        score = getattr(health, "score", 0)
+        assessment = getattr(health, "assessment", "unknown")
         lines.append(format_health_score(score, assessment))
         lines.append("")
 
     # Git Summary
-    git = getattr(result, 'git', None)
+    git = getattr(result, "git", None)
     if git:
-        git_dict = git.__dict__ if hasattr(git, '__dict__') else git
+        git_dict = git.__dict__ if hasattr(git, "__dict__") else git
         lines.append(format_git_summary(git_dict))
         lines.append("")
 
     # Quality Metrics
-    quality = getattr(result, 'quality', None)
+    quality = getattr(result, "quality", None)
     if quality:
-        quality_dict = quality.__dict__ if hasattr(quality, '__dict__') else quality
+        quality_dict = quality.__dict__ if hasattr(quality, "__dict__") else quality
         lines.append(format_quality_metrics(quality_dict))
         lines.append("")
 
     # Warnings (top 3 in compact mode)
-    warnings = getattr(result, 'warnings', [])
+    warnings = getattr(result, "warnings", [])
     if warnings:
         lines.append(format_warnings(warnings[:3]))
         if len(warnings) > 3:
-            lines.append(f"{Colors.DIM}  ... and {len(warnings) - 3} more (use --verbose to see all){Colors.RESET}")
+            lines.append(
+                f"{Colors.DIM}  ... and {len(warnings) - 3} more (use --verbose to see all){Colors.RESET}"
+            )
         lines.append("")
 
     # Recommendations (top 3 in compact mode)
-    recommendations = getattr(result, 'recommendations', [])
+    recommendations = getattr(result, "recommendations", [])
     if recommendations:
         lines.append(format_recommendations(recommendations[:3]))
         if len(recommendations) > 3:
-            lines.append(f"{Colors.DIM}  ... and {len(recommendations) - 3} more (use --verbose to see all){Colors.RESET}")
+            lines.append(
+                f"{Colors.DIM}  ... and {len(recommendations) - 3} more (use --verbose to see all){Colors.RESET}"
+            )
         lines.append("")
 
     # Footer
@@ -263,28 +270,28 @@ def format_deep_intelligence_verbose(result: Any) -> str:
     lines.append("")
 
     # All warnings
-    warnings = getattr(result, 'warnings', [])
+    warnings = getattr(result, "warnings", [])
     if len(warnings) > 3:
         lines.append(f"{Colors.BOLD}All Warnings ({len(warnings)}):{Colors.RESET}")
         lines.append(format_warnings(warnings))
         lines.append("")
 
     # All recommendations
-    recommendations = getattr(result, 'recommendations', [])
+    recommendations = getattr(result, "recommendations", [])
     if len(recommendations) > 3:
         lines.append(f"{Colors.BOLD}All Recommendations ({len(recommendations)}):{Colors.RESET}")
         lines.append(format_recommendations(recommendations))
         lines.append("")
 
     # Spec matches (if available)
-    specs = getattr(result, 'specs', None)
+    specs = getattr(result, "specs", None)
     if specs:
         spec_count = len(specs) if isinstance(specs, list) else 0
         if spec_count > 0:
             lines.append(f"{Colors.BOLD}Specification Matches ({spec_count}):{Colors.RESET}")
             for spec in specs[:5]:  # Top 5
-                title = spec.get('title', 'Unknown')
-                relevance = spec.get('relevance_score', 0)
+                title = spec.get("title", "Unknown")
+                relevance = spec.get("relevance_score", 0)
                 lines.append(f"  • {title} (relevance: {relevance:.2f})")
             if spec_count > 5:
                 lines.append(f"{Colors.DIM}  ... and {spec_count - 5} more{Colors.RESET}")
@@ -297,7 +304,7 @@ def format_quick_intelligence(result: Dict[str, Any]) -> str:
     """Format quick mode intelligence (minimal output)"""
     lines = []
 
-    project = result.get('project', 'unknown')
+    project = result.get("project", "unknown")
 
     lines.append("")
     lines.append(f"{Colors.BOLD}Cortex Quick Intelligence: {project}{Colors.RESET}")
@@ -324,7 +331,9 @@ def format_mode_info(mode: str, config: Dict[str, Any]) -> str:
         lines.append(f"{Colors.CYAN}Deep Mode{Colors.RESET} - Comprehensive portfolio intelligence")
         lines.append(f"  • Git history: {config.get('git_days', 90)} days")
         lines.append(f"  • Spec search: {'✓' if config.get('spec_search_enabled') else '✗'}")
-        lines.append(f"  • Pattern matching: {'semantic' if config.get('pattern_semantic') else 'keyword'}")
+        lines.append(
+            f"  • Pattern matching: {'semantic' if config.get('pattern_semantic') else 'keyword'}"
+        )
         lines.append(f"  • Expected latency: ~{config.get('expected_latency_ms', 5000)/1000:.1f}s")
     elif mode == "fast":
         lines.append(f"{Colors.GREEN}Fast Mode{Colors.RESET} - Minimal analysis for quick context")
@@ -341,10 +350,13 @@ def format_mode_info(mode: str, config: Dict[str, Any]) -> str:
 
 
 # Main display functions for CLI
-def display_deep_intelligence(result: Any, verbose: bool = False, json_output: bool = False) -> None:
+def display_deep_intelligence(
+    result: Any, verbose: bool = False, json_output: bool = False
+) -> None:
     """Main display function for deep intelligence"""
     if json_output:
         import json
+
         # Result should already be serialized dict if json_output=True was passed to analyze_deep
         print(json.dumps(result, indent=2))
     elif verbose:

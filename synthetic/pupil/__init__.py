@@ -20,31 +20,31 @@ import from synthetic.schemas, flywheel treats pupil as optional via try/except)
 Can be extracted to a standalone package if an external consumer emerges.
 """
 
+from .analysis import AnalysisReport, MarketAnalyzer
+from .behavioral_fidelity import BehavioralFidelityValidator, FidelityReport
+from .bridge import PupilBridge
+from .calibrator import SegmentCalibrator
+from .explainer import DecisionExplainer, Explanation, Factor
+from .market_env import CompetitionEvent, EventType, MarketEnvironment, build_timeline
 from .persona import PersonaAgent
 from .schemas import (
-    Province,
-    CustomerSegment,
-    ProductType,
-    CustomerProfile,
     AgentState,
     BehavioralAction,
     BehavioralActionType,
     BehavioralProfile,
     BehavioralSequence,
+    CustomerProfile,
+    CustomerSegment,
     Goal,
     GoalType,
+    ProductType,
+    Province,
     PupilRequest,
     PupilResult,
 )
-from .segment_models import SegmentBehavior, get_behavior, SEGMENT_MODELS
-from .market_env import MarketEnvironment, CompetitionEvent, EventType, build_timeline
+from .segment_models import SEGMENT_MODELS, SegmentBehavior, get_behavior
 from .simulation import SimulationEngine, SimulationResult, StepResult
-from .analysis import MarketAnalyzer, AnalysisReport
-from .bridge import PupilBridge
-from .behavioral_fidelity import BehavioralFidelityValidator, FidelityReport
-from .temporal_coherence import TemporalCoherenceValidator, CoherenceReport
-from .calibrator import SegmentCalibrator
-from .explainer import DecisionExplainer, Explanation, Factor
+from .temporal_coherence import CoherenceReport, TemporalCoherenceValidator
 
 __version__ = "0.1.0"
 __all__ = [
@@ -53,10 +53,8 @@ __all__ = [
     "CustomerSegment",
     "ProductType",
     "CustomerProfile",
-
     # Agent
     "PersonaAgent",
-
     # Schemas
     "AgentState",
     "BehavioralAction",
@@ -67,39 +65,31 @@ __all__ = [
     "GoalType",
     "PupilRequest",
     "PupilResult",
-
     # Segment Models
     "SegmentBehavior",
     "get_behavior",
     "SEGMENT_MODELS",
-
     # Market Environment
     "MarketEnvironment",
     "CompetitionEvent",
     "EventType",
     "build_timeline",
-
     # Simulation
     "SimulationEngine",
     "SimulationResult",
     "StepResult",
-
     # Analysis
     "MarketAnalyzer",
     "AnalysisReport",
-
     # Bridge
     "PupilBridge",
-
     # Validators
     "BehavioralFidelityValidator",
     "FidelityReport",
     "TemporalCoherenceValidator",
     "CoherenceReport",
-
     # Calibrator
     "SegmentCalibrator",
-
     # Explainer
     "DecisionExplainer",
     "Explanation",

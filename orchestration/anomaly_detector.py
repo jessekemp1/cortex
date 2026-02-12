@@ -31,6 +31,7 @@ from .models import TaskPriority, TaskStatus
 
 class AnomalyType(str, Enum):
     """Types of orchestration anomalies."""
+
     CONTEXT_SWITCHING_RISK = "context_switching_risk"
     PLANNING_GAP = "planning_gap"
     STUCK_TASKS = "stuck_tasks"
@@ -42,9 +43,10 @@ class AnomalyType(str, Enum):
 
 class AnomalySeverity(str, Enum):
     """Severity levels for anomalies."""
+
     CRITICAL = "CRITICAL"  # Requires immediate action
-    WARNING = "WARNING"    # Should be addressed soon
-    INFO = "INFO"          # Good to know, low urgency
+    WARNING = "WARNING"  # Should be addressed soon
+    INFO = "INFO"  # Good to know, low urgency
 
 
 @dataclass
@@ -66,21 +68,21 @@ class OrchestrationAnomaly:
     description: str = ""
 
     # Metrics
-    metric_value: float = 0.0          # Current metric value
-    threshold_value: float = 0.0       # Threshold that triggered detection
+    metric_value: float = 0.0  # Current metric value
+    threshold_value: float = 0.0  # Threshold that triggered detection
 
     # Context
     affected_entities: List[str] = field(default_factory=list)  # Task IDs, project names, etc.
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     # Remediation
-    remediation: str = ""              # Human-readable action to take
-    auto_actionable: bool = False      # Can this be auto-remediated?
+    remediation: str = ""  # Human-readable action to take
+    auto_actionable: bool = False  # Can this be auto-remediated?
     auto_action_command: Optional[str] = None  # CLI command for auto-remediation
 
     # Tracking
     first_seen: Optional[datetime] = None  # When first detected (for recurring anomalies)
-    occurrence_count: int = 1              # How many times seen
+    occurrence_count: int = 1  # How many times seen
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict for storage."""
@@ -676,7 +678,12 @@ class PriorityInversionDetector(AnomalyDetector):
 
         # Build task map for quick lookup
         all_tasks_list = []
-        for status in [TaskStatus.PENDING, TaskStatus.SCHEDULED, TaskStatus.RUNNING, TaskStatus.BLOCKED]:
+        for status in [
+            TaskStatus.PENDING,
+            TaskStatus.SCHEDULED,
+            TaskStatus.RUNNING,
+            TaskStatus.BLOCKED,
+        ]:
             all_tasks_list.extend(db.get_tasks_by_status(status, limit=1000))
 
         task_map = {task.id: task for task in all_tasks_list}
@@ -815,8 +822,7 @@ class BatchInefficiencyDetector(AnomalyDetector):
             severity=severity,
             title=f"Batch inefficiency: {batch_utilization_pct:.0f}% utilization",
             description=(
-                f"{description}. "
-                f"Batch queue: {batch_queued}/{batch_capacity} tasks queued."
+                f"{description}. " f"Batch queue: {batch_queued}/{batch_capacity} tasks queued."
             ),
             metric_value=batch_utilization_pct,
             threshold_value=50.0,
@@ -932,7 +938,10 @@ class OrchestrationAnomalyManager:
         for anomaly in recent_anomalies:
             fingerprint = self._get_fingerprint(anomaly)
             # Keep most recent occurrence
-            if fingerprint not in fingerprint_map or anomaly.detected_at > fingerprint_map[fingerprint].detected_at:
+            if (
+                fingerprint not in fingerprint_map
+                or anomaly.detected_at > fingerprint_map[fingerprint].detected_at
+            ):
                 fingerprint_map[fingerprint] = anomaly
 
         # Process new anomalies
@@ -1033,6 +1042,7 @@ class OrchestrationAnomalyManager:
         if self._alert_manager is None:
             try:
                 from notifications.alert_manager import AlertManager
+
                 self._alert_manager = AlertManager()
             except ImportError:
                 # Alert manager not available, skip notifications

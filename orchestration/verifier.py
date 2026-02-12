@@ -18,24 +18,27 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .models import Task, TaskPhase, TraceEvent, TraceEventType
 from .database import OrchestrationDatabase
+from .models import Task, TaskPhase, TraceEvent, TraceEventType
 from .retry_handler import RetryHandler
 
 
 class PhaseTransitionError(Exception):
     """Raised when invalid phase transition attempted."""
+
     pass
 
 
 class ValidationFailure(Exception):
     """Raised when validation criteria not met."""
+
     pass
 
 
 @dataclass
 class VerificationResult:
     """Result of verification check."""
+
     passed: bool
     phase: TaskPhase
     checks_run: List[str]
@@ -70,7 +73,11 @@ class PhaseVerifier:
         TaskPhase.INVESTIGATING: [TaskPhase.PLANNING, TaskPhase.FAILED],
         TaskPhase.PLANNING: [TaskPhase.IMPLEMENTING, TaskPhase.FAILED],
         TaskPhase.IMPLEMENTING: [TaskPhase.TESTING, TaskPhase.FAILED],
-        TaskPhase.TESTING: [TaskPhase.COMPLETED, TaskPhase.IMPLEMENTING, TaskPhase.FAILED],  # Can loop back to fix
+        TaskPhase.TESTING: [
+            TaskPhase.COMPLETED,
+            TaskPhase.IMPLEMENTING,
+            TaskPhase.FAILED,
+        ],  # Can loop back to fix
         TaskPhase.COMPLETED: [],  # Terminal state
         TaskPhase.FAILED: [],  # Terminal state
     }
@@ -120,12 +127,14 @@ class PhaseVerifier:
                 phase=phase,
                 checks_run=["no_verification_required"],
                 checks_passed=["no_verification_required"],
-                checks_failed=[]
+                checks_failed=[],
             )
 
         return verifier(task)
 
-    def transition(self, task: Task, to_phase: TaskPhase, force: bool = False) -> VerificationResult:
+    def transition(
+        self, task: Task, to_phase: TaskPhase, force: bool = False
+    ) -> VerificationResult:
         """
         Transition task to new phase with verification.
 
@@ -151,25 +160,30 @@ class PhaseVerifier:
             result = self.verify_phase_completion(task)
             if not result.passed:
                 # Consult retry handler before failing
-                error_message = f"Phase {task.phase.value} verification failed: {result.checks_failed}"
+                error_message = (
+                    f"Phase {task.phase.value} verification failed: {result.checks_failed}"
+                )
                 decision = self.retry_handler.handle_failure(task, error_message, task.phase)
 
                 if decision.should_retry:
                     # Schedule retry - transition to FAILED with retry config
                     import uuid
-                    self.db.add_trace_event(TraceEvent(
-                        event_id=str(uuid.uuid4()),
-                        task_id=task.id,
-                        event_type=TraceEventType.TASK_RETRIED,
-                        timestamp=datetime.now(),
-                        message=f"Retry scheduled: {decision.reason}",
-                        details={
-                            "failure_type": decision.failure_type.value,
-                            "retry_in_seconds": decision.delay_seconds,
-                            "retry_count": decision.retry_count,
-                            "reason": decision.reason
-                        }
-                    ))
+
+                    self.db.add_trace_event(
+                        TraceEvent(
+                            event_id=str(uuid.uuid4()),
+                            task_id=task.id,
+                            event_type=TraceEventType.TASK_RETRIED,
+                            timestamp=datetime.now(),
+                            message=f"Retry scheduled: {decision.reason}",
+                            details={
+                                "failure_type": decision.failure_type.value,
+                                "retry_in_seconds": decision.delay_seconds,
+                                "retry_count": decision.retry_count,
+                                "reason": decision.reason,
+                            },
+                        )
+                    )
 
                     # Don't raise - return failure result so caller can handle
                     return VerificationResult(
@@ -178,7 +192,7 @@ class PhaseVerifier:
                         checks_run=result.checks_run,
                         checks_passed=result.checks_passed,
                         checks_failed=result.checks_failed,
-                        evidence={"retry_scheduled": True, "retry_in": decision.delay_seconds}
+                        evidence={"retry_scheduled": True, "retry_in": decision.delay_seconds},
                     )
                 else:
                     # Escalate to human - raise with context
@@ -191,18 +205,21 @@ class PhaseVerifier:
         task.phase = to_phase
 
         import uuid
-        self.db.add_trace_event(TraceEvent(
-            event_id=str(uuid.uuid4()),
-            task_id=task.id,
-            event_type=TraceEventType.TASK_PHASE_CHANGED,
-            timestamp=datetime.now(),
-            message=f"Phase transition: {old_phase.value} → {to_phase.value}",
-            details={
-                "from_phase": old_phase.value,
-                "to_phase": to_phase.value,
-                "forced": force
-            }
-        ))
+
+        self.db.add_trace_event(
+            TraceEvent(
+                event_id=str(uuid.uuid4()),
+                task_id=task.id,
+                event_type=TraceEventType.TASK_PHASE_CHANGED,
+                timestamp=datetime.now(),
+                message=f"Phase transition: {old_phase.value} → {to_phase.value}",
+                details={
+                    "from_phase": old_phase.value,
+                    "to_phase": to_phase.value,
+                    "forced": force,
+                },
+            )
+        )
 
         # Update task in database
         self.db.update_task(task)
@@ -212,7 +229,7 @@ class PhaseVerifier:
             phase=to_phase,
             checks_run=["phase_transition"],
             checks_passed=["phase_transition"],
-            checks_failed=[]
+            checks_failed=[],
         )
 
     # Phase-specific verifiers
@@ -224,7 +241,7 @@ class PhaseVerifier:
             phase=TaskPhase.QUEUED,
             checks_run=["task_exists"],
             checks_passed=["task_exists"],
-            checks_failed=[]
+            checks_failed=[],
         )
 
     def _verify_investigating(self, task: Task) -> VerificationResult:
@@ -251,17 +268,24 @@ class PhaseVerifier:
                 # Check report content
                 content = report_path.read_text().lower()
 
-                if any(keyword in content for keyword in ["problem", "issue", "root cause", "analysis"]):
+                if any(
+                    keyword in content for keyword in ["problem", "issue", "root cause", "analysis"]
+                ):
                     checks_passed.append("problem_analyzed")
                 else:
                     checks_failed.append("problem_analyzed")
 
-                if any(keyword in content for keyword in ["approach", "solution", "option", "recommend"]):
+                if any(
+                    keyword in content
+                    for keyword in ["approach", "solution", "option", "recommend"]
+                ):
                     checks_passed.append("approaches_proposed")
                 else:
                     checks_failed.append("approaches_proposed")
             else:
-                checks_failed.extend(["investigation_report_exists", "problem_analyzed", "approaches_proposed"])
+                checks_failed.extend(
+                    ["investigation_report_exists", "problem_analyzed", "approaches_proposed"]
+                )
         else:
             # No report specified - fail
             checks_failed.extend(checks_run)
@@ -272,7 +296,7 @@ class PhaseVerifier:
             checks_run=checks_run,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
-            evidence=evidence
+            evidence=evidence,
         )
 
     def _verify_planning(self, task: Task) -> VerificationResult:
@@ -300,24 +324,32 @@ class PhaseVerifier:
                 content = plan_path.read_text().lower()
 
                 # Check for implementation steps
-                if any(keyword in content for keyword in ["step", "implementation", "phase", "stage"]):
+                if any(
+                    keyword in content for keyword in ["step", "implementation", "phase", "stage"]
+                ):
                     checks_passed.append("steps_defined")
                 else:
                     checks_failed.append("steps_defined")
 
                 # Check for file list
-                if any(keyword in content for keyword in ["file", "module", "component", ".py", ".js"]):
+                if any(
+                    keyword in content for keyword in ["file", "module", "component", ".py", ".js"]
+                ):
                     checks_passed.append("files_identified")
                 else:
                     checks_failed.append("files_identified")
 
                 # Check for test strategy
-                if any(keyword in content for keyword in ["test", "validation", "verify", "coverage"]):
+                if any(
+                    keyword in content for keyword in ["test", "validation", "verify", "coverage"]
+                ):
                     checks_passed.append("test_strategy")
                 else:
                     checks_failed.append("test_strategy")
             else:
-                checks_failed.extend(["plan_exists", "steps_defined", "files_identified", "test_strategy"])
+                checks_failed.extend(
+                    ["plan_exists", "steps_defined", "files_identified", "test_strategy"]
+                )
         else:
             checks_failed.extend(checks_run)
 
@@ -327,7 +359,7 @@ class PhaseVerifier:
             checks_run=checks_run,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
-            evidence=evidence
+            evidence=evidence,
         )
 
     def _verify_implementing(self, task: Task) -> VerificationResult:
@@ -368,7 +400,7 @@ class PhaseVerifier:
                 ["git", "diff", "--name-only", "--diff-filter=U"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
@@ -381,10 +413,7 @@ class PhaseVerifier:
 
             # Check for changes (committed or uncommitted)
             result = subprocess.run(
-                ["git", "status", "--short"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["git", "status", "--short"], capture_output=True, text=True, timeout=5
             )
 
             if result.returncode == 0:
@@ -395,10 +424,7 @@ class PhaseVerifier:
                 else:
                     # No changes - check recent commits
                     result = subprocess.run(
-                        ["git", "log", "-1", "--oneline"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
+                        ["git", "log", "-1", "--oneline"], capture_output=True, text=True, timeout=5
                     )
                     if result.returncode == 0:
                         checks_passed.append("changes_committed")
@@ -413,7 +439,7 @@ class PhaseVerifier:
             checks_run=checks_run,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
-            evidence=evidence
+            evidence=evidence,
         )
 
     def _verify_testing(self, task: Task) -> VerificationResult:
@@ -438,7 +464,7 @@ class PhaseVerifier:
                 phase=TaskPhase.TESTING,
                 checks_run=["no_validation_required"],
                 checks_passed=["no_validation_required"],
-                checks_failed=[]
+                checks_failed=[],
             )
 
         criteria = task.validation_criteria
@@ -455,7 +481,7 @@ class PhaseVerifier:
                         shell=True,
                         capture_output=True,
                         text=True,
-                        timeout=300  # 5 minute timeout
+                        timeout=300,  # 5 minute timeout
                     )
 
                     output = result.stdout + result.stderr
@@ -521,7 +547,7 @@ class PhaseVerifier:
             checks_run=checks_run,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
-            evidence=evidence
+            evidence=evidence,
         )
 
     # Note: Phase flow ends at TESTING → COMPLETED
@@ -530,15 +556,9 @@ class PhaseVerifier:
     def get_phase_history(self, task: Task) -> List[TraceEvent]:
         """Get history of phase transitions for task."""
         events = self.db.get_trace_events(task.id)
-        return [
-            e for e in events
-            if e.event_type == TraceEventType.TASK_PHASE_CHANGED
-        ]
+        return [e for e in events if e.event_type == TraceEventType.TASK_PHASE_CHANGED]
 
     def get_verification_history(self, task: Task) -> List[TraceEvent]:
         """Get history of verification runs for task."""
         events = self.db.get_trace_events(task.id)
-        return [
-            e for e in events
-            if e.event_type == TraceEventType.VALIDATION_RUN
-        ]
+        return [e for e in events if e.event_type == TraceEventType.VALIDATION_RUN]

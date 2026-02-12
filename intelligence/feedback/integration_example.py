@@ -165,9 +165,7 @@ def demo_complete_workflow():
     # 3. User takes actions
     print("\n3. User takes actions...")
     print("   $ pytest tests/test_data.py")
-    bridge.trigger_action(
-        action="Run pytest on test_data.py", files=["tests/test_data.py"]
-    )
+    bridge.trigger_action(action="Run pytest on test_data.py", files=["tests/test_data.py"])
 
     print("   $ vim README.md")
     bridge.trigger_action(action="Edit README.md", files=["README.md"])

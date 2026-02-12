@@ -8,7 +8,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.schemas import CustomerProfile
 from synthetic.pupil.market_env import (
     CompetitionEvent,
     EventType,
@@ -20,7 +19,7 @@ from synthetic.pupil.simulation import (
     SimulationResult,
     StepResult,
 )
-
+from synthetic.schemas import CustomerProfile
 
 # ============================================================================
 # Fixtures
@@ -84,13 +83,15 @@ def profiles_mixed():
     idx = 0
     for seg, count in segments:
         for _ in range(count):
-            profiles.append(make_profile(
-                profile_id=f"mix-{idx}",
-                segment=seg,
-                credit_score=720 if seg != "new_to_canada" else 650,
-                annual_income=65000 if seg not in ("high_net_worth", "affluent") else 300000,
-                total_deposits=25000 if seg not in ("high_net_worth",) else 500000,
-            ))
+            profiles.append(
+                make_profile(
+                    profile_id=f"mix-{idx}",
+                    segment=seg,
+                    credit_score=720 if seg != "new_to_canada" else 650,
+                    annual_income=65000 if seg not in ("high_net_worth", "affluent") else 300000,
+                    total_deposits=25000 if seg not in ("high_net_worth",) else 500000,
+                )
+            )
             idx += 1
     return profiles
 
@@ -108,22 +109,26 @@ def stress_timeline():
         rate_schedule={0: 4.50, 3: 5.00, 6: 5.50},
         unemployment_schedule={0: 6.1, 4: 7.5, 8: 8.5},
         events={
-            2: [CompetitionEvent(
-                event_type=EventType.PRODUCT_LAUNCH,
-                institution="EQ Bank",
-                description="5% HISA",
-                product="savings",
-                rate_offered=5.0,
-                impact_magnitude=0.8,
-            )],
-            7: [CompetitionEvent(
-                event_type=EventType.RATE_CHANGE,
-                institution="Tangerine",
-                description="Rate match",
-                product="savings",
-                rate_offered=5.25,
-                impact_magnitude=0.7,
-            )],
+            2: [
+                CompetitionEvent(
+                    event_type=EventType.PRODUCT_LAUNCH,
+                    institution="EQ Bank",
+                    description="5% HISA",
+                    product="savings",
+                    rate_offered=5.0,
+                    impact_magnitude=0.8,
+                )
+            ],
+            7: [
+                CompetitionEvent(
+                    event_type=EventType.RATE_CHANGE,
+                    institution="Tangerine",
+                    description="Rate match",
+                    product="savings",
+                    rate_offered=5.25,
+                    impact_magnitude=0.7,
+                )
+            ],
         },
     )
 
@@ -225,9 +230,8 @@ class TestSimulationDeterminism:
         r2 = e2.run(baseline_timeline)
 
         # Very unlikely to be identical with different seeds
-        assert (
-            r1.total_churned != r2.total_churned
-            or r1.avg_final_satisfaction != pytest.approx(r2.avg_final_satisfaction, abs=1e-6)
+        assert r1.total_churned != r2.total_churned or r1.avg_final_satisfaction != pytest.approx(
+            r2.avg_final_satisfaction, abs=1e-6
         )
 
 

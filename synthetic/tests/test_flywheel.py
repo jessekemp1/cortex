@@ -41,8 +41,10 @@ def sample_profiles(generator):
 def sample_transactions(generator):
     """Generate 100 transactions with risk flags."""
     request = GenerationRequest(
-        data_type="transactions", count=100,
-        include_risk_flags=True, risk_profile="high",
+        data_type="transactions",
+        count=100,
+        include_risk_flags=True,
+        risk_profile="high",
     )
     txns, _ = generator._generate_transactions(request)
     return txns
@@ -58,9 +60,7 @@ class TestFlywheelCycle:
         assert report.overall_score > 0
 
     def test_cycle_with_transactions(self, flywheel, sample_transactions):
-        report = flywheel.run_cycle(
-            transactions=sample_transactions, flywheel_id="test-002"
-        )
+        report = flywheel.run_cycle(transactions=sample_transactions, flywheel_id="test-002")
         assert report.layers_executed >= 1  # L4 should run
 
     def test_cycle_with_both(self, flywheel, sample_profiles, sample_transactions):
@@ -133,12 +133,20 @@ class TestLayer2Statistical:
         """Layer 2 needs >= 10 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(5)
@@ -170,16 +178,12 @@ class TestLayer4Risk:
     """Test Layer 4: Risk Model Validation."""
 
     def test_layer4_runs_on_transactions(self, flywheel, sample_transactions):
-        report = flywheel.run_cycle(
-            transactions=sample_transactions, flywheel_id="l4-test"
-        )
+        report = flywheel.run_cycle(transactions=sample_transactions, flywheel_id="l4-test")
         l4 = next(lr for lr in report.layer_results if lr.layer_num == 4)
         assert l4.layer_name == "risk_model_validation"
 
     def test_layer4_reports_confusion_matrix(self, flywheel, sample_transactions):
-        report = flywheel.run_cycle(
-            transactions=sample_transactions, flywheel_id="l4-cm"
-        )
+        report = flywheel.run_cycle(transactions=sample_transactions, flywheel_id="l4-cm")
         l4 = next(lr for lr in report.layer_results if lr.layer_num == 4)
         cm = l4.feedback["confusion_matrix"]
         assert "TP" in cm
@@ -188,9 +192,7 @@ class TestLayer4Risk:
         assert "TN" in cm
 
     def test_layer4_detection_rate_reported(self, flywheel, sample_transactions):
-        report = flywheel.run_cycle(
-            transactions=sample_transactions, flywheel_id="l4-dr"
-        )
+        report = flywheel.run_cycle(transactions=sample_transactions, flywheel_id="l4-dr")
         l4 = next(lr for lr in report.layer_results if lr.layer_num == 4)
         assert "detection_rate" in l4.feedback
         assert 0.0 <= l4.feedback["detection_rate"] <= 1.0
@@ -221,12 +223,20 @@ class TestLayer5Discriminator:
         """Layer 5 needs >= 30 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(20)
@@ -261,12 +271,20 @@ class TestLayer6TSTR:
         """Layer 6 needs >= 50 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(40)
@@ -302,12 +320,20 @@ class TestLayer7Privacy:
         """Layer 7 needs >= 20 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(15)
@@ -348,12 +374,20 @@ class TestLayer8BehavioralFidelity:
         """Layer 8 needs >= 10 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(5)
@@ -402,12 +436,20 @@ class TestLayer9TemporalCoherence:
         """Layer 9 needs >= 10 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"SMALL-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"SMALL-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(5)
@@ -439,7 +481,9 @@ class TestL8L9GracefulDegradation:
         assert report.layers_executed >= 3  # L1, L2, L3 at minimum
         assert report.overall_score > 0
 
-    def test_layers_executed_increases_with_l8_l9(self, flywheel, sample_profiles, sample_transactions):
+    def test_layers_executed_increases_with_l8_l9(
+        self, flywheel, sample_profiles, sample_transactions
+    ):
         """L8 and L9 should increase layers_executed over L1-L7."""
         report_without = flywheel.run_cycle(
             profiles=sample_profiles,

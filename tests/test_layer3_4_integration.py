@@ -5,8 +5,7 @@ Tests the complete integration flow from metric tracking through alert generatio
 to recommendations, ensuring all layers work together correctly.
 """
 
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
 import pytest
 from cortex.tests.conftest import create_metric_series
@@ -72,7 +71,7 @@ class TestLayer3Pipeline:
         # Should have WARNING alert (2-5% drop)
         if len(alerts) > 0:
             # Either WARNING or no alert is acceptable for borderline case
-            warning_alerts = [a for a in alerts if a.severity == AlertSeverity.WARNING]
+            [a for a in alerts if a.severity == AlertSeverity.WARNING]
             # If there are alerts, at least one should be WARNING
             if alerts:
                 assert any(a.severity == AlertSeverity.WARNING for a in alerts) or any(
@@ -386,7 +385,7 @@ class TestPerformance:
 
         # Time alert generation
         start = time.time()
-        alerts = alert_generator.generate_alerts(project, days=7)
+        alert_generator.generate_alerts(project, days=7)
         elapsed = time.time() - start
 
         # Should complete in < 100ms
@@ -417,7 +416,7 @@ class TestPerformance:
         create_metric_series(metric_tracker, project, MetricType.COVERAGE, metrics)
 
         start = time.time()
-        trend = trend_analyzer.analyze_coverage_trend(project, days=30)
+        trend_analyzer.analyze_coverage_trend(project, days=30)
         elapsed = time.time() - start
 
         # Should complete in < 50ms

@@ -60,9 +60,7 @@ class PromptRegistry:
                     print(f"Warning: Failed to load {yaml_file}: {e}")
                     continue
 
-    def get_prompt(
-        self, name: str, version: Optional[str] = None
-    ) -> Optional[PromptTemplate]:
+    def get_prompt(self, name: str, version: Optional[str] = None) -> Optional[PromptTemplate]:
         """Get a prompt template by name and optional version.
 
         Args:
@@ -107,9 +105,7 @@ class PromptRegistry:
                         "description": template.description,
                         "variables": template.variables,
                         "usage_count": template.metadata.get("usage_count", 0),
-                        "avg_quality_score": template.metadata.get(
-                            "avg_quality_score", None
-                        ),
+                        "avg_quality_score": template.metadata.get("avg_quality_score", None),
                     }
                 )
 

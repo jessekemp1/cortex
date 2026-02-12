@@ -66,15 +66,17 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
         health_status = {
             "status": "healthy",
             "service": "cortex-runtime",
-            "timestamp": getattr(executor.history, "metrics", {}).get("last_run_timestamp", None)
-            if hasattr(executor.history, "metrics")
-            else None,
+            "timestamp": (
+                getattr(executor.history, "metrics", {}).get("last_run_timestamp", None)
+                if hasattr(executor.history, "metrics")
+                else None
+            ),
         }
 
         # Try to integrate with supervisor health monitoring
         try:
-            from supervisor import CortexSupervisor, HealthMonitor
             from intelligence.process_monitor.batch_queue import BatchTaskQueue
+            from supervisor import CortexSupervisor, HealthMonitor
 
             # Create health monitor instance
             shell_queue = BatchTaskQueue()
@@ -90,9 +92,9 @@ def create_api_app(executor: "RuntimeExecutor") -> FastAPI:
                 "issues": [
                     {
                         "type": issue.issue_type,
-                        "target": issue.target_id[:8]
-                        if len(issue.target_id) > 8
-                        else issue.target_id,
+                        "target": (
+                            issue.target_id[:8] if len(issue.target_id) > 8 else issue.target_id
+                        ),
                         "severity": issue.severity,
                         "description": issue.description,
                         "auto_healable": issue.auto_healable,

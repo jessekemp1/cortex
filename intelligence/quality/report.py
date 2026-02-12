@@ -121,17 +121,11 @@ def generate_markdown_report(report: QualityReport) -> str:
     if overall >= 0.8:
         lines.append("**Status**: Excellent - Data quality is high across all dimensions")
     elif overall >= 0.6:
-        lines.append(
-            "**Status**: Good - Data quality is acceptable with some room for improvement"
-        )
+        lines.append("**Status**: Good - Data quality is acceptable with some room for improvement")
     elif overall >= 0.4:
-        lines.append(
-            "**Status**: Fair - Data quality needs attention in several dimensions"
-        )
+        lines.append("**Status**: Fair - Data quality needs attention in several dimensions")
     else:
-        lines.append(
-            "**Status**: Poor - Data quality is low and requires immediate improvement"
-        )
+        lines.append("**Status**: Poor - Data quality is low and requires immediate improvement")
 
     lines.append("")
 
@@ -194,9 +188,7 @@ def _get_status_emoji(score: float) -> str:
         return "❌ Poor"
 
 
-def compare_reports(
-    current: QualityReport, previous: QualityReport
-) -> Dict[str, Dict[str, float]]:
+def compare_reports(current: QualityReport, previous: QualityReport) -> Dict[str, Dict[str, float]]:
     """
     Compare two quality reports to identify trends.
 

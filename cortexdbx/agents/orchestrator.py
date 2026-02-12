@@ -4,12 +4,12 @@ Agent orchestrator for CortexDBx.
 Coordinates domain agents for parallel processing of outcomes.
 """
 
-from typing import Dict, List, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List
 
-from cortexdbx.calibration.engine import CalibrationEngine
 from cortexdbx.agents.definitions import AGENT_CONFIGS
+from cortexdbx.calibration.engine import CalibrationEngine
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +70,7 @@ class AgentOrchestrator:
             chunks.append(outcomes[i : i + chunk_size])
 
         all_results: List[Dict[str, Any]] = []
-        futures = {
-            self.executor.submit(self.process_outcomes, chunk): chunk
-            for chunk in chunks
-        }
+        futures = {self.executor.submit(self.process_outcomes, chunk): chunk for chunk in chunks}
 
         for future in as_completed(futures):
             try:
@@ -104,9 +101,7 @@ class AgentOrchestrator:
             context_id, min_confidence=min_confidence, limit=limit
         )
 
-    def evaluate_calibration(
-        self, ground_truth: Dict[str, float]
-    ) -> Dict[str, Any]:
+    def evaluate_calibration(self, ground_truth: Dict[str, float]) -> Dict[str, Any]:
         """Evaluate calibration quality against ground truth."""
         return self.calibration.evaluate_calibration(ground_truth)
 

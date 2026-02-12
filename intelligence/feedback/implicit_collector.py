@@ -10,13 +10,12 @@ Collects implicit feedback signals from user interactions:
 Part of AI Engineering Improvements (Improvement 3).
 """
 
-import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -181,9 +180,7 @@ class ImplicitFeedbackCollector:
         # Filter to time period
         cutoff = datetime.now().timestamp() - (days * 24 * 60 * 60)
         recent_signals = [
-            s
-            for s in signals
-            if datetime.fromisoformat(s.timestamp).timestamp() > cutoff
+            s for s in signals if datetime.fromisoformat(s.timestamp).timestamp() > cutoff
         ]
 
         if not recent_signals:
@@ -211,9 +208,9 @@ class ImplicitFeedbackCollector:
             "ignores": len(ignores),
             "overrides": len(overrides),
             "avg_time_to_action": avg_time,
-            "follow_rate": (len(follows) + len(overrides)) / len(recent_signals)
-            if recent_signals
-            else 0,
+            "follow_rate": (
+                (len(follows) + len(overrides)) / len(recent_signals) if recent_signals else 0
+            ),
         }
 
     # --- Private Methods ---

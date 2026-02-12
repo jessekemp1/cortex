@@ -6,8 +6,8 @@ Part of AI Engineering Improvements Phase 2.
 """
 
 from intelligence.evaluation.quality_judge import (
-    QualityJudge,
     PatternScore,
+    QualityJudge,
     RecommendationScore,
 )
 

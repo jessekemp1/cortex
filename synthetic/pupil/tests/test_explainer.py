@@ -1,10 +1,9 @@
 """Standalone tests for DecisionExplainer."""
 
-from pupil.persona import Action, ActionType, PersonaAgent
+from helpers import make_profile
 from pupil.explainer import DecisionExplainer, Explanation, Factor
 from pupil.market_env import build_timeline
-
-from helpers import make_profile
+from pupil.persona import Action, ActionType, PersonaAgent
 
 
 class TestDecisionExplainerBasic:
@@ -172,9 +171,14 @@ class TestExplainBatch:
                 action_type=ActionType.CHURN,
                 agent_id="b-2",
                 step=3,
-                context={"satisfaction": 0.3, "monthly_churn_prob": 0.05,
-                         "tenure_years": 1.0, "num_products": 1.0,
-                         "tenure_modifier": 0.9, "product_modifier": 0.92},
+                context={
+                    "satisfaction": 0.3,
+                    "monthly_churn_prob": 0.05,
+                    "tenure_years": 1.0,
+                    "num_products": 1.0,
+                    "tenure_modifier": 0.9,
+                    "product_modifier": 0.92,
+                },
             ),
         ]
         explanations = DecisionExplainer().explain_batch(actions)

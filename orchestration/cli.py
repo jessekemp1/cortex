@@ -17,9 +17,9 @@ from pathlib import Path
 # Add parent dir to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from orchestration.scheduler import TaskScheduler
 from orchestration.task import Task, TaskPriority
 from orchestration.task_queue import TaskQueue
-from orchestration.scheduler import TaskScheduler
 
 
 def cmd_add(args):
@@ -53,7 +53,9 @@ def cmd_add(args):
     print(f"  Routing: {decision.execution_mode.upper()}")
     print(f"  Reason: {decision.reason}")
     if deadline:
-        print(f"  Deadline: {deadline.strftime('%Y-%m-%d %H:%M')} ({task.hours_until_deadline:.1f}h)")
+        print(
+            f"  Deadline: {deadline.strftime('%Y-%m-%d %H:%M')} ({task.hours_until_deadline:.1f}h)"
+        )
 
 
 def cmd_list(args):
@@ -62,6 +64,7 @@ def cmd_list(args):
 
     if args.status:
         from orchestration.task import TaskStatus
+
         tasks = queue.get_all(status=TaskStatus(args.status))
     else:
         tasks = queue.get_ready_tasks(limit=args.limit)
@@ -75,7 +78,9 @@ def cmd_list(args):
 
     for task in tasks:
         mode = task.execution_mode or "unscheduled"
-        print(f"{task.id:<20} {task.priority.value:<8} {task.title[:30]:<30} {task.status.value:<12} {mode:<10}")
+        print(
+            f"{task.id:<20} {task.priority.value:<8} {task.title[:30]:<30} {task.status.value:<12} {mode:<10}"
+        )
 
 
 def cmd_stats(args):
@@ -104,7 +109,7 @@ def cmd_stats(args):
 
     print("🎯 BY PRIORITY")
     print("──────────────")
-    for priority, count in queue_stats['by_priority'].items():
+    for priority, count in queue_stats["by_priority"].items():
         if count > 0:
             print(f"{priority}: {count}")
     print()
@@ -123,7 +128,9 @@ def cmd_stats(args):
     print(f"Total tokens:    {cost_savings['total_tokens']:,}")
     print(f"Realtime cost:   ${cost_savings['realtime_cost_usd']:.2f}")
     print(f"Batch cost:      ${cost_savings['batch_cost_usd']:.2f}")
-    print(f"Savings:         ${cost_savings['savings_usd']:.2f} ({cost_savings['savings_pct']:.0f}%)")
+    print(
+        f"Savings:         ${cost_savings['savings_usd']:.2f} ({cost_savings['savings_pct']:.0f}%)"
+    )
     print()
 
 
@@ -155,7 +162,9 @@ def cmd_next(args):
     print(f"Phase:       {task.phase.value}")
     print(f"Description: {task.description}")
     if task.deadline:
-        print(f"Deadline:    {task.deadline.strftime('%Y-%m-%d %H:%M')} ({task.hours_until_deadline:.1f}h)")
+        print(
+            f"Deadline:    {task.deadline.strftime('%Y-%m-%d %H:%M')} ({task.hours_until_deadline:.1f}h)"
+        )
     print(f"Tokens:      {task.total_estimated_tokens:,}")
     if task.blocked_by:
         print(f"Blocked by:  {', '.join(task.blocked_by)}")
@@ -183,7 +192,9 @@ def main():
     add_parser = subparsers.add_parser("add", help="Add a task to the queue")
     add_parser.add_argument("--title", required=True, help="Task title")
     add_parser.add_argument("--description", required=True, help="Task description")
-    add_parser.add_argument("--priority", required=True, choices=["A", "B", "C"], help="Priority level")
+    add_parser.add_argument(
+        "--priority", required=True, choices=["A", "B", "C"], help="Priority level"
+    )
     add_parser.add_argument("--deadline-hours", type=float, help="Deadline in hours from now")
     add_parser.add_argument("--prompt", help="Agent prompt (optional)")
     add_parser.add_argument("--tags", help="Comma-separated tags")
@@ -200,7 +211,9 @@ def main():
 
     # Next task
     next_parser = subparsers.add_parser("next", help="Get next task for execution")
-    next_parser.add_argument("--mode", choices=["realtime", "batch"], help="Filter by execution mode")
+    next_parser.add_argument(
+        "--mode", choices=["realtime", "batch"], help="Filter by execution mode"
+    )
 
     # Clear queue
     clear_parser = subparsers.add_parser("clear", help="Clear all tasks (use with caution)")

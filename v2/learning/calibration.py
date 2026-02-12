@@ -5,10 +5,9 @@ certain than 30 successes / 10 failures with the same 75% rate. This module
 uses Beta-Binomial Bayesian updating to account for both rate AND certainty.
 """
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from ..memory.graph import GraphMemory

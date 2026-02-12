@@ -11,10 +11,10 @@ Decision-focused dashboard that answers:
 
 import json
 import sqlite3
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import pandas as pd
 import streamlit as st

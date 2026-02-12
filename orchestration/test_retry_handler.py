@@ -25,12 +25,12 @@ from orchestration.models import (
     TraceEventType,
 )
 from orchestration.retry_handler import (
-    RetryHandler,
-    FailureClassifier,
-    RetryConfig,
-    RetryStrategy,
-    FailureType,
     DEFAULT_RETRY_CONFIGS,
+    FailureClassifier,
+    FailureType,
+    RetryConfig,
+    RetryHandler,
+    RetryStrategy,
 )
 
 
@@ -171,14 +171,16 @@ def test_exponential_backoff():
         delays.append(delay)
 
         # Calculate expected range (base * multiplier^retry_count with 0-20% jitter)
-        expected_base = 10 * (2.0 ** retry_count)
+        expected_base = 10 * (2.0**retry_count)
         expected_min = expected_base
         expected_max = expected_base * 1.2
 
-        assert expected_min <= delay <= expected_max, (
-            f"Retry {retry_count}: delay {delay}s not in range [{expected_min:.1f}, {expected_max:.1f}]"
+        assert (
+            expected_min <= delay <= expected_max
+        ), f"Retry {retry_count}: delay {delay}s not in range [{expected_min:.1f}, {expected_max:.1f}]"
+        print(
+            f"✅ Retry {retry_count}: {delay}s (expected range: {expected_min:.1f}-{expected_max:.1f}s)"
         )
-        print(f"✅ Retry {retry_count}: {delay}s (expected range: {expected_min:.1f}-{expected_max:.1f}s)")
 
     # Verify delays are increasing
     for i in range(len(delays) - 1):

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from cortex.v2.memory.graph import GraphMemory
-from cortex.v2.memory.models import Edge, MemoryType, Node, RelationType
+from cortex.v2.memory.models import MemoryType, RelationType
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ class TestGraphMemory:
         """Test getting similar patterns."""
         p1 = graph.add_node(type=MemoryType.PATTERN, name="Redis Caching")
         p2 = graph.add_node(type=MemoryType.PATTERN, name="Memcached Caching")
-        p3 = graph.add_node(type=MemoryType.PATTERN, name="Unrelated")
+        graph.add_node(type=MemoryType.PATTERN, name="Unrelated")
 
         graph.add_edge(p1.id, p2.id, RelationType.SIMILAR_TO)
 

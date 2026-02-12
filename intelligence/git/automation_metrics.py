@@ -18,8 +18,13 @@ def ensure_metrics_dir():
     METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 
-def log_event(source: str, event_type: str, suggestion: dict, latency_ms: float,
-              user_response: str | None = None) -> str:
+def log_event(
+    source: str,
+    event_type: str,
+    suggestion: dict,
+    latency_ms: float,
+    user_response: str | None = None,
+) -> str:
     ensure_metrics_dir()
     event_id = str(uuid.uuid4())
     entry = {
@@ -95,8 +100,15 @@ def summary_stats(days: int = 7) -> dict:
 def _source_stats(events: list[dict], source: str) -> dict:
     source_events = [e for e in events if e.get("source") == source]
     if not source_events:
-        return {"count": 0, "accepted": 0, "rejected": 0, "ignored": 0, "modified": 0,
-                "acceptance_rate": 0.0, "avg_latency_ms": 0.0}
+        return {
+            "count": 0,
+            "accepted": 0,
+            "rejected": 0,
+            "ignored": 0,
+            "modified": 0,
+            "acceptance_rate": 0.0,
+            "avg_latency_ms": 0.0,
+        }
     responded = [e for e in source_events if e.get("user_response")]
     accepted = sum(1 for e in responded if e["user_response"] == "accepted")
     rejected = sum(1 for e in responded if e["user_response"] == "rejected")
@@ -106,8 +118,11 @@ def _source_stats(events: list[dict], source: str) -> dict:
     avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
     acceptance_rate = accepted / len(responded) if responded else 0.0
     return {
-        "count": len(source_events), "accepted": accepted, "rejected": rejected,
-        "modified": modified, "ignored": ignored,
+        "count": len(source_events),
+        "accepted": accepted,
+        "rejected": rejected,
+        "modified": modified,
+        "ignored": ignored,
         "acceptance_rate": round(acceptance_rate, 3),
         "avg_latency_ms": round(avg_latency, 1),
     }
@@ -115,6 +130,7 @@ def _source_stats(events: list[dict], source: str) -> dict:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Git Automation Metrics")
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--json", action="store_true")
@@ -129,7 +145,9 @@ def main():
             s = stats[source]
             print(f"\n  [{source.upper()}]")
             print(f"    Suggestions: {s['count']}")
-            print(f"    Accepted: {s['accepted']} | Rejected: {s['rejected']} | Modified: {s['modified']} | Ignored: {s['ignored']}")
+            print(
+                f"    Accepted: {s['accepted']} | Rejected: {s['rejected']} | Modified: {s['modified']} | Ignored: {s['ignored']}"
+            )
             print(f"    Acceptance rate: {s['acceptance_rate']:.1%}")
             print(f"    Avg latency: {s['avg_latency_ms']:.0f}ms")
 

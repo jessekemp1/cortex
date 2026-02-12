@@ -6,7 +6,6 @@ Quick script to record your first development task predictions
 
 import argparse
 import json
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -62,7 +61,7 @@ def start_task_prediction():
     print(f"   Using Cortex: {use_cortex}")
     print()
     print("📋 When task is complete, run:")
-    print(f"   python3 complete_task.py")
+    print("   python3 complete_task.py")
     print()
 
     # Save prediction ID for easy completion (persistent storage)
@@ -129,11 +128,11 @@ def show_calibration_stats():
     print(f"  Calibration error: {cal_stats['calibration_error']*100:.1f}%")
 
     if cal_stats["calibration_error"] < 0.15:
-        print(f"  Status: ✅ Well calibrated")
+        print("  Status: ✅ Well calibrated")
     elif cal_stats["calibration_error"] < 0.25:
-        print(f"  Status: ⚠️ Moderate calibration error")
+        print("  Status: ⚠️ Moderate calibration error")
     else:
-        print(f"  Status: ❌ Poor calibration")
+        print("  Status: ❌ Poor calibration")
     print()
 
     if time_stats["count"] > 0:
@@ -143,11 +142,11 @@ def show_calibration_stats():
         print(f"  Overestimates: {time_stats['overestimates']}")
 
         if time_stats["underestimates"] > time_stats["overestimates"] * 1.5:
-            print(f"  Bias: ⚠️ You tend to underestimate")
+            print("  Bias: ⚠️ You tend to underestimate")
         elif time_stats["overestimates"] > time_stats["underestimates"] * 1.5:
-            print(f"  Bias: ⚠️ You tend to overestimate")
+            print("  Bias: ⚠️ You tend to overestimate")
         else:
-            print(f"  Bias: ✅ Relatively balanced")
+            print("  Bias: ✅ Relatively balanced")
     print()
 
 
@@ -174,7 +173,7 @@ def show_analysis():
             print(f"  {bucket_range}: {pred_count} predictions, {accuracy:.0f}% accuracy")
 
     print()
-    print(f"Target: Confidence should match accuracy")
+    print("Target: Confidence should match accuracy")
     print(f"Current calibration error: {cal_stats['calibration_error']*100:.1f}%")
 
     # Recommendations

@@ -93,10 +93,14 @@ class RiskClassifier:
         # Determine risk level and auto-executable status
         if concerns:
             # Has concerns - requires approval
-            if len(concerns) >= 3 or any("production" in c.lower() or "breaking" in c.lower() for c in concerns):
+            if len(concerns) >= 3 or any(
+                "production" in c.lower() or "breaking" in c.lower() for c in concerns
+            ):
                 risk_level = "critical"
                 auto_executable = False
-                rationale = "Critical risk: Multiple concerns or production/breaking change detected"
+                rationale = (
+                    "Critical risk: Multiple concerns or production/breaking change detected"
+                )
             elif len(concerns) >= 2:
                 risk_level = "high"
                 auto_executable = False
@@ -105,7 +109,11 @@ class RiskClassifier:
                 risk_level = "medium"
                 # Medium risk can be auto-executed if dependencies satisfied and no critical patterns
                 auto_executable = self._can_auto_execute_medium_risk(contract)
-                rationale = "Medium risk: Can auto-execute if dependencies satisfied" if auto_executable else "Medium risk: Requires approval"
+                rationale = (
+                    "Medium risk: Can auto-execute if dependencies satisfied"
+                    if auto_executable
+                    else "Medium risk: Requires approval"
+                )
         else:
             # No concerns - check for safe patterns
             is_safe = self._matches_safe_patterns(text)
@@ -162,7 +170,9 @@ class RiskClassifier:
 
         return False
 
-    def should_notify_user(self, contract: TaskContract, assessment: RiskAssessment) -> Tuple[bool, str]:
+    def should_notify_user(
+        self, contract: TaskContract, assessment: RiskAssessment
+    ) -> Tuple[bool, str]:
         """
         Determine if user should be notified about this task.
 
@@ -178,7 +188,10 @@ class RiskClassifier:
                 return (True, f"Auto-executing {assessment.risk_level} risk task: {contract.title}")
         else:
             # Requires approval - always notify
-            return (True, f"Task requires approval ({assessment.risk_level} risk): {contract.title}")
+            return (
+                True,
+                f"Task requires approval ({assessment.risk_level} risk): {contract.title}",
+            )
 
 
 if __name__ == "__main__":

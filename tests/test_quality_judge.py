@@ -8,11 +8,9 @@ Uses mock API calls to avoid real API usage during testing.
 
 import asyncio
 import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from intelligence.evaluation.quality_judge import (
     PatternScore,
     QualityJudge,
@@ -420,9 +418,7 @@ class TestBatchEvaluation:
         ]
 
         with patch.object(quality_judge.client.messages, "create", return_value=mock_response):
-            patterns = [
-                {**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(3)
-            ]
+            patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(3)]
 
             scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
 
@@ -489,9 +485,7 @@ class TestBatchEvaluation:
             return mock_response
 
         with patch.object(quality_judge.client.messages, "create", side_effect=mock_create):
-            patterns = [
-                {**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(10)
-            ]
+            patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(10)]
 
             scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
 
@@ -530,7 +524,7 @@ class TestRateLimiting:
         # First 3 should be immediate, next 2 should be delayed
         if len(call_times) >= 4:
             # Check that 4th request was delayed
-            time_gap = call_times[3] - call_times[0]
+            call_times[3] - call_times[0]
             # Should wait close to 60 seconds if rate limited
             # (we won't actually wait in test, but structure is tested)
             assert True  # Structure test passes
@@ -548,9 +542,7 @@ class TestAIConfidenceCalibration:
         # May be empty if no evaluations yet
         assert len(calibration) >= 0
 
-    def test_get_ai_confidence_calibration_with_data(
-        self, quality_judge, temp_evaluations_file
-    ):
+    def test_get_ai_confidence_calibration_with_data(self, quality_judge, temp_evaluations_file):
         """Test calibration with stored evaluations."""
         # Store some evaluations
         quality_judge._store_evaluation(

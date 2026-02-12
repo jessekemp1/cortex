@@ -3,6 +3,7 @@
 
 import subprocess
 from typing import List
+
 from cortex.plugins.base import BasePlugin
 
 
@@ -19,9 +20,7 @@ class CommitPlugin(BasePlugin):
 
         # Check for staged changes
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            capture_output=True,
-            text=True
+            ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True
         )
 
         if not result.stdout.strip():

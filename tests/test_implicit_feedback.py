@@ -4,16 +4,11 @@ Tests for Implicit Feedback Collection System
 Tests implicit signal tracking for follows, ignores, and overrides.
 """
 
-import json
 import time
-from datetime import datetime
-from pathlib import Path
 
 import pytest
-
 from cortex.intelligence.feedback.implicit_collector import (
     ImplicitFeedbackCollector,
-    ImplicitSignal,
 )
 
 
@@ -51,7 +46,9 @@ class TestRecommendationTracking:
         collector.track_recommendation_shown("rec_001", sample_recommendation)
 
         assert "rec_001" in collector.pending_recommendations
-        assert collector.pending_recommendations["rec_001"]["recommendation"] == sample_recommendation
+        assert (
+            collector.pending_recommendations["rec_001"]["recommendation"] == sample_recommendation
+        )
         assert "shown_at" in collector.pending_recommendations["rec_001"]
 
     def test_track_multiple_recommendations(self, collector, sample_recommendation):
@@ -120,9 +117,7 @@ class TestActionCorrelation:
         collector.track_recommendation_shown("rec_001", sample_recommendation)
 
         # Completely different action
-        collector.track_action_taken(
-            action="Update README documentation", files=["README.md"]
-        )
+        collector.track_action_taken(action="Update README documentation", files=["README.md"])
 
         # Should not be marked as followed
         # (Will be marked as ignored during session_end)
@@ -169,9 +164,7 @@ class TestSessionManagement:
     def test_get_session_stats(self, collector, sample_recommendation):
         """Test getting session statistics."""
         collector.track_recommendation_shown("rec_001", sample_recommendation)
-        collector.track_recommendation_shown(
-            "rec_002", {"title": "Another recommendation"}
-        )
+        collector.track_recommendation_shown("rec_002", {"title": "Another recommendation"})
         collector.track_action_taken(action="Fix tests")
 
         stats = collector.get_session_stats()
@@ -401,7 +394,7 @@ class TestEdgeCases:
             f.write('{"valid": "json"}\n')
 
         # Should skip corrupt lines
-        signals = collector.load_signals()
+        collector.load_signals()
         # May have 0 signals if schema doesn't match ImplicitSignal
 
 

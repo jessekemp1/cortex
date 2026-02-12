@@ -18,7 +18,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # Ensure parent directory is on path so "from batch.xxx import ..." works
 # when this script is run directly (e.g., by launchd)
@@ -38,7 +38,7 @@ class BatchCapacity:
 
     # Overnight window
     overnight_start_hour: int = 22  # 10 PM
-    overnight_end_hour: int = 6     # 6 AM
+    overnight_end_hour: int = 6  # 6 AM
     overnight_hours: int = 8
 
     # Token budget constraints
@@ -111,7 +111,7 @@ class IntelligentBatchOrchestrator:
                 ["python", str(self.cortex_dir / "cli.py"), "status"],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             # Parse output for key metrics
@@ -145,108 +145,124 @@ class IntelligentBatchOrchestrator:
         # 1. Security & Vulnerability Scans (Critical)
         active_projects = state.get("active_projects", 0)
         if active_projects > 0:
-            work_items.append(BatchWorkItem(
-                id="security-scan",
-                title="Overnight Security Audit",
-                description="Scan all active projects for vulnerabilities, exposed secrets, security anti-patterns",
-                prompt=f"Perform comprehensive security audit across {active_projects} active projects. Check for: SQL injection, XSS, exposed credentials, insecure dependencies, missing input validation.",
-                priority="immediate",
-                estimated_input_tokens=30_000,
-                estimated_output_tokens=5_000,
-                source="security",
-                deadline_hours=8
-            ))
+            work_items.append(
+                BatchWorkItem(
+                    id="security-scan",
+                    title="Overnight Security Audit",
+                    description="Scan all active projects for vulnerabilities, exposed secrets, security anti-patterns",
+                    prompt=f"Perform comprehensive security audit across {active_projects} active projects. Check for: SQL injection, XSS, exposed credentials, insecure dependencies, missing input validation.",
+                    priority="immediate",
+                    estimated_input_tokens=30_000,
+                    estimated_output_tokens=5_000,
+                    source="security",
+                    deadline_hours=8,
+                )
+            )
 
         # 2. Code Quality & Pattern Analysis (High)
-        work_items.append(BatchWorkItem(
-            id="code-quality-scan",
-            title="Code Quality Analysis",
-            description="Analyze code quality across active projects: complexity, duplication, anti-patterns",
-            prompt=f"Analyze code quality across {active_projects} projects. Identify: high complexity functions (>50 lines), code duplication, anti-patterns, circular imports, missing error handling.",
-            priority="high",
-            estimated_input_tokens=40_000,
-            estimated_output_tokens=6_000,
-            source="pattern",
-            deadline_hours=12
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="code-quality-scan",
+                title="Code Quality Analysis",
+                description="Analyze code quality across active projects: complexity, duplication, anti-patterns",
+                prompt=f"Analyze code quality across {active_projects} projects. Identify: high complexity functions (>50 lines), code duplication, anti-patterns, circular imports, missing error handling.",
+                priority="high",
+                estimated_input_tokens=40_000,
+                estimated_output_tokens=6_000,
+                source="pattern",
+                deadline_hours=12,
+            )
+        )
 
         # 3. Test Coverage Analysis (High)
-        work_items.append(BatchWorkItem(
-            id="test-coverage-analysis",
-            title="Test Coverage Gap Analysis",
-            description="Identify untested code paths and missing test cases",
-            prompt=f"Analyze test coverage across {active_projects} projects. Identify: critical paths without tests, edge cases not covered, integration test gaps, missing error scenario tests.",
-            priority="high",
-            estimated_input_tokens=35_000,
-            estimated_output_tokens=5_000,
-            source="pattern",
-            deadline_hours=12
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="test-coverage-analysis",
+                title="Test Coverage Gap Analysis",
+                description="Identify untested code paths and missing test cases",
+                prompt=f"Analyze test coverage across {active_projects} projects. Identify: critical paths without tests, edge cases not covered, integration test gaps, missing error scenario tests.",
+                priority="high",
+                estimated_input_tokens=35_000,
+                estimated_output_tokens=5_000,
+                source="pattern",
+                deadline_hours=12,
+            )
+        )
 
         # 4. Documentation Completeness (Medium)
-        work_items.append(BatchWorkItem(
-            id="docs-completeness",
-            title="Documentation Completeness Audit",
-            description="Identify missing or outdated documentation",
-            prompt=f"Audit documentation across {active_projects} projects. Check: missing README sections, undocumented API endpoints, outdated examples, missing function docstrings for public APIs.",
-            priority="normal",
-            estimated_input_tokens=25_000,
-            estimated_output_tokens=4_000,
-            source="docs",
-            deadline_hours=24
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="docs-completeness",
+                title="Documentation Completeness Audit",
+                description="Identify missing or outdated documentation",
+                prompt=f"Audit documentation across {active_projects} projects. Check: missing README sections, undocumented API endpoints, outdated examples, missing function docstrings for public APIs.",
+                priority="normal",
+                estimated_input_tokens=25_000,
+                estimated_output_tokens=4_000,
+                source="docs",
+                deadline_hours=24,
+            )
+        )
 
         # 5. Dependency Audit (Medium)
-        work_items.append(BatchWorkItem(
-            id="dependency-audit",
-            title="Dependency Version Audit",
-            description="Check for outdated dependencies and version conflicts",
-            prompt=f"Audit dependencies across {active_projects} projects. Check: outdated packages, security vulnerabilities in dependencies, version conflicts, unused dependencies.",
-            priority="normal",
-            estimated_input_tokens=20_000,
-            estimated_output_tokens=3_000,
-            source="security",
-            deadline_hours=24
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="dependency-audit",
+                title="Dependency Version Audit",
+                description="Check for outdated dependencies and version conflicts",
+                prompt=f"Audit dependencies across {active_projects} projects. Check: outdated packages, security vulnerabilities in dependencies, version conflicts, unused dependencies.",
+                priority="normal",
+                estimated_input_tokens=20_000,
+                estimated_output_tokens=3_000,
+                source="security",
+                deadline_hours=24,
+            )
+        )
 
         # 6. Performance Bottleneck Analysis (Medium)
-        work_items.append(BatchWorkItem(
-            id="performance-analysis",
-            title="Performance Bottleneck Detection",
-            description="Identify performance bottlenecks and optimization opportunities",
-            prompt=f"Analyze performance across {active_projects} projects. Identify: N+1 queries, missing indexes, inefficient algorithms (O(n²)), blocking I/O, missing caching opportunities.",
-            priority="normal",
-            estimated_input_tokens=30_000,
-            estimated_output_tokens=4_000,
-            source="pattern",
-            deadline_hours=24
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="performance-analysis",
+                title="Performance Bottleneck Detection",
+                description="Identify performance bottlenecks and optimization opportunities",
+                prompt=f"Analyze performance across {active_projects} projects. Identify: N+1 queries, missing indexes, inefficient algorithms (O(n²)), blocking I/O, missing caching opportunities.",
+                priority="normal",
+                estimated_input_tokens=30_000,
+                estimated_output_tokens=4_000,
+                source="pattern",
+                deadline_hours=24,
+            )
+        )
 
         # 7. API Documentation Generation (Low - if APIs detected)
-        work_items.append(BatchWorkItem(
-            id="api-docs-generation",
-            title="API Documentation Generation",
-            description="Generate/update API documentation for public endpoints",
-            prompt="Generate API documentation for all public endpoints. Include: request/response examples, parameter descriptions, error codes, authentication requirements.",
-            priority="low",
-            estimated_input_tokens=20_000,
-            estimated_output_tokens=8_000,
-            source="docs",
-            deadline_hours=48
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="api-docs-generation",
+                title="API Documentation Generation",
+                description="Generate/update API documentation for public endpoints",
+                prompt="Generate API documentation for all public endpoints. Include: request/response examples, parameter descriptions, error codes, authentication requirements.",
+                priority="low",
+                estimated_input_tokens=20_000,
+                estimated_output_tokens=8_000,
+                source="docs",
+                deadline_hours=48,
+            )
+        )
 
         # 8. Refactoring Opportunities (Low)
-        work_items.append(BatchWorkItem(
-            id="refactoring-suggestions",
-            title="Refactoring Opportunity Analysis",
-            description="Identify code that would benefit from refactoring",
-            prompt=f"Identify refactoring opportunities across {active_projects} projects. Suggest: function extraction, class extraction, interface simplification, dead code removal.",
-            priority="low",
-            estimated_input_tokens=35_000,
-            estimated_output_tokens=6_000,
-            source="pattern",
-            deadline_hours=48
-        ))
+        work_items.append(
+            BatchWorkItem(
+                id="refactoring-suggestions",
+                title="Refactoring Opportunity Analysis",
+                description="Identify code that would benefit from refactoring",
+                prompt=f"Identify refactoring opportunities across {active_projects} projects. Suggest: function extraction, class extraction, interface simplification, dead code removal.",
+                priority="low",
+                estimated_input_tokens=35_000,
+                estimated_output_tokens=6_000,
+                source="pattern",
+                deadline_hours=48,
+            )
+        )
 
         return work_items
 
@@ -256,11 +272,13 @@ class IntelligentBatchOrchestrator:
             work_items,
             key=lambda x: (
                 -x.priority_score,  # Higher priority first
-                x.total_tokens      # Lower tokens first (fit more jobs)
-            )
+                x.total_tokens,  # Lower tokens first (fit more jobs)
+            ),
         )
 
-    def fill_overnight_queue(self, max_jobs: Optional[int] = None, use_optimizer: bool = True) -> List[BatchWorkItem]:
+    def fill_overnight_queue(
+        self, max_jobs: Optional[int] = None, use_optimizer: bool = True
+    ) -> List[BatchWorkItem]:
         """
         Fill overnight batch queue to maximize capacity.
 
@@ -274,6 +292,7 @@ class IntelligentBatchOrchestrator:
         if use_optimizer:
             try:
                 from batch.optimizer import integrate_with_orchestrator
+
                 return integrate_with_orchestrator(self.root_dir)
             except Exception as e:
                 print(f"Warning: Optimizer failed, falling back to basic mode: {e}")
@@ -337,8 +356,16 @@ class IntelligentBatchOrchestrator:
             "jobs": [],
             "capacity": {
                 "available_tokens": self.capacity.available_overnight_tokens(),
-                "utilization_pct": (sum(j.total_tokens for j in queue) / self.capacity.available_overnight_tokens() * 100) if self.capacity.available_overnight_tokens() > 0 else 0,
-            }
+                "utilization_pct": (
+                    (
+                        sum(j.total_tokens for j in queue)
+                        / self.capacity.available_overnight_tokens()
+                        * 100
+                    )
+                    if self.capacity.available_overnight_tokens() > 0
+                    else 0
+                ),
+            },
         }
 
         for job in queue:
@@ -362,17 +389,19 @@ class IntelligentBatchOrchestrator:
                         "id": job.id,
                         "description": job.description,
                         "priority": job.priority,
-                        "tasks": [{
-                            "task_id": f"{job.id}_task_1",
-                            "title": job.title,
-                            "prompt": job.prompt,
-                            "context": "",
-                            "files_affected": job.files,
-                            "estimated_tokens": job.estimated_input_tokens
-                        }],
+                        "tasks": [
+                            {
+                                "task_id": f"{job.id}_task_1",
+                                "title": job.title,
+                                "prompt": job.prompt,
+                                "context": "",
+                                "files_affected": job.files,
+                                "estimated_tokens": job.estimated_input_tokens,
+                            }
+                        ],
                         "estimated_total_tokens": job.total_tokens,
                         "source": job.source,
-                        "project": job.project
+                        "project": job.project,
                     }
 
                     # Submit - orchestrator will auto-detect as API job
@@ -393,6 +422,7 @@ class IntelligentBatchOrchestrator:
         if not dry_run and any(j.get("submitted") is True for j in summary["jobs"]):
             try:
                 from batch.orchestrator import BatchOrchestrator
+
                 orch = BatchOrchestrator()
                 synced = orch.sync_to_daemon()
                 summary["synced_to_daemon"] = synced
@@ -413,7 +443,7 @@ class IntelligentBatchOrchestrator:
         print(f"Total Jobs: {summary['total_jobs']}")
         print(f"Total Tokens: {summary['total_tokens']:,}")
         print("Priority Breakdown:")
-        for priority, count in summary['by_priority'].items():
+        for priority, count in summary["by_priority"].items():
             if count > 0:
                 print(f"  {priority.capitalize()}: {count}")
         print()
@@ -426,8 +456,12 @@ class IntelligentBatchOrchestrator:
 
         print("📋 JOBS QUEUED")
         print("────────────────")
-        for job in summary['jobs']:
-            status_icon = "✅" if job.get("submitted") == True else ("🔄" if job.get("submitted") == "dry_run" else "❌")
+        for job in summary["jobs"]:
+            status_icon = (
+                "✅"
+                if job.get("submitted")
+                else ("🔄" if job.get("submitted") == "dry_run" else "❌")
+            )
             print(f"{status_icon} [{job['priority'].upper()}] {job['title']}")
             print(f"   Tokens: {job['tokens']:,} | Source: {job['source']}")
             if job.get("error"):
@@ -440,10 +474,20 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Intelligent Batch Orchestrator")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be submitted without actually submitting")
-    parser.add_argument("--max-jobs", type=int, help="Maximum number of jobs to queue (overrides capacity calculation)")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be submitted without actually submitting",
+    )
+    parser.add_argument(
+        "--max-jobs",
+        type=int,
+        help="Maximum number of jobs to queue (overrides capacity calculation)",
+    )
     parser.add_argument("--json", action="store_true", help="Output JSON instead of formatted text")
-    parser.add_argument("--no-optimizer", action="store_true", help="Disable adaptive optimizer (use basic mode)")
+    parser.add_argument(
+        "--no-optimizer", action="store_true", help="Disable adaptive optimizer (use basic mode)"
+    )
 
     args = parser.parse_args()
 
@@ -451,7 +495,9 @@ def main():
 
     # Override fill_overnight_queue if --no-optimizer is set
     if args.no_optimizer:
-        orchestrator.fill_overnight_queue = lambda **kwargs: orchestrator.fill_overnight_queue(use_optimizer=False, **kwargs)
+        orchestrator.fill_overnight_queue = lambda **kwargs: orchestrator.fill_overnight_queue(
+            use_optimizer=False, **kwargs
+        )
 
     summary = orchestrator.submit_batch_queue(dry_run=args.dry_run)
 

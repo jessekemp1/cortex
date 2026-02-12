@@ -74,9 +74,7 @@ class DimensionCheckers:
 
             # Check confidence ranges if present
             if "confidence" in data:
-                rules.append(
-                    {"type": "value_range", "field": "confidence", "min": 0.0, "max": 1.0}
-                )
+                rules.append({"type": "value_range", "field": "confidence", "min": 0.0, "max": 1.0})
 
         if not rules:
             return 1.0  # No rules to check, assume consistent
@@ -93,16 +91,8 @@ class DimensionCheckers:
 
                     if ts1 and ts2:
                         try:
-                            dt1 = (
-                                datetime.fromisoformat(ts1)
-                                if isinstance(ts1, str)
-                                else ts1
-                            )
-                            dt2 = (
-                                datetime.fromisoformat(ts2)
-                                if isinstance(ts2, str)
-                                else ts2
-                            )
+                            dt1 = datetime.fromisoformat(ts1) if isinstance(ts1, str) else ts1
+                            dt2 = datetime.fromisoformat(ts2) if isinstance(ts2, str) else ts2
                             if dt1 <= dt2:
                                 passed += 1
                         except (ValueError, TypeError):
@@ -128,9 +118,7 @@ class DimensionCheckers:
         return passed / len(rules) if rules else 1.0
 
     @staticmethod
-    def check_accuracy(
-        data: Dict[str, Any], known_facts: Optional[Dict[str, Any]] = None
-    ) -> float:
+    def check_accuracy(data: Dict[str, Any], known_facts: Optional[Dict[str, Any]] = None) -> float:
         """
         Check accuracy: Is the information factually correct?
 

@@ -429,7 +429,7 @@ class SynthesisCore:
 
         Returns list of affected nodes.
         """
-        from cortex.engines.absorber import Signal, SignalType
+        from cortex.engines.absorber import SignalType
 
         affected_nodes = []
 

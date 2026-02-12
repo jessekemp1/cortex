@@ -122,7 +122,12 @@ class DataQualityTracker:
 
         # Check consistency
         consistency_rules = [
-            {"type": "value_range", "field": "commit_date", "min": "2020-01-01", "max": "2030-12-31"}
+            {
+                "type": "value_range",
+                "field": "commit_date",
+                "min": "2020-01-01",
+                "max": "2030-12-31",
+            }
         ]
         consistency = self.checkers.check_consistency(data, consistency_rules)
 
@@ -243,9 +248,7 @@ class DataQualityTracker:
         completeness = self.checkers.check_completeness(data, required_fields)
 
         # Check consistency
-        consistency_rules = [
-            {"type": "value_range", "field": "confidence", "min": 0.0, "max": 1.0}
-        ]
+        consistency_rules = [{"type": "value_range", "field": "confidence", "min": 0.0, "max": 1.0}]
         consistency = self.checkers.check_consistency(data, consistency_rules)
 
         # Check accuracy
@@ -343,10 +346,9 @@ class DataQualityTracker:
         Returns:
             QualityReport with aggregate statistics
         """
-        from intelligence.quality.report import QualityReport
-
         # Load all data and assess quality
         from feedback import FeedbackLogger
+        from intelligence.quality.report import QualityReport
 
         logger = FeedbackLogger()
 
@@ -359,16 +361,10 @@ class DataQualityTracker:
             avg_completeness = sum(q.completeness for q in outcome_qualities) / len(
                 outcome_qualities
             )
-            avg_consistency = sum(q.consistency for q in outcome_qualities) / len(
-                outcome_qualities
-            )
+            avg_consistency = sum(q.consistency for q in outcome_qualities) / len(outcome_qualities)
             avg_accuracy = sum(q.accuracy for q in outcome_qualities) / len(outcome_qualities)
-            avg_timeliness = sum(q.timeliness for q in outcome_qualities) / len(
-                outcome_qualities
-            )
-            avg_uniqueness = sum(q.uniqueness for q in outcome_qualities) / len(
-                outcome_qualities
-            )
+            avg_timeliness = sum(q.timeliness for q in outcome_qualities) / len(outcome_qualities)
+            avg_uniqueness = sum(q.uniqueness for q in outcome_qualities) / len(outcome_qualities)
             avg_validity = sum(q.validity for q in outcome_qualities) / len(outcome_qualities)
         else:
             avg_completeness = 1.0

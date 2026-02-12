@@ -1,13 +1,11 @@
 """Standalone tests for Pupil L8 (Behavioral Fidelity) and L9 (Temporal Coherence)."""
 
 import pytest
-
+from helpers import make_mixed_profiles
+from pupil.behavioral_fidelity import BehavioralFidelityValidator, FidelityReport
 from pupil.market_env import build_timeline
 from pupil.simulation import SimulationEngine, SimulationResult
-from pupil.behavioral_fidelity import BehavioralFidelityValidator, FidelityReport
-from pupil.temporal_coherence import TemporalCoherenceValidator, CoherenceReport
-
-from helpers import make_mixed_profiles
+from pupil.temporal_coherence import CoherenceReport, TemporalCoherenceValidator
 
 
 @pytest.fixture
@@ -22,7 +20,11 @@ def baseline_result():
 @pytest.fixture
 def empty_result():
     return SimulationResult(
-        n_agents=0, n_steps=0, steps=[], final_snapshots=[], all_actions=[],
+        n_agents=0,
+        n_steps=0,
+        steps=[],
+        final_snapshots=[],
+        all_actions=[],
     )
 
 
@@ -65,9 +67,7 @@ class TestTemporalCoherence:
 
     def test_churn_monotonic(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_monotonicity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_monotonicity")
         assert churn_check.passed is True
 
     def test_empty_result(self, l9_validator, empty_result):

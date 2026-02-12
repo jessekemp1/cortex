@@ -6,9 +6,10 @@ Usage: from repo root: python cortexdbx/scripts/run_e2e_local.py
        or: cd cortex && python cortexdbx/scripts/run_e2e_local.py
 """
 
-import sys
-import subprocess
 import os
+import subprocess
+import sys
+
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))

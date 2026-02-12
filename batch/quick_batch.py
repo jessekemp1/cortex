@@ -265,7 +265,7 @@ def show_pending():
     pending = queue.get_pending_tasks()
     scheduled = queue.get_scheduled_tasks()
     running = queue.get_running_tasks()
-    completed = queue.get_task_history(limit=5, state=None)
+    queue.get_task_history(limit=5, state=None)
 
     print("\n" + "=" * 60)
     print("BATCH JOB QUEUE STATUS")

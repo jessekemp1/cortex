@@ -8,9 +8,9 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from .task import Task, TaskPriority, TaskStatus, TaskPhase
+from .task import Task, TaskPhase, TaskPriority, TaskStatus
 
 
 class TaskQueue:
@@ -119,45 +119,47 @@ class TaskQueue:
         cursor = conn.cursor()
 
         # Insert task
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO tasks VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
-        """, (
-            task.id,
-            task.title,
-            task.description,
-            task.priority.value,
-            task.deadline.isoformat() if task.deadline else None,
-            task.phase.value,
-            task.status.value,
-            task.prompt,
-            json.dumps(task.context),
-            json.dumps(task.files_affected),
-            task.estimated_input_tokens,
-            task.estimated_output_tokens,
-            task.actual_input_tokens,
-            task.actual_output_tokens,
-            task.execution_mode,
-            task.batch_id,
-            task.assigned_agent,
-            task.result,
-            task.error,
-            1 if task.validation_passed else 0,
-            task.created_at.isoformat(),
-            task.started_at.isoformat() if task.started_at else None,
-            task.completed_at.isoformat() if task.completed_at else None,
-            json.dumps(task.tags),
-            task.source,
-            task.project,
-        ))
+        """,
+            (
+                task.id,
+                task.title,
+                task.description,
+                task.priority.value,
+                task.deadline.isoformat() if task.deadline else None,
+                task.phase.value,
+                task.status.value,
+                task.prompt,
+                json.dumps(task.context),
+                json.dumps(task.files_affected),
+                task.estimated_input_tokens,
+                task.estimated_output_tokens,
+                task.actual_input_tokens,
+                task.actual_output_tokens,
+                task.execution_mode,
+                task.batch_id,
+                task.assigned_agent,
+                task.result,
+                task.error,
+                1 if task.validation_passed else 0,
+                task.created_at.isoformat(),
+                task.started_at.isoformat() if task.started_at else None,
+                task.completed_at.isoformat() if task.completed_at else None,
+                json.dumps(task.tags),
+                task.source,
+                task.project,
+            ),
+        )
 
         # Insert dependencies
         cursor.execute("DELETE FROM task_dependencies WHERE task_id = ?", (task.id,))
         for blocked_task_id in task.blocks:
             cursor.execute(
-                "INSERT OR IGNORE INTO task_dependencies VALUES (?, ?)",
-                (task.id, blocked_task_id)
+                "INSERT OR IGNORE INTO task_dependencies VALUES (?, ?)", (task.id, blocked_task_id)
             )
 
         conn.commit()
@@ -219,16 +221,10 @@ class TaskQueue:
             return None
 
         # Load dependencies
-        cursor.execute(
-            "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?",
-            (task_id,)
-        )
+        cursor.execute("SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?", (task_id,))
         blocks = [r[0] for r in cursor.fetchall()]
 
-        cursor.execute(
-            "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?",
-            (task_id,)
-        )
+        cursor.execute("SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?", (task_id,))
         blocked_by = [r[0] for r in cursor.fetchall()]
 
         conn.close()
@@ -245,9 +241,7 @@ class TaskQueue:
         self.enqueue(task)  # INSERT OR REPLACE handles updates
 
     def get_ready_tasks(
-        self,
-        priority: Optional[TaskPriority] = None,
-        limit: Optional[int] = None
+        self, priority: Optional[TaskPriority] = None, limit: Optional[int] = None
     ) -> List[Task]:
         """
         Get tasks ready for execution (not blocked, not running).
@@ -294,15 +288,13 @@ class TaskQueue:
 
             # Get blocks
             cursor.execute(
-                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?",
-                (task_id,)
+                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?", (task_id,)
             )
             blocks = [r[0] for r in cursor.fetchall()]
 
             # Get blocked_by
             cursor.execute(
-                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?",
-                (task_id,)
+                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?", (task_id,)
             )
             blocked_by = [r[0] for r in cursor.fetchall()]
 
@@ -337,14 +329,12 @@ class TaskQueue:
             task_id = row[0]
 
             cursor.execute(
-                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?",
-                (task_id,)
+                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?", (task_id,)
             )
             blocks = [r[0] for r in cursor.fetchall()]
 
             cursor.execute(
-                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?",
-                (task_id,)
+                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?", (task_id,)
             )
             blocked_by = [r[0] for r in cursor.fetchall()]
 
@@ -354,9 +344,7 @@ class TaskQueue:
         return tasks
 
     def get_all(
-        self,
-        status: Optional[TaskStatus] = None,
-        priority: Optional[TaskPriority] = None
+        self, status: Optional[TaskStatus] = None, priority: Optional[TaskPriority] = None
     ) -> List[Task]:
         """
         Get all tasks, optionally filtered.
@@ -392,14 +380,12 @@ class TaskQueue:
             task_id = row[0]
 
             cursor.execute(
-                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?",
-                (task_id,)
+                "SELECT blocks_task_id FROM task_dependencies WHERE task_id = ?", (task_id,)
             )
             blocks = [r[0] for r in cursor.fetchall()]
 
             cursor.execute(
-                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?",
-                (task_id,)
+                "SELECT task_id FROM task_dependencies WHERE blocks_task_id = ?", (task_id,)
             )
             blocked_by = [r[0] for r in cursor.fetchall()]
 
@@ -523,7 +509,7 @@ class TaskQueue:
         for priority in TaskPriority:
             cursor.execute(
                 "SELECT COUNT(*) FROM tasks WHERE priority = ? AND status = 'pending'",
-                (priority.value,)
+                (priority.value,),
             )
             by_priority[priority.value] = cursor.fetchone()[0]
 
@@ -550,12 +536,7 @@ class TaskQueue:
             "by_priority": by_priority,
         }
 
-    def _row_to_task(
-        self,
-        row: tuple,
-        blocks: List[str],
-        blocked_by: List[str]
-    ) -> Task:
+    def _row_to_task(self, row: tuple, blocks: List[str], blocked_by: List[str]) -> Task:
         """Convert SQLite row to Task object"""
         return Task(
             id=row[0],

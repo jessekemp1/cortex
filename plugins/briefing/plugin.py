@@ -22,7 +22,7 @@ class BriefingPlugin(BasePlugin):
         parser.add_argument("--format", choices=["text", "markdown", "json"], default="text")
 
         try:
-            parsed = parser.parse_args(args)
+            parser.parse_args(args)
         except SystemExit:
             return 1
 

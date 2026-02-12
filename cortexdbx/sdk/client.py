@@ -4,12 +4,12 @@ CortexDBx Python SDK.
 Works with local in-memory backend (for dev/tests) or Spark/Delta (Databricks).
 """
 
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
-import json
 import hashlib
-from datetime import datetime
+import json
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -101,7 +101,9 @@ class LocalBackend:
                         "strategy_id": strat_id,
                         "strategy_name": strat.get("name", strat_id),
                         "confidence": conf,
-                        "evidence_count": cal["success_count"] + cal["failure_count"] + cal["partial_count"],
+                        "evidence_count": cal["success_count"]
+                        + cal["failure_count"]
+                        + cal["partial_count"],
                         "explanation": f"{conf:.0%} confidence based on {cal['success_count']} successes and {cal['failure_count']} failures",
                     }
                 )
@@ -152,9 +154,7 @@ class CortexDBxClient:
 
     def _ensure_context(self, context: Dict[str, Any], context_hash: str) -> str:
         domain = context.get("domain", "unknown")
-        factors = json.dumps(
-            [{"key": k, "value": str(v)} for k, v in sorted(context.items())]
-        )
+        factors = json.dumps([{"key": k, "value": str(v)} for k, v in sorted(context.items())])
         context_id = f"ctx_{context_hash}"
 
         if self._local:
@@ -164,10 +164,9 @@ class CortexDBxClient:
         if self._spark is None:
             raise RuntimeError("Spark session required when use_local_backend=False")
         table = f"{self.config.catalog}.{self.config.schema}.contexts"
-        existing = (
-            self._spark.sql(f"SELECT context_id FROM {table} WHERE context_hash = '{context_hash}'")
-            .collect()
-        )
+        existing = self._spark.sql(
+            f"SELECT context_id FROM {table} WHERE context_hash = '{context_hash}'"
+        ).collect()
         if existing:
             return existing[0]["context_id"]
         row = {
@@ -192,10 +191,9 @@ class CortexDBxClient:
         if self._spark is None:
             raise RuntimeError("Spark session required when use_local_backend=False")
         table = f"{self.config.catalog}.{self.config.schema}.strategies"
-        existing = (
-            self._spark.sql(f"SELECT strategy_id FROM {table} WHERE name = '{strategy}' OR strategy_id = '{strategy_id}'")
-            .collect()
-        )
+        existing = self._spark.sql(
+            f"SELECT strategy_id FROM {table} WHERE name = '{strategy}' OR strategy_id = '{strategy_id}'"
+        ).collect()
         if existing:
             return existing[0]["strategy_id"]
         row = {
@@ -281,9 +279,7 @@ class CortexDBxClient:
         context_hash = self._fingerprint_context(context)
 
         if self._local:
-            return self._local.get_recommendations(
-                context_hash, min_confidence, limit
-            )
+            return self._local.get_recommendations(context_hash, min_confidence, limit)
 
         if self._spark is None:
             raise RuntimeError("Spark session required when use_local_backend=False")
@@ -317,9 +313,7 @@ class CortexDBxClient:
             for r in rows
         ]
 
-    def get_confidence(
-        self, context: Dict[str, Any], strategy: str
-    ) -> tuple:
+    def get_confidence(self, context: Dict[str, Any], strategy: str) -> tuple:
         """
         Get confidence for a specific strategy in a context.
 

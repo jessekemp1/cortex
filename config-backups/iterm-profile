@@ -9,13 +9,13 @@ Usage:
   iterm-profile themes
 """
 
-import json
-import sys
 import argparse
+import json
 import os
+import sys
+import uuid
 from pathlib import Path
 from typing import Dict, Optional
-import uuid
 
 PROFILES_PATH = Path.home() / "Library/Application Support/iTerm2/DynamicProfiles/dev-monorepo.json"
 

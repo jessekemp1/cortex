@@ -72,9 +72,7 @@ class GuardrailTemplate:
         )
 
         # The actual query
-        sections.append(
-            f"[USER QUERY]\n{query}"
-        )
+        sections.append(f"[USER QUERY]\n{query}")
 
         return "\n\n".join(sections)
 
@@ -104,10 +102,7 @@ class GuardrailTemplate:
         )
 
     @staticmethod
-    def wrap_recommendation_query(
-        query: str,
-        risk_level: str = "medium"
-    ) -> str:
+    def wrap_recommendation_query(query: str, risk_level: str = "medium") -> str:
         """
         Wrap a recommendation generation query with guardrails.
 
@@ -174,11 +169,7 @@ Stay within this domain. Politely decline out-of-scope requests.
 """
 
 
-def apply_guardrails(
-    query: str,
-    query_type: Optional[str] = None,
-    **kwargs
-) -> str:
+def apply_guardrails(query: str, query_type: Optional[str] = None, **kwargs) -> str:
     """
     Apply appropriate guardrails based on query type.
 
@@ -192,13 +183,11 @@ def apply_guardrails(
     """
     if query_type == "context":
         return GuardrailTemplate.wrap_context_query(
-            query,
-            context_description=kwargs.get("context_description", "code patterns")
+            query, context_description=kwargs.get("context_description", "code patterns")
         )
     elif query_type == "recommendation":
         return GuardrailTemplate.wrap_recommendation_query(
-            query,
-            risk_level=kwargs.get("risk_level", "medium")
+            query, risk_level=kwargs.get("risk_level", "medium")
         )
     else:
         # General query

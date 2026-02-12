@@ -115,11 +115,11 @@ def test_recommendation_engine_integration():
 
     # Create plan with auto-generated recommendations
     print("1️⃣ Creating plan from auto-generated recommendations...")
-    plan = engine.create_plan(
+    engine.create_plan(
         title="Auto-generated improvement plan",
         auto_generate=False,  # Skip auto-generation for now
     )
-    print(f"   ⚠️  Skipped (no recommendations to convert)\n")
+    print("   ⚠️  Skipped (no recommendations to convert)\n")
 
     # Test getting active plan
     print("2️⃣ Getting active plan...")
@@ -128,7 +128,7 @@ def test_recommendation_engine_integration():
         print(f"   ✅ Active plan: {active_plan.title}")
         print(f"   • Status: {active_plan.status.value}")
     else:
-        print(f"   • No active plan\n")
+        print("   • No active plan\n")
 
     print("✅ Integration test complete!\n")
 

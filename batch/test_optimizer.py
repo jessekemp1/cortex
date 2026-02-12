@@ -16,14 +16,14 @@ from pathlib import Path
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from intelligent_orchestrator import BatchCapacity, BatchWorkItem
 from optimizer import (
-    DynamicWorkGenerator,
-    CapacityAwareQueueFiller,
-    BatchPerformanceTracker,
     AdaptiveEstimator,
-    integrate_with_orchestrator
+    BatchPerformanceTracker,
+    CapacityAwareQueueFiller,
+    DynamicWorkGenerator,
+    integrate_with_orchestrator,
 )
-from intelligent_orchestrator import BatchWorkItem, BatchCapacity
 
 
 def test_work_generation():
@@ -87,7 +87,7 @@ def test_priority_scoring():
             estimated_input_tokens=10_000,
             estimated_output_tokens=2_000,
             source="security",
-            deadline_hours=8
+            deadline_hours=8,
         ),
         BatchWorkItem(
             id="high-pattern",
@@ -98,7 +98,7 @@ def test_priority_scoring():
             estimated_input_tokens=30_000,
             estimated_output_tokens=4_000,
             source="pattern",
-            deadline_hours=12
+            deadline_hours=12,
         ),
         BatchWorkItem(
             id="normal-docs",
@@ -109,7 +109,7 @@ def test_priority_scoring():
             estimated_input_tokens=15_000,
             estimated_output_tokens=3_000,
             source="docs",
-            deadline_hours=48
+            deadline_hours=48,
         ),
         BatchWorkItem(
             id="low-research",
@@ -120,8 +120,8 @@ def test_priority_scoring():
             estimated_input_tokens=20_000,
             estimated_output_tokens=5_000,
             source="research",
-            deadline_hours=72
-        )
+            deadline_hours=72,
+        ),
     ]
 
     filler = CapacityAwareQueueFiller()
@@ -133,7 +133,9 @@ def test_priority_scoring():
         score = filler._calculate_composite_score(item)
         print(f"{item.title:30} | Score: {score:6.1f}")
         print(f"  Priority: {item.priority:9} (base={item.priority_score})")
-        print(f"  Deadline: {item.deadline_hours:3}h (mult={filler._deadline_multiplier(item.deadline_hours):.1f}x)")
+        print(
+            f"  Deadline: {item.deadline_hours:3}h (mult={filler._deadline_multiplier(item.deadline_hours):.1f}x)"
+        )
         print(f"  Source:   {item.source:8} (value multiplier applied)")
         print()
 
@@ -148,7 +150,7 @@ def test_bin_packing():
     # Create capacity with limited token budget
     capacity = BatchCapacity()
     capacity.weekly_token_budget = 1_000_000  # 1M tokens
-    capacity.current_weekly_usage = 0   # Start fresh
+    capacity.current_weekly_usage = 0  # Start fresh
 
     available = capacity.available_overnight_tokens()
     if available == 0:
@@ -170,7 +172,7 @@ def test_bin_packing():
             estimated_input_tokens=20_000 + (i * 5_000),
             estimated_output_tokens=3_000,
             source=["security", "pattern", "docs", "research"][i % 4],
-            deadline_hours=8 + (i * 4)
+            deadline_hours=8 + (i * 4),
         )
         for i in range(10)
     ]
@@ -215,7 +217,7 @@ def test_performance_tracking():
         estimated_input_tokens=30_000,
         estimated_output_tokens=5_000,
         source="security",
-        deadline_hours=12
+        deadline_hours=12,
     )
 
     # Record submission
@@ -227,7 +229,7 @@ def test_performance_tracking():
         "test-task-1",
         actual_tokens=(28_000, 6_200),  # Slightly different from estimates
         actual_duration=0.45,
-        status="completed"
+        status="completed",
     )
     print("Recorded completion: test-task-1")
     print()
@@ -302,7 +304,9 @@ def test_integration():
         print("Top 5 priority items:")
         for i, item in enumerate(selected_work[:5], 1):
             print(f"{i}. [{item.priority.upper():9}] {item.title}")
-            print(f"   Source: {item.source:8} | Tokens: {item.total_tokens:,} | Deadline: {item.deadline_hours}h")
+            print(
+                f"   Source: {item.source:8} | Tokens: {item.total_tokens:,} | Deadline: {item.deadline_hours}h"
+            )
         print()
 
         print("Integration successful!")
@@ -310,6 +314,7 @@ def test_integration():
     except Exception as e:
         print(f"Integration failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -322,7 +327,7 @@ def main():
 
     try:
         # Test 1: Work generation
-        dynamic_work = test_work_generation()
+        test_work_generation()
 
         # Test 2: Priority scoring
         test_priority_scoring()
@@ -350,6 +355,7 @@ def main():
     except Exception as e:
         print(f"\nTest suite failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

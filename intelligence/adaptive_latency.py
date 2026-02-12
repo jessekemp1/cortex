@@ -7,19 +7,20 @@ based on context and user preference.
 Design Principle: Depth over speed (deep mode is default)
 """
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
-import json
 
 
 class AnalysisMode(Enum):
     """Analysis depth modes"""
-    FAST = "fast"      # Minimal analysis (~500ms)
-    DEEP = "deep"      # Comprehensive analysis (2-5s) - DEFAULT
-    AUTO = "auto"      # Adaptive based on context
+
+    FAST = "fast"  # Minimal analysis (~500ms)
+    DEEP = "deep"  # Comprehensive analysis (2-5s) - DEFAULT
+    AUTO = "auto"  # Adaptive based on context
 
 
 @dataclass
@@ -27,34 +28,34 @@ class AnalysisConfig:
     """Configuration for each analysis mode"""
 
     # Git analysis
-    git_days: int              # Days of git history to analyze
-    git_include_stats: bool    # Include code churn stats
+    git_days: int  # Days of git history to analyze
+    git_include_stats: bool  # Include code churn stats
 
     # Spec search
     spec_search_enabled: bool  # Auto-search for relevant specs
-    spec_limit: int            # Number of specs to retrieve
+    spec_limit: int  # Number of specs to retrieve
 
     # Pattern matching
-    pattern_semantic: bool     # Use semantic embeddings vs keywords
-    pattern_limit: int         # Number of patterns to match
+    pattern_semantic: bool  # Use semantic embeddings vs keywords
+    pattern_limit: int  # Number of patterns to match
 
     # Health analysis
-    health_fresh: bool         # Fresh calculation vs cached
-    health_trend_days: int     # Days for trend analysis
+    health_fresh: bool  # Fresh calculation vs cached
+    health_trend_days: int  # Days for trend analysis
 
     # Code quality
-    quality_enabled: bool      # Run code quality analysis
-    quality_depth: str         # "basic" or "comprehensive"
+    quality_enabled: bool  # Run code quality analysis
+    quality_depth: str  # "basic" or "comprehensive"
 
     # Dependencies
     dependency_analysis: bool  # Analyze dependency graph
 
     # Model selection
-    model: str                 # "haiku", "sonnet", or "opus"
-    use_batch_api: bool        # Use batch API for analysis
+    model: str  # "haiku", "sonnet", or "opus"
+    use_batch_api: bool  # Use batch API for analysis
 
     # Expected performance
-    expected_latency_ms: int   # Target latency
+    expected_latency_ms: int  # Target latency
 
     @property
     def mode_name(self) -> str:
@@ -124,6 +125,7 @@ BALANCED_MODE = AnalysisConfig(
 @dataclass
 class SessionContext:
     """Context for adaptive mode selection"""
+
     last_session_time: Optional[datetime]
     time_since_last_session: Optional[timedelta]
     project_name: str

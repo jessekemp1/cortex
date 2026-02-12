@@ -4,26 +4,27 @@ Comprehensive tests for anomaly detection system.
 Tests all 7 detectors plus the OrchestrationAnomalyManager.
 """
 
-import pytest
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
+
+import pytest
 
 from .anomaly_detector import (
-    AnomalyType,
     AnomalySeverity,
-    OrchestrationAnomaly,
-    ContextSwitchingDetector,
-    PlanningGapDetector,
-    StuckTasksDetector,
-    DependencyDeadlockDetector,
-    ResourceWasteDetector,
-    PriorityInversionDetector,
+    AnomalyType,
     BatchInefficiencyDetector,
+    ContextSwitchingDetector,
+    DependencyDeadlockDetector,
+    OrchestrationAnomaly,
     OrchestrationAnomalyManager,
+    PlanningGapDetector,
+    PriorityInversionDetector,
+    ResourceWasteDetector,
+    StuckTasksDetector,
 )
 from .database import OrchestrationDatabase
-from .models import Task, TaskPhase, TaskPriority, TaskStatus, WorkerState, WorkerRole
+from .models import Task, TaskPhase, TaskPriority, TaskStatus, WorkerRole, WorkerState
 
 
 @pytest.fixture
@@ -803,7 +804,9 @@ class TestOrchestrationAnomalyManager:
                 AnomalySeverity.WARNING: 1,
                 AnomalySeverity.INFO: 2,
             }
-            assert severity_order[anomalies[i].severity] <= severity_order[anomalies[i + 1].severity]
+            assert (
+                severity_order[anomalies[i].severity] <= severity_order[anomalies[i + 1].severity]
+            )
 
     def test_deduplication_tracks_occurrences(self, temp_db):
         """Should deduplicate and track occurrence count."""

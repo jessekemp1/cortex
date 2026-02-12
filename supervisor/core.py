@@ -17,7 +17,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import psutil
-
 from intelligence.process_monitor.batch_executor import BatchExecutor
 from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 
@@ -150,7 +149,9 @@ class CortexSupervisor:
         scheduled = self.shell_queue._get_tasks_by_state(TaskState.SCHEDULED)
 
         # Filter scheduled tasks to those with met dependencies
-        completed_ids = set(t.task_id for t in self.shell_queue._get_tasks_by_state(TaskState.COMPLETED))
+        completed_ids = set(
+            t.task_id for t in self.shell_queue._get_tasks_by_state(TaskState.COMPLETED)
+        )
 
         for task in scheduled:
             if task not in ready and task.can_start(completed_ids):
@@ -162,7 +163,7 @@ class CortexSupervisor:
         """Check for recently completed tasks."""
         # This is mostly for logging/metrics
         # The executor handles completion internally
-        completed = self.shell_queue._get_tasks_by_state(TaskState.COMPLETED)
+        self.shell_queue._get_tasks_by_state(TaskState.COMPLETED)
         # Could track and return newly completed since last tick
         return []
 
@@ -266,7 +267,9 @@ class CortexSupervisor:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
 
-    def start(self, foreground: bool = True, interval_seconds: Optional[int] = None) -> Dict[str, Any]:
+    def start(
+        self, foreground: bool = True, interval_seconds: Optional[int] = None
+    ) -> Dict[str, Any]:
         """
         Start the supervisor daemon.
 

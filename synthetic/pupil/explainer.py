@@ -14,7 +14,7 @@ Usage:
     print(explanation.factors)       # [Factor(name="satisfaction", value=0.35, direction="risk", ...)]
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from .persona import Action, ActionType
@@ -53,7 +53,8 @@ _FACTOR_SPECS: Dict[str, Dict[str, dict]] = {
         "satisfaction": {
             "direction_fn": lambda v: "risk" if v < 0.5 else "protective",
             "weight": 0.30,
-            "label_fn": lambda v: f"satisfaction at {v:.2f}" + (" (below risk threshold 0.50)" if v < 0.5 else ""),
+            "label_fn": lambda v: f"satisfaction at {v:.2f}"
+            + (" (below risk threshold 0.50)" if v < 0.5 else ""),
         },
         "monthly_churn_prob": {
             "direction_fn": lambda v: "risk" if v > 0.02 else "protective",
@@ -63,17 +64,20 @@ _FACTOR_SPECS: Dict[str, Dict[str, dict]] = {
         "tenure_years": {
             "direction_fn": lambda v: "protective" if v > 3.0 else "risk",
             "weight": 0.15,
-            "label_fn": lambda v: f"tenure {v:.1f} years" + (" (short tenure increases risk)" if v < 3.0 else ""),
+            "label_fn": lambda v: f"tenure {v:.1f} years"
+            + (" (short tenure increases risk)" if v < 3.0 else ""),
         },
         "num_products": {
             "direction_fn": lambda v: "protective" if v >= 2 else "risk",
             "weight": 0.10,
-            "label_fn": lambda v: f"{int(v)} products held" + (" (single product = less sticky)" if v < 2 else ""),
+            "label_fn": lambda v: f"{int(v)} products held"
+            + (" (single product = less sticky)" if v < 2 else ""),
         },
         "tenure_modifier": {
             "direction_fn": lambda v: "protective" if v < 0.7 else "risk",
             "weight": 0.10,
-            "label_fn": lambda v: f"tenure modifier {v:.2f}" + (" (loyalty reducing churn)" if v < 0.7 else ""),
+            "label_fn": lambda v: f"tenure modifier {v:.2f}"
+            + (" (loyalty reducing churn)" if v < 0.7 else ""),
         },
         "product_modifier": {
             "direction_fn": lambda v: "protective" if v < 0.7 else "risk",
@@ -85,7 +89,8 @@ _FACTOR_SPECS: Dict[str, Dict[str, dict]] = {
         "credit_score": {
             "direction_fn": lambda v: "risk" if v < 650 else "protective",
             "weight": 0.50,
-            "label_fn": lambda v: f"credit score {int(v)}" + (" (below prime threshold)" if v < 650 else ""),
+            "label_fn": lambda v: f"credit score {int(v)}"
+            + (" (below prime threshold)" if v < 650 else ""),
         },
         "miss_threshold": {
             "direction_fn": lambda _v: "risk",
@@ -102,7 +107,9 @@ _FACTOR_SPECS: Dict[str, Dict[str, dict]] = {
         "credit_score": {
             "direction_fn": lambda v: "risk" if v < 550 else "protective",
             "weight": 0.60,
-            "label_fn": lambda v: f"credit score {int(v)} (severe distress)" if v < 450 else f"credit score {int(v)}",
+            "label_fn": lambda v: (
+                f"credit score {int(v)} (severe distress)" if v < 450 else f"credit score {int(v)}"
+            ),
         },
         "default_threshold": {
             "direction_fn": lambda _v: "risk",
@@ -292,7 +299,7 @@ class DecisionExplainer:
         parts.append(f"primarily due to {primary.label}")
 
         if len(risk_factors) > 1:
-            secondary_risks = [f.label for f in risk_factors[: 2] if f.name != primary.name]
+            secondary_risks = [f.label for f in risk_factors[:2] if f.name != primary.name]
             if secondary_risks:
                 parts.append(f"compounded by {secondary_risks[0]}")
 

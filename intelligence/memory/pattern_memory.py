@@ -19,7 +19,6 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from intelligence.memory.pattern_indexer import (
-    Pattern,
     PatternIndexer,
     PatternSearcher,
 )
@@ -101,7 +100,7 @@ class PatternMemory:
             try:
                 embeddings_client = EmbeddingsClient()
                 self.hybrid_retriever = HybridRetriever(self.patterns, embeddings_client)
-            except Exception as e:
+            except Exception:
                 # Fall back to keyword-only search
                 self.use_hybrid_retrieval = False
                 self.hybrid_retriever = None
@@ -168,9 +167,7 @@ class PatternMemory:
 
         # Use hybrid retrieval if available, otherwise fall back to keyword search
         if self.use_hybrid_retrieval and self.hybrid_retriever:
-            results = self.hybrid_retriever.search(
-                context, limit=limit, alpha=self.hybrid_alpha
-            )
+            results = self.hybrid_retriever.search(context, limit=limit, alpha=self.hybrid_alpha)
         else:
             results = self.searcher.search(context, limit=limit)
 
@@ -369,7 +366,7 @@ def main():
 
         print(f"Task: '{task}'")
         print(f"Current project: {current_project}")
-        print(f"\nSuggestions from pattern history:\n")
+        print("\nSuggestions from pattern history:\n")
 
         if not suggestions:
             print("No similar patterns found. Try reindexing first.")

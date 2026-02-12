@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional
 
 from .simulation import SimulationResult
 
-
 # ============================================================================
 # Report Dataclasses
 # ============================================================================
@@ -29,6 +28,7 @@ from .simulation import SimulationResult
 @dataclass
 class CoherenceCheck:
     """Result of a single temporal coherence check."""
+
     check_name: str
     passed: bool
     score: float  # 0.0-1.0
@@ -50,6 +50,7 @@ class CoherenceCheck:
 @dataclass
 class CoherenceReport:
     """Complete temporal coherence validation report."""
+
     overall_score: float
     passed: bool
     checks: List[CoherenceCheck] = field(default_factory=list)
@@ -135,12 +136,14 @@ class TemporalCoherenceValidator:
                 passed=False,
                 n_agents=result.n_agents,
                 n_steps=result.n_steps,
-                checks=[CoherenceCheck(
-                    check_name="empty_result",
-                    passed=False,
-                    score=0.0,
-                    detail="Simulation result is empty (no steps or snapshots)",
-                )],
+                checks=[
+                    CoherenceCheck(
+                        check_name="empty_result",
+                        passed=False,
+                        score=0.0,
+                        detail="Simulation result is empty (no steps or snapshots)",
+                    )
+                ],
             )
 
         checks = []
@@ -227,7 +230,9 @@ class TemporalCoherenceValidator:
 
         # Score: maps MIN_AUTOCORRELATION -> 0.5, 1.0 -> 1.0
         if avg_ac >= self.MIN_AUTOCORRELATION:
-            score = 0.5 + 0.5 * (avg_ac - self.MIN_AUTOCORRELATION) / (1.0 - self.MIN_AUTOCORRELATION)
+            score = 0.5 + 0.5 * (avg_ac - self.MIN_AUTOCORRELATION) / (
+                1.0 - self.MIN_AUTOCORRELATION
+            )
         elif avg_ac >= 0.0:
             score = avg_ac / self.MIN_AUTOCORRELATION * 0.5
         else:
@@ -265,9 +270,7 @@ class TemporalCoherenceValidator:
             check_name="churn_monotonicity",
             passed=violations == 0,
             score=score,
-            detail=(
-                f"{violations} monotonicity violations in {total_transitions} transitions"
-            ),
+            detail=(f"{violations} monotonicity violations in {total_transitions} transitions"),
             expected="Churn count never decreases",
             actual={"violations": violations, "churn_curve": churned_counts},
         )
@@ -397,7 +400,8 @@ class TemporalCoherenceValidator:
             passed=passed,
             score=score,
             detail=(
-                f"At-risk autocorrelation: {ac:.3f}" if ac is not None
+                f"At-risk autocorrelation: {ac:.3f}"
+                if ac is not None
                 else "Insufficient data for at-risk temporal analysis"
             ),
             expected="At-risk count temporally coherent (not random)",
@@ -426,12 +430,8 @@ class TemporalCoherenceValidator:
         total_transitions = 0
 
         for i in range(1, len(result.steps)):
-            prev_states = {
-                s["agent_id"]: s["state"] for s in result.steps[i - 1].snapshots
-            }
-            curr_states = {
-                s["agent_id"]: s["state"] for s in result.steps[i].snapshots
-            }
+            prev_states = {s["agent_id"]: s["state"] for s in result.steps[i - 1].snapshots}
+            curr_states = {s["agent_id"]: s["state"] for s in result.steps[i].snapshots}
 
             for agent_id, curr_state in curr_states.items():
                 prev_state = prev_states.get(agent_id)
@@ -444,12 +444,14 @@ class TemporalCoherenceValidator:
                 transition = (prev_state, curr_state)
 
                 if transition not in self.VALID_TRANSITIONS:
-                    invalid_transitions.append({
-                        "agent_id": agent_id,
-                        "step": i,
-                        "from": prev_state,
-                        "to": curr_state,
-                    })
+                    invalid_transitions.append(
+                        {
+                            "agent_id": agent_id,
+                            "step": i,
+                            "from": prev_state,
+                            "to": curr_state,
+                        }
+                    )
 
         if total_transitions == 0:
             return CoherenceCheck(
@@ -467,15 +469,10 @@ class TemporalCoherenceValidator:
             passed=len(invalid_transitions) == 0,
             score=score,
             detail=(
-                f"{len(invalid_transitions)}/{total_transitions} "
-                f"invalid transitions detected"
+                f"{len(invalid_transitions)}/{total_transitions} " f"invalid transitions detected"
             ),
             expected="Only valid lifecycle transitions",
-            actual=(
-                invalid_transitions[:10]
-                if invalid_transitions
-                else "All transitions valid"
-            ),
+            actual=(invalid_transitions[:10] if invalid_transitions else "All transitions valid"),
         )
 
     # ------------------------------------------------------------------
@@ -499,9 +496,8 @@ class TemporalCoherenceValidator:
         if variance < 1e-12:
             return None  # Zero variance — undefined
 
-        covariance = sum(
-            (series[i] - mean) * (series[i + 1] - mean)
-            for i in range(n - 1)
-        ) / (n - 1)
+        covariance = sum((series[i] - mean) * (series[i + 1] - mean) for i in range(n - 1)) / (
+            n - 1
+        )
 
         return covariance / variance

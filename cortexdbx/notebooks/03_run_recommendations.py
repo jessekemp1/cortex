@@ -34,7 +34,12 @@ recommendations_df = edges_df.select(
     F.col("context_id"),
     F.col("strategy_id"),
     F.col("confidence"),
-    F.concat(F.lit("success_count="), F.col("success_count").cast("string"), F.lit(", failure_count="), F.col("failure_count").cast("string")).alias("evidence_summary"),
+    F.concat(
+        F.lit("success_count="),
+        F.col("success_count").cast("string"),
+        F.lit(", failure_count="),
+        F.col("failure_count").cast("string"),
+    ).alias("evidence_summary"),
     F.lit("dashboard").alias("surface"),
     F.current_timestamp().alias("created_at"),
 )
@@ -47,5 +52,9 @@ recommendations_df.write.mode("overwrite").saveAsTable(f"{CATALOG}.{SCHEMA}.reco
 # COMMAND ----------
 
 # Verify
-display(spark.sql(f"SELECT COUNT(*) as total_recommendations FROM {CATALOG}.{SCHEMA}.recommendations"))
-display(spark.sql(f"SELECT * FROM {CATALOG}.{SCHEMA}.recommendations ORDER BY confidence DESC LIMIT 10"))
+display(
+    spark.sql(f"SELECT COUNT(*) as total_recommendations FROM {CATALOG}.{SCHEMA}.recommendations")
+)
+display(
+    spark.sql(f"SELECT * FROM {CATALOG}.{SCHEMA}.recommendations ORDER BY confidence DESC LIMIT 10")
+)

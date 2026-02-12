@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from cortex.plugins.status.plugin import StatusPlugin
 
 
@@ -32,13 +31,20 @@ class TestStatusPlugin:
             repo_path = Path(tmpdir)
             # Initialize git repo
             import subprocess
+
             subprocess.run(["git", "init"], cwd=repo_path, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo_path, capture_output=True)
-            subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"], cwd=repo_path, capture_output=True
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"], cwd=repo_path, capture_output=True
+            )
             # Create initial commit
             (repo_path / "test.txt").write_text("initial")
             subprocess.run(["git", "add", "."], cwd=repo_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "Initial commit"], cwd=repo_path, capture_output=True
+            )
             yield repo_path
 
     def test_plugin_metadata(self, plugin):
@@ -80,11 +86,7 @@ class TestStatusPlugin:
     def test_quick_status(self, mock_run, plugin, capsys):
         """Test --quick option."""
         # Mock git status
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout="main\n",
-            stderr=""
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="main\n", stderr="")
 
         result = plugin.execute(["--quick"], current_dir=Path.cwd())
         assert result == 0
@@ -114,39 +116,23 @@ class TestStatusPlugin:
     def test_is_port_in_use(self, mock_run, plugin):
         """Test port checking."""
         # Port in use
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout="12345\n",
-            stderr=""
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="12345\n", stderr="")
         assert plugin._is_port_in_use(8000) is True
 
         # Port not in use
-        mock_run.return_value = Mock(
-            returncode=1,
-            stdout="",
-            stderr=""
-        )
+        mock_run.return_value = Mock(returncode=1, stdout="", stderr="")
         assert plugin._is_port_in_use(9999) is False
 
     @patch("subprocess.run")
     def test_get_pid_for_port(self, mock_run, plugin):
         """Test getting PID for port."""
         # Port has PID
-        mock_run.return_value = Mock(
-            returncode=0,
-            stdout="12345\n",
-            stderr=""
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="12345\n", stderr="")
         pid = plugin._get_pid_for_port(8000)
         assert pid == 12345
 
         # Port not in use
-        mock_run.return_value = Mock(
-            returncode=1,
-            stdout="",
-            stderr=""
-        )
+        mock_run.return_value = Mock(returncode=1, stdout="", stderr="")
         pid = plugin._get_pid_for_port(9999)
         assert pid is None
 
@@ -186,7 +172,7 @@ class TestStatusPlugin:
         mock_run.return_value = Mock(
             returncode=0,
             stdout='[{"title": "Test", "confidence": 95, "risk": "safe", "files": []}]',
-            stderr=""
+            stderr="",
         )
 
         suggestions = plugin._get_intelligence_suggestions(temp_git_repo, verbose=False)
@@ -202,6 +188,7 @@ class TestStatusPlugin:
     @patch("subprocess.run")
     def test_full_status(self, mock_run, plugin, capsys):
         """Test full status execution."""
+
         # Mock git commands
         def mock_subprocess(*args, **kwargs):
             cmd = args[0]

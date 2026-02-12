@@ -9,7 +9,6 @@ import tempfile
 from pathlib import Path
 
 
-
 class TestBasicQueueOperations:
     """Tests for basic BatchTaskQueue operations."""
 

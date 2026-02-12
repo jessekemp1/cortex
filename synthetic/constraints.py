@@ -36,6 +36,7 @@ from synthetic.schemas import CustomerProfile, Transaction
 @dataclass
 class ConstraintResult:
     """Result from a single statistical test."""
+
     test_name: str
     dimension: str
     passed: bool
@@ -59,6 +60,7 @@ class ConstraintResult:
 @dataclass
 class ConstraintReport:
     """Aggregate report from all constraint validations on a batch."""
+
     results: List[ConstraintResult] = field(default_factory=list)
     deviation_vector: Dict[str, float] = field(default_factory=dict)
     needs_hard_reset: bool = False
@@ -149,9 +151,7 @@ class ConstraintEngine:
             report.results.append(chi_result)
 
             # JSD
-            jsd_result = self._jsd_test(
-                observed_values, constraint.distribution, dim_name
-            )
+            jsd_result = self._jsd_test(observed_values, constraint.distribution, dim_name)
             report.results.append(jsd_result)
 
             # Record deviation
@@ -189,13 +189,16 @@ class ConstraintEngine:
         # Transaction type distribution
         txn_types = [t.transaction_type for t in transactions]
         expected_txn_dist = {
-            "pos_purchase": 0.35, "e_transfer": 0.20, "bill_payment": 0.15,
-            "online_purchase": 0.12, "transfer": 0.08, "atm": 0.05,
-            "deposit": 0.03, "withdrawal": 0.02,
+            "pos_purchase": 0.35,
+            "e_transfer": 0.20,
+            "bill_payment": 0.15,
+            "online_purchase": 0.12,
+            "transfer": 0.08,
+            "atm": 0.05,
+            "deposit": 0.03,
+            "withdrawal": 0.02,
         }
-        chi_result = self._chi_squared_test(
-            txn_types, expected_txn_dist, "transaction_type", alpha
-        )
+        chi_result = self._chi_squared_test(txn_types, expected_txn_dist, "transaction_type", alpha)
         report.results.append(chi_result)
         report.deviation_vector["transaction_type"] = chi_result.deviation
 
@@ -207,18 +210,18 @@ class ConstraintEngine:
             mean_log = np.mean(log_amounts)
             std_log = np.std(log_amounts)
             # KS test against fitted log-normal
-            ks_stat, p_val = stats.kstest(
-                log_amounts, "norm", args=(mean_log, std_log)
+            ks_stat, p_val = stats.kstest(log_amounts, "norm", args=(mean_log, std_log))
+            report.results.append(
+                ConstraintResult(
+                    test_name="ks_lognormal",
+                    dimension="amount",
+                    passed=p_val > alpha,
+                    statistic=ks_stat,
+                    p_value=p_val,
+                    deviation=ks_stat,
+                    detail=f"KS test on log-amounts: stat={ks_stat:.4f}, p={p_val:.4f}",
+                )
             )
-            report.results.append(ConstraintResult(
-                test_name="ks_lognormal",
-                dimension="amount",
-                passed=p_val > alpha,
-                statistic=ks_stat,
-                p_value=p_val,
-                deviation=ks_stat,
-                detail=f"KS test on log-amounts: stat={ks_stat:.4f}, p={p_val:.4f}",
-            ))
             report.deviation_vector["amount"] = ks_stat
 
         # Risk flag distribution (for flagged transactions)
@@ -259,8 +262,12 @@ class ConstraintEngine:
         n = len(observed_values)
         if n == 0:
             return ConstraintResult(
-                test_name="chi_squared", dimension=dimension,
-                passed=False, statistic=0.0, p_value=0.0, deviation=1.0,
+                test_name="chi_squared",
+                dimension=dimension,
+                passed=False,
+                statistic=0.0,
+                p_value=0.0,
+                deviation=1.0,
                 detail="Empty sample",
             )
 
@@ -278,8 +285,12 @@ class ConstraintEngine:
         obs_total = obs.sum()
         if obs_total == 0:
             return ConstraintResult(
-                test_name="chi_squared", dimension=dimension,
-                passed=False, statistic=0.0, p_value=0.0, deviation=1.0,
+                test_name="chi_squared",
+                dimension=dimension,
+                passed=False,
+                statistic=0.0,
+                p_value=0.0,
+                deviation=1.0,
                 detail="No observations in expected categories",
             )
 
@@ -291,8 +302,12 @@ class ConstraintEngine:
         mask = exp > 0
         if not mask.any():
             return ConstraintResult(
-                test_name="chi_squared", dimension=dimension,
-                passed=False, statistic=0.0, p_value=0.0, deviation=1.0,
+                test_name="chi_squared",
+                dimension=dimension,
+                passed=False,
+                statistic=0.0,
+                p_value=0.0,
+                deviation=1.0,
                 detail="No expected values",
             )
 
@@ -300,10 +315,7 @@ class ConstraintEngine:
 
         # Max category deviation (against original proportions)
         obs_dist = {cat: observed_counts.get(cat, 0) / n for cat in categories}
-        max_dev = max(
-            abs(obs_dist[cat] - expected_distribution[cat])
-            for cat in categories
-        )
+        max_dev = max(abs(obs_dist[cat] - expected_distribution[cat]) for cat in categories)
 
         return ConstraintResult(
             test_name="chi_squared",
@@ -333,8 +345,12 @@ class ConstraintEngine:
         n = len(observed_values)
         if n == 0:
             return ConstraintResult(
-                test_name="jsd", dimension=dimension,
-                passed=False, statistic=1.0, p_value=None, deviation=1.0,
+                test_name="jsd",
+                dimension=dimension,
+                passed=False,
+                statistic=1.0,
+                p_value=None,
+                deviation=1.0,
                 detail="Empty sample",
             )
 
@@ -399,8 +415,12 @@ class ConstraintEngine:
         """
         if len(observed) < 5:
             return ConstraintResult(
-                test_name="ks", dimension=dimension,
-                passed=False, statistic=0.0, p_value=0.0, deviation=1.0,
+                test_name="ks",
+                dimension=dimension,
+                passed=False,
+                statistic=0.0,
+                p_value=0.0,
+                deviation=1.0,
                 detail="Too few samples for KS test (need >= 5)",
             )
 
@@ -524,9 +544,7 @@ class ConstraintEngine:
 
         return dims
 
-    def compute_deviation_vector(
-        self, profiles: List[CustomerProfile]
-    ) -> Dict[str, float]:
+    def compute_deviation_vector(self, profiles: List[CustomerProfile]) -> Dict[str, float]:
         """
         Compute per-dimension deviation from KB benchmarks.
 
@@ -582,9 +600,7 @@ class ConstraintEngine:
 
         return deviations
 
-    def check_collapse_risk(
-        self, deviation_vector: Dict[str, float]
-    ) -> Tuple[bool, List[str]]:
+    def check_collapse_risk(self, deviation_vector: Dict[str, float]) -> Tuple[bool, List[str]]:
         """
         Check if any dimension has drifted beyond the hard reset threshold.
 

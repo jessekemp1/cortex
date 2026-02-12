@@ -5,10 +5,10 @@ Tests input validation, output validation, injection detection, and guardrails.
 """
 
 from cortex.intelligence.safety import (
+    GuardrailTemplate,
+    InjectionDetector,
     InputValidator,
     OutputValidator,
-    InjectionDetector,
-    GuardrailTemplate,
     apply_guardrails,
 )
 from cortex.intelligence.safety.injection_detector import InjectionSeverity
@@ -219,9 +219,7 @@ class TestOutputValidator:
         validator = OutputValidator()
 
         # Response with hallucination marker
-        response = {
-            "content": "I'm not certain about this, but here's my guess..."
-        }
+        response = {"content": "I'm not certain about this, but here's my guess..."}
         result = validator.validate(response)
         # Should pass but with warning
         assert result.passed
@@ -262,8 +260,7 @@ class TestGuardrails:
     def test_context_query_wrapping(self):
         """Test context-specific guardrails."""
         wrapped = GuardrailTemplate.wrap_context_query(
-            "find patterns",
-            context_description="error handling patterns"
+            "find patterns", context_description="error handling patterns"
         )
 
         assert "[CONTEXT RETRIEVAL]" in wrapped
@@ -273,8 +270,7 @@ class TestGuardrails:
     def test_recommendation_query_wrapping(self):
         """Test recommendation-specific guardrails."""
         wrapped = GuardrailTemplate.wrap_recommendation_query(
-            "suggest refactoring",
-            risk_level="high"
+            "suggest refactoring", risk_level="high"
         )
 
         assert "[RECOMMENDATION GENERATION]" in wrapped
@@ -332,7 +328,7 @@ class TestIntegration:
         mock_response = {
             "patterns": ["try-catch blocks", "error propagation"],
             "confidence": 0.85,
-            "content": "Found 2 patterns for async error handling"
+            "content": "Found 2 patterns for async error handling",
         }
 
         output_result = output_validator.validate(mock_response)

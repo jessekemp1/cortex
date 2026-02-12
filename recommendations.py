@@ -330,7 +330,7 @@ if __name__ == "__main__":
 
     if command == "next":
         action = engine.get_recommended_next_action()
-        print(f"\n🎯 Recommended Next Action")
+        print("\n🎯 Recommended Next Action")
         print(f"   Priority: {action['priority']}")
         print(f"   Action: {action['action']}")
         if action.get("project"):

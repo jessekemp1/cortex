@@ -3,6 +3,7 @@
 
 import subprocess
 from typing import List
+
 from cortex.plugins.base import BasePlugin
 
 
@@ -20,10 +21,7 @@ class TestPlugin(BasePlugin):
 
         # Simple implementation: run pytest
         try:
-            result = subprocess.run(
-                ["python", "-m", "pytest"] + args,
-                timeout=300
-            )
+            result = subprocess.run(["python", "-m", "pytest"] + args, timeout=300)
             return result.returncode
         except Exception as e:
             print(f"❌ Error: {e}")

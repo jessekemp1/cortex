@@ -1,6 +1,5 @@
 """Tests for agent orchestrator."""
 
-import pytest
 from cortexdbx.agents.orchestrator import AgentOrchestrator
 from cortexdbx.synthetic.generator import SyntheticDataGenerator
 
@@ -8,8 +7,18 @@ from cortexdbx.synthetic.generator import SyntheticDataGenerator
 def test_orchestrator_process_outcomes():
     orch = AgentOrchestrator(max_workers=2)
     outcomes = [
-        {"context_id": "c1", "strategy_id": "s1", "result": "SUCCESS", "domain": "fraud_investigation"},
-        {"context_id": "c1", "strategy_id": "s1", "result": "FAILURE", "domain": "fraud_investigation"},
+        {
+            "context_id": "c1",
+            "strategy_id": "s1",
+            "result": "SUCCESS",
+            "domain": "fraud_investigation",
+        },
+        {
+            "context_id": "c1",
+            "strategy_id": "s1",
+            "result": "FAILURE",
+            "domain": "fraud_investigation",
+        },
         {"context_id": "c2", "strategy_id": "s2", "result": "SUCCESS", "domain": "clinical_trial"},
     ]
     result = orch.process_outcomes(outcomes)

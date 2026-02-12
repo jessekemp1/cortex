@@ -13,9 +13,9 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from .models import ProgressEntry, WorkItem, WorkStatus
+from .models import WorkStatus
 from .storage import WorkAbsorberStorage
 
 logger = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ class PlanProgressSync:
                     plan = json.load(f)
 
                 updated = False
-                project = plan.get("project", "unknown")
+                plan.get("project", "unknown")
 
                 for step in plan.get("steps", []):
                     step_id = step.get("id", step.get("title"))
@@ -250,7 +250,7 @@ class PlanProgressSync:
                 return match.group(0)  # Already checked
 
             # Try to match with completed work
-            text_lower = text.lower()
+            text.lower()
 
             for item in correlated_items:
                 # Check if work item matches this checkbox

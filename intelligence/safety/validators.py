@@ -169,10 +169,7 @@ class InputValidator:
         query_lower = query.lower()
 
         # Look for domain keywords
-        domain_matches = [
-            domain for domain in self.allowed_domains
-            if domain.lower() in query_lower
-        ]
+        [domain for domain in self.allowed_domains if domain.lower() in query_lower]
 
         # Suspicious out-of-scope keywords
         out_of_scope_keywords = [
@@ -188,8 +185,7 @@ class InputValidator:
         ]
 
         out_of_scope_matches = [
-            keyword for keyword in out_of_scope_keywords
-            if keyword.lower() in query_lower
+            keyword for keyword in out_of_scope_keywords if keyword.lower() in query_lower
         ]
 
         if out_of_scope_matches:
@@ -209,7 +205,9 @@ class InputValidator:
     def _check_characters(self, query: str) -> ValidationCheck:
         """Check for suspicious character patterns."""
         # Check for excessive special characters (possible encoding attack)
-        special_char_ratio = sum(1 for c in query if not c.isalnum() and not c.isspace()) / max(len(query), 1)
+        special_char_ratio = sum(1 for c in query if not c.isalnum() and not c.isspace()) / max(
+            len(query), 1
+        )
 
         if special_char_ratio > 0.3:
             return ValidationCheck(
@@ -353,10 +351,7 @@ class OutputValidator:
         ]
 
         text_lower = text.lower()
-        found_markers = [
-            marker for marker in hallucination_markers
-            if marker.lower() in text_lower
-        ]
+        found_markers = [marker for marker in hallucination_markers if marker.lower() in text_lower]
 
         if found_markers:
             return ValidationCheck(

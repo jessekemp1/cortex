@@ -318,8 +318,7 @@ class LearningSystem:
                 outcome_mean = statistics.mean(outcome_vals)
 
                 numerator = sum(
-                    (ai - ai_mean) * (out - outcome_mean)
-                    for ai, out in zip(ai_vals, outcome_vals)
+                    (ai - ai_mean) * (out - outcome_mean) for ai, out in zip(ai_vals, outcome_vals)
                 )
                 ai_var = sum((ai - ai_mean) ** 2 for ai in ai_vals)
                 outcome_var = sum((out - outcome_mean) ** 2 for out in outcome_vals)
@@ -340,8 +339,7 @@ class LearningSystem:
             )
         else:
             insights.append(
-                f"Weak correlation ({correlation:.2f}): "
-                "AI scores may need recalibration"
+                f"Weak correlation ({correlation:.2f}): " "AI scores may need recalibration"
             )
 
         # Add bucket-specific insights

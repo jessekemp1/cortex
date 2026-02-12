@@ -10,7 +10,7 @@ Each template includes:
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -59,7 +59,6 @@ Provide:
         priority="normal",
         deadline_hours=24,
     ),
-
     "security-review": BatchTemplate(
         name="security-review",
         description="Security-focused code review",
@@ -85,7 +84,6 @@ Rate each finding: CRITICAL | HIGH | MEDIUM | LOW""",
         priority="high",
         deadline_hours=12,
     ),
-
     # === DOCUMENTATION TEMPLATES ===
     "api-docs": BatchTemplate(
         name="api-docs",
@@ -112,7 +110,6 @@ Format as markdown.""",
         priority="low",
         deadline_hours=48,
     ),
-
     "module-docs": BatchTemplate(
         name="module-docs",
         description="Generate module/class documentation",
@@ -136,7 +133,6 @@ Format as markdown suitable for ReadTheDocs.""",
         priority="low",
         deadline_hours=48,
     ),
-
     # === RESEARCH TEMPLATES ===
     "tech-research": BatchTemplate(
         name="tech-research",
@@ -162,7 +158,6 @@ Provide:
         priority="normal",
         deadline_hours=24,
     ),
-
     "architecture-review": BatchTemplate(
         name="architecture-review",
         description="Architecture analysis and recommendations",
@@ -190,7 +185,6 @@ Evaluate:
         priority="normal",
         deadline_hours=24,
     ),
-
     # === ANALYSIS TEMPLATES ===
     "test-coverage": BatchTemplate(
         name="test-coverage",
@@ -219,7 +213,6 @@ Format as actionable checklist.""",
         priority="normal",
         deadline_hours=24,
     ),
-
     "refactoring": BatchTemplate(
         name="refactoring",
         description="Identify refactoring opportunities",
@@ -249,7 +242,6 @@ For each finding, provide:
         priority="low",
         deadline_hours=48,
     ),
-
     "performance": BatchTemplate(
         name="performance",
         description="Performance analysis and optimization",
@@ -278,7 +270,6 @@ For each finding:
         priority="normal",
         deadline_hours=24,
     ),
-
     # === SECURITY TEMPLATES ===
     "dependency-audit": BatchTemplate(
         name="dependency-audit",
@@ -308,7 +299,6 @@ Provide severity ratings and update recommendations.""",
         priority="high",
         deadline_hours=12,
     ),
-
     # === PLANNING TEMPLATES ===
     "implementation-plan": BatchTemplate(
         name="implementation-plan",

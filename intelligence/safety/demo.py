@@ -7,9 +7,9 @@ Run: python -m cortex.intelligence.safety.demo
 """
 
 from cortex.intelligence.safety import (
+    InjectionDetector,
     InputValidator,
     OutputValidator,
-    InjectionDetector,
     apply_guardrails,
 )
 
@@ -88,16 +88,10 @@ def demo_output_validation():
     test_cases = [
         (
             "Valid response",
-            {"content": "Analysis complete", "confidence": 0.85, "patterns": ["p1", "p2"]}
+            {"content": "Analysis complete", "confidence": 0.85, "patterns": ["p1", "p2"]},
         ),
-        (
-            "Low confidence",
-            {"content": "Not sure...", "confidence": 0.2}
-        ),
-        (
-            "Hallucination marker",
-            {"content": "I'm not certain about this, but here's my guess..."}
-        ),
+        ("Low confidence", {"content": "Not sure...", "confidence": 0.2}),
+        ("Hallucination marker", {"content": "I'm not certain about this, but here's my guess..."}),
     ]
 
     for label, response in test_cases:
@@ -129,9 +123,7 @@ def demo_guardrails():
 
     # Context-specific guardrails
     guarded_context = apply_guardrails(
-        query,
-        query_type="context",
-        context_description="error handling patterns"
+        query, query_type="context", context_description="error handling patterns"
     )
     print("[Context Query]")
     print(f"Original: {query}")
@@ -139,11 +131,7 @@ def demo_guardrails():
     print(f"  {guarded_context[:200]}...\n")
 
     # Recommendation-specific guardrails
-    guarded_rec = apply_guardrails(
-        query,
-        query_type="recommendation",
-        risk_level="high"
-    )
+    guarded_rec = apply_guardrails(query, query_type="recommendation", risk_level="high")
     print("[Recommendation Query]")
     print(f"Original: {query}")
     print("Guarded preview (first 200 chars):")
@@ -211,9 +199,9 @@ def main():
     demo_guardrails()
     demo_full_pipeline()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("  Demo complete! Check ~/.cortex/security.log for injection logs.")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

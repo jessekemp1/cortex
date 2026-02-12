@@ -4,10 +4,7 @@ Cortex Data Agent CLI - Project health analysis interface
 Provides beautiful terminal output for project health metrics
 """
 
-import json
 import sys
-from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from .analyzers.project_analyzer import ProjectAnalyzer
@@ -150,7 +147,7 @@ def display_project_detail(project_name: str, days: int = 7):
     print(
         f"{Colors.BOLD}Health Score: {score_color}{health['total_score']}/100{Colors.END} {assessment_emoji} {health['assessment'].upper()}"
     )
-    print(f"\nScore Breakdown:")
+    print("\nScore Breakdown:")
     print(f"  Activity:      {health['breakdown']['activity']}/40")
     print(f"  Trend:         {health['breakdown']['trend']}/25")
     print(f"  Cleanliness:   {health['breakdown']['cleanliness']}/25")
@@ -166,7 +163,7 @@ def display_project_detail(project_name: str, days: int = 7):
     print(f"  Contributors: {len(commits['authors'])}")
 
     if commits["authors"]:
-        print(f"  Top Contributors:")
+        print("  Top Contributors:")
         for author, count in sorted(commits["authors"].items(), key=lambda x: x[1], reverse=True)[
             :3
         ]:

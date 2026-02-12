@@ -23,18 +23,20 @@ from .batch_queue import BatchTask, BatchTaskQueue, TaskState
 
 # Task types that should be dispatched to the Anthropic API, not subprocess.
 # These tasks have prompts in the 'command' field, not shell commands.
-AI_TASK_TYPES = frozenset({
-    "research",
-    "analysis",
-    "planning",
-    "investigation",
-    "review",
-    "security",
-    "documentation",
-    "pattern",
-    "recommendation",
-    "bandwidth_experiment",
-})
+AI_TASK_TYPES = frozenset(
+    {
+        "research",
+        "analysis",
+        "planning",
+        "investigation",
+        "review",
+        "security",
+        "documentation",
+        "pattern",
+        "recommendation",
+        "bandwidth_experiment",
+    }
+)
 
 
 def _load_api_key() -> Optional[str]:
@@ -349,9 +351,7 @@ class BatchExecutor:
         if not task.command or (isinstance(task.command, str) and not task.command.strip()):
             self.logger.error(f"Task {task.task_id}: Empty command")
             self.queue.update_task_state(
-                task.task_id,
-                TaskState.FAILED,
-                error_message="Empty command not allowed"
+                task.task_id, TaskState.FAILED, error_message="Empty command not allowed"
             )
             return False
 
@@ -367,9 +367,7 @@ class BatchExecutor:
         if timeout < 0 or timeout > 86400:  # Max 24 hours
             self.logger.error(f"Task {task.task_id}: Invalid timeout {timeout}s (must be 0-86400)")
             self.queue.update_task_state(
-                task.task_id,
-                TaskState.FAILED,
-                error_message=f"Invalid timeout {timeout}s"
+                task.task_id, TaskState.FAILED, error_message=f"Invalid timeout {timeout}s"
             )
             return False
 
@@ -381,15 +379,17 @@ class BatchExecutor:
                 self.queue.update_task_state(
                     task.task_id,
                     TaskState.FAILED,
-                    error_message=f"Working directory not found: {cwd}"
+                    error_message=f"Working directory not found: {cwd}",
                 )
                 return False
             if not cwd_path.is_dir():
-                self.logger.error(f"Task {task.task_id}: Working directory is not a directory: {cwd}")
+                self.logger.error(
+                    f"Task {task.task_id}: Working directory is not a directory: {cwd}"
+                )
                 self.queue.update_task_state(
                     task.task_id,
                     TaskState.FAILED,
-                    error_message=f"Working directory is not a directory: {cwd}"
+                    error_message=f"Working directory is not a directory: {cwd}",
                 )
                 return False
 
@@ -397,13 +397,16 @@ class BatchExecutor:
         if env is not None:
             # Validate env var names (alphanumeric + underscore only)
             import re
+
             for key in env.keys():
-                if not re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', key):
-                    self.logger.error(f"Task {task.task_id}: Invalid environment variable name: {key}")
+                if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", key):
+                    self.logger.error(
+                        f"Task {task.task_id}: Invalid environment variable name: {key}"
+                    )
                     self.queue.update_task_state(
                         task.task_id,
                         TaskState.FAILED,
-                        error_message=f"Invalid environment variable name: {key}"
+                        error_message=f"Invalid environment variable name: {key}",
                     )
                     return False
 
@@ -415,7 +418,10 @@ class BatchExecutor:
             # Execute command - SECURITY: Use shell=False to prevent command injection
             # Parse command string into list for safe execution
             import shlex
-            command_list = shlex.split(task.command) if isinstance(task.command, str) else task.command
+
+            command_list = (
+                shlex.split(task.command) if isinstance(task.command, str) else task.command
+            )
 
             result = subprocess.run(
                 command_list,
@@ -709,10 +715,12 @@ class BatchExecutor:
                 try:
                     import sys
                     from pathlib import Path
+
                     cortex_root = Path(__file__).parent.parent.parent
                     if str(cortex_root) not in sys.path:
                         sys.path.insert(0, str(cortex_root))
                     from session_cache import update_session_cache
+
                     update_session_cache()
                     self.logger.debug("Session cache updated")
                 except Exception as cache_error:

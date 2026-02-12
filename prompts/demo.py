@@ -92,7 +92,9 @@ def demo_ab_testing():
     variant2 = simple_ab_test("test", "user42", "v1", "v2")
     print(f"  First assignment:  {variant1}")
     print(f"  Second assignment: {variant2}")
-    print(f"  Consistent: {variant1 == variant2} ✅" if variant1 == variant2 else "  ❌ INCONSISTENT")
+    print(
+        f"  Consistent: {variant1 == variant2} ✅" if variant1 == variant2 else "  ❌ INCONSISTENT"
+    )
 
     # Weighted test
     print("\n\nRunning weighted test (80% v1, 20% v2)...")

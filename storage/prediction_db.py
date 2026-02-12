@@ -11,7 +11,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import structlog
 
@@ -55,8 +55,7 @@ class PredictionDB:
             cursor = conn.cursor()
 
             # Predictions table
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS predictions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     domain TEXT NOT NULL,           -- 'weather', 'trading', 'dev'
@@ -68,12 +67,10 @@ class PredictionDB:
                     outcome_quality REAL,           -- Calculated: how good was prediction
                     metadata TEXT                   -- JSON for additional context
                 )
-            """
-            )
+            """)
 
             # Confidence state per domain
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS confidence_state (
                     domain TEXT PRIMARY KEY,
                     current_confidence REAL NOT NULL,
@@ -81,23 +78,18 @@ class PredictionDB:
                     prediction_count INTEGER DEFAULT 0,
                     last_updated DATETIME NOT NULL
                 )
-            """
-            )
+            """)
 
             # Indexes for performance
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_predictions_domain
                 ON predictions(domain, timestamp DESC)
-            """
-            )
+            """)
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_predictions_type
                 ON predictions(domain, prediction_type, timestamp DESC)
-            """
-            )
+            """)
 
             logger.debug("db_schema_initialized")
 

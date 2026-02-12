@@ -35,9 +35,9 @@ def demo_session():
 
     tm = TieredMemory(short_term_max=50, working_retention_days=7)
     print("✓ Initialized with:")
-    print(f"  - Short-term capacity: 50 items")
-    print(f"  - Working memory retention: 7 days")
-    print(f"  - Long-term memory: PatternMemory")
+    print("  - Short-term capacity: 50 items")
+    print("  - Working memory retention: 7 days")
+    print("  - Long-term memory: PatternMemory")
 
     print_section("2. Record Items (Session Start)")
 
@@ -161,12 +161,12 @@ def demo_session():
     print(f"  Retention: {stats['working']['retention_days']} days")
 
     print("\nLong-Term Memory:")
-    lt_stats = stats['long_term']
+    lt_stats = stats["long_term"]
     print(f"  Total patterns: {lt_stats.get('total_patterns', 0)}")
     print(f"  Projects: {lt_stats.get('projects', 0)}")
 
     print("\nPromotion Rules:")
-    pr = stats['promotion_rules']
+    pr = stats["promotion_rules"]
     print(f"  Working access threshold: {pr['working_access_threshold']}")
     print(f"  Long-term quality threshold: {pr['long_term_quality_threshold']}")
 

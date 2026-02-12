@@ -15,9 +15,7 @@ from typing import Dict, List, Optional
 
 from cortex.batch.batch_api_client import BatchAPIClient, BatchRequest
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -40,8 +38,7 @@ class BatchQueueManager:
         """
         self.client = BatchAPIClient()
         self.queue_file = (
-            queue_file
-            or Path.home() / ".cortex" / "batches" / "remediation_queue.json"
+            queue_file or Path.home() / ".cortex" / "batches" / "remediation_queue.json"
         )
         self.max_concurrent = max_concurrent_batches
         self.check_interval = check_interval
@@ -64,9 +61,7 @@ class BatchQueueManager:
     def get_active_batch_count(self) -> int:
         """Get count of currently in-progress batches"""
         batches = self.client.list_batches(limit=50)
-        active_count = sum(
-            1 for b in batches if b["status"] in ["in_progress", "validating"]
-        )
+        active_count = sum(1 for b in batches if b["status"] in ["in_progress", "validating"])
         return active_count
 
     def get_available_capacity(self) -> int:
@@ -131,9 +126,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
             requests = self.build_batch_requests(job)
 
             # Submit to API
-            batch_id = self.client.submit_batch(
-                requests=requests, description=job["description"]
-            )
+            batch_id = self.client.submit_batch(requests=requests, description=job["description"])
 
             logger.info(
                 f"✅ Job {job['id']} submitted as batch {batch_id} ({len(requests)} requests)"
@@ -176,9 +169,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
             return stats
 
         # Get queued jobs sorted by priority
-        queued_jobs = [
-            job for job in queue_data["priority_jobs"] if job["status"] == "queued"
-        ]
+        queued_jobs = [job for job in queue_data["priority_jobs"] if job["status"] == "queued"]
 
         # Sort by priority (CRITICAL > HIGH > MEDIUM)
         priority_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
@@ -198,15 +189,11 @@ Please provide a comprehensive implementation plan and any code changes needed."
                 }
 
                 incomplete_deps = [
-                    dep_id
-                    for dep_id, status in dep_statuses.items()
-                    if status != "completed"
+                    dep_id for dep_id, status in dep_statuses.items() if status != "completed"
                 ]
 
                 if incomplete_deps:
-                    logger.info(
-                        f"Job {job['id']} waiting on dependencies: {incomplete_deps}"
-                    )
+                    logger.info(f"Job {job['id']} waiting on dependencies: {incomplete_deps}")
                     continue
 
             # Submit the job
@@ -253,9 +240,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
                         job["completed_at"] = datetime.now().isoformat()
                         job["final_status"] = status
                         updated = True
-                        logger.info(
-                            f"✅ Job {job['id']} completed (batch {batch_id})"
-                        )
+                        logger.info(f"✅ Job {job['id']} completed (batch {batch_id})")
 
                         # Write result file for morning processor to find
                         result_data = {
@@ -272,9 +257,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
                         }
                         result_file = results_dir / f"{job['id']}_{batch_id}.json"
                         result_file.write_text(json.dumps(result_data, indent=2))
-                        logger.info(
-                            f"   Result written to: {result_file}"
-                        )
+                        logger.info(f"   Result written to: {result_file}")
 
                 except Exception as e:
                     logger.error(f"Error checking status for {batch_id}: {e}")
@@ -315,9 +298,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
                 if duration_hours:
                     elapsed = (time.time() - start_time) / 3600
                     if elapsed >= duration_hours:
-                        logger.info(
-                            f"Duration limit reached ({duration_hours}h), stopping"
-                        )
+                        logger.info(f"Duration limit reached ({duration_hours}h), stopping")
                         break
 
                 # Sleep until next check
@@ -361,9 +342,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Cortex Batch Queue Manager")
-    parser.add_argument(
-        "--queue-file", type=Path, help="Path to queue JSON file", default=None
-    )
+    parser.add_argument("--queue-file", type=Path, help="Path to queue JSON file", default=None)
     parser.add_argument(
         "--max-concurrent",
         type=int,
@@ -382,9 +361,7 @@ def main():
         default=None,
         help="Hours to run (default: run forever)",
     )
-    parser.add_argument(
-        "--status-only", action="store_true", help="Show status and exit"
-    )
+    parser.add_argument("--status-only", action="store_true", help="Show status and exit")
 
     args = parser.parse_args()
 

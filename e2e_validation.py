@@ -18,7 +18,6 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict
 
 from metrics_tracker import MetricsTracker
 
@@ -258,7 +257,7 @@ class E2EValidator:
 
         # Benchmark: Portfolio stats
         start = time.time()
-        stats = self.portfolio.get_stats()
+        self.portfolio.get_stats()
         benchmarks["portfolio_stats_ms"] = (time.time() - start) * 1000
         assert (
             benchmarks["portfolio_stats_ms"] < 100
@@ -266,7 +265,7 @@ class E2EValidator:
 
         # Benchmark: Session context (relaxed to 500ms - git operations variable)
         start = time.time()
-        context = self.session.get_context()
+        self.session.get_context()
         benchmarks["session_context_ms"] = (time.time() - start) * 1000
         assert (
             benchmarks["session_context_ms"] < 500
@@ -274,7 +273,7 @@ class E2EValidator:
 
         # Benchmark: Spec search
         start = time.time()
-        results = self.specs.search("test query", limit=5)
+        self.specs.search("test query", limit=5)
         benchmarks["spec_search_ms"] = (time.time() - start) * 1000
         assert (
             benchmarks["spec_search_ms"] < 1000
@@ -282,7 +281,7 @@ class E2EValidator:
 
         # Benchmark: Metrics dashboard
         start = time.time()
-        dashboard = self.metrics.get_dashboard()
+        self.metrics.get_dashboard()
         benchmarks["metrics_dashboard_ms"] = (time.time() - start) * 1000
         assert (
             benchmarks["metrics_dashboard_ms"] < 100

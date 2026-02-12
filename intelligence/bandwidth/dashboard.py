@@ -93,9 +93,7 @@ def _render_session_stats(project: Optional[str], days: int) -> list:
         lines.append(
             f"│  Corrections/Session: {stats['avg_correction_rate']:.1f}                           │"
         )
-        lines.append(
-            f"│  Files Modified: {stats['total_files_modified']:<39}│"
-        )
+        lines.append(f"│  Files Modified: {stats['total_files_modified']:<39}│")
 
     return lines
 
@@ -191,7 +189,11 @@ def _render_recent_handoffs(project: Optional[str], limit: int = 3) -> list:
     else:
         for handoff in handoffs[:limit]:
             time_str = handoff.timestamp.strftime("%m/%d %H:%M")
-            task_short = handoff.active_task[:30] + "..." if len(handoff.active_task) > 30 else handoff.active_task
+            task_short = (
+                handoff.active_task[:30] + "..."
+                if len(handoff.active_task) > 30
+                else handoff.active_task
+            )
             lines.append(f"│  [{time_str}] {task_short:<34}│")
 
     return lines
@@ -249,9 +251,7 @@ def get_dashboard_data(
         "period_days": days,
         "project_filter": project,
         "session_stats": meter.get_aggregate_stats(days=days, project=project),
-        "calibration": {
-            domain: cal.to_dict() for domain, cal in tracker.get_calibration().items()
-        },
+        "calibration": {domain: cal.to_dict() for domain, cal in tracker.get_calibration().items()},
         "trends": meter.compare_to_baseline(baseline_days=30, recent_days=days, project=project),
         "recent_handoffs": [h.to_dict() for h in storage.load_recent(limit=5, project=project)],
     }

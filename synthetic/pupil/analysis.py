@@ -25,6 +25,7 @@ from .simulation import SimulationResult
 @dataclass
 class MigrationFlow:
     """State transition flow between two lifecycle states."""
+
     from_state: str
     to_state: str
     count: int
@@ -42,6 +43,7 @@ class MigrationFlow:
 @dataclass
 class SegmentAnalysis:
     """Analysis results for a single customer segment."""
+
     segment: str
     n_agents: int
     churn_count: int
@@ -79,6 +81,7 @@ class SegmentAnalysis:
 @dataclass
 class AnalysisReport:
     """Complete analysis report from a simulation."""
+
     n_agents: int
     n_steps: int
     overall_churn_rate: float
@@ -192,20 +195,22 @@ class MarketAnalyzer:
             target_counts = Counter(a.target for a in switches if a.target)
             top_targets = target_counts.most_common(5)
 
-            analyses.append(SegmentAnalysis(
-                segment=segment,
-                n_agents=n,
-                churn_count=churned,
-                churn_rate=churned / n if n > 0 else 0.0,
-                avg_satisfaction=sum(active_sats) / len(active_sats) if active_sats else 0.0,
-                avg_products=sum(s["product_count"] for s in snapshots) / n if n > 0 else 0.0,
-                avg_deposits=sum(s["deposits"] for s in snapshots) / n if n > 0 else 0.0,
-                adoption_count=len(adoptions),
-                switch_count=len(switches),
-                at_risk_count=at_risk,
-                top_adopted_products=top_products,
-                top_switch_targets=top_targets,
-            ))
+            analyses.append(
+                SegmentAnalysis(
+                    segment=segment,
+                    n_agents=n,
+                    churn_count=churned,
+                    churn_rate=churned / n if n > 0 else 0.0,
+                    avg_satisfaction=sum(active_sats) / len(active_sats) if active_sats else 0.0,
+                    avg_products=sum(s["product_count"] for s in snapshots) / n if n > 0 else 0.0,
+                    avg_deposits=sum(s["deposits"] for s in snapshots) / n if n > 0 else 0.0,
+                    adoption_count=len(adoptions),
+                    switch_count=len(switches),
+                    at_risk_count=at_risk,
+                    top_adopted_products=top_products,
+                    top_switch_targets=top_targets,
+                )
+            )
 
         return analyses
 
@@ -227,12 +232,14 @@ class MarketAnalyzer:
 
         flows = []
         for (from_s, to_s), count in transitions.most_common():
-            flows.append(MigrationFlow(
-                from_state=from_s,
-                to_state=to_s,
-                count=count,
-                pct_of_total=count / result.n_agents if result.n_agents > 0 else 0.0,
-            ))
+            flows.append(
+                MigrationFlow(
+                    from_state=from_s,
+                    to_state=to_s,
+                    count=count,
+                    pct_of_total=count / result.n_agents if result.n_agents > 0 else 0.0,
+                )
+            )
 
         return flows
 
@@ -242,13 +249,15 @@ class MarketAnalyzer:
         cumulative = 0
         for step_result in result.steps:
             cumulative += step_result.churn_count
-            curve.append({
-                "step": step_result.step,
-                "date_label": step_result.date_label,
-                "monthly_churn": step_result.churn_count,
-                "cumulative_churn": cumulative,
-                "churn_rate": cumulative / result.n_agents if result.n_agents > 0 else 0.0,
-            })
+            curve.append(
+                {
+                    "step": step_result.step,
+                    "date_label": step_result.date_label,
+                    "monthly_churn": step_result.churn_count,
+                    "cumulative_churn": cumulative,
+                    "churn_rate": cumulative / result.n_agents if result.n_agents > 0 else 0.0,
+                }
+            )
         return curve
 
     def _build_deposit_trajectory(self, result: SimulationResult) -> List[Dict[str, Any]]:
@@ -256,36 +265,36 @@ class MarketAnalyzer:
         trajectory = []
         for step_result in result.steps:
             active_deposits = [
-                s["deposits"] for s in step_result.snapshots
-                if s["state"] != "churned"
+                s["deposits"] for s in step_result.snapshots if s["state"] != "churned"
             ]
             total = sum(active_deposits)
             avg = total / len(active_deposits) if active_deposits else 0.0
-            trajectory.append({
-                "step": step_result.step,
-                "date_label": step_result.date_label,
-                "total_deposits": round(total, 2),
-                "avg_deposits": round(avg, 2),
-                "n_active": len(active_deposits),
-            })
+            trajectory.append(
+                {
+                    "step": step_result.step,
+                    "date_label": step_result.date_label,
+                    "total_deposits": round(total, 2),
+                    "avg_deposits": round(avg, 2),
+                    "n_active": len(active_deposits),
+                }
+            )
         return trajectory
 
     def _build_risk_timeline(self, result: SimulationResult) -> List[Dict[str, Any]]:
         """Build at-risk population timeline."""
         timeline = []
         for step_result in result.steps:
-            non_churned = sum(
-                1 for s in step_result.snapshots if s["state"] != "churned"
+            non_churned = sum(1 for s in step_result.snapshots if s["state"] != "churned")
+            timeline.append(
+                {
+                    "step": step_result.step,
+                    "date_label": step_result.date_label,
+                    "at_risk_count": step_result.n_at_risk,
+                    "at_risk_pct": (
+                        step_result.n_at_risk / non_churned if non_churned > 0 else 0.0
+                    ),
+                }
             )
-            timeline.append({
-                "step": step_result.step,
-                "date_label": step_result.date_label,
-                "at_risk_count": step_result.n_at_risk,
-                "at_risk_pct": (
-                    step_result.n_at_risk / non_churned
-                    if non_churned > 0 else 0.0
-                ),
-            })
         return timeline
 
     def _summarize_actions(self, result: SimulationResult) -> Dict[str, int]:

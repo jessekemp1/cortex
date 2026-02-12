@@ -1,12 +1,10 @@
 """Standalone tests for PupilBridge."""
 
 import pytest
-
+from helpers import make_profiles
+from pupil.analysis import AnalysisReport
 from pupil.bridge import PupilBridge
 from pupil.simulation import SimulationResult
-from pupil.analysis import AnalysisReport
-
-from helpers import make_profiles
 
 
 @pytest.fixture

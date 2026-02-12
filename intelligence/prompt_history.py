@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 
-
 @dataclass
 class PromptPattern:
     """A pattern extracted from conversation history."""
@@ -152,7 +151,11 @@ class PromptHistoryAnalyzer:
         """
         if sessions_dir is None:
             sessions_dir = (
-                Path.home() / "Library" / "Application Support" / "Claude" / "local-agent-mode-sessions"
+                Path.home()
+                / "Library"
+                / "Application Support"
+                / "Claude"
+                / "local-agent-mode-sessions"
             )
 
         self.sessions_dir = sessions_dir
@@ -337,7 +340,11 @@ class PromptHistoryAnalyzer:
             top_tools = [tool for tool, _ in data["tools"].most_common(5)]
 
             # Average urgency
-            avg_urgency = sum(data["urgency_scores"]) / len(data["urgency_scores"]) if data["urgency_scores"] else 0
+            avg_urgency = (
+                sum(data["urgency_scores"]) / len(data["urgency_scores"])
+                if data["urgency_scores"]
+                else 0
+            )
 
             # Most recent activity
             recent = max(data["timestamps"]) if data["timestamps"] else datetime.now()
@@ -542,7 +549,7 @@ class PromptHistoryAnalyzer:
             words = first_sentence.split()
             if words:
                 # Take first 3-5 words as topic
-                topic = " ".join(words[:min(5, len(words))])
+                topic = " ".join(words[: min(5, len(words))])
                 topics.append(topic)
 
         return topics if topics else ["general"]

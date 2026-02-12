@@ -22,9 +22,9 @@ from typing import Any, Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from intelligence.prompt_history import (
+    PrioritySignal,
     PromptHistoryAnalyzer,
     PromptPattern,
-    PrioritySignal,
     WorkflowPattern,
 )
 
@@ -151,7 +151,10 @@ class PromptLearningLoop:
                     type="next_action",
                     content=f"Continue work on: {pattern.topic}",
                     confidence=min(pattern.frequency / 10, 0.9),  # Cap at 0.9
-                    based_on=[f"{pattern.frequency} sessions", f"Last active {recency_hours:.0f}h ago"],
+                    based_on=[
+                        f"{pattern.frequency} sessions",
+                        f"Last active {recency_hours:.0f}h ago",
+                    ],
                     projects=list(pattern.projects),
                     urgency=pattern.urgency_score,
                 )
@@ -206,10 +209,10 @@ class PromptLearningLoop:
         try:
             from learning_config import LearningConfig
 
-            config = LearningConfig()
+            LearningConfig()
         except ImportError:
             # If learning_config doesn't exist yet, we'll create basic adjustments
-            config = None
+            pass
 
         # Calculate category weights from priorities
         category_weights = {}
@@ -263,7 +266,9 @@ class PromptLearningLoop:
 
         # Find patterns for this project
         project_patterns = [
-            p for p in analysis["patterns"] if project.lower() in [proj.lower() for proj in p["projects"]]
+            p
+            for p in analysis["patterns"]
+            if project.lower() in [proj.lower() for proj in p["projects"]]
         ]
 
         if not project_patterns:
@@ -458,7 +463,9 @@ def main():
         if result.get("priorities"):
             print("\nTop priorities:")
             for priority in result["priorities"][:5]:
-                print(f"  - {priority['category']}: {priority['strength']:.0%} ({priority['trend']})")
+                print(
+                    f"  - {priority['category']}: {priority['strength']:.0%} ({priority['trend']})"
+                )
 
         if result.get("recommendations"):
             print("\nRecommendations:")
@@ -472,9 +479,6 @@ def main():
             return
 
         # Reconstruct patterns and priorities
-        patterns = []
-        priorities = []
-        workflows = []
 
         # This is simplified - in practice you'd reconstruct full objects
         print("\n=== CURRENT RECOMMENDATIONS ===")
@@ -493,7 +497,9 @@ def main():
         ):
             print(f"{category.capitalize()}:")
             print(f"  Success rate: {data['success_rate']:.0%}")
-            print(f"  Sessions: {data['total_sessions']} ({data['successes']} success, {data['failures']} failure)")
+            print(
+                f"  Sessions: {data['total_sessions']} ({data['successes']} success, {data['failures']} failure)"
+            )
             print()
 
         if correlations["insights"]:

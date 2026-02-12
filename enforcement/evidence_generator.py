@@ -9,7 +9,6 @@ Generates evidence file required by TestingEnforcer.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 
 def generate_evidence(feature_name: str) -> dict:
@@ -132,7 +131,8 @@ def generate_evidence(feature_name: str) -> dict:
         return None
 
     evidence["regression_results"] = (
-        f"Tested {len(tested_features)} existing features:\n" + "\n".join(f"  • {f}" for f in tested_features)
+        f"Tested {len(tested_features)} existing features:\n"
+        + "\n".join(f"  • {f}" for f in tested_features)
     )
 
     # All evidence collected
@@ -140,7 +140,7 @@ def generate_evidence(feature_name: str) -> dict:
     print("✅ TEST EVIDENCE COMPLETE")
     print("=" * 70)
     print("\nSummary:")
-    print(f"  • User command tested: ✅")
+    print("  • User command tested: ✅")
     print(f"  • Edge cases tested: ✅ ({len(edge_cases)} cases)")
     print(f"  • Regression passed: ✅ ({len(tested_features)} features)")
     print("\nThis evidence will be saved and verified by the enforcer.")

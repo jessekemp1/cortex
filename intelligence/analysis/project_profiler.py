@@ -16,7 +16,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 
 @dataclass
@@ -669,13 +669,13 @@ def main():
     print(f"  Source files: {profile.test_coverage.source_files}")
 
     # Quality tools
-    print(f"\nQuality Tools:")
+    print("\nQuality Tools:")
     print(f"  Linter: {'✓' if profile.has_linter else '✗'}")
     print(f"  Formatter: {'✓' if profile.has_formatter else '✗'}")
 
     # Warnings
     if profile.warnings:
-        print(f"\n⚠️  Warnings:")
+        print("\n⚠️  Warnings:")
         for warning in profile.warnings:
             print(f"  • {warning}")
 
@@ -686,7 +686,7 @@ def main():
             print(f"  • {cf.path} - {cf.reason}")
 
     # Context string (what would be injected)
-    print(f"\nContext String (for injection):")
+    print("\nContext String (for injection):")
     print(f"  {profile.to_context_str()}")
 
 

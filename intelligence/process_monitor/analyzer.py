@@ -2,8 +2,7 @@
 Process analyzer for pattern detection and anomaly analysis.
 """
 
-from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .collector import ProcessCollector
@@ -13,7 +12,6 @@ from .models import (
     AnomalyType,
     DevPatterns,
     ProcessCategory,
-    ProcessSnapshot,
     ProcessStatus,
     ResourceMetric,
     UtilizationInsights,
@@ -253,9 +251,7 @@ class ProcessAnalyzer:
         )
 
         # Identify active coding hours (when dev services are running)
-        dev_patterns = self.tracker.get_process_patterns(
-            ProcessCategory.DEV_SERVICE, hours=days * 24
-        )
+        self.tracker.get_process_patterns(ProcessCategory.DEV_SERVICE, hours=days * 24)
 
         # Active coding hours: hours with above-average dev service activity
         if hourly_stats:

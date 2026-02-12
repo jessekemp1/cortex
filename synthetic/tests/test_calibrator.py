@@ -31,7 +31,6 @@ from synthetic.pupil.segment_models import (
     SEGMENT_MODELS,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -83,16 +82,20 @@ class TestChurnCorrections:
 
     def test_churn_overshoot_decreases_rate(self, calibrator):
         """If observed > expected, base_annual_churn_rate should decrease."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,  # Overshooting by 0.10
-                    "in_range": False,
-                    "n_agents": 100,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,  # Overshooting by 0.10
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0001")
 
         assert "mass_market" in result
@@ -103,16 +106,20 @@ class TestChurnCorrections:
 
     def test_churn_undershoot_increases_rate(self, calibrator):
         """If observed < expected, base_annual_churn_rate should increase."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.20,
-                    "observed": 0.05,  # Undershooting by 0.15
-                    "in_range": False,
-                    "n_agents": 100,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.20,
+                            "observed": 0.05,  # Undershooting by 0.15
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0002")
 
         assert "mass_market" in result
@@ -123,19 +130,21 @@ class TestChurnCorrections:
 
     def test_churn_in_range_no_correction(self, calibrator):
         """Segments already in range get no correction."""
-        l8 = _make_l8_feedback([
-            _churn_check(
-                {
-                    "mass_market": {
-                        "expected": 0.10,
-                        "observed": 0.11,
-                        "in_range": True,
-                        "n_agents": 100,
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.11,
+                            "in_range": True,
+                            "n_agents": 100,
+                        },
                     },
-                },
-                passed=True,
-            ),
-        ])
+                    passed=True,
+                ),
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0003")
         # No changes since check passed
         assert result == {} or "mass_market" not in result
@@ -151,16 +160,20 @@ class TestMaxCorrectionBound:
 
     def test_large_churn_error_bounded(self, calibrator):
         """Even a huge error only produces MAX_CORRECTION delta."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.05,
-                    "observed": 0.95,  # Massive overshoot
-                    "in_range": False,
-                    "n_agents": 100,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.05,
+                            "observed": 0.95,  # Massive overshoot
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0004")
 
         baseline = SEGMENT_MODELS["mass_market"].base_annual_churn_rate
@@ -171,16 +184,20 @@ class TestMaxCorrectionBound:
     def test_custom_max_correction(self, tmp_calibration_dir):
         """Custom max_correction is honored."""
         cal = SegmentCalibrator(calibration_dir=tmp_calibration_dir, max_correction=0.01)
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.05,
-                    "observed": 0.50,
-                    "in_range": False,
-                    "n_agents": 100,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.05,
+                            "observed": 0.50,
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
         result = cal.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0005")
 
         baseline = SEGMENT_MODELS["mass_market"].base_annual_churn_rate
@@ -201,16 +218,20 @@ class TestParameterBounds:
         """Even with many cycles of undershoot, churn stays <= 0.40."""
         cal = SegmentCalibrator(calibration_dir=tmp_calibration_dir, max_correction=0.10)
         for i in range(20):
-            l8 = _make_l8_feedback([
-                _churn_check({
-                    "new_to_canada": {
-                        "expected": 0.99,
-                        "observed": 0.01,  # Extreme undershoot → increase
-                        "in_range": False,
-                        "n_agents": 100,
-                    },
-                }),
-            ])
+            l8 = _make_l8_feedback(
+                [
+                    _churn_check(
+                        {
+                            "new_to_canada": {
+                                "expected": 0.99,
+                                "observed": 0.01,  # Extreme undershoot → increase
+                                "in_range": False,
+                                "n_agents": 100,
+                            },
+                        }
+                    ),
+                ]
+            )
             cal.calibrate_from_feedback(l8_feedback=l8, cycle_id=f"C{i:04d}")
 
         result = cal._load_calibration()
@@ -221,16 +242,20 @@ class TestParameterBounds:
         """Even with many cycles of overshoot, churn stays >= 0.01."""
         cal = SegmentCalibrator(calibration_dir=tmp_calibration_dir, max_correction=0.10)
         for i in range(20):
-            l8 = _make_l8_feedback([
-                _churn_check({
-                    "ultra_hnw": {
-                        "expected": 0.01,
-                        "observed": 0.99,  # Extreme overshoot → decrease
-                        "in_range": False,
-                        "n_agents": 100,
-                    },
-                }),
-            ])
+            l8 = _make_l8_feedback(
+                [
+                    _churn_check(
+                        {
+                            "ultra_hnw": {
+                                "expected": 0.01,
+                                "observed": 0.99,  # Extreme overshoot → decrease
+                                "in_range": False,
+                                "n_agents": 100,
+                            },
+                        }
+                    ),
+                ]
+            )
             cal.calibrate_from_feedback(l8_feedback=l8, cycle_id=f"C{i:04d}")
 
         result = cal._load_calibration()
@@ -248,16 +273,20 @@ class TestPersistence:
 
     def test_calibrated_file_created(self, calibrator, tmp_calibration_dir):
         """calibrated_segments.json is written after calibration."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,
-                    "in_range": False,
-                    "n_agents": 50,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,
+                            "in_range": False,
+                            "n_agents": 50,
+                        },
+                    }
+                ),
+            ]
+        )
         calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0010")
 
         cal_file = tmp_calibration_dir / "calibrated_segments.json"
@@ -268,16 +297,20 @@ class TestPersistence:
 
     def test_audit_log_appended(self, calibrator, tmp_calibration_dir):
         """calibration_log.jsonl gets an entry per calibration."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,
-                    "in_range": False,
-                    "n_agents": 50,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,
+                            "in_range": False,
+                            "n_agents": 50,
+                        },
+                    }
+                ),
+            ]
+        )
         calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0011")
         calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0012")
 
@@ -290,16 +323,20 @@ class TestPersistence:
 
     def test_load_from_disk(self, calibrator, tmp_calibration_dir):
         """Second calibration accumulates on persisted first calibration."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,
-                    "in_range": False,
-                    "n_agents": 50,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,
+                            "in_range": False,
+                            "n_agents": 50,
+                        },
+                    }
+                ),
+            ]
+        )
         result1 = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0020")
         val1 = result1["mass_market"]["base_annual_churn_rate"]
 
@@ -344,7 +381,9 @@ class TestGetBehaviorIntegration:
         from synthetic.pupil import segment_models
 
         behavior = segment_models.get_behavior("mass_market", use_calibrated=False)
-        assert behavior.base_annual_churn_rate == SEGMENT_MODELS["mass_market"].base_annual_churn_rate
+        assert (
+            behavior.base_annual_churn_rate == SEGMENT_MODELS["mass_market"].base_annual_churn_rate
+        )
 
     def test_get_behavior_missing_file_returns_baseline(self):
         """get_behavior() returns baseline when no calibration file exists."""
@@ -356,7 +395,10 @@ class TestGetBehaviorIntegration:
             return_value={},
         ):
             behavior = segment_models.get_behavior("mass_market", use_calibrated=True)
-            assert behavior.base_annual_churn_rate == SEGMENT_MODELS["mass_market"].base_annual_churn_rate
+            assert (
+                behavior.base_annual_churn_rate
+                == SEGMENT_MODELS["mass_market"].base_annual_churn_rate
+            )
 
 
 # ============================================================================
@@ -371,16 +413,20 @@ class TestAccumulation:
         """Three cycles of the same error produce increasing correction."""
         # Use new_to_canada (baseline 0.22) with a small overshoot so
         # 3 cycles of -0.02 delta don't hit the 0.01 lower bound.
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "new_to_canada": {
-                    "expected": 0.15,
-                    "observed": 0.19,  # Small overshoot → decrease
-                    "in_range": False,
-                    "n_agents": 100,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "new_to_canada": {
+                            "expected": 0.15,
+                            "observed": 0.19,  # Small overshoot → decrease
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
 
         baseline = SEGMENT_MODELS["new_to_canada"].base_annual_churn_rate
         values = []
@@ -404,36 +450,40 @@ class TestNoOp:
 
     def test_all_passing_no_changes(self, calibrator):
         """Passing checks produce no corrections."""
-        l8 = _make_l8_feedback([
-            {
-                "check_name": "churn_rate_fidelity",
-                "passed": True,
-                "score": 0.9,
-                "detail": "all good",
-                "actual": {},
-            },
-            {
-                "check_name": "product_adoption_fidelity",
-                "passed": True,
-                "score": 0.8,
-                "detail": "all good",
-                "actual": {},
-            },
-        ])
-        l9 = _make_l9_feedback([
-            {
-                "check_name": "satisfaction_autocorrelation",
-                "passed": True,
-                "score": 0.9,
-                "detail": "all good",
-            },
-            {
-                "check_name": "deposit_smoothness",
-                "passed": True,
-                "score": 0.95,
-                "detail": "all good",
-            },
-        ])
+        l8 = _make_l8_feedback(
+            [
+                {
+                    "check_name": "churn_rate_fidelity",
+                    "passed": True,
+                    "score": 0.9,
+                    "detail": "all good",
+                    "actual": {},
+                },
+                {
+                    "check_name": "product_adoption_fidelity",
+                    "passed": True,
+                    "score": 0.8,
+                    "detail": "all good",
+                    "actual": {},
+                },
+            ]
+        )
+        l9 = _make_l9_feedback(
+            [
+                {
+                    "check_name": "satisfaction_autocorrelation",
+                    "passed": True,
+                    "score": 0.9,
+                    "detail": "all good",
+                },
+                {
+                    "check_name": "deposit_smoothness",
+                    "passed": True,
+                    "score": 0.95,
+                    "detail": "all good",
+                },
+            ]
+        )
         result = calibrator.calibrate_from_feedback(
             l8_feedback=l8, l9_feedback=l9, cycle_id="C0100"
         )
@@ -456,16 +506,20 @@ class TestImmutableFields:
     def test_segment_name_immutable(self, calibrator, tmp_calibration_dir):
         """segment_name is never written to calibration."""
         # Manually write a bad calibration to verify it doesn't propagate
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.25,
-                    "in_range": False,
-                    "n_agents": 50,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.25,
+                            "in_range": False,
+                            "n_agents": 50,
+                        },
+                    }
+                ),
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0200")
 
         if "mass_market" in result:
@@ -484,20 +538,21 @@ class TestL9Corrections:
 
     def test_low_autocorrelation_increases_loyalty(self, calibrator):
         """Low satisfaction autocorrelation → loyalty_bonus_per_year increases."""
-        l9 = _make_l9_feedback([
-            {
-                "check_name": "satisfaction_autocorrelation",
-                "passed": False,
-                "score": 0.3,
-                "detail": "Avg autocorrelation: 0.2",
-            },
-        ])
+        l9 = _make_l9_feedback(
+            [
+                {
+                    "check_name": "satisfaction_autocorrelation",
+                    "passed": False,
+                    "score": 0.3,
+                    "detail": "Avg autocorrelation: 0.2",
+                },
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l9_feedback=l9, cycle_id="C0300")
 
         # Check that at least one segment got loyalty_bonus_per_year increase
         segments_with_loyalty = [
-            seg for seg, overrides in result.items()
-            if "loyalty_bonus_per_year" in overrides
+            seg for seg, overrides in result.items() if "loyalty_bonus_per_year" in overrides
         ]
         assert len(segments_with_loyalty) > 0
 
@@ -508,19 +563,20 @@ class TestL9Corrections:
 
     def test_deposit_smoothness_failure_dampens_fee_sensitivity(self, calibrator):
         """Deposit smoothness violations → fee_sensitivity decreases."""
-        l9 = _make_l9_feedback([
-            {
-                "check_name": "deposit_smoothness",
-                "passed": False,
-                "score": 0.2,
-                "detail": "Too many swings",
-            },
-        ])
+        l9 = _make_l9_feedback(
+            [
+                {
+                    "check_name": "deposit_smoothness",
+                    "passed": False,
+                    "score": 0.2,
+                    "detail": "Too many swings",
+                },
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l9_feedback=l9, cycle_id="C0301")
 
         segments_with_fee = [
-            seg for seg, overrides in result.items()
-            if "fee_sensitivity" in overrides
+            seg for seg, overrides in result.items() if "fee_sensitivity" in overrides
         ]
         assert len(segments_with_fee) > 0
 
@@ -540,21 +596,22 @@ class TestCreditCorrections:
 
     def test_credit_violations_increase_recovery(self, calibrator):
         """Credit score range violations → credit_recovery_rate increases."""
-        l8 = _make_l8_feedback([
-            {
-                "check_name": "credit_score_range",
-                "passed": False,
-                "score": 0.5,
-                "detail": "10 violations",
-                "actual": {"violations": 10, "total_observations": 1000},
-            },
-        ])
+        l8 = _make_l8_feedback(
+            [
+                {
+                    "check_name": "credit_score_range",
+                    "passed": False,
+                    "score": 0.5,
+                    "detail": "10 violations",
+                    "actual": {"violations": 10, "total_observations": 1000},
+                },
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0400")
 
         # At least some segments should have credit_recovery_rate adjustment
         segments_with_credit = [
-            seg for seg, overrides in result.items()
-            if "credit_recovery_rate" in overrides
+            seg for seg, overrides in result.items() if "credit_recovery_rate" in overrides
         ]
         assert len(segments_with_credit) > 0
 
@@ -574,24 +631,30 @@ class TestCombinedFeedback:
 
     def test_l8_and_l9_both_apply(self, calibrator):
         """Both L8 (per-segment) and L9 (global) corrections are applied."""
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,
-                    "in_range": False,
-                    "n_agents": 100,
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,
+                            "in_range": False,
+                            "n_agents": 100,
+                        },
+                    }
+                ),
+            ]
+        )
+        l9 = _make_l9_feedback(
+            [
+                {
+                    "check_name": "satisfaction_autocorrelation",
+                    "passed": False,
+                    "score": 0.3,
+                    "detail": "Low autocorrelation",
                 },
-            }),
-        ])
-        l9 = _make_l9_feedback([
-            {
-                "check_name": "satisfaction_autocorrelation",
-                "passed": False,
-                "score": 0.3,
-                "detail": "Low autocorrelation",
-            },
-        ])
+            ]
+        )
         result = calibrator.calibrate_from_feedback(
             l8_feedback=l8, l9_feedback=l9, cycle_id="C0500"
         )
@@ -613,35 +676,37 @@ class TestEdgeCases:
 
     def test_empty_checks_list(self, calibrator):
         """Empty checks list → no corrections."""
-        result = calibrator.calibrate_from_feedback(
-            l8_feedback={"checks": []}, cycle_id="C0600"
-        )
+        result = calibrator.calibrate_from_feedback(l8_feedback={"checks": []}, cycle_id="C0600")
         assert result == {}
 
     def test_unknown_check_name_ignored(self, calibrator):
         """Unknown check names are silently ignored."""
-        l8 = _make_l8_feedback([
-            {
-                "check_name": "future_check_v99",
-                "passed": False,
-                "score": 0.1,
-                "detail": "Unknown",
-            },
-        ])
+        l8 = _make_l8_feedback(
+            [
+                {
+                    "check_name": "future_check_v99",
+                    "passed": False,
+                    "score": 0.1,
+                    "detail": "Unknown",
+                },
+            ]
+        )
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0601")
         assert result == {}
 
     def test_malformed_actual_data_no_crash(self, calibrator):
         """Malformed actual data doesn't crash the calibrator."""
-        l8 = _make_l8_feedback([
-            {
-                "check_name": "churn_rate_fidelity",
-                "passed": False,
-                "score": 0.3,
-                "detail": "test",
-                "actual": "not a dict",
-            },
-        ])
+        l8 = _make_l8_feedback(
+            [
+                {
+                    "check_name": "churn_rate_fidelity",
+                    "passed": False,
+                    "score": 0.3,
+                    "detail": "test",
+                    "actual": "not a dict",
+                },
+            ]
+        )
         # Should not raise
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0602")
         assert isinstance(result, dict)
@@ -651,16 +716,20 @@ class TestEdgeCases:
         cal_file = tmp_calibration_dir / "calibrated_segments.json"
         cal_file.write_text("{invalid json")
 
-        l8 = _make_l8_feedback([
-            _churn_check({
-                "mass_market": {
-                    "expected": 0.10,
-                    "observed": 0.20,
-                    "in_range": False,
-                    "n_agents": 50,
-                },
-            }),
-        ])
+        l8 = _make_l8_feedback(
+            [
+                _churn_check(
+                    {
+                        "mass_market": {
+                            "expected": 0.10,
+                            "observed": 0.20,
+                            "in_range": False,
+                            "n_agents": 50,
+                        },
+                    }
+                ),
+            ]
+        )
         # Should recover and produce results
         result = calibrator.calibrate_from_feedback(l8_feedback=l8, cycle_id="C0603")
         assert "mass_market" in result

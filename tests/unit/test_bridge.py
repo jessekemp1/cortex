@@ -9,7 +9,6 @@ import tempfile
 from pathlib import Path
 
 
-
 class TestCortexBridgeInitialization:
     """Test CortexBridge initialization and component availability."""
 

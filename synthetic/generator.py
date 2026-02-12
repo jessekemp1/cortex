@@ -59,6 +59,7 @@ class SyntheticGenerator:
         if self._quality_tracker is None:
             try:
                 from synthetic.quality import SyntheticQualityTracker
+
                 self._quality_tracker = SyntheticQualityTracker(self.kb)
             except ImportError:
                 self._quality_tracker = None
@@ -116,9 +117,7 @@ class SyntheticGenerator:
             records_passed_quality=len(passed),
             records_rejected=rejected,
             average_quality_score=(
-                sum(quality_scores) / len(quality_scores)
-                if quality_scores
-                else 0.0
+                sum(quality_scores) / len(quality_scores) if quality_scores else 0.0
             ),
             quality_distribution=quality_dist,
             generation_time_seconds=elapsed,
@@ -363,8 +362,12 @@ class SyntheticGenerator:
         """Sample an age range from the age distribution."""
         band = self._weighted_choice(age_dist.distribution)
         ranges = {
-            "18-24": (18, 24), "25-34": (25, 34), "35-44": (35, 44),
-            "45-54": (45, 54), "55-64": (55, 64), "65-74": (65, 74),
+            "18-24": (18, 24),
+            "25-34": (25, 34),
+            "35-44": (35, 44),
+            "45-54": (45, 54),
+            "55-64": (55, 64),
+            "65-74": (65, 74),
             "75+": (75, 95),
         }
         return ranges.get(band, (25, 65))
@@ -377,9 +380,7 @@ class SyntheticGenerator:
         age_factor = max(0.6, min(1.2, age_factor))
         return base * age_factor
 
-    def _generate_credit_score(
-        self, credit_range: Tuple[int, int], age: int, income: float
-    ) -> int:
+    def _generate_credit_score(self, credit_range: Tuple[int, int], age: int, income: float) -> int:
         """Generate credit score correlated with age and income."""
         base = random.randint(credit_range[0], credit_range[1])
         # Older = slightly higher credit (longer history)
@@ -452,9 +453,7 @@ class SyntheticGenerator:
 
     # --- Output ---
 
-    def _write_output(
-        self, records: list, request: GenerationRequest
-    ) -> Optional[Path]:
+    def _write_output(self, records: list, request: GenerationRequest) -> Optional[Path]:
         """Write generated records to output file."""
         if not records:
             return None
@@ -480,6 +479,7 @@ class SyntheticGenerator:
         elif request.output_format == "csv":
             output_path = output_path.with_suffix(".csv")
             import csv
+
             if records:
                 fieldnames = list(records[0].to_dict().keys())
                 with open(output_path, "w", newline="") as f:

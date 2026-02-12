@@ -3,14 +3,12 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 # Ensure pupil package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pupil"))
 
-from synthetic.pupil.persona import Action, ActionType, PersonaAgent
-from synthetic.pupil.explainer import DecisionExplainer, Explanation, Factor
+from synthetic.pupil.explainer import DecisionExplainer, Explanation
 from synthetic.pupil.market_env import build_timeline
+from synthetic.pupil.persona import Action, ActionType, PersonaAgent
 from synthetic.pupil.schemas import CustomerProfile
 
 

@@ -17,20 +17,22 @@ import json
 import re
 import sqlite3
 import subprocess
+
+# Import existing models from intelligent_orchestrator
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Import existing models from intelligent_orchestrator
-import sys
 sys.path.insert(0, str(Path(__file__).parent))
-from intelligent_orchestrator import BatchWorkItem, BatchCapacity
+from intelligent_orchestrator import BatchCapacity, BatchWorkItem
 
 
 @dataclass
 class WorkGenerationSource:
     """Metadata about where work was generated from"""
+
     source_type: str  # "commit", "todo", "test_failure", "manual"
     source_location: str  # file path, commit hash, etc.
     discovered_at: datetime = field(default_factory=datetime.now)
@@ -79,7 +81,7 @@ class DynamicWorkGenerator:
                 cwd=self.root_dir,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -96,11 +98,12 @@ class DynamicWorkGenerator:
 
                 # Large refactor detection
                 if files_changed > 5 or (insertions + deletions) > 500:
-                    work_items.append(BatchWorkItem(
-                        id=f"commit-analysis-{commit['hash'][:8]}",
-                        title=f"Analyze large commit: {commit['subject'][:50]}",
-                        description=f"Large commit ({files_changed} files, +{insertions}/-{deletions}). Analyze for: edge cases, test coverage, performance impact, breaking changes.",
-                        prompt=f"""Analyze this large commit for potential issues:
+                    work_items.append(
+                        BatchWorkItem(
+                            id=f"commit-analysis-{commit['hash'][:8]}",
+                            title=f"Analyze large commit: {commit['subject'][:50]}",
+                            description=f"Large commit ({files_changed} files, +{insertions}/-{deletions}). Analyze for: edge cases, test coverage, performance impact, breaking changes.",
+                            prompt=f"""Analyze this large commit for potential issues:
 
 Commit: {commit['hash']}
 Subject: {commit['subject']}
@@ -115,30 +118,39 @@ Review for:
 5. Code quality issues (complexity, duplication)
 
 Provide actionable recommendations for follow-up work.""",
-                        priority="high",
-                        estimated_input_tokens=15_000 + (files_changed * 500),
-                        estimated_output_tokens=3_000,
-                        source="commit",
-                        deadline_hours=12
-                    ))
+                            priority="high",
+                            estimated_input_tokens=15_000 + (files_changed * 500),
+                            estimated_output_tokens=3_000,
+                            source="commit",
+                            deadline_hours=12,
+                        )
+                    )
 
                 # Security-sensitive file detection
                 security_patterns = [
-                    r"auth", r"security", r"crypto", r"password",
-                    r"token", r"api[_-]?key", r"secret", r"credential"
+                    r"auth",
+                    r"security",
+                    r"crypto",
+                    r"password",
+                    r"token",
+                    r"api[_-]?key",
+                    r"secret",
+                    r"credential",
                 ]
 
                 security_files = [
-                    f for f in commit.get("files", [])
+                    f
+                    for f in commit.get("files", [])
                     if any(re.search(pattern, f.lower()) for pattern in security_patterns)
                 ]
 
                 if security_files:
-                    work_items.append(BatchWorkItem(
-                        id=f"security-commit-{commit['hash'][:8]}",
-                        title=f"Security review: {commit['subject'][:50]}",
-                        description=f"Commit modified security-sensitive files: {', '.join(security_files[:3])}",
-                        prompt=f"""Security-focused review of commit:
+                    work_items.append(
+                        BatchWorkItem(
+                            id=f"security-commit-{commit['hash'][:8]}",
+                            title=f"Security review: {commit['subject'][:50]}",
+                            description=f"Commit modified security-sensitive files: {', '.join(security_files[:3])}",
+                            prompt=f"""Security-focused review of commit:
 
 Commit: {commit['hash']}
 Subject: {commit['subject']}
@@ -154,12 +166,13 @@ Analyze for:
 7. API security issues
 
 Flag any high-risk changes and recommend mitigations.""",
-                        priority="immediate",
-                        estimated_input_tokens=12_000,
-                        estimated_output_tokens=4_000,
-                        source="security",
-                        deadline_hours=8
-                    ))
+                            priority="immediate",
+                            estimated_input_tokens=12_000,
+                            estimated_output_tokens=4_000,
+                            source="security",
+                            deadline_hours=8,
+                        )
+                    )
 
         except Exception as e:
             print(f"Warning: Failed to scan commits: {e}")
@@ -185,7 +198,7 @@ Flag any high-risk changes and recommend mitigations.""",
                     "files_changed": 0,
                     "insertions": 0,
                     "deletions": 0,
-                    "files": []
+                    "files": [],
                 }
             elif current_commit and line.strip():
                 # File stat line: insertions  deletions  filename
@@ -226,7 +239,7 @@ Flag any high-risk changes and recommend mitigations.""",
                 cwd=self.root_dir,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -255,16 +268,19 @@ Flag any high-risk changes and recommend mitigations.""",
                 priority = "high" if (fixmes > 2 or hacks > 1) else "normal"
 
                 # Sample TODOs for prompt
-                sample_todos = "\n".join([
-                    f"  {t['file']}:{t['line']}: {t['marker']} {t['text']}"
-                    for t in project_todos[:10]
-                ])
+                sample_todos = "\n".join(
+                    [
+                        f"  {t['file']}:{t['line']}: {t['marker']} {t['text']}"
+                        for t in project_todos[:10]
+                    ]
+                )
 
-                work_items.append(BatchWorkItem(
-                    id=f"todo-analysis-{project}",
-                    title=f"TODO/FIXME analysis: {project}",
-                    description=f"Analyze {len(project_todos)} TODOs in {project} ({fixmes} FIXMEs, {hacks} HACKs)",
-                    prompt=f"""Analyze TODOs and FIXMEs in {project}:
+                work_items.append(
+                    BatchWorkItem(
+                        id=f"todo-analysis-{project}",
+                        title=f"TODO/FIXME analysis: {project}",
+                        description=f"Analyze {len(project_todos)} TODOs in {project} ({fixmes} FIXMEs, {hacks} HACKs)",
+                        prompt=f"""Analyze TODOs and FIXMEs in {project}:
 
 Total items: {len(project_todos)}
 FIXMEs: {fixmes} (bugs/issues)
@@ -282,12 +298,13 @@ For each category:
 5. Flag blockers or dependencies
 
 Create a prioritized action plan.""",
-                    priority=priority,
-                    estimated_input_tokens=10_000 + (len(project_todos) * 100),
-                    estimated_output_tokens=3_000,
-                    source="pattern",
-                    deadline_hours=24
-                ))
+                        priority=priority,
+                        estimated_input_tokens=10_000 + (len(project_todos) * 100),
+                        estimated_output_tokens=3_000,
+                        source="pattern",
+                        deadline_hours=24,
+                    )
+                )
 
         except Exception as e:
             print(f"Warning: Failed to scan TODOs: {e}")
@@ -317,12 +334,7 @@ Create a prioritized action plan.""",
             text = re.sub(r".*?(TODO|FIXME|XXX|HACK)[:\s]*", "", content, flags=re.IGNORECASE)
             text = text.strip()
 
-            todos.append({
-                "file": filename,
-                "line": line_num,
-                "marker": marker,
-                "text": text
-            })
+            todos.append({"file": filename, "line": line_num, "marker": marker, "text": text})
 
         return todos
 
@@ -367,11 +379,12 @@ Create a prioritized action plan.""",
                         by_project[project].append(test_path)
 
                     for project, failed_tests in by_project.items():
-                        work_items.append(BatchWorkItem(
-                            id=f"test-failure-{project}",
-                            title=f"Test failure analysis: {project}",
-                            description=f"Analyze {len(failed_tests)} failing tests in {project}",
-                            prompt=f"""Analyze failing tests in {project}:
+                        work_items.append(
+                            BatchWorkItem(
+                                id=f"test-failure-{project}",
+                                title=f"Test failure analysis: {project}",
+                                description=f"Analyze {len(failed_tests)} failing tests in {project}",
+                                prompt=f"""Analyze failing tests in {project}:
 
 Failed tests ({len(failed_tests)}):
 {chr(10).join(f'  - {test}' for test in failed_tests[:20])}
@@ -384,12 +397,13 @@ For each failure:
 5. Check for common patterns across failures
 
 Prioritize by impact and provide actionable recommendations.""",
-                            priority="high",
-                            estimated_input_tokens=8_000 + (len(failed_tests) * 200),
-                            estimated_output_tokens=3_000,
-                            source="pattern",
-                            deadline_hours=8
-                        ))
+                                priority="high",
+                                estimated_input_tokens=8_000 + (len(failed_tests) * 200),
+                                estimated_output_tokens=3_000,
+                                source="pattern",
+                                deadline_hours=8,
+                            )
+                        )
 
             # Also check for projects with pytest markers
             for project_dir in ["Vortex/VortexV2", "alpha_arena", "cortex"]:
@@ -403,16 +417,17 @@ Prioritize by impact and provide actionable recommendations.""",
                     cwd=full_path,
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
 
                 # Check if there are errors in collection
                 if "error" in result.stdout.lower() or "error" in result.stderr.lower():
-                    work_items.append(BatchWorkItem(
-                        id=f"test-collection-{project_dir.replace('/', '-')}",
-                        title=f"Test collection errors: {project_dir}",
-                        description=f"Test collection failing in {project_dir}",
-                        prompt=f"""Investigate test collection errors in {project_dir}:
+                    work_items.append(
+                        BatchWorkItem(
+                            id=f"test-collection-{project_dir.replace('/', '-')}",
+                            title=f"Test collection errors: {project_dir}",
+                            description=f"Test collection failing in {project_dir}",
+                            prompt=f"""Investigate test collection errors in {project_dir}:
 
 Error output:
 {result.stderr[:500]}
@@ -425,12 +440,13 @@ Analyze:
 5. Missing test data or fixtures
 
 Provide fix recommendations.""",
-                        priority="high",
-                        estimated_input_tokens=6_000,
-                        estimated_output_tokens=2_000,
-                        source="pattern",
-                        deadline_hours=8
-                    ))
+                            priority="high",
+                            estimated_input_tokens=6_000,
+                            estimated_output_tokens=2_000,
+                            source="pattern",
+                            deadline_hours=8,
+                        )
+                    )
 
         except Exception as e:
             print(f"Warning: Failed to scan test failures: {e}")
@@ -450,9 +466,7 @@ class CapacityAwareQueueFiller:
         self.capacity = capacity or BatchCapacity()
 
     def fill_queue(
-        self,
-        work_items: List[BatchWorkItem],
-        target_utilization: float = 0.9
+        self, work_items: List[BatchWorkItem], target_utilization: float = 0.9
     ) -> List[BatchWorkItem]:
         """
         Fill queue to target utilization using bin packing.
@@ -540,10 +554,7 @@ class CapacityAwareQueueFiller:
         max_time_hours = self.capacity.overnight_hours - 2  # Buffer for processing
 
         # Score and sort work items
-        scored_items = [
-            (self._calculate_composite_score(item), item)
-            for item in work_items
-        ]
+        scored_items = [(self._calculate_composite_score(item), item) for item in work_items]
         scored_items.sort(key=lambda x: x[0], reverse=True)
 
         # Bin packing: First Fit Decreasing
@@ -556,8 +567,10 @@ class CapacityAwareQueueFiller:
             item_time = self._estimate_time_hours(item)
 
             # Check if item fits
-            if (total_tokens + item_tokens <= target_tokens and
-                total_time_hours + item_time <= max_time_hours):
+            if (
+                total_tokens + item_tokens <= target_tokens
+                and total_time_hours + item_time <= max_time_hours
+            ):
 
                 selected.append(item)
                 total_tokens += item_tokens
@@ -590,7 +603,7 @@ class CapacityAwareQueueFiller:
             "pattern": 1.5,
             "docs": 1.0,
             "research": 0.8,
-            "goal": 1.3
+            "goal": 1.3,
         }.get(item.source, 1.0)
 
         # Blocking factor (would need to be in metadata)
@@ -692,24 +705,27 @@ class BatchPerformanceTracker:
             job_id: Batch API job ID
         """
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO batch_tasks (
                     task_id, job_id, title, source, priority,
                     estimated_input_tokens, estimated_output_tokens,
                     estimated_duration_hours, submitted_at, status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                task.id,
-                job_id,
-                task.title,
-                task.source,
-                task.priority,
-                task.estimated_input_tokens,
-                task.estimated_output_tokens,
-                0.5,  # Default estimate
-                datetime.now().isoformat(),
-                "submitted"
-            ))
+            """,
+                (
+                    task.id,
+                    job_id,
+                    task.title,
+                    task.source,
+                    task.priority,
+                    task.estimated_input_tokens,
+                    task.estimated_output_tokens,
+                    0.5,  # Default estimate
+                    datetime.now().isoformat(),
+                    "submitted",
+                ),
+            )
             conn.commit()
 
     def record_completion(
@@ -718,7 +734,7 @@ class BatchPerformanceTracker:
         actual_tokens: Tuple[int, int],
         actual_duration: float,
         status: str = "completed",
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """
         Record task completion with actuals.
@@ -733,7 +749,8 @@ class BatchPerformanceTracker:
         actual_input, actual_output = actual_tokens
 
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE batch_tasks
                 SET actual_input_tokens = ?,
                     actual_output_tokens = ?,
@@ -742,15 +759,17 @@ class BatchPerformanceTracker:
                     status = ?,
                     error_message = ?
                 WHERE task_id = ?
-            """, (
-                actual_input,
-                actual_output,
-                actual_duration,
-                datetime.now().isoformat(),
-                status,
-                error_message,
-                task_id
-            ))
+            """,
+                (
+                    actual_input,
+                    actual_output,
+                    actual_duration,
+                    datetime.now().isoformat(),
+                    status,
+                    error_message,
+                    task_id,
+                ),
+            )
             conn.commit()
 
     def get_estimation_accuracy(self, days: int = 30) -> Dict[str, Any]:
@@ -765,7 +784,8 @@ class BatchPerformanceTracker:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT
                     source,
                     AVG(estimated_input_tokens) as avg_est_input,
@@ -780,7 +800,9 @@ class BatchPerformanceTracker:
                   AND status = 'completed'
                   AND actual_input_tokens IS NOT NULL
                 GROUP BY source
-            """, (cutoff,)).fetchall()
+            """,
+                (cutoff,),
+            ).fetchall()
 
         accuracy = {}
         for row in rows:
@@ -789,17 +811,20 @@ class BatchPerformanceTracker:
             # Calculate accuracy percentages
             input_accuracy = (
                 (row["avg_actual_input"] / row["avg_est_input"] * 100)
-                if row["avg_est_input"] > 0 else 0
+                if row["avg_est_input"] > 0
+                else 0
             )
 
             output_accuracy = (
                 (row["avg_actual_output"] / row["avg_est_output"] * 100)
-                if row["avg_est_output"] > 0 else 0
+                if row["avg_est_output"] > 0
+                else 0
             )
 
             duration_accuracy = (
                 (row["avg_actual_duration"] / row["avg_est_duration"] * 100)
-                if row["avg_est_duration"] > 0 else 0
+                if row["avg_est_duration"] > 0
+                else 0
             )
 
             accuracy[source] = {
@@ -810,7 +835,7 @@ class BatchPerformanceTracker:
                 "avg_est_input": int(row["avg_est_input"]),
                 "avg_actual_input": int(row["avg_actual_input"]),
                 "avg_est_output": int(row["avg_est_output"]),
-                "avg_actual_output": int(row["avg_actual_output"])
+                "avg_actual_output": int(row["avg_actual_output"]),
             }
 
         return accuracy
@@ -828,9 +853,7 @@ class AdaptiveEstimator:
         self.tracker = tracker
 
     def improve_estimates(
-        self,
-        work_items: List[BatchWorkItem],
-        lookback_days: int = 30
+        self, work_items: List[BatchWorkItem], lookback_days: int = 30
     ) -> List[BatchWorkItem]:
         """
         Improve token/duration estimates based on history.
@@ -858,8 +881,12 @@ class AdaptiveEstimator:
                 # Enough history for this source type
 
                 # Calculate adjustment factors
-                input_factor = source_accuracy["avg_actual_input"] / source_accuracy["avg_est_input"]
-                output_factor = source_accuracy["avg_actual_output"] / source_accuracy["avg_est_output"]
+                input_factor = (
+                    source_accuracy["avg_actual_input"] / source_accuracy["avg_est_input"]
+                )
+                output_factor = (
+                    source_accuracy["avg_actual_output"] / source_accuracy["avg_est_output"]
+                )
 
                 # Apply adjustments (cap at 2x to avoid overcompensation)
                 input_factor = min(2.0, max(0.5, input_factor))
@@ -877,7 +904,7 @@ class AdaptiveEstimator:
                     source=item.source,
                     project=item.project,
                     files=item.files,
-                    deadline_hours=item.deadline_hours
+                    deadline_hours=item.deadline_hours,
                 )
 
                 improved.append(improved_item)
@@ -899,25 +926,25 @@ class AdaptiveEstimator:
         if not accuracy:
             return "No historical data available yet. Need at least 3 completed tasks to start learning."
 
-        lines = [
-            f"Batch Performance Learning Summary (last {days} days)",
-            "=" * 60,
-            ""
-        ]
+        lines = [f"Batch Performance Learning Summary (last {days} days)", "=" * 60, ""]
 
         for source, metrics in accuracy.items():
-            lines.extend([
-                f"{source.upper()} ({metrics['task_count']} tasks):",
-                f"  Input tokens:  {metrics['avg_est_input']:,} est → {metrics['avg_actual_input']:,} actual ({metrics['input_accuracy_pct']:.0f}% accuracy)",
-                f"  Output tokens: {metrics['avg_est_output']:,} est → {metrics['avg_actual_output']:,} actual ({metrics['output_accuracy_pct']:.0f}% accuracy)",
-                f"  Duration:      {metrics['duration_accuracy_pct']:.0f}% accuracy",
-                ""
-            ])
+            lines.extend(
+                [
+                    f"{source.upper()} ({metrics['task_count']} tasks):",
+                    f"  Input tokens:  {metrics['avg_est_input']:,} est → {metrics['avg_actual_input']:,} actual ({metrics['input_accuracy_pct']:.0f}% accuracy)",
+                    f"  Output tokens: {metrics['avg_est_output']:,} est → {metrics['avg_actual_output']:,} actual ({metrics['output_accuracy_pct']:.0f}% accuracy)",
+                    f"  Duration:      {metrics['duration_accuracy_pct']:.0f}% accuracy",
+                    "",
+                ]
+            )
 
         return "\n".join(lines)
 
 
-def integrate_with_orchestrator(root_dir: Path = Path("/Users/jesse.kemp/Dev")) -> List[BatchWorkItem]:
+def integrate_with_orchestrator(
+    root_dir: Path = Path("/Users/jesse.kemp/Dev"),
+) -> List[BatchWorkItem]:
     """
     Integration point with IntelligentBatchOrchestrator.
 
@@ -936,6 +963,7 @@ def integrate_with_orchestrator(root_dir: Path = Path("/Users/jesse.kemp/Dev")) 
 
     # Get static work from orchestrator
     from intelligent_orchestrator import IntelligentBatchOrchestrator
+
     orchestrator = IntelligentBatchOrchestrator(root_dir=str(root_dir))
     static_work = orchestrator.generate_work_items()
 

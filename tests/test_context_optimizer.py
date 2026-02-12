@@ -11,8 +11,8 @@ Tests cover:
 
 import pytest
 from cortex.intelligence.context_optimizer import (
-    ContextItem,
     CategoryType,
+    ContextItem,
     ContextOptimizer,
     OptimizationStrategy,
     optimize_prompt_context,
@@ -150,8 +150,8 @@ class TestImportanceBasedOrdering:
 
         # Check distribution ratios (33%, 33%, 34%)
         assert len(result) == 10
-        start_count = int(10 * 0.33)
-        middle_count = int(10 * 0.33)
+        int(10 * 0.33)
+        int(10 * 0.33)
 
         # First 3 should be highest importance
         assert result[0].importance >= 0.8
@@ -392,7 +392,7 @@ class TestIntegration:
                 "category": "instruction",
             },
             {
-                "content": f"Current date: 2026-02-01",
+                "content": "Current date: 2026-02-01",
                 "importance": 0.9,
                 "category": "data",
             },
@@ -413,9 +413,7 @@ class TestIntegration:
             },
         ]
 
-        result = optimize_prompt_context(
-            context_items, max_tokens=500, strategy="importance"
-        )
+        result = optimize_prompt_context(context_items, max_tokens=500, strategy="importance")
 
         assert isinstance(result, str)
         assert len(result) > 0
@@ -454,9 +452,7 @@ class TestIntegration:
             },
         ]
 
-        result = optimize_prompt_context(
-            context_items, max_tokens=400, strategy="category"
-        )
+        result = optimize_prompt_context(context_items, max_tokens=400, strategy="category")
 
         # Should preserve all patterns but optimize order
         assert "Pattern 1" in result
@@ -476,11 +472,13 @@ class TestIntegration:
 
         # Add many data items
         for i in range(20):
-            context_items.append({
-                "content": f"Data item {i}: " + "B" * 100,  # ~25 tokens each
-                "importance": 0.5,
-                "category": "data",
-            })
+            context_items.append(
+                {
+                    "content": f"Data item {i}: " + "B" * 100,  # ~25 tokens each
+                    "importance": 0.5,
+                    "category": "data",
+                }
+            )
 
         # Total: ~550 tokens, limit to 200
         result = optimize_prompt_context(

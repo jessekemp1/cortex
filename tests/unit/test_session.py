@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
-
 class TestSessionManagerInit:
     """Test SessionManager initialization."""
 

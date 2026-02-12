@@ -6,7 +6,6 @@ Tests the core functionality of metric tracking without complex integrations.
 """
 
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
 
 # Add cortex to path

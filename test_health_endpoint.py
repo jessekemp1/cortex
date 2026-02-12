@@ -1,5 +1,6 @@
 """Quick test of health endpoint fix"""
 
+
 def test_health_endpoint_structure():
     """Test the health endpoint returns expected structure"""
 
@@ -8,12 +9,8 @@ def test_health_endpoint_structure():
         "status": "healthy",  # or "degraded" or "healthy_with_warnings"
         "service": "cortex-runtime",
         "timestamp": None,
-        "health_monitor": {
-            "enabled": True,
-            "issues_detected": 0,
-            "issues": []
-        },
-        "queue": {}
+        "health_monitor": {"enabled": True, "issues_detected": 0, "issues": []},
+        "queue": {},
     }
 
     # Validate structure
@@ -29,6 +26,7 @@ def test_health_endpoint_structure():
     print("   Includes: health_monitor with issues detection")
     print("   Includes: queue statistics")
     return True
+
 
 if __name__ == "__main__":
     test_health_endpoint_structure()

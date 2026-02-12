@@ -14,7 +14,7 @@ Components:
 import json
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -328,7 +328,7 @@ class IDEBridge(SignalSource):
         # MCP integration happens via mcp_server.py
         # This receives signals when MCP tools are called
         self._running = True
-        logger.info(f"IDEBridge ready to receive MCP signals")
+        logger.info("IDEBridge ready to receive MCP signals")
 
     def stop(self) -> None:
         """Stop MCP connection."""

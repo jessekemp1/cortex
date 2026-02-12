@@ -14,11 +14,9 @@ Usage:
 """
 
 import argparse
-import json
 
 # Import batch_scheduler directly to avoid __init__ dependency issues
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "batch"))
@@ -43,7 +41,7 @@ def schedule_task(args):
     print(f"   Submit after: {task.submit_after.strftime('%Y-%m-%d %I:%M %p')}")
     print(f"   Deadline: {task.deadline.strftime('%Y-%m-%d %I:%M %p')}")
     print()
-    print(f"💰 Estimated savings: 50% vs real-time")
+    print("💰 Estimated savings: 50% vs real-time")
 
 
 def list_tasks(args):
@@ -87,7 +85,7 @@ def submit_ready(args):
         pending = scheduler.get_pending_tasks()
         if pending:
             next_task = pending[0]
-            print(f"No tasks ready to submit yet.")
+            print("No tasks ready to submit yet.")
             print(f"Next task submits at: {next_task.submit_after.strftime('%Y-%m-%d %I:%M %p')}")
         else:
             print("No pending tasks to submit.")
@@ -135,7 +133,7 @@ def show_stats(args):
     print(f"  Input tokens:         {stats['total_input_tokens']:,}")
     print(f"  Output tokens:        {stats['total_output_tokens']:,}")
     print()
-    print(f"💰 Cost Analysis:")
+    print("💰 Cost Analysis:")
     print(f"  Real-time cost:       ${stats['estimated_real_time_cost']:.2f}")
     print(f"  Batch cost:           ${stats['estimated_batch_cost']:.2f}")
     print(

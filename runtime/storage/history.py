@@ -53,8 +53,7 @@ class ExecutionHistory:
         cursor = conn.cursor()
 
         # Executions table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS executions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 agent_id TEXT NOT NULL,
@@ -68,25 +67,18 @@ class ExecutionHistory:
                 error_data TEXT,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """
-        )
+        """)
 
         # Create indexes for common queries
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_agent_id ON executions(agent_id)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_created_at ON executions(created_at)
-        """
-        )
-        cursor.execute(
-            """
+        """)
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_status ON executions(status)
-        """
-        )
+        """)
 
         conn.commit()
         conn.close()

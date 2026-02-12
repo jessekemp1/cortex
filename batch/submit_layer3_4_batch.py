@@ -18,7 +18,7 @@ from pathlib import Path
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from batch.batch_api_client import BatchAPIClient, BatchRequest
+from batch.batch_api_client import BatchAPIClient
 from batch.layer3_4_batch_spec import create_all_batch_requests
 
 
@@ -73,7 +73,7 @@ def submit_batch():
 
     print("💰 Estimated cost:")
     print(f"   {total_requests} requests × ~$1.35 = ~${estimated_cost:.2f}")
-    print(f"   (Assumes Opus with max tokens; actual cost likely lower)")
+    print("   (Assumes Opus with max tokens; actual cost likely lower)")
     print()
 
     # Confirm submission
@@ -94,7 +94,7 @@ def submit_batch():
             description="Cortex Intelligence Stack - Layers 3-4 Implementation",
         )
 
-        print(f"✅ Batch submitted successfully!")
+        print("✅ Batch submitted successfully!")
         print(f"   Batch ID: {batch_id}")
         print()
 

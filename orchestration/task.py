@@ -8,11 +8,12 @@ queued → investigating → planning → implementing → testing → completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class TaskPhase(str, Enum):
     """Task execution phases matching agent workflow"""
+
     QUEUED = "queued"
     INVESTIGATING = "investigating"
     PLANNING = "planning"
@@ -29,6 +30,7 @@ class TaskPriority(str, Enum):
     - B (important): Batch-eligible if deadline allows (>4 hours)
     - C (background): Batch-only, overnight processing
     """
+
     A = "A"  # Critical - realtime only
     B = "B"  # Important - batch-eligible
     C = "C"  # Background - batch-only
@@ -36,6 +38,7 @@ class TaskPriority(str, Enum):
 
 class TaskStatus(str, Enum):
     """Task lifecycle status"""
+
     PENDING = "pending"
     SCHEDULED = "scheduled"
     RUNNING = "running"
@@ -68,10 +71,10 @@ class Task:
 
     # Dependencies
     blocked_by: List[str] = field(default_factory=list)  # Task IDs that must complete first
-    blocks: List[str] = field(default_factory=list)      # Task IDs that depend on this
+    blocks: List[str] = field(default_factory=list)  # Task IDs that depend on this
 
     # Execution context
-    prompt: Optional[str] = None           # Actual prompt for agent/batch
+    prompt: Optional[str] = None  # Actual prompt for agent/batch
     context: Dict[str, Any] = field(default_factory=dict)  # Additional context
     files_affected: List[str] = field(default_factory=list)
 
@@ -82,9 +85,9 @@ class Task:
     actual_output_tokens: int = field(default=0)
 
     # Execution tracking
-    execution_mode: Optional[str] = None   # "realtime" or "batch"
-    batch_id: Optional[str] = None         # If batch-routed
-    assigned_agent: Optional[str] = None   # If realtime-routed
+    execution_mode: Optional[str] = None  # "realtime" or "batch"
+    batch_id: Optional[str] = None  # If batch-routed
+    assigned_agent: Optional[str] = None  # If realtime-routed
 
     # Results
     result: Optional[str] = None
@@ -96,7 +99,7 @@ class Task:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     tags: List[str] = field(default_factory=list)
-    source: Optional[str] = None           # "goal", "pattern", "security", etc.
+    source: Optional[str] = None  # "goal", "pattern", "security", etc.
     project: Optional[str] = None
 
     def __post_init__(self):

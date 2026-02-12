@@ -4,7 +4,6 @@ Week 2 Calibration Analysis
 Comprehensive report for Month 1, Week 1-2 calibration data
 """
 
-import json
 from datetime import datetime
 
 from metrics_tracker import MetricsTracker

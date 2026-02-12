@@ -7,8 +7,8 @@ surface recommendations. Runs on Databricks (Delta/Unity Catalog) or locally for
 
 __version__ = "0.1.0"
 
-from cortexdbx.synthetic.generator import SyntheticDataGenerator, DOMAIN_CONFIGS
 from cortexdbx.calibration.engine import CalibrationEngine, CalibrationState
+from cortexdbx.synthetic.generator import DOMAIN_CONFIGS, SyntheticDataGenerator
 
 __all__ = [
     "__version__",

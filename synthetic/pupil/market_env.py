@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 
 class EventType(str, Enum):
     """Types of market events agents can respond to."""
+
     RATE_CHANGE = "rate_change"
     PRODUCT_LAUNCH = "product_launch"
     FEE_CHANGE = "fee_change"
@@ -31,6 +32,7 @@ class EventType(str, Enum):
 @dataclass
 class CompetitionEvent:
     """A competitive or market event that agents respond to."""
+
     event_type: EventType
     institution: str
     description: str
@@ -49,9 +51,10 @@ class CompetitionEvent:
 @dataclass
 class MarketEnvironment:
     """Market conditions for a single time step (month)."""
-    month: int          # 1-12
-    year: int           # e.g., 2026
-    step: int           # Simulation step number (0-indexed)
+
+    month: int  # 1-12
+    year: int  # e.g., 2026
+    step: int  # Simulation step number (0-indexed)
 
     # Macro indicators
     boc_overnight_rate: float = 4.50
@@ -72,8 +75,18 @@ class MarketEnvironment:
     def date_label(self) -> str:
         """Human-readable date label."""
         months = [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
         ]
         return f"{months[self.month - 1]} {self.year}"
 

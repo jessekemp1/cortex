@@ -13,10 +13,10 @@ Architecture:
 
 from typing import Any, Dict, List, Tuple
 
-from .schemas import CustomerProfile
-from .market_env import build_timeline
-from .simulation import SimulationEngine, SimulationResult
 from .analysis import AnalysisReport, MarketAnalyzer
+from .market_env import build_timeline
+from .schemas import CustomerProfile
+from .simulation import SimulationEngine, SimulationResult
 
 
 class PupilBridge:
@@ -110,9 +110,7 @@ class PupilBridge:
         results: Dict[str, Tuple[SimulationResult, AnalysisReport]] = {}
 
         for name, kwargs in scenarios.items():
-            sim_result, report = self.full_analysis(
-                profiles, months=months, seed=seed, **kwargs
-            )
+            sim_result, report = self.full_analysis(profiles, months=months, seed=seed, **kwargs)
             results[name] = (sim_result, report)
 
         return results

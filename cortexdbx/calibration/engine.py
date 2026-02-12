@@ -5,8 +5,7 @@ Updates confidence per (context, strategy) based on outcomes.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple, List, Any
-import math
+from typing import Any, Dict, List, Tuple
 
 
 @dataclass
@@ -60,9 +59,7 @@ class CalibrationEngine:
             )
         return self.states[key]
 
-    def update(
-        self, context_id: str, strategy_id: str, result: str
-    ) -> CalibrationState:
+    def update(self, context_id: str, strategy_id: str, result: str) -> CalibrationState:
         """
         Update calibration based on new outcome.
 
@@ -84,9 +81,7 @@ class CalibrationEngine:
 
         return state
 
-    def get_confidence(
-        self, context_id: str, strategy_id: str
-    ) -> Tuple[float, str]:
+    def get_confidence(self, context_id: str, strategy_id: str) -> Tuple[float, str]:
         """
         Get current confidence with explanation.
 
@@ -105,9 +100,7 @@ class CalibrationEngine:
         )
         return confidence, explanation
 
-    def ingest_outcomes(
-        self, outcomes: List[Dict[str, Any]]
-    ) -> int:
+    def ingest_outcomes(self, outcomes: List[Dict[str, Any]]) -> int:
         """
         Ingest a list of outcome records and update calibration.
 
@@ -124,9 +117,7 @@ class CalibrationEngine:
                 count += 1
         return count
 
-    def evaluate_calibration(
-        self, ground_truth: Dict[str, float]
-    ) -> Dict[str, Any]:
+    def evaluate_calibration(self, ground_truth: Dict[str, float]) -> Dict[str, Any]:
         """
         Evaluate calibration quality against ground truth.
 
@@ -144,18 +135,12 @@ class CalibrationEngine:
         if not predictions:
             return {"error": "Insufficient data for evaluation", "n": 0}
 
-        brier = sum((p - a) ** 2 for p, a in zip(predictions, actuals)) / len(
-            predictions
-        )
-        mae = sum(abs(p - a) for p, a in zip(predictions, actuals)) / len(
-            predictions
-        )
+        brier = sum((p - a) ** 2 for p, a in zip(predictions, actuals)) / len(predictions)
+        mae = sum(abs(p - a) for p, a in zip(predictions, actuals)) / len(predictions)
 
         high_conf = [(p, a) for p, a in zip(predictions, actuals) if p > 0.8]
         precision_high = (
-            sum(1 for p, a in high_conf if a > 0.6) / len(high_conf)
-            if high_conf
-            else None
+            sum(1 for p, a in high_conf if a > 0.6) / len(high_conf) if high_conf else None
         )
 
         return {

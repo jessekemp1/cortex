@@ -22,9 +22,12 @@ def generate_report(days: int = 7) -> dict:
     lean = [e for e in events if e.get("source") == "lean"]
     v1 = [e for e in events if e.get("source") == "v1"]
     report = {
-        "period_days": days, "total_events": len(events),
-        "lean": _analyze_source(lean), "v1": _analyze_source(v1),
-        "winners": {}, "recommendation": "",
+        "period_days": days,
+        "total_events": len(events),
+        "lean": _analyze_source(lean),
+        "v1": _analyze_source(v1),
+        "winners": {},
+        "recommendation": "",
     }
     report["winners"] = _determine_winners(report["lean"], report["v1"])
     report["recommendation"] = _make_recommendation(report)
@@ -33,8 +36,15 @@ def generate_report(days: int = 7) -> dict:
 
 def _analyze_source(events: list[dict]) -> dict:
     if not events:
-        return {"count": 0, "acceptance_rate": 0, "modification_rate": 0,
-                "false_positive_rate": 0, "avg_latency_ms": 0, "p95_latency_ms": 0, "by_type": {}}
+        return {
+            "count": 0,
+            "acceptance_rate": 0,
+            "modification_rate": 0,
+            "false_positive_rate": 0,
+            "avg_latency_ms": 0,
+            "p95_latency_ms": 0,
+            "by_type": {},
+        }
     responded = [e for e in events if e.get("user_response")]
     accepted = sum(1 for e in responded if e["user_response"] == "accepted")
     modified = sum(1 for e in responded if e["user_response"] == "modified")
@@ -56,7 +66,9 @@ def _analyze_source(events: list[dict]) -> dict:
         "modification_rate": round(modified / len(responded), 3) if responded else 0,
         "false_positive_rate": round(ignored / len(events), 3) if events else 0,
         "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else 0,
-        "p95_latency_ms": round(sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 1),
+        "p95_latency_ms": round(
+            sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 1
+        ),
         "by_type": by_type,
     }
 
@@ -64,8 +76,10 @@ def _analyze_source(events: list[dict]) -> dict:
 def _determine_winners(lean: dict, v1: dict) -> dict:
     winners = {}
     metrics = [
-        ("acceptance_rate", "higher"), ("modification_rate", "lower"),
-        ("false_positive_rate", "lower"), ("avg_latency_ms", "lower"),
+        ("acceptance_rate", "higher"),
+        ("modification_rate", "lower"),
+        ("false_positive_rate", "lower"),
+        ("avg_latency_ms", "lower"),
     ]
     for metric, better in metrics:
         lv, vv = lean.get(metric, 0), v1.get(metric, 0)
@@ -95,19 +109,25 @@ def _make_recommendation(report: dict) -> str:
 
 
 def format_report(report: dict) -> str:
-    lines = [f"=== Git Automation Competition Report ({report['period_days']} days) ===",
-             f"Total events: {report['total_events']}", ""]
+    lines = [
+        f"=== Git Automation Competition Report ({report['period_days']} days) ===",
+        f"Total events: {report['total_events']}",
+        "",
+    ]
     for source in ("lean", "v1"):
         s = report[source]
-        lines.extend([
-            f"[{source.upper()}]",
-            f"  Suggestions:        {s['count']}",
-            f"  Acceptance rate:     {s['acceptance_rate']:.1%}",
-            f"  Modification rate:   {s['modification_rate']:.1%}",
-            f"  False positive rate: {s['false_positive_rate']:.1%}",
-            f"  Avg latency:         {s['avg_latency_ms']:.0f}ms",
-            f"  P95 latency:         {s['p95_latency_ms']:.0f}ms", "",
-        ])
+        lines.extend(
+            [
+                f"[{source.upper()}]",
+                f"  Suggestions:        {s['count']}",
+                f"  Acceptance rate:     {s['acceptance_rate']:.1%}",
+                f"  Modification rate:   {s['modification_rate']:.1%}",
+                f"  False positive rate: {s['false_positive_rate']:.1%}",
+                f"  Avg latency:         {s['avg_latency_ms']:.0f}ms",
+                f"  P95 latency:         {s['p95_latency_ms']:.0f}ms",
+                "",
+            ]
+        )
     lines.append("Winners per metric:")
     for metric, winner in report["winners"].items():
         icon = {"lean": "L", "v1": "V", "tie": "="}[winner]
@@ -118,6 +138,7 @@ def format_report(report: dict) -> str:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Git Automation Competition Report")
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--json", action="store_true")

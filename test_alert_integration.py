@@ -7,13 +7,12 @@ from pathlib import Path
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cortex.orchestration.database import OrchestrationDatabase
 from cortex.orchestration.anomaly_detector import (
-    OrchestrationAnomalyManager,
-    OrchestrationAnomaly,
-    AnomalyType,
     AnomalySeverity,
+    OrchestrationAnomalyManager,
 )
+from cortex.orchestration.database import OrchestrationDatabase
+
 
 def main():
     """Test the integration."""
@@ -43,14 +42,16 @@ def main():
         print(f"      Remediation: {anomaly.remediation[:100]}...")
 
         if anomaly.severity == AnomalySeverity.CRITICAL:
-            print(f"      🚨 ALERT SENT (check desktop notifications!)")
+            print("      🚨 ALERT SENT (check desktop notifications!)")
 
     print("\n4. Checking alert logs...")
     from pathlib import Path
+
     alerts_file = Path.home() / ".cortex" / "alerts.jsonl"
 
     if alerts_file.exists():
         import json
+
         with open(alerts_file, "r") as f:
             lines = f.readlines()
             if lines:
@@ -65,6 +66,7 @@ def main():
 
     print("\n✅ Integration test complete!")
     print("   Check your desktop for notifications (if any CRITICAL anomalies)")
+
 
 if __name__ == "__main__":
     main()

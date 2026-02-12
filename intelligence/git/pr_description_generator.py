@@ -48,7 +48,9 @@ def get_commits(base: str = "main") -> list[dict]:
     try:
         result = subprocess.run(
             ["git", "log", f"{base}..HEAD", "--format=%H|%s", "--no-merges"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         commits = []
         for line in result.stdout.strip().splitlines():
@@ -64,7 +66,9 @@ def get_changed_files(base: str = "main") -> list[str]:
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{base}...HEAD"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         return [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
     except Exception:
@@ -75,7 +79,9 @@ def get_diff_stats(base: str = "main") -> dict[str, int]:
     try:
         result = subprocess.run(
             ["git", "diff", "--shortstat", f"{base}...HEAD"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         text = result.stdout.strip()
         stats = {"files_changed": 0, "insertions": 0, "deletions": 0}
@@ -139,8 +145,14 @@ def generate_title(commits: list[dict], projects: list[str]) -> str:
         scope = ", ".join(p.lower() for p in projects)
     else:
         scope = f"{len(projects)} projects"
-    prefix_map = {"Features": "feat", "Bug Fixes": "fix", "Refactoring": "refactor",
-                  "Tests": "test", "Documentation": "docs", "Chores": "chore"}
+    prefix_map = {
+        "Features": "feat",
+        "Bug Fixes": "fix",
+        "Refactoring": "refactor",
+        "Tests": "test",
+        "Documentation": "docs",
+        "Chores": "chore",
+    }
     prefix = prefix_map.get(dominant, "chore")
     return f"{prefix}: {dominant} across {scope} ({len(commits)} commits)"[:70]
 
@@ -225,13 +237,16 @@ def format_pr_body(desc: PRDescription) -> str:
         for note in desc.deployment_notes:
             sections.append(f"- {note}")
     s = desc.stats
-    sections.append(f"\n**Stats**: {s['files_changed']} files changed, +{s['insertions']} -{s['deletions']}")
+    sections.append(
+        f"\n**Stats**: {s['files_changed']} files changed, +{s['insertions']} -{s['deletions']}"
+    )
     sections.append("\n\U0001f916 Generated with [Claude Code](https://claude.com/claude-code)")
     return "\n".join(sections)
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Cortex V1 PR Description Generator")
     parser.add_argument("--base", default="main")
     parser.add_argument("--json", action="store_true")
@@ -239,6 +254,7 @@ def main():
     desc = generate(args.base)
     if args.json:
         import dataclasses
+
         print(json.dumps(dataclasses.asdict(desc), indent=2))
     else:
         print(f"Title: {desc.title}")

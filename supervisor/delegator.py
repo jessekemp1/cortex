@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Set
 
-from .models import WorkItem, RoutedTask, TaskTarget
+from .models import RoutedTask, TaskTarget, WorkItem
 
 
 class AgentType(str, Enum):
@@ -247,9 +247,7 @@ class SupervisorDelegator:
 
         # Filter to available agents
         available_agents = [
-            agent
-            for agent in capable_agents
-            if self._agent_loads[agent.name].is_available
+            agent for agent in capable_agents if self._agent_loads[agent.name].is_available
         ]
 
         if not available_agents:

@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     print(f"\nProjects found: {len(claude_projects)}")
     print(f"Scan time: {opt_time:.3f}s")
-    print(f"Target: <2.0s")
+    print("Target: <2.0s")
     print(f"Status: {'✅ PASS' if opt_time < 2.0 else '⚠️  CLOSE (but better than 15s!)'}")
 
     print("\nProjects discovered:")

@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from anthropic import Anthropic
-
 from intelligence.signals import Signal
 
 
@@ -56,7 +55,9 @@ class TaskContract:
     # Autonomy budget
     max_attempts: int = 3
     max_cost_usd: float = 5.00
-    escalate_conditions: List[str] = field(default_factory=lambda: ["tests_fail_twice", "metric_regression", "cost_exceeded"])
+    escalate_conditions: List[str] = field(
+        default_factory=lambda: ["tests_fail_twice", "metric_regression", "cost_exceeded"]
+    )
 
     # Context for execution
     relevant_files: List[str] = field(default_factory=list)
@@ -107,9 +108,7 @@ class ContractGenerator:
         self.client = Anthropic(api_key=api_key)
 
     async def generate_contract(
-        self,
-        signal: Signal,
-        user_answers: Optional[Dict[str, str]] = None
+        self, signal: Signal, user_answers: Optional[Dict[str, str]] = None
     ) -> TaskContract:
         """
         Generate comprehensive contract that eliminates mid-execution questions.
@@ -140,13 +139,15 @@ class ContractGenerator:
         file_contents_sample = self._read_file_samples(relevant_files[:5])
 
         # 4. Generate contract via Opus
-        prompt = self._build_contract_prompt(signal, similar_work, relevant_files, file_contents_sample, user_answers)
+        prompt = self._build_contract_prompt(
+            signal, similar_work, relevant_files, file_contents_sample, user_answers
+        )
 
         try:
             response = self.client.messages.create(
                 model="claude-opus-4-5",
                 max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Parse response
@@ -167,7 +168,10 @@ class ContractGenerator:
                 auto_executable=(contract_data["risk_level"] in ["low", "medium"]),
                 max_attempts=3,
                 max_cost_usd=10.0 if contract_data["risk_level"] == "high" else 5.0,
-                escalate_conditions=contract_data.get("escalate_conditions", ["tests_fail_twice", "metric_regression", "cost_exceeded"]),
+                escalate_conditions=contract_data.get(
+                    "escalate_conditions",
+                    ["tests_fail_twice", "metric_regression", "cost_exceeded"],
+                ),
                 relevant_files=relevant_files,
                 relevant_docs=[],
                 similar_past_work=similar_work,
@@ -188,7 +192,7 @@ class ContractGenerator:
         similar_work: List[str],
         relevant_files: List[str],
         file_contents_sample: str,
-        user_answers: Optional[Dict[str, str]] = None
+        user_answers: Optional[Dict[str, str]] = None,
     ) -> str:
         """Build comprehensive prompt for Opus to generate contract."""
 
@@ -343,12 +347,12 @@ IMPORTANT: Output ONLY the JSON, no other text."""
                 if path.exists() and path.stat().st_size < 100_000:  # Skip large files
                     content = path.read_text()
                     # Take first 50 lines
-                    lines = content.split('\n')[:50]
-                    samples.append(f"--- {path.name} ---\n" + '\n'.join(lines))
+                    lines = content.split("\n")[:50]
+                    samples.append(f"--- {path.name} ---\n" + "\n".join(lines))
             except Exception:
                 continue
 
-        return '\n\n'.join(samples) if samples else "No file samples available"
+        return "\n\n".join(samples) if samples else "No file samples available"
 
     def _generate_fallback_contract(self, signal: Signal) -> TaskContract:
         """Generate basic contract when Opus fails."""
@@ -424,6 +428,7 @@ IMPORTANT: Output ONLY the JSON, no other text."""
 
 if __name__ == "__main__":
     import asyncio
+
     from intelligence.signals import SignalDetector
 
     async def test_contract_generation():

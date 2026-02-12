@@ -57,10 +57,7 @@ def write_session_cache(context: Dict) -> bool:
     try:
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-        cache_data = {
-            "cached_at": datetime.now().isoformat(),
-            "context": context
-        }
+        cache_data = {"cached_at": datetime.now().isoformat(), "context": context}
 
         CACHE_FILE.write_text(json.dumps(cache_data, indent=2))
         return True
@@ -83,10 +80,11 @@ def get_pr_status() -> Dict:
             cwd=Path.home() / "Dev",
             capture_output=True,
             text=True,
-            timeout=2
+            timeout=2,
         )
         if result.returncode == 0:
             import json
+
             prs = json.loads(result.stdout)
             return {
                 "open_prs": len(prs),
@@ -94,10 +92,10 @@ def get_pr_status() -> Dict:
                     {
                         "number": pr["number"],
                         "title": pr["title"][:60],  # Truncate long titles
-                        "status": pr.get("reviewDecision", "pending").lower()
+                        "status": pr.get("reviewDecision", "pending").lower(),
                     }
                     for pr in prs[:3]  # Top 3 PRs
-                ]
+                ],
             }
     except Exception:
         pass
@@ -116,11 +114,7 @@ def get_project_insights(project_name: str) -> Dict:
         Dict with project-specific insights
     """
     workspace = Path.home() / "Dev"
-    insights = {
-        "validation_alerts": [],
-        "test_status": None,
-        "deployment_needed": False
-    }
+    insights = {"validation_alerts": [], "test_status": None, "deployment_needed": False}
 
     # VortexV2 specific insights
     if project_name == "VortexV2":
@@ -131,7 +125,9 @@ def get_project_insights(project_name: str) -> Dict:
                 reports = list(validation_dir.glob("*REPORT*.md"))
                 for report in reports[:3]:
                     content = report.read_text()
-                    if any(word in content.lower() for word in ["improvement", "better", "outperform"]):
+                    if any(
+                        word in content.lower() for word in ["improvement", "better", "outperform"]
+                    ):
                         insights["validation_alerts"].append(
                             f"Validated improvement in {report.stem.replace('_', ' ')}"
                         )
@@ -185,7 +181,7 @@ def build_fast_session_context() -> Dict:
         "goals": [],
         "recent_work": [],
         "pr_status": {"open_prs": 0, "details": []},
-        "insights": {}
+        "insights": {},
     }
 
     # Detect project from current directory
@@ -216,7 +212,7 @@ def build_fast_session_context() -> Dict:
             cwd=Path.home() / "Dev",
             capture_output=True,
             text=True,
-            timeout=1
+            timeout=1,
         )
         if result.returncode == 0:
             msg = result.stdout.lower()
@@ -244,10 +240,10 @@ def build_fast_session_context() -> Dict:
             cwd=Path.home() / "Dev",
             capture_output=True,
             text=True,
-            timeout=1
+            timeout=1,
         )
         if result.returncode == 0:
-            commits = result.stdout.strip().split('\n')
+            commits = result.stdout.strip().split("\n")
             context["recent_work"] = [{"summary": c} for c in commits if c]
     except Exception:
         pass
@@ -258,15 +254,15 @@ def build_fast_session_context() -> Dict:
         if goals_file.exists():
             content = goals_file.read_text()
             goals = []
-            for line in content.split('\n'):
+            for line in content.split("\n"):
                 # Look for bullet points or numbered lists
                 line = line.strip()
-                if line.startswith('- [ ]') or line.startswith('*'):
-                    goal = line.lstrip('- [ ]').lstrip('*').strip()
+                if line.startswith("- [ ]") or line.startswith("*"):
+                    goal = line.lstrip("- [ ]").lstrip("*").strip()
                     if goal and len(goal) > 10:  # Meaningful goals only
                         goals.append(goal)
-                elif line.startswith(('1.', '2.', '3.')):
-                    goal = line.split('.', 1)[1].strip()
+                elif line.startswith(("1.", "2.", "3.")):
+                    goal = line.split(".", 1)[1].strip()
                     if goal and len(goal) > 10:
                         goals.append(goal)
 

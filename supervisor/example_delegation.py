@@ -9,9 +9,8 @@ Demonstrates:
 - Handling capacity constraints
 """
 
-
 from supervisor.core import CortexSupervisor
-from supervisor.delegator import DelegationPolicy, AgentCapability
+from supervisor.delegator import AgentCapability, DelegationPolicy
 from supervisor.models import WorkItem, WorkItemPriority
 
 

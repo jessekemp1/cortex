@@ -7,13 +7,13 @@ process is followed and verified at each step.
 Run with: python orchestration/example_workflow.py
 """
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from orchestration.verifier import PhaseVerifier, PhaseTransitionError, ValidationFailure
+from orchestration.database import OrchestrationDatabase
 from orchestration.models import ValidationCriteria
 from orchestration.task import Task, TaskPhase, TaskPriority
-from orchestration.database import OrchestrationDatabase
+from orchestration.verifier import PhaseTransitionError, PhaseVerifier, ValidationFailure
 
 
 def example_enforce_phase_order():
@@ -33,7 +33,7 @@ def example_enforce_phase_order():
         title="Add new feature",
         description="Implement user authentication",
         priority=TaskPriority.B,
-        phase=TaskPhase.QUEUED
+        phase=TaskPhase.QUEUED,
     )
     db.create_task(task)
 
@@ -71,7 +71,7 @@ def example_investigation_verification():
         title="Fix login bug",
         description="Users can't log in",
         priority=TaskPriority.A,
-        phase=TaskPhase.INVESTIGATING
+        phase=TaskPhase.INVESTIGATING,
     )
     db.create_task(task)
 
@@ -84,7 +84,7 @@ def example_investigation_verification():
         print(f"  ✓ Correctly blocked: {e}")
 
     # Create investigation report
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
         f.write("""
         # Investigation Report
 
@@ -130,7 +130,7 @@ def example_testing_verification():
         title="Implement feature",
         description="Add export functionality",
         priority=TaskPriority.B,
-        phase=TaskPhase.TESTING
+        phase=TaskPhase.TESTING,
     )
     db.create_task(task)
 
@@ -138,7 +138,7 @@ def example_testing_verification():
     task.validation_criteria = ValidationCriteria(
         test_commands=["echo 'Running tests...'; echo '✓ All tests passed'"],
         success_patterns=["tests passed", "✓"],
-        failure_patterns=["FAILED", "ERROR"]
+        failure_patterns=["FAILED", "ERROR"],
     )
 
     print("\n✓ Task in TESTING phase")
@@ -175,7 +175,7 @@ def example_full_workflow():
         title="Add search feature",
         description="Implement full-text search",
         priority=TaskPriority.B,
-        phase=TaskPhase.QUEUED
+        phase=TaskPhase.QUEUED,
     )
     db.create_task(task)
 
@@ -196,9 +196,7 @@ def example_full_workflow():
 
     # Phase 4: IMPLEMENTING → TESTING
     print("  [4/5] IMPLEMENTING → TESTING")
-    task.validation_criteria = ValidationCriteria(
-        test_commands=["echo 'tests pass'"]
-    )
+    task.validation_criteria = ValidationCriteria(test_commands=["echo 'tests pass'"])
     verifier.transition(task, TaskPhase.TESTING, force=True)
 
     # Phase 5: TESTING → COMPLETED

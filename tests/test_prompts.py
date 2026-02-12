@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from cortex.prompts.ab_testing import ABTestManager, simple_ab_test
 from cortex.prompts.base import PromptTemplate
 from cortex.prompts.registry import PromptRegistry
@@ -145,15 +144,9 @@ version: "1.0.0"
 
     def test_compare_version(self):
         """Test version comparison."""
-        template1 = PromptTemplate(
-            name="test", version="1.0.0", template="", variables=[]
-        )
-        template2 = PromptTemplate(
-            name="test", version="1.0.1", template="", variables=[]
-        )
-        template3 = PromptTemplate(
-            name="test", version="2.0.0", template="", variables=[]
-        )
+        template1 = PromptTemplate(name="test", version="1.0.0", template="", variables=[])
+        template2 = PromptTemplate(name="test", version="1.0.1", template="", variables=[])
+        template3 = PromptTemplate(name="test", version="2.0.0", template="", variables=[])
 
         assert template1.compare_version(template2) == -1  # 1.0.0 < 1.0.1
         assert template2.compare_version(template1) == 1  # 1.0.1 > 1.0.0
@@ -162,21 +155,15 @@ version: "1.0.0"
 
     def test_compare_version_different_prompts(self):
         """Test comparing versions of different prompts raises error."""
-        template1 = PromptTemplate(
-            name="test1", version="1.0.0", template="", variables=[]
-        )
-        template2 = PromptTemplate(
-            name="test2", version="1.0.0", template="", variables=[]
-        )
+        template1 = PromptTemplate(name="test1", version="1.0.0", template="", variables=[])
+        template2 = PromptTemplate(name="test2", version="1.0.0", template="", variables=[])
 
         with pytest.raises(ValueError, match="Cannot compare versions"):
             template1.compare_version(template2)
 
     def test_record_usage(self):
         """Test usage recording."""
-        template = PromptTemplate(
-            name="test", version="1.0.0", template="", variables=[]
-        )
+        template = PromptTemplate(name="test", version="1.0.0", template="", variables=[])
 
         assert template.metadata.get("usage_count", 0) == 0
 
@@ -189,9 +176,7 @@ version: "1.0.0"
 
     def test_record_quality_score(self):
         """Test quality score recording."""
-        template = PromptTemplate(
-            name="test", version="1.0.0", template="", variables=[]
-        )
+        template = PromptTemplate(name="test", version="1.0.0", template="", variables=[])
 
         template.record_quality_score(0.8)
         template.record_quality_score(0.9)
@@ -254,28 +239,24 @@ variables:
         # Create v1
         v1_dir = tmp_path / "versions" / "v1"
         v1_dir.mkdir(parents=True)
-        (v1_dir / "test.yaml").write_text(
-            """
+        (v1_dir / "test.yaml").write_text("""
 name: test_prompt
 version: "1.0.0"
 template: "V1 {var}"
 variables:
   - var
-"""
-        )
+""")
 
         # Create v2
         v2_dir = tmp_path / "versions" / "v2"
         v2_dir.mkdir(parents=True)
-        (v2_dir / "test.yaml").write_text(
-            """
+        (v2_dir / "test.yaml").write_text("""
 name: test_prompt
 version: "2.0.0"
 template: "V2 {var}"
 variables:
   - var
-"""
-        )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
 
@@ -291,15 +272,13 @@ variables:
         for v in ["v1", "v2", "v3"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(
-                f"""
+            (v_dir / "test.yaml").write_text(f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "{v} {{var}}"
 variables:
   - var
-"""
-            )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         template = registry.get_prompt("test_prompt")  # No version specified
@@ -312,15 +291,13 @@ variables:
         v1_dir.mkdir(parents=True)
 
         for name in ["prompt1", "prompt2"]:
-            (v1_dir / f"{name}.yaml").write_text(
-                f"""
+            (v1_dir / f"{name}.yaml").write_text(f"""
 name: {name}
 version: "1.0.0"
 description: "Test {name}"
 template: "Test"
 variables: []
-"""
-            )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         prompts = registry.list_prompts()
@@ -336,27 +313,23 @@ variables: []
         v1_dir.mkdir(parents=True)
 
         # Create initial template
-        (v1_dir / "test.yaml").write_text(
-            """
+        (v1_dir / "test.yaml").write_text("""
 name: test_prompt
 version: "1.0.0"
 template: "Original"
 variables: []
-"""
-        )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         assert registry.get_prompt("test_prompt").template == "Original"
 
         # Modify template on disk
-        (v1_dir / "test.yaml").write_text(
-            """
+        (v1_dir / "test.yaml").write_text("""
 name: test_prompt
 version: "1.0.0"
 template: "Modified"
 variables: []
-"""
-        )
+""")
 
         registry.reload()
         assert registry.get_prompt("test_prompt").template == "Modified"
@@ -383,14 +356,12 @@ variables: []
         for v in ["v1", "v2", "v3"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(
-                f"""
+            (v_dir / "test.yaml").write_text(f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "Test"
 variables: []
-"""
-            )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         versions = registry.get_versions("test_prompt")
@@ -405,12 +376,8 @@ class TestABTesting:
         """Test that same user always gets same variant."""
         manager = ABTestManager()
 
-        variant1 = manager.get_variant(
-            "test_prompt", "user123", {"v1": 0.5, "v2": 0.5}
-        )
-        variant2 = manager.get_variant(
-            "test_prompt", "user123", {"v1": 0.5, "v2": 0.5}
-        )
+        variant1 = manager.get_variant("test_prompt", "user123", {"v1": 0.5, "v2": 0.5})
+        variant2 = manager.get_variant("test_prompt", "user123", {"v1": 0.5, "v2": 0.5})
 
         assert variant1 == variant2  # Consistent assignment
 
@@ -421,9 +388,7 @@ class TestABTesting:
         # Try many users - should get both variants
         variants = set()
         for i in range(100):
-            variant = manager.get_variant(
-                "test_prompt", f"user{i}", {"v1": 0.5, "v2": 0.5}
-            )
+            variant = manager.get_variant("test_prompt", f"user{i}", {"v1": 0.5, "v2": 0.5})
             variants.add(variant)
 
         # With 100 users, should see both variants
@@ -440,9 +405,7 @@ class TestABTesting:
         v2_count = 0
 
         for i in range(1000):
-            variant = manager.get_variant(
-                "test_prompt", f"user{i}", {"v1": 0.8, "v2": 0.2}
-            )
+            variant = manager.get_variant("test_prompt", f"user{i}", {"v1": 0.8, "v2": 0.2})
             if variant == "v1":
                 v1_count += 1
             else:
@@ -496,9 +459,7 @@ class TestABTesting:
         assert variant in ["v1", "v2"]
 
         # Should be consistent
-        variant2 = simple_ab_test(
-            "test_prompt", "user123", control="v1", treatment="v2"
-        )
+        variant2 = simple_ab_test("test_prompt", "user123", control="v1", treatment="v2")
         assert variant == variant2
 
 
@@ -530,15 +491,13 @@ class TestEndToEndIntegration:
         for v in ["v1", "v2"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(
-                f"""
+            (v_dir / "test.yaml").write_text(f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "{v} template {{var}}"
 variables:
   - var
-"""
-            )
+""")
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         manager = ABTestManager()

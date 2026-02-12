@@ -163,7 +163,7 @@ class WarningGenerator:
                 "decreasing": f"Project health is declining ({current_value:.1f}/100). Review metrics, address technical debt, improve documentation.",
             },
             "code_quality": {
-                "decreasing": f"Code quality is decreasing. Review code smells, refactor complex code, improve documentation.",
+                "decreasing": "Code quality is decreasing. Review code smells, refactor complex code, improve documentation.",
             },
         }
 

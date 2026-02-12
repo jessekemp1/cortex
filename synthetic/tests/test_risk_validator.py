@@ -9,14 +9,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from synthetic.generator import SyntheticGenerator
-from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.risk_validator import (
     AdversarialResult,
-    RiskReport,
     RiskValidator,
-    RuleResult,
 )
-from synthetic.schemas import GenerationRequest, Transaction
+from synthetic.schemas import Transaction
 
 
 @pytest.fixture
@@ -113,7 +110,9 @@ class TestIndividualRules:
         struct_result = next(r for r in results if r.rule_name == "structuring")
         assert not struct_result.triggered
 
-    def test_geographic_risk_detects_high_risk_country(self, validator, geographic_risk_transaction):
+    def test_geographic_risk_detects_high_risk_country(
+        self, validator, geographic_risk_transaction
+    ):
         results = validator.validate_transaction(geographic_risk_transaction)
         geo_result = next(r for r in results if r.rule_name == "geographic_risk")
         assert geo_result.triggered
@@ -142,10 +141,12 @@ class TestIndividualRules:
     def test_unusual_volume_detects_spike(self, validator):
         """A $5,000 POS purchase is unusual (65x median)."""
         txn = Transaction(
-            transaction_id="TXN-VOL-001", profile_id="TEST",
+            transaction_id="TXN-VOL-001",
+            profile_id="TEST",
             timestamp="2026-02-05T12:00:00",
             transaction_type="pos_purchase",
-            amount=5000.0, currency="CAD",
+            amount=5000.0,
+            currency="CAD",
         )
         results = validator.validate_transaction(txn)
         vol_result = next(r for r in results if r.rule_name == "unusual_volume")
@@ -157,9 +158,13 @@ class TestIndividualRules:
         assert len(results) == 7
         rule_names = {r.rule_name for r in results}
         assert rule_names == {
-            "structuring", "rapid_movement", "round_amounts",
-            "geographic_risk", "unusual_volume",
-            "dormant_reactivation", "third_party",
+            "structuring",
+            "rapid_movement",
+            "round_amounts",
+            "geographic_risk",
+            "unusual_volume",
+            "dormant_reactivation",
+            "third_party",
         }
 
 
@@ -169,10 +174,12 @@ class TestBatchValidation:
     def test_batch_report_structure(self, validator):
         transactions = [
             Transaction(
-                transaction_id=f"TXN-{i}", profile_id="TEST",
+                transaction_id=f"TXN-{i}",
+                profile_id="TEST",
                 timestamp="2026-02-05T12:00:00",
                 transaction_type="pos_purchase",
-                amount=50.0, currency="CAD",
+                amount=50.0,
+                currency="CAD",
             )
             for i in range(10)
         ]
@@ -192,7 +199,9 @@ class TestBatchValidation:
         # But unusual_volume might fire if amount is high enough
         assert report.total_transactions == 1
 
-    def test_mixed_batch_confusion_matrix(self, validator, normal_transaction, structuring_transaction, geographic_risk_transaction):
+    def test_mixed_batch_confusion_matrix(
+        self, validator, normal_transaction, structuring_transaction, geographic_risk_transaction
+    ):
         transactions = [normal_transaction, structuring_transaction, geographic_risk_transaction]
         report = validator.validate_batch(transactions)
         assert report.total_transactions == 3
@@ -204,25 +213,46 @@ class TestBatchValidation:
         """Generator's 4 implemented patterns should all be detected."""
         transactions = [
             Transaction(
-                transaction_id="S1", profile_id="T", timestamp="2026-02-05T12:00:00",
-                transaction_type="deposit", amount=9800.0, currency="CAD",
-                risk_flag="structuring", risk_score=0.7,
+                transaction_id="S1",
+                profile_id="T",
+                timestamp="2026-02-05T12:00:00",
+                transaction_type="deposit",
+                amount=9800.0,
+                currency="CAD",
+                risk_flag="structuring",
+                risk_score=0.7,
             ),
             Transaction(
-                transaction_id="R1", profile_id="T", timestamp="2026-02-05T12:00:00",
-                transaction_type="wire_domestic", amount=30000.0, currency="CAD",
-                risk_flag="rapid_movement", risk_score=0.6,
+                transaction_id="R1",
+                profile_id="T",
+                timestamp="2026-02-05T12:00:00",
+                transaction_type="wire_domestic",
+                amount=30000.0,
+                currency="CAD",
+                risk_flag="rapid_movement",
+                risk_score=0.6,
             ),
             Transaction(
-                transaction_id="A1", profile_id="T", timestamp="2026-02-05T12:00:00",
-                transaction_type="wire_domestic", amount=25000.0, currency="CAD",
-                risk_flag="round_amounts", risk_score=0.5,
+                transaction_id="A1",
+                profile_id="T",
+                timestamp="2026-02-05T12:00:00",
+                transaction_type="wire_domestic",
+                amount=25000.0,
+                currency="CAD",
+                risk_flag="round_amounts",
+                risk_score=0.5,
             ),
             Transaction(
-                transaction_id="G1", profile_id="T", timestamp="2026-02-05T12:00:00",
-                transaction_type="wire_international", amount=50000.0, currency="CAD",
-                is_international=True, country_code="IR",
-                risk_flag="geographic_risk", risk_score=0.85,
+                transaction_id="G1",
+                profile_id="T",
+                timestamp="2026-02-05T12:00:00",
+                transaction_type="wire_international",
+                amount=50000.0,
+                currency="CAD",
+                is_international=True,
+                country_code="IR",
+                risk_flag="geographic_risk",
+                risk_score=0.85,
             ),
         ]
         report = validator.validate_batch(transactions)
@@ -248,10 +278,14 @@ class TestRuleCoverage:
     def test_coverage_report_structure(self, validator):
         transactions = [
             Transaction(
-                transaction_id=f"TXN-{i}", profile_id="TEST",
+                transaction_id=f"TXN-{i}",
+                profile_id="TEST",
                 timestamp="2026-02-05T12:00:00",
-                transaction_type="deposit", amount=9800.0, currency="CAD",
-                risk_flag="structuring", risk_score=0.7,
+                transaction_type="deposit",
+                amount=9800.0,
+                currency="CAD",
+                risk_flag="structuring",
+                risk_score=0.7,
             )
             for i in range(10)
         ]
@@ -266,7 +300,10 @@ class TestAdversarialLoop:
 
     def test_adversarial_returns_result(self, validator, generator):
         result = validator.adversarial_loop(
-            generator, count=50, max_rounds=2, target_rate=0.50,
+            generator,
+            count=50,
+            max_rounds=2,
+            target_rate=0.50,
         )
         assert isinstance(result, AdversarialResult)
         assert result.rounds_executed >= 1
@@ -275,14 +312,20 @@ class TestAdversarialLoop:
     def test_adversarial_converges_eventually(self, validator, generator):
         """With low target, should converge quickly."""
         result = validator.adversarial_loop(
-            generator, count=100, max_rounds=3, target_rate=0.50,
+            generator,
+            count=100,
+            max_rounds=3,
+            target_rate=0.50,
         )
         # With high-risk profile, most patterns should be detectable
         assert result.final_detection_rate > 0
 
     def test_adversarial_result_serialization(self, validator, generator):
         result = validator.adversarial_loop(
-            generator, count=30, max_rounds=1, target_rate=0.99,
+            generator,
+            count=30,
+            max_rounds=1,
+            target_rate=0.99,
         )
         d = result.to_dict()
         assert "rounds_executed" in d
