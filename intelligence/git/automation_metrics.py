@@ -12,6 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 METRICS_FILE = Path.home() / ".cortex" / "git_automation_events.jsonl"
+PENDING_EVENTS_FILE = Path.home() / ".cortex" / "git_automation_pending.json"
+
+# Max age (seconds) for a suggestion to be considered "pending" for response capture.
+# If a commit happens within this window after a suggestion, it's considered acceptance.
+SUGGESTION_WINDOW_SECONDS = 1800  # 30 minutes
 
 
 def ensure_metrics_dir():
@@ -52,6 +57,122 @@ def update_response(event_id: str, user_response: str, modified_message: str | N
     }
     with open(METRICS_FILE, "a") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def write_pending_event(source: str, event_id: str):
+    """Record that a suggestion was made and is awaiting a response.
+
+    Stores {source: event_id} so the response-capture hook can correlate
+    a subsequent `git commit` with the right suggestion event.
+    """
+    ensure_metrics_dir()
+    pending = _read_pending()
+    pending[source] = {
+        "event_id": event_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    PENDING_EVENTS_FILE.write_text(json.dumps(pending))
+
+
+def get_pending_events() -> dict:
+    """Return pending (unresolved) suggestion events, expiring old ones as 'ignored'."""
+    pending = _read_pending()
+    if not pending:
+        return {}
+    now = datetime.now(timezone.utc)
+    active = {}
+    for source, info in pending.items():
+        try:
+            ts = datetime.fromisoformat(info["timestamp"])
+            age = (now - ts).total_seconds()
+            if age <= SUGGESTION_WINDOW_SECONDS:
+                active[source] = info
+            else:
+                # Expired — mark as ignored in the competition log
+                update_response(info["event_id"], "ignored")
+        except (KeyError, ValueError):
+            continue
+    # Persist only active entries
+    PENDING_EVENTS_FILE.write_text(json.dumps(active))
+    return active
+
+
+def clear_pending_events():
+    """Clear all pending events after they've been resolved."""
+    if PENDING_EVENTS_FILE.exists():
+        PENDING_EVENTS_FILE.write_text("{}")
+
+
+def record_commit_response(commit_message: str):
+    """Called when a git commit is detected. Resolves pending suggestions.
+
+    If the commit message matches a suggestion closely, it's 'accepted'.
+    If it differs, it's 'modified'. Any pending events that aren't
+    matched are left pending (they'll expire via SUGGESTION_WINDOW_SECONDS).
+    """
+    pending = get_pending_events()
+    if not pending:
+        return
+
+    for source, info in pending.items():
+        event_id = info["event_id"]
+        # Determine response type by comparing commit message to suggestion
+        response_type = _classify_response(event_id, commit_message)
+        update_response(
+            event_id,
+            response_type,
+            modified_message=commit_message if response_type == "modified" else None,
+        )
+
+    clear_pending_events()
+
+
+def _classify_response(event_id: str, commit_message: str) -> str:
+    """Classify whether a commit accepted or modified the suggestion."""
+    # Load the original suggestion to compare
+    if not METRICS_FILE.exists():
+        return "accepted"  # Can't compare, assume accepted
+    for line in METRICS_FILE.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+            if entry.get("event_id") == event_id:
+                suggested_messages = []
+                suggestion = entry.get("suggestion", {})
+                for group in suggestion.get("groups", []):
+                    msg = group.get("message", "")
+                    if msg:
+                        suggested_messages.append(msg.lower().strip())
+                # Check if commit message matches any suggested message
+                commit_lower = commit_message.lower().strip()
+                # Strip Co-Authored-By footer for comparison
+                if "co-authored-by" in commit_lower:
+                    commit_lower = commit_lower[: commit_lower.index("co-authored-by")].strip()
+                for suggested in suggested_messages:
+                    if suggested in commit_lower or commit_lower in suggested:
+                        return "accepted"
+                    # Fuzzy: same prefix type (feat, fix, etc.)
+                    if (
+                        suggested.split(":")[0] == commit_lower.split(":")[0]
+                        and len(suggested_messages) == 1
+                    ):
+                        # Same type, single group — likely a refinement
+                        return "modified"
+                return "modified"
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return "accepted"
+
+
+def _read_pending() -> dict:
+    """Read the pending events file."""
+    if not PENDING_EVENTS_FILE.exists():
+        return {}
+    try:
+        return json.loads(PENDING_EVENTS_FILE.read_text())
+    except (json.JSONDecodeError, Exception):
+        return {}
 
 
 def load_events(days: int = 7) -> list[dict]:
