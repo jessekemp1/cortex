@@ -14,6 +14,7 @@ import {
 } from './client'
 import type { PendingTask } from './types'
 import type { IntelligenceQuery } from '@/types/cortex'
+import type { SchedulerStatusRaw } from '@/types/vortex'
 
 export const queryKeys = {
   health: ['health'] as const,
@@ -143,7 +144,7 @@ export function useVortexHealthQuery() {
 
 // ── Vortex: Scheduler ──
 export function useVortexSchedulerQuery() {
-  return useQuery({
+  return useQuery<SchedulerStatusRaw>({
     queryKey: queryKeys.vortexScheduler,
     queryFn: vortexSchedulerApi.getScheduler,
     staleTime: 1000 * 30,

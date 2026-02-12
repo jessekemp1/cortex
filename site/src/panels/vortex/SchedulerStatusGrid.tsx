@@ -8,7 +8,6 @@ interface SchedulerStatusGridProps {
 const statusColors: Record<string, { bg: string; text: string }> = {
   success: { bg: 'bg-cortex-nominal/20', text: 'text-cortex-nominal' },
   failed: { bg: 'bg-cortex-critical/20', text: 'text-cortex-critical' },
-  running: { bg: 'bg-cortex-processing/20', text: 'text-cortex-processing' },
   unknown: { bg: 'bg-cortex-border/50', text: 'text-cortex-text-muted' },
 }
 
@@ -22,8 +21,7 @@ export function SchedulerStatusGrid({ jobs }: SchedulerStatusGridProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
       {jobs.map((job) => {
-        const status = job.last_status ?? 'unknown'
-        const colors = statusColors[status] || statusColors.unknown!
+        const colors = statusColors[job.last_status] || statusColors.unknown!
 
         return (
           <div
@@ -38,11 +36,15 @@ export function SchedulerStatusGrid({ jobs }: SchedulerStatusGridProps) {
               <span className="text-[10px] font-display tracking-wider text-cortex-text-secondary truncate max-w-[75%]">
                 {job.name.toUpperCase().replace(/_/g, ' ')}
               </span>
-              <div className={cn('w-2 h-2 rounded-full', status === 'success' ? 'bg-cortex-nominal' : status === 'failed' ? 'bg-cortex-critical' : status === 'running' ? 'bg-cortex-processing animate-pulse' : 'bg-cortex-text-muted')} />
+              <div className={cn(
+                'w-2 h-2 rounded-full',
+                job.last_status === 'success' ? 'bg-cortex-nominal' :
+                job.last_status === 'failed' ? 'bg-cortex-critical' : 'bg-cortex-text-muted'
+              )} />
             </div>
             <div className="flex items-center justify-between">
               <span className={cn('text-xs font-data', colors.text)}>
-                {status.toUpperCase()}
+                {job.last_status.toUpperCase()}
               </span>
               <span className="text-[10px] font-data text-cortex-text-muted tabular-nums">
                 {formatTime(job.last_run)}
