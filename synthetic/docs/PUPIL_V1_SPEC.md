@@ -77,21 +77,18 @@ Pupil v1 must comply with `PUPIL_SAFE_MODELING_STANDARD.md`.
 ## 4.1 Modules
 
 ```
-cortex/synthetic/
-  pupil_population.py      # Persona synthesis from aggregate constraints
-  pupil_state.py           # Agent state schema and transitions
-  pupil_events.py          # Daily event generation engine
-  pupil_environment.py     # Scenario and macro signal model
-  pupil_simulation.py      # Time stepping and state updates
-  pupil_forecast.py        # Ensemble forecast and uncertainty
-  pupil_validation.py      # Fidelity, privacy, coherence, calibration checks
-  pupil_pipeline.py        # Orchestrates end-to-end run and artifacts
+pupil/                          # Top-level package at repo root
+  __init__.py                   # v1.0.0, Canadian FinServ tagline
+  __main__.py                   # Demo runner (python -m pupil)
+  schema.py                     # Agent dataclass (~98 variables), enums, TrailEvent
+  population.py                 # Bayesian network population generator (15 layers)
+  behavior.py                   # Life event generation + decision engine
+  engine.py                     # SimulationEngine (time-stepping)
+  environment.py                # Environment, WorldState, MarketEvent
+  prediction.py                 # Predictor (Monte Carlo ensemble forecasts)
+  trail.py                      # TrailGenerator (daily behavioral data trails)
   tests/
-    test_pupil_population.py
-    test_pupil_events.py
-    test_pupil_simulation.py
-    test_pupil_forecast.py
-    test_pupil_validation.py
+    __init__.py
 ```
 
 ### 4.2 Data Flow
@@ -110,36 +107,39 @@ cortex/synthetic/
 
 ### 5.1 Population Record (`population.csv`)
 
-Required columns:
+Required columns (subset of ~98 total agent variables):
+
+- `id` -- unique agent identifier (PUP-XXXXXXXXXX)
+- `province` -- Canadian province/territory code (StatsCan Census 2021)
+- `segment` -- FinancialSegment (mass_market, mass_affluent, affluent, hnwi)
+- `age` -- 18-95
+- `gender` -- male, female, non_binary
+- `ethnicity` -- StatsCan visible minority categories
+- `education` -- includes college_trade (key Canadian category)
+- `annual_income` -- CAD, pre-tax individual income
+- `net_worth` -- CAD, total assets minus liabilities
+- `credit_score` -- 300-900 (Equifax/TransUnion Canada scale)
+- `risk_tolerance` -- 0-1
+- `price_sensitivity` -- 0-1
+- `investment_participation` -- bool (RRSP/TFSA)
+- `life_satisfaction` -- 0-1
+- Plus ~85 additional variables across health, social, consumer, digital, values, routine, media, shopping, transport, and lifestyle domains
+
+### 5.2 Event Record (`trail_30days.csv`)
+
+Required columns (from `TrailEvent` schema):
 
 - `agent_id`
-- `segment`
-- `province`
-- `age_band`
-- `income_band`
-- `credit_band`
-- `household_type`
-- `digital_adoption`
-- `risk_tolerance`
-- `price_sensitivity`
-- `churn_propensity`
-- `initial_state`
-
-### 5.2 Event Record (`events.csv`)
-
-Required columns:
-
-- `event_id`
-- `agent_id`
-- `timestamp`
-- `domain` (finance, retail, mobility, health, media, work)
-- `event_type`
-- `amount` (nullable)
-- `duration_minutes` (nullable)
-- `channel`
-- `region`
-- `state_before`
-- `state_after`
+- `day` -- day number in simulation
+- `hour` -- hour of day (0.0-24.0)
+- `event_type` -- purchase, meal, social_media, media, exercise, commute, social, health, search, location
+- `category` -- subcategory (e.g., groceries, streaming, cardio)
+- `amount` -- financial amount in CAD (nullable)
+- `duration_minutes` -- time spent (nullable)
+- `location_type` -- home, work, store, restaurant, gym, outdoors, transit
+- `channel` -- online, in_store, mobile, app
+- `brand` -- brand/vendor if applicable
+- `sentiment` -- -1 to 1
 
 ### 5.3 Forecast Record (`forecast.json`)
 
