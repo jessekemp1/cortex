@@ -19,10 +19,14 @@ Log:   ~/.cortex-lean/guardian_log.jsonl
 import json
 import os
 import subprocess
+import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Add repo root to path so we can import cortex modules
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 STATE_DIR = Path.home() / ".cortex-lean"
 LAST_SUGGESTION = STATE_DIR / "last_commit_suggestion.txt"
@@ -161,7 +165,46 @@ def log_event(lines: int, groups: int):
         pass
 
 
+def log_competition_event(groups: dict, lines: int, latency_ms: float) -> str | None:
+    """Log lean suggestion to the shared competition metrics file.
+
+    Returns event_id for response tracking.
+    """
+    try:
+        from cortex.intelligence.git.automation_metrics import log_event as metrics_log_event
+        from cortex.intelligence.git.automation_metrics import write_pending_event
+
+        suggestion_groups = []
+        for project, files in sorted(groups.items()):
+            msg = suggest_message(project, files)
+            suggestion_groups.append(
+                {
+                    "message": msg,
+                    "file_count": len(files),
+                    "project": project,
+                }
+            )
+
+        event_id = metrics_log_event(
+            source="lean",
+            event_type="commit_suggestion",
+            suggestion={
+                "groups": suggestion_groups,
+                "total_files": sum(len(f) for f in groups.values()),
+                "uncommitted_lines": lines,
+            },
+            latency_ms=latency_ms,
+        )
+
+        write_pending_event("lean", event_id)
+        return event_id
+    except Exception:
+        return None
+
+
 def main():
+    start = time.monotonic()
+
     if is_throttled():
         return
 
@@ -179,6 +222,9 @@ def main():
 
     mark_suggested()
     log_event(lines, len(groups))
+
+    latency_ms = (time.monotonic() - start) * 1000
+    log_competition_event(groups, lines, latency_ms)
 
     # Build suggestion message
     parts = [

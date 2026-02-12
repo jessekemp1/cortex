@@ -14,7 +14,6 @@ import json
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 # Add parent paths so we can import GitStatusAnalyzer
@@ -25,8 +24,6 @@ from cortex.intelligence.status.git_status_analyzer import (
     CommitSuggestion,
     GitStatusAnalyzer,
 )
-
-METRICS_LOG = Path.home() / ".cortex" / "git_automation_events.jsonl"
 
 
 def get_recent_commit_messages(repo_path: str = ".", count: int = 10) -> list[str]:
@@ -83,28 +80,23 @@ def assess_risk(group: ChangeGroup) -> str:
     return group.risk_level
 
 
-def log_suggestion(groups: list[dict], latency_ms: float):
-    """Log V1 suggestions to competition metrics."""
+def log_suggestion(groups: list[dict], latency_ms: float) -> str | None:
+    """Log V1 suggestions to competition metrics. Returns event_id for response tracking."""
     try:
-        METRICS_LOG.parent.mkdir(parents=True, exist_ok=True)
-        import uuid
+        from cortex.intelligence.git.automation_metrics import log_event
 
-        entry = {
-            "event_id": str(uuid.uuid4()),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "source": "v1",
-            "event_type": "commit_suggestion",
-            "suggestion": {
-                "groups": groups,
-                "total_files": sum(g["file_count"] for g in groups),
-            },
-            "latency_ms": round(latency_ms, 1),
-            "user_response": None,
+        suggestion = {
+            "groups": groups,
+            "total_files": sum(g["file_count"] for g in groups),
         }
-        with open(METRICS_LOG, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        return log_event(
+            source="v1",
+            event_type="commit_suggestion",
+            suggestion=suggestion,
+            latency_ms=latency_ms,
+        )
     except Exception:
-        pass
+        return None
 
 
 def plan(repo_path: str = ".") -> list[CommitSuggestion]:
@@ -130,7 +122,7 @@ def plan(repo_path: str = ".") -> list[CommitSuggestion]:
     suggestions = analyzer.suggest_commit_sequence(groups)
 
     latency_ms = (time.monotonic() - start) * 1000
-    log_suggestion(
+    event_id = log_suggestion(
         [
             {
                 "message": s.group.suggested_message,
@@ -142,6 +134,12 @@ def plan(repo_path: str = ".") -> list[CommitSuggestion]:
         ],
         latency_ms,
     )
+
+    # Store event_id so response-capture hook can correlate commits
+    if event_id:
+        from cortex.intelligence.git.automation_metrics import write_pending_event
+
+        write_pending_event("v1", event_id)
 
     return suggestions
 
