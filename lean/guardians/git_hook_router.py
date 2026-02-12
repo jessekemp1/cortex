@@ -22,6 +22,16 @@ from pathlib import Path
 GUARDIAN_DIR = Path(__file__).parent
 
 
+def _cleanup_stale_lock():
+    """Remove stale .git/index.lock if a git subprocess was killed mid-operation."""
+    try:
+        lock = Path.cwd() / ".git" / "index.lock"
+        if lock.exists():
+            lock.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def run_guardian(script: str, stdin_data: str = "") -> str:
     """Run a guardian script, return its stdout."""
     script_path = GUARDIAN_DIR / script
@@ -33,10 +43,11 @@ def run_guardian(script: str, stdin_data: str = "") -> str:
             input=stdin_data,
             capture_output=True,
             text=True,
-            timeout=3,
+            timeout=5,
         )
         return result.stdout.strip()
-    except Exception:
+    except (subprocess.TimeoutExpired, Exception):
+        _cleanup_stale_lock()
         return ""
 
 

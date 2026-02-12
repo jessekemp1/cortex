@@ -33,6 +33,18 @@ MIN_MINUTES_SINCE_COMMIT = 30
 THROTTLE_SECONDS = 300  # 5 minutes
 
 
+def _cleanup_stale_lock():
+    """Remove stale .git/index.lock if a git subprocess was killed mid-operation."""
+    try:
+        from pathlib import Path as P
+
+        lock = P.cwd() / ".git" / "index.lock"
+        if lock.exists():
+            lock.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def is_throttled() -> bool:
     """Check if we suggested too recently."""
     try:
@@ -56,13 +68,13 @@ def minutes_since_last_commit() -> float:
             ["git", "log", "-1", "--format=%ct"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
         if result.stdout.strip():
             commit_ts = int(result.stdout.strip())
             return (time.time() - commit_ts) / 60
-    except Exception:
-        pass
+    except (subprocess.TimeoutExpired, Exception):
+        _cleanup_stale_lock()
     return 999  # If we can't tell, assume it's been a while
 
 
@@ -72,7 +84,7 @@ def count_uncommitted_lines() -> int:
             ["git", "diff", "--shortstat"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
         text = result.stdout.strip()
         if not text:
@@ -83,7 +95,8 @@ def count_uncommitted_lines() -> int:
             if "insertion" in part or "deletion" in part:
                 total += int(part.split()[0])
         return total
-    except Exception:
+    except (subprocess.TimeoutExpired, Exception):
+        _cleanup_stale_lock()
         return 0
 
 
@@ -94,7 +107,7 @@ def get_commit_groups() -> dict[str, list[str]]:
             ["git", "diff", "--name-only"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
         files = [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
         groups = defaultdict(list)
@@ -104,7 +117,8 @@ def get_commit_groups() -> dict[str, list[str]]:
             project = parts[0] if len(parts) > 1 else "root"
             groups[project].append(f)
         return dict(groups)
-    except Exception:
+    except (subprocess.TimeoutExpired, Exception):
+        _cleanup_stale_lock()
         return {}
 
 

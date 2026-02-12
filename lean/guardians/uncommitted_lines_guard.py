@@ -30,6 +30,16 @@ THRESHOLDS = [
 ]
 
 
+def _cleanup_stale_lock(repo_path: str = "."):
+    """Remove stale .git/index.lock if a git subprocess was killed mid-operation."""
+    try:
+        lock = Path(repo_path) / ".git" / "index.lock"
+        if lock.exists():
+            lock.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def count_uncommitted_lines(repo_path: str = ".") -> int:
     """Count total inserted+deleted lines in uncommitted changes."""
     try:
@@ -38,7 +48,7 @@ def count_uncommitted_lines(repo_path: str = ".") -> int:
             cwd=repo_path,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=10,
         )
         # Output: " 3 files changed, 45 insertions(+), 12 deletions(-)"
         text = result.stdout.strip()
@@ -50,7 +60,8 @@ def count_uncommitted_lines(repo_path: str = ".") -> int:
             if "insertion" in part or "deletion" in part:
                 total += int(part.split()[0])
         return total
-    except Exception:
+    except (subprocess.TimeoutExpired, Exception):
+        _cleanup_stale_lock(repo_path)
         return 0
 
 
