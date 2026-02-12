@@ -12,32 +12,34 @@ are proven but never reach production.
 """
 
 import json
+import logging
 import re
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-import logging
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class AntiPatternType(str, Enum):
     """Types of anti-patterns to detect."""
-    VALIDATED_UNDEPLOYED = "validated_undeployed"           # Model validated but not in production
-    FIXED_NOT_INTEGRATED = "fixed_not_integrated"           # Bug fixed but fix not deployed
-    RECOMMENDATION_NOT_ACTED = "recommendation_not_acted"   # Critical recommendation ignored
-    ORPHANED_VALIDATION = "orphaned_validation"             # Validation data with no follow-up
+
+    VALIDATED_UNDEPLOYED = "validated_undeployed"  # Model validated but not in production
+    FIXED_NOT_INTEGRATED = "fixed_not_integrated"  # Bug fixed but fix not deployed
+    RECOMMENDATION_NOT_ACTED = "recommendation_not_acted"  # Critical recommendation ignored
+    ORPHANED_VALIDATION = "orphaned_validation"  # Validation data with no follow-up
 
 
 class Severity(str, Enum):
     """Alert severity levels."""
-    CRITICAL = "critical"   # Production impact, immediate action required
-    HIGH = "high"           # Significant improvement not deployed
-    MEDIUM = "medium"       # Recommended improvement not acted on
-    LOW = "low"             # Minor validation finding
+
+    CRITICAL = "critical"  # Production impact, immediate action required
+    HIGH = "high"  # Significant improvement not deployed
+    MEDIUM = "medium"  # Recommended improvement not acted on
+    LOW = "low"  # Minor validation finding
 
 
 @dataclass
@@ -54,25 +56,27 @@ class AntiPatternAlert:
     severity: Severity
 
     # Context
-    project: str                              # e.g., "VortexV2", "alpha_arena"
-    validated_item: str                       # e.g., "FieldSelectiveEnsemble", "bias_correction_v2"
-    validation_source: str                    # Path to validation report
+    project: str  # e.g., "VortexV2", "alpha_arena"
+    validated_item: str  # e.g., "FieldSelectiveEnsemble", "bias_correction_v2"
+    validation_source: str  # Path to validation report
     validation_date: datetime
 
     # Production state
-    production_item: Optional[str] = None     # Current production model/approach
-    production_source: Optional[str] = None   # Where production config was found
+    production_item: Optional[str] = None  # Current production model/approach
+    production_source: Optional[str] = None  # Where production config was found
 
     # Metrics
-    improvement_metrics: Dict[str, Any] = field(default_factory=dict)  # e.g., {"mae_improvement": "6.3%"}
-    recommendation_priority: Optional[str] = None                       # e.g., "P0", "P1"
+    improvement_metrics: Dict[str, Any] = field(
+        default_factory=dict
+    )  # e.g., {"mae_improvement": "6.3%"}
+    recommendation_priority: Optional[str] = None  # e.g., "P0", "P1"
 
     # Evidence
     evidence: List[str] = field(default_factory=list)  # Supporting facts
 
     # Action
-    suggested_action: str = ""                # What should be done
-    estimated_effort: Optional[str] = None    # e.g., "2h", "1d"
+    suggested_action: str = ""  # What should be done
+    estimated_effort: Optional[str] = None  # e.g., "2h", "1d"
     blocking_factors: List[str] = field(default_factory=list)  # What's blocking deployment
 
     # Tracking
@@ -242,9 +246,7 @@ class AntiPatternDetector:
                 validation_date = improvement.get("date", datetime.now())
 
                 # Check if deployed to production
-                is_deployed = self._check_production_deployment(
-                    project, model_name, project_config
-                )
+                is_deployed = self._check_production_deployment(project, model_name, project_config)
 
                 if not is_deployed:
                     # Create alert
@@ -471,9 +473,7 @@ class AntiPatternDetector:
 
         return False
 
-    def _check_fix_integrated(
-        self, project: str, fix_name: str, config: Dict[str, Any]
-    ) -> bool:
+    def _check_fix_integrated(self, project: str, fix_name: str, config: Dict[str, Any]) -> bool:
         """Check if fix is integrated into production code."""
         # Check model files
         for model_pattern in config.get("model_files", []):
@@ -569,38 +569,46 @@ class AntiPatternDetector:
 
             # Pattern 1: Direct improvement statements
             # Example: "FieldSelectiveEnsemble shows 6.3% improvement"
-            pattern1 = r'([A-Za-z_]+(?:Ensemble|Model|Approach))\s+(?:shows?|achieves?|demonstrates?)\s+(?:(?:a|an)\s+)?(\+?[\d.]+%)\s+(?:improvement|better|reduction)'
+            pattern1 = r"([A-Za-z_]+(?:Ensemble|Model|Approach))\s+(?:shows?|achieves?|demonstrates?)\s+(?:(?:a|an)\s+)?(\+?[\d.]+%)\s+(?:improvement|better|reduction)"
             matches1 = re.finditer(pattern1, content, re.IGNORECASE)
 
             for match in matches1:
                 model_name = match.group(1)
                 pct = match.group(2)
 
-                improvements.append({
-                    "model_name": model_name,
-                    "metrics": {"improvement_pct": pct},
-                    "date": self._extract_date_from_report(report_path, content),
-                })
+                improvements.append(
+                    {
+                        "model_name": model_name,
+                        "metrics": {"improvement_pct": pct},
+                        "date": self._extract_date_from_report(report_path, content),
+                    }
+                )
 
             # Pattern 2: Comparison tables
             # Look for markdown tables with "better" or improvement indicators
-            table_pattern = r'\|([^\|]+)\|([^\|]+)\|([^\|]+)\|'
-            for line in content.split('\n'):
-                if '|' in line and any(word in line.lower() for word in ['better', 'improvement', 'best']):
+            table_pattern = r"\|([^\|]+)\|([^\|]+)\|([^\|]+)\|"
+            for line in content.split("\n"):
+                if "|" in line and any(
+                    word in line.lower() for word in ["better", "improvement", "best"]
+                ):
                     match = re.search(table_pattern, line)
                     if match:
                         # Extract model name from first column
                         model_name = match.group(1).strip()
-                        if model_name and not model_name.startswith('-'):
-                            improvements.append({
-                                "model_name": model_name,
-                                "metrics": {"comparison": "better"},
-                                "date": self._extract_date_from_report(report_path, content),
-                            })
+                        if model_name and not model_name.startswith("-"):
+                            improvements.append(
+                                {
+                                    "model_name": model_name,
+                                    "metrics": {"comparison": "better"},
+                                    "date": self._extract_date_from_report(report_path, content),
+                                }
+                            )
 
             # Pattern 3: Headline improvements
             # Example: "## FieldSelectiveEnsemble: 6.3% MAE Reduction"
-            pattern3 = r'##\s+([A-Za-z_]+):\s+(\+?[\d.]+%)\s+([A-Za-z]+)\s+(?:Reduction|Improvement)'
+            pattern3 = (
+                r"##\s+([A-Za-z_]+):\s+(\+?[\d.]+%)\s+([A-Za-z]+)\s+(?:Reduction|Improvement)"
+            )
             matches3 = re.finditer(pattern3, content, re.IGNORECASE)
 
             for match in matches3:
@@ -608,11 +616,13 @@ class AntiPatternDetector:
                 pct = match.group(2)
                 metric = match.group(3)
 
-                improvements.append({
-                    "model_name": model_name,
-                    "metrics": {f"{metric.lower()}_improvement": pct},
-                    "date": self._extract_date_from_report(report_path, content),
-                })
+                improvements.append(
+                    {
+                        "model_name": model_name,
+                        "metrics": {f"{metric.lower()}_improvement": pct},
+                        "date": self._extract_date_from_report(report_path, content),
+                    }
+                )
 
         except Exception as e:
             logger.warning(f"Failed to parse improvements from {report_path}: {e}")
@@ -628,7 +638,7 @@ class AntiPatternDetector:
             fix_name = report_path.stem.replace("_FIX_REPORT", "").replace("_", " ")
 
             # Look for issue description
-            issue_pattern = r'(?:Issue|Problem|Bug):\s*(.+?)(?:\n\n|\Z)'
+            issue_pattern = r"(?:Issue|Problem|Bug):\s*(.+?)(?:\n\n|\Z)"
             issue_match = re.search(issue_pattern, content, re.IGNORECASE | re.DOTALL)
             issue = issue_match.group(1).strip() if issue_match else ""
 
@@ -656,7 +666,7 @@ class AntiPatternDetector:
             content = report_path.read_text()
 
             # Find recommendations section
-            rec_section_pattern = r'##\s+(?:Recommendations|Next Steps|Action Items)(.*?)(?:##|\Z)'
+            rec_section_pattern = r"##\s+(?:Recommendations|Next Steps|Action Items)(.*?)(?:##|\Z)"
             rec_section_match = re.search(rec_section_pattern, content, re.IGNORECASE | re.DOTALL)
 
             if not rec_section_match:
@@ -666,7 +676,7 @@ class AntiPatternDetector:
 
             # Parse individual recommendations
             # Pattern: **P0: Action** or **CRITICAL: Action**
-            rec_pattern = r'\*\*(?:(P[0-9]|CRITICAL|HIGH|MEDIUM|LOW):)?\s*([^*]+)\*\*'
+            rec_pattern = r"\*\*(?:(P[0-9]|CRITICAL|HIGH|MEDIUM|LOW):)?\s*([^*]+)\*\*"
             matches = re.finditer(rec_pattern, rec_section)
 
             for match in matches:
@@ -676,12 +686,14 @@ class AntiPatternDetector:
                 # Extract keywords from action
                 keywords = [word for word in action.split() if len(word) > 4][:5]
 
-                recommendations.append({
-                    "priority": priority,
-                    "action": action,
-                    "keywords": keywords,
-                    "date": self._extract_date_from_report(report_path, content),
-                })
+                recommendations.append(
+                    {
+                        "priority": priority,
+                        "action": action,
+                        "keywords": keywords,
+                        "date": self._extract_date_from_report(report_path, content),
+                    }
+                )
 
         except Exception as e:
             logger.warning(f"Failed to parse recommendations from {report_path}: {e}")
@@ -692,7 +704,7 @@ class AntiPatternDetector:
         """Extract date from report filename or content."""
         # Try filename first
         # Pattern: YYYYMMDD
-        filename_date = re.search(r'(\d{8})', report_path.stem)
+        filename_date = re.search(r"(\d{8})", report_path.stem)
         if filename_date:
             try:
                 return datetime.strptime(filename_date.group(1), "%Y%m%d")
@@ -700,7 +712,7 @@ class AntiPatternDetector:
                 pass
 
         # Try content - look for date headers
-        content_date = re.search(r'(?:Date|Generated|Created):\s*(\d{4}-\d{2}-\d{2})', content)
+        content_date = re.search(r"(?:Date|Generated|Created):\s*(\d{4}-\d{2}-\d{2})", content)
         if content_date:
             try:
                 return datetime.strptime(content_date.group(1), "%Y-%m-%d")
@@ -734,9 +746,9 @@ class AntiPatternDetector:
         """Calculate severity based on improvement metrics."""
         # Extract percentage improvements
         for key, value in metrics.items():
-            if isinstance(value, str) and '%' in value:
+            if isinstance(value, str) and "%" in value:
                 try:
-                    pct = float(value.replace('+', '').replace('%', ''))
+                    pct = float(value.replace("+", "").replace("%", ""))
 
                     if pct >= 10:
                         return Severity.CRITICAL

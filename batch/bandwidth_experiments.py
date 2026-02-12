@@ -193,9 +193,7 @@ class BandwidthExperimentRunner:
         Returns:
             Dict with overall and per-wave status
         """
-        all_tasks = [
-            t for t in self.queue.get_all_tasks() if t.task_type == "bandwidth_experiment"
-        ]
+        all_tasks = [t for t in self.queue.get_all_tasks() if t.task_type == "bandwidth_experiment"]
 
         completed = [t for t in all_tasks if t.state == TaskState.COMPLETED]
         running = [t for t in all_tasks if t.state == TaskState.RUNNING]
@@ -307,7 +305,7 @@ class BandwidthExperimentRunner:
         """Build command for context compression experiment."""
         scenarios_json = json.dumps(COMPRESSION_SCENARIOS)
 
-        return f'''python -c "
+        return f"""python -c "
 import json
 import sys
 from pathlib import Path
@@ -354,13 +352,13 @@ with open(results_file, 'w') as f:
 
 print(f'\\n✓ Results saved: {{results_file}}')
 "
-'''
+"""
 
     def _build_trust_calibration_command(self) -> str:
         """Build command for trust calibration experiment."""
         domains_json = json.dumps(CALIBRATION_DOMAINS)
 
-        return f'''python -c "
+        return f"""python -c "
 import json
 import sys
 from pathlib import Path
@@ -423,11 +421,11 @@ with open(results_file, 'w') as f:
 
 print(f'\\n✓ Calibration data saved: {{results_file}}')
 "
-'''
+"""
 
     def _build_handoff_protocol_command(self) -> str:
         """Build command for handoff protocol experiment."""
-        return f'''python -c "
+        return f"""python -c "
 import json
 import sys
 from pathlib import Path
@@ -480,11 +478,11 @@ with open(results_file, 'w') as f:
 print(f'\\n✓ Handoff results saved: {{results_file}}')
 print(f'   Average retention: {{avg_retention*100:.0f}}% (+48% vs baseline)')
 "
-'''
+"""
 
     def _build_idea_augmentation_command(self) -> str:
         """Build command for idea augmentation experiment."""
-        return f'''python -c "
+        return f"""python -c "
 import json
 import sys
 from pathlib import Path
@@ -542,11 +540,11 @@ with open(results_file, 'w') as f:
 print(f'\\n✓ Augmentation results saved: {{results_file}}')
 print(f'   Best protocol: {{best_protocol[\"name\"]}} (+{{improvement*100:.0f}}% novelty vs freeform)')
 "
-'''
+"""
 
     def _build_synthesis_command(self) -> str:
         """Build command for synthesis report."""
-        return f'''python -c "
+        return f"""python -c "
 import json
 import sys
 from pathlib import Path
@@ -663,7 +661,7 @@ print(f'\\n=== Key Recommendations ===')
 for rec in report['recommendations']:
     print(f'  → {{rec}}')
 "
-'''
+"""
 
     def _update_dependencies(
         self, tasks: List[ExperimentTask], task_id_map: Dict[str, str]
@@ -677,9 +675,7 @@ for rec in report['recommendations']:
                 continue
 
             actual_dependencies = [
-                task_id_map[dep_id]
-                for dep_id in task_def.dependencies
-                if dep_id in task_id_map
+                task_id_map[dep_id] for dep_id in task_def.dependencies if dep_id in task_id_map
             ]
 
             if actual_dependencies:

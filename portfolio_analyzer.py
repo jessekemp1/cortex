@@ -12,7 +12,7 @@ Generates actionable recommendations based on cross-project intelligence.
 """
 
 import json
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -597,7 +597,7 @@ class PortfolioAnalyzer:
             f"Coverage: {specs['coverage_percentage']}% ({specs['projects_with_specs']}/{specs['total_projects']} projects)"
         )
         if specs["specs_by_project"]:
-            print(f"\nBy Project:")
+            print("\nBy Project:")
             for proj, count in specs["specs_by_project"].items():
                 print(f"  • {proj}: {count} specs")
         if specs["undocumented_projects"]:
@@ -607,17 +607,17 @@ class PortfolioAnalyzer:
         print("\n📈 PERFORMANCE METRICS")
         print("-" * 70)
         metrics = analysis["metrics_analysis"]
-        print(f"Velocity:")
+        print("Velocity:")
         print(f"  Tasks: {metrics['velocity']['tasks_completed']}")
         print(f"  Hours Saved: {metrics['velocity']['hours_saved']}")
         print(f"  Avg Improvement: {metrics['velocity']['avg_improvement']}%")
-        print(f"\nMistake Prevention:")
+        print("\nMistake Prevention:")
         print(f"  Total: {metrics['mistakes']['total']}")
         print(
             f"  Prevented: {metrics['mistakes']['prevented']} ({metrics['mistakes']['prevention_rate']}%)"
         )
         print(f"  Hours Saved: {metrics['mistakes']['hours_saved']}")
-        print(f"\nROI:")
+        print("\nROI:")
         print(f"  Investment: {metrics['roi']['investment_hours']} hours")
         print(f"  Benefits: {metrics['roi']['benefit_hours']} hours")
         print(f"  Net: {metrics['roi']['net_savings_hours']} hours")

@@ -198,7 +198,6 @@ ALTERNATIVE_APPROACHES:
                 custom_id=context.context_id,
                 params={
                     "model": models.default,
-                    "model": models.default,
                     "max_tokens": 2000,
                     "messages": [{"role": "user", "content": prompt}],
                     "system": self.system_prompt,

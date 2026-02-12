@@ -7,15 +7,10 @@ Tests all new CLI commands: deep, quick, auto, config
 import subprocess
 import sys
 
+
 def run_command(cmd, expect_success=True):
     """Run a CLI command and return result"""
-    result = subprocess.run(
-        cmd,
-        shell=True,
-        capture_output=True,
-        text=True,
-        timeout=30
-    )
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
 
     if expect_success:
         if result.returncode != 0:
@@ -28,9 +23,9 @@ def run_command(cmd, expect_success=True):
 
 def test_cli_help():
     """Test 1: CLI help includes deep mode commands"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: CLI Help")
-    print("="*60)
+    print("=" * 60)
 
     success, result = run_command("python cli.py --help")
 
@@ -58,9 +53,9 @@ def test_cli_help():
 
 def test_config_show():
     """Test 2: Config --show command"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: Config --show")
-    print("="*60)
+    print("=" * 60)
 
     success, result = run_command("python cli.py config --show")
 
@@ -81,9 +76,9 @@ def test_config_show():
 
 def test_deep_command():
     """Test 3: Deep analysis command"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: Deep Analysis")
-    print("="*60)
+    print("=" * 60)
 
     success, result = run_command("python cli.py deep cortex")
 
@@ -112,9 +107,9 @@ def test_deep_command():
 
 def test_deep_json():
     """Test 4: Deep analysis with JSON output"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 4: Deep Analysis --json")
-    print("="*60)
+    print("=" * 60)
 
     success, result = run_command("python cli.py deep cortex --json")
 
@@ -124,6 +119,7 @@ def test_deep_json():
     # Check it's valid JSON by parsing
     try:
         import json
+
         data = json.loads(result.stdout)
 
         # Check required keys
@@ -145,9 +141,9 @@ def test_deep_json():
 
 def test_quick_command():
     """Test 5: Quick mode command (expects fallback message)"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 5: Quick Mode (Fallback)")
-    print("="*60)
+    print("=" * 60)
 
     # Quick mode expected to fail gracefully with suggestion
     success, result = run_command("python cli.py quick cortex", expect_success=False)
@@ -163,9 +159,9 @@ def test_quick_command():
 
 def test_auto_command():
     """Test 6: Auto mode command"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 6: Auto Mode")
-    print("="*60)
+    print("=" * 60)
 
     success, result = run_command("python cli.py auto cortex")
 
@@ -183,9 +179,9 @@ def test_auto_command():
 
 def main():
     """Run all CLI integration tests"""
-    print("\n" + "#"*60)
+    print("\n" + "#" * 60)
     print("# PHASE 1 CLI INTEGRATION TEST SUITE")
-    print("#"*60)
+    print("#" * 60)
 
     tests = [
         ("CLI Help", test_cli_help),
@@ -205,9 +201,9 @@ def main():
             results[name] = False
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     passed = sum(1 for v in results.values() if v)
     total = len(results)
@@ -219,14 +215,14 @@ def main():
     print(f"\nOverall: {passed}/{total} tests passed ({passed/total*100:.0f}%)")
 
     if passed == total:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🎉 ALL TESTS PASSED - CLI INTEGRATION COMPLETE")
-        print("="*60)
+        print("=" * 60)
         return True
     else:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("⚠️  SOME TESTS FAILED - See details above")
-        print("="*60)
+        print("=" * 60)
         return False
 
 

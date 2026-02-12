@@ -509,7 +509,7 @@ class MetricsTracker:
             # Estimate success from project count and frequency
             # Higher project count and frequency indicate success
             frequency = pattern_data.get("count", 0)
-            success_indicators = total_applications + (frequency // 2)  # Weight projects more
+            total_applications + (frequency // 2)  # Weight projects more
 
             # Calculate success rate (simplified - assumes patterns used in multiple projects are successful)
             if total_applications > 0:

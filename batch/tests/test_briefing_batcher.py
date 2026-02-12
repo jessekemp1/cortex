@@ -127,11 +127,7 @@ ALTERNATIVE_APPROACHES:
         """Test processing recommendation API result"""
         batcher = RecommendationBatcher()
 
-        result = {
-            "message": {
-                "content": [
-                    {
-                        "text": """
+        result = {"message": {"content": [{"text": """
 PRIORITY_ACTIONS:
 - Task 1
 - Task 2
@@ -143,11 +139,7 @@ RECOMMENDED_FOCUS: Goal
 
 ALTERNATIVE_APPROACHES:
 - Approach 1
-"""
-                    }
-                ]
-            }
-        }
+"""}]}}
 
         processed = batcher._process_recommendation_result("test_001", result)
 
@@ -232,11 +224,7 @@ ADJUSTMENT_SUGGESTIONS:
         """Test processing insight API result"""
         batcher = InsightBatcher()
 
-        result = {
-            "message": {
-                "content": [
-                    {
-                        "text": """
+        result = {"message": {"content": [{"text": """
 KEY_LEARNINGS:
 - Learning 1
 - Learning 2
@@ -250,11 +238,7 @@ Reasoning: Test
 
 ADJUSTMENT_SUGGESTIONS:
 - Suggestion 1
-"""
-                    }
-                ]
-            }
-        }
+"""}]}}
 
         processed = batcher._process_insight_result("insight_001", result)
 

@@ -15,7 +15,7 @@ Features:
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 from .base import BasePlugin, PluginMetadata
 
@@ -60,7 +60,9 @@ class PluginRegistry:
             with open(self.registry_path, "r") as f:
                 self._state = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not load registry from {self.registry_path}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Could not load registry from {self.registry_path}: {e}", file=sys.stderr
+            )
             self._state = {}
 
     def _save_state(self) -> None:
@@ -167,11 +169,7 @@ class PluginRegistry:
         Returns:
             List of enabled plugin names
         """
-        return [
-            name
-            for name in self.plugins.keys()
-            if self.is_enabled(name)
-        ]
+        return [name for name in self.plugins.keys() if self.is_enabled(name)]
 
     def get_disabled_plugins(self) -> List[str]:
         """
@@ -180,11 +178,7 @@ class PluginRegistry:
         Returns:
             List of disabled plugin names
         """
-        return [
-            name
-            for name in self.plugins.keys()
-            if not self.is_enabled(name)
-        ]
+        return [name for name in self.plugins.keys() if not self.is_enabled(name)]
 
     def get_all_plugins(self) -> List[str]:
         """
@@ -285,11 +279,7 @@ class PluginRegistry:
         Returns:
             List of plugin names with the tag
         """
-        return [
-            name
-            for name, metadata in self.plugins.items()
-            if tag in metadata.tags
-        ]
+        return [name for name, metadata in self.plugins.items() if tag in metadata.tags]
 
     def get_stats(self) -> Dict:
         """

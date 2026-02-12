@@ -13,7 +13,7 @@ Anti-pattern prevented: Mega-PR Accumulation (65+ commits, 135K+ lines)
 
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -21,6 +21,7 @@ from typing import List, Optional, Tuple
 @dataclass
 class HygieneAlert:
     """A single hygiene alert."""
+
     level: str  # "ok", "warning", "alert", "critical"
     category: str  # "lines", "age", "commits", "files"
     message: str
@@ -32,6 +33,7 @@ class HygieneAlert:
 @dataclass
 class HygieneReport:
     """Complete git hygiene report."""
+
     timestamp: datetime
     branch: str
     alerts: List[HygieneAlert]
@@ -57,21 +59,16 @@ class HygieneReport:
 
     def summary(self) -> str:
         """Generate human-readable summary."""
-        status_icons = {
-            "ok": "✅",
-            "warning": "⚠️",
-            "alert": "🔴",
-            "critical": "🚨"
-        }
+        status_icons = {"ok": "✅", "warning": "⚠️", "alert": "🔴", "critical": "🚨"}
 
         lines = [
             f"\n{'='*60}",
             f"🧹 GIT HYGIENE CHECK - {self.branch}",
             f"{'='*60}",
-            f"",
+            "",
             f"📊 Status: {status_icons[self.overall_status]} {self.overall_status.upper()}",
-            f"",
-            f"Metrics:",
+            "",
+            "Metrics:",
             f"  • Uncommitted lines: {self.uncommitted_lines:,}",
             f"  • Uncommitted files: {self.uncommitted_files}",
             f"  • Branch age: {self.branch_age_days:.1f} days",
@@ -79,7 +76,7 @@ class HygieneReport:
         ]
 
         if self.alerts:
-            lines.append(f"\nAlerts:")
+            lines.append("\nAlerts:")
             for alert in self.alerts:
                 icon = status_icons[alert.level]
                 lines.append(f"  {icon} [{alert.category}] {alert.message}")
@@ -94,26 +91,10 @@ class GitHygieneAnalyzer:
 
     # Thresholds
     THRESHOLDS = {
-        "lines": {
-            "warning": 500,
-            "alert": 1000,
-            "critical": 2000
-        },
-        "files": {
-            "warning": 30,
-            "alert": 50,
-            "critical": 100
-        },
-        "branch_age_days": {
-            "warning": 3,
-            "alert": 5,
-            "critical": 7
-        },
-        "commits_ahead": {
-            "warning": 10,
-            "alert": 25,
-            "critical": 50
-        }
+        "lines": {"warning": 500, "alert": 1000, "critical": 2000},
+        "files": {"warning": 30, "alert": 50, "critical": 100},
+        "branch_age_days": {"warning": 3, "alert": 5, "critical": 7},
+        "commits_ahead": {"warning": 10, "alert": 25, "critical": 50},
     }
 
     def __init__(self, repo_path: Optional[Path] = None):
@@ -136,7 +117,7 @@ class GitHygieneAnalyzer:
                 ["git", "-C", str(self.repo_path)] + list(args),
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
             return result.stdout.strip()
         except subprocess.TimeoutExpired:
@@ -168,7 +149,8 @@ class GitHygieneAnalyzer:
                 if "changed" in line:
                     # Summary line
                     import re
-                    nums = re.findall(r'(\d+)', line)
+
+                    nums = re.findall(r"(\d+)", line)
                     if len(nums) >= 2:
                         total_files = int(nums[0])
                         total_lines = sum(int(n) for n in nums[1:])
@@ -179,7 +161,7 @@ class GitHygieneAnalyzer:
             try:
                 file_path = self.repo_path / f
                 if file_path.exists() and file_path.is_file():
-                    with open(file_path, 'r', errors='ignore') as fp:
+                    with open(file_path, "r", errors="ignore") as fp:
                         total_lines += sum(1 for _ in fp)
             except:
                 total_lines += 50  # Estimate
@@ -229,10 +211,7 @@ class GitHygieneAnalyzer:
             return 0
 
     def _check_threshold(
-        self,
-        category: str,
-        value: float,
-        unit: str = ""
+        self, category: str, value: float, unit: str = ""
     ) -> Optional[HygieneAlert]:
         """Check a value against thresholds."""
         thresholds = self.THRESHOLDS.get(category, {})
@@ -241,23 +220,23 @@ class GitHygieneAnalyzer:
             "lines": {
                 "warning": "Consider committing current work with `/commit`",
                 "alert": "Split changes into logical commits NOW",
-                "critical": "STOP! Commit immediately before adding more changes"
+                "critical": "STOP! Commit immediately before adding more changes",
             },
             "files": {
                 "warning": "Group related files and commit separately",
                 "alert": "Too many files - split into multiple commits",
-                "critical": "STOP! This will be unreviewable. Commit in parts."
+                "critical": "STOP! This will be unreviewable. Commit in parts.",
             },
             "branch_age_days": {
                 "warning": "Consider merging to main soon",
                 "alert": "Branch is getting stale - merge or rebase",
-                "critical": "STOP! Merge to main immediately to avoid conflicts"
+                "critical": "STOP! Merge to main immediately to avoid conflicts",
             },
             "commits_ahead": {
                 "warning": "Consider creating a PR",
                 "alert": "Too many commits - create PR and merge",
-                "critical": "STOP! This PR will be impossible to review"
-            }
+                "critical": "STOP! This PR will be impossible to review",
+            },
         }
 
         level = "ok"
@@ -275,7 +254,7 @@ class GitHygieneAnalyzer:
             message=f"{value:,.0f}{unit} (threshold: {thresholds[level]}{unit})",
             value=int(value),
             threshold=thresholds[level],
-            recommendation=recommendations.get(category, {}).get(level, "Take action")
+            recommendation=recommendations.get(category, {}).get(level, "Take action"),
         )
 
     def analyze(self) -> HygieneReport:
@@ -307,7 +286,7 @@ class GitHygieneAnalyzer:
             uncommitted_lines=lines,
             uncommitted_files=files,
             branch_age_days=age,
-            commits_ahead=commits
+            commits_ahead=commits,
         )
 
     def quick_check(self) -> str:
@@ -317,11 +296,13 @@ class GitHygieneAnalyzer:
         if report.overall_status == "ok":
             return "✅ Git hygiene: OK"
         elif report.overall_status == "warning":
-            return f"⚠️ Git hygiene: {len(report.alerts)} warning(s) - run `/git-hygiene` for details"
+            return (
+                f"⚠️ Git hygiene: {len(report.alerts)} warning(s) - run `/git-hygiene` for details"
+            )
         elif report.overall_status == "alert":
             return f"🔴 Git hygiene: ACTION NEEDED - {report.uncommitted_lines:,} uncommitted lines"
         else:
-            return f"🚨 Git hygiene: CRITICAL - commit immediately!"
+            return "🚨 Git hygiene: CRITICAL - commit immediately!"
 
 
 def main():

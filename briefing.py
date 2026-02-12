@@ -1451,9 +1451,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         status_color = (
             GREEN
             if pacing.get("status") == "under_budget"
-            else YELLOW
-            if pacing.get("status") in ["on_track", "elevated"]
-            else RED
+            else YELLOW if pacing.get("status") in ["on_track", "elevated"] else RED
         )
         lines.append(
             f"  {emoji} {BOLD}Pacing:{RESET} {status_color}{status}{RESET} ({daily_hrs:.1f}h/day vs {target_hrs:.1f}h target)"
@@ -1465,7 +1463,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         used = weekly.get("used_hours", 0)
         limit = weekly.get("limit_hours", 60)
         days_left = weekly.get("days_remaining", 0)
-        projected = weekly.get("projected_total", 0)
+        weekly.get("projected_total", 0)
         will_hit = weekly.get("will_hit_limit", False)
 
         pct_used = (used / limit * 100) if limit > 0 else 0
@@ -1633,9 +1631,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         mem_color = (
             RED
             if rs["memory_usage_percent"] > 80
-            else YELLOW
-            if rs["memory_usage_percent"] > 60
-            else GREEN
+            else YELLOW if rs["memory_usage_percent"] > 60 else GREEN
         )
 
         lines.append(
@@ -1653,9 +1649,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         alerts_color = (
             RED
             if rs.get("critical_alerts", 0) > 0
-            else YELLOW
-            if rs.get("alerts_count", 0) > 5
-            else ""
+            else YELLOW if rs.get("alerts_count", 0) > 5 else ""
         )
         waste_color = YELLOW if rs.get("waste_items", 0) > 10 else ""
 
@@ -1943,9 +1937,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             priority_color = (
                 RED
                 if action["priority"] == "HIGH"
-                else YELLOW
-                if action["priority"] == "MEDIUM"
-                else GREEN
+                else YELLOW if action["priority"] == "MEDIUM" else GREEN
             )
 
             # Title with project inline

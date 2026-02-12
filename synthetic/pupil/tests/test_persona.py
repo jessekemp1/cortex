@@ -1,15 +1,13 @@
 """Standalone tests for Pupil persona agents, market env, and segment models."""
 
 import pytest
-
+from helpers import make_profile
 from pupil.market_env import (
     MarketEnvironment,
     build_timeline,
 )
-from pupil.segment_models import SEGMENT_MODELS, get_behavior
 from pupil.persona import Action, ActionType, LifecycleState, PersonaAgent
-
-from helpers import make_profile
+from pupil.segment_models import SEGMENT_MODELS, get_behavior
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ Shows how implicit feedback signals are collected automatically from user behavi
 """
 
 import time
-from pathlib import Path
 
 from intelligence.feedback.implicit_collector import ImplicitFeedbackCollector
 
@@ -159,9 +158,7 @@ def demo_statistics():
 
     # Follow 3 out of 5
     for i in range(3):
-        collector.track_action_taken(
-            action=f"Task {i}: Fix issue", files=[f"file_{i}.py"]
-        )
+        collector.track_action_taken(action=f"Task {i}: Fix issue", files=[f"file_{i}.py"])
 
     collector.session_end()
 
@@ -175,9 +172,7 @@ def demo_statistics():
         collector.track_recommendation_shown(rec["id"], rec)
 
     # Follow 1 out of 5
-    collector.track_action_taken(
-        action="Task 5: Update docs", files=["file_5.md"]
-    )
+    collector.track_action_taken(action="Task 5: Update docs", files=["file_5.md"])
 
     collector.session_end()
 

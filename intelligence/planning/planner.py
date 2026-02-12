@@ -4,14 +4,13 @@ Planner - Converts recommendations into executable plans.
 
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from intelligence.planning.models import (
     Plan,
     PlanPriority,
     PlanStatus,
     PlanStep,
-    StepStatus,
 )
 
 
@@ -247,7 +246,7 @@ class Planner:
             plan: Plan to optimize
         """
         # Build dependency graph
-        dep_graph = {step.id: set(step.dependencies) for step in plan.steps}
+        {step.id: set(step.dependencies) for step in plan.steps}
 
         # Topological sort with priority consideration
         ordered_steps = []

@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.constraints import ConstraintEngine, ConstraintReport, ConstraintResult
+from synthetic.constraints import ConstraintEngine
 from synthetic.generator import SyntheticGenerator
 from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.schemas import CustomerProfile, GenerationRequest
@@ -33,7 +33,7 @@ def kb():
 def sample_profiles(generator):
     """Generate a batch of 200 profiles for testing."""
     request = GenerationRequest(data_type="profiles", count=200)
-    result = generator.generate(request)
+    generator.generate(request)
     # Re-generate profiles directly for in-memory access
     profiles, _ = generator._generate_profiles(request)
     return profiles
@@ -45,7 +45,9 @@ class TestChiSquared:
     def test_province_distribution_passes(self, engine, sample_profiles):
         """Province distribution should roughly match StatsCan."""
         report = engine.validate_batch(sample_profiles)
-        chi_results = [r for r in report.results if r.test_name == "chi_squared" and r.dimension == "province"]
+        chi_results = [
+            r for r in report.results if r.test_name == "chi_squared" and r.dimension == "province"
+        ]
         assert len(chi_results) == 1
         # With 200 samples, chi-squared should pass if generator is calibrated
         assert chi_results[0].statistic >= 0  # Valid statistic
@@ -53,13 +55,19 @@ class TestChiSquared:
     def test_segment_distribution_passes(self, engine, sample_profiles):
         """Segment distribution should match Big 5 averages."""
         report = engine.validate_batch(sample_profiles)
-        chi_results = [r for r in report.results if r.test_name == "chi_squared" and r.dimension == "segment"]
+        chi_results = [
+            r for r in report.results if r.test_name == "chi_squared" and r.dimension == "segment"
+        ]
         assert len(chi_results) == 1
         assert chi_results[0].deviation < 0.20  # < 20% max deviation
 
     def test_digital_adoption_tested(self, engine, sample_profiles):
         report = engine.validate_batch(sample_profiles)
-        chi_results = [r for r in report.results if r.test_name == "chi_squared" and r.dimension == "digital_adoption"]
+        chi_results = [
+            r
+            for r in report.results
+            if r.test_name == "chi_squared" and r.dimension == "digital_adoption"
+        ]
         assert len(chi_results) == 1
 
     def test_empty_batch_handled(self, engine):
@@ -77,17 +85,29 @@ class TestChiSquared:
         for prov, pct in constraint.distribution.items():
             count = int(pct * n)
             for _ in range(count):
-                profiles.append(CustomerProfile(
-                    profile_id=f"TEST-{len(profiles)}",
-                    age=35, province=prov, fsa="M5V", segment="mass_market",
-                    annual_income=50000.0, household_income=80000.0,
-                    credit_score=700, products_held=["chequing"],
-                    total_deposits=10000.0, total_credit_outstanding=0.0,
-                    digital_adoption="hybrid", primary_channel="mobile",
-                    tenure_years=5.0, products_per_household=1,
-                ))
+                profiles.append(
+                    CustomerProfile(
+                        profile_id=f"TEST-{len(profiles)}",
+                        age=35,
+                        province=prov,
+                        fsa="M5V",
+                        segment="mass_market",
+                        annual_income=50000.0,
+                        household_income=80000.0,
+                        credit_score=700,
+                        products_held=["chequing"],
+                        total_deposits=10000.0,
+                        total_credit_outstanding=0.0,
+                        digital_adoption="hybrid",
+                        primary_channel="mobile",
+                        tenure_years=5.0,
+                        products_per_household=1,
+                    )
+                )
         report = engine.validate_batch(profiles)
-        prov_chi = [r for r in report.results if r.test_name == "chi_squared" and r.dimension == "province"]
+        prov_chi = [
+            r for r in report.results if r.test_name == "chi_squared" and r.dimension == "province"
+        ]
         assert prov_chi[0].passed
 
 
@@ -109,6 +129,7 @@ class TestJSD:
     def test_jsd_identical_distributions_near_zero(self, engine):
         """JSD of identical distributions should be ~0."""
         import numpy as np
+
         p = np.array([0.4, 0.3, 0.2, 0.1])
         q = np.array([0.4, 0.3, 0.2, 0.1])
         jsd = ConstraintEngine._compute_jsd(p, q)
@@ -117,6 +138,7 @@ class TestJSD:
     def test_jsd_different_distributions_positive(self, engine):
         """JSD of very different distributions should be significant."""
         import numpy as np
+
         p = np.array([0.9, 0.05, 0.03, 0.02])
         q = np.array([0.25, 0.25, 0.25, 0.25])
         jsd = ConstraintEngine._compute_jsd(p, q)
@@ -158,12 +180,20 @@ class TestJointDistribution:
         """Joint test needs >= 50 profiles."""
         profiles = [
             CustomerProfile(
-                profile_id=f"TEST-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"TEST-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(20)
@@ -189,12 +219,20 @@ class TestDeviationVector:
         """If all profiles are ON, province_ON should be positive (over-represented)."""
         profiles = [
             CustomerProfile(
-                profile_id=f"TEST-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"TEST-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(100)
@@ -221,12 +259,20 @@ class TestAntiCollapse:
         """All-ON batch should trigger collapse warning for some provinces."""
         profiles = [
             CustomerProfile(
-                profile_id=f"TEST-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"TEST-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(100)

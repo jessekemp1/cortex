@@ -2,8 +2,8 @@
 
 import pytest
 from cortexdbx.synthetic.generator import (
-    SyntheticDataGenerator,
     DOMAIN_CONFIGS,
+    SyntheticDataGenerator,
     generate_all_domains,
 )
 

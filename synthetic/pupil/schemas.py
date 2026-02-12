@@ -6,13 +6,14 @@ models for agent-based simulation and prediction.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 
 
 class Province(str, Enum):
     """Canadian provinces and territories."""
+
     AB = "AB"
     BC = "BC"
     MB = "MB"
@@ -30,6 +31,7 @@ class Province(str, Enum):
 
 class CustomerSegment(str, Enum):
     """Bank customer segments aligned with Big 5 segmentation."""
+
     MASS_MARKET = "mass_market"
     MASS_AFFLUENT = "mass_affluent"
     AFFLUENT = "affluent"
@@ -42,6 +44,7 @@ class CustomerSegment(str, Enum):
 
 class ProductType(str, Enum):
     """Canadian financial products."""
+
     CHEQUING = "chequing"
     SAVINGS = "savings"
     TFSA = "tfsa"
@@ -116,29 +119,32 @@ class CustomerProfile:
 
 class AgentState(str, Enum):
     """Behavioral lifecycle states for financial customers."""
-    ONBOARDING = "onboarding"      # < 6 months with institution
-    ACTIVE = "active"              # Primary banking customer
+
+    ONBOARDING = "onboarding"  # < 6 months with institution
+    ACTIVE = "active"  # Primary banking customer
     TRANSITIONING = "transitioning"  # Considering changes
-    AT_RISK = "at_risk"            # Showing churn signals  
-    CHURNED = "churned"            # Left primary institution
-    REACTIVATED = "reactivated"    # Returned after churn
+    AT_RISK = "at_risk"  # Showing churn signals
+    CHURNED = "churned"  # Left primary institution
+    REACTIVATED = "reactivated"  # Returned after churn
 
 
 class BehavioralActionType(str, Enum):
     """Types of customer actions in behavioral sequences."""
-    PRODUCT_ADOPTION = "product_adoption"          # New product
-    PRODUCT_SWITCH = "product_switch"               # Switch provider
-    PRODUCT_CANCELLATION = "product_cancellation"   # Drop product
-    CHANNEL_USAGE = "channel_usage"                 # Banking channel
-    TRANSACTION = "transaction"                      # Financial activity
-    GOAL_UPDATE = "goal_update"                     # Change priorities
-    REVIEW_COMPLETED = "review_completed"           # Service interaction
-    COMPLAINT = "complaint"                         # Negative feedback
-    REFERRAL = "referral"                            # Word of mouth
+
+    PRODUCT_ADOPTION = "product_adoption"  # New product
+    PRODUCT_SWITCH = "product_switch"  # Switch provider
+    PRODUCT_CANCELLATION = "product_cancellation"  # Drop product
+    CHANNEL_USAGE = "channel_usage"  # Banking channel
+    TRANSACTION = "transaction"  # Financial activity
+    GOAL_UPDATE = "goal_update"  # Change priorities
+    REVIEW_COMPLETED = "review_completed"  # Service interaction
+    COMPLAINT = "complaint"  # Negative feedback
+    REFERRAL = "referral"  # Word of mouth
 
 
 class GoalType(str, Enum):
     """Financial goals that drive customer behavior."""
+
     SAVE_DOWN_PAYMENT = "save_down_payment"
     PAY_OFF_DEBT = "pay_off_debt"
     BUILD_EMERGENCY_FUND = "build_emergency_fund"
@@ -162,7 +168,7 @@ class BehavioralAction:
     institution_involved: Optional[str] = None  # Institution name
     reasoning: Optional[str] = None  # LLM reasoning trail (optional)
     confidence: float = 1.0  # Model confidence in action (0.0-1.0)
-    
+
     # Impact metrics
     satisfaction_impact: float = 0.0  # -1.0 to +1.0
     financial_impact: float = 0.0  # Monthly $ impact
@@ -180,11 +186,11 @@ class BehavioralAction:
             "confidence": self.confidence,
             "satisfaction_impact": self.satisfaction_impact,
             "financial_impact": self.financial_impact,
-            "risk_impact": self.risk_impact
+            "risk_impact": self.risk_impact,
         }
 
 
-@dataclass 
+@dataclass
 class Goal:
     type: str  # GoalType enum value
     priority: float  # 0.0-1.0, higher = more important
@@ -201,7 +207,7 @@ class Goal:
             "progress": self.progress,
             "monthly_target": self.monthly_target,
             "deadline": self.deadline,
-            "satisfaction": self.satisfaction
+            "satisfaction": self.satisfaction,
         }
 
     @property
@@ -218,11 +224,12 @@ class Goal:
             self.satisfaction = min(1.0, self.satisfaction + 0.1)
         elif monthly_actual < self.monthly_target * 0.5:
             self.satisfaction = max(0.0, self.satisfaction - 0.2)
-        
+
 
 @dataclass
 class BehavioralProfile:
     """Behavioral profile combining customer data with simulated actions."""
+
     profile: CustomerProfile
     behavioral_actions: List[BehavioralAction] = field(default_factory=list)
     goals: List[Goal] = field(default_factory=list)
@@ -231,6 +238,7 @@ class BehavioralProfile:
 @dataclass
 class BehavioralSequence:
     """Time-ordered sequence of behavioral actions for one customer."""
+
     profile_id: str
     actions: List[BehavioralAction] = field(default_factory=list)
 
@@ -238,31 +246,31 @@ class BehavioralSequence:
 @dataclass
 class PupilRequest:
     """Request for Pupil behavioral generation/simulation."""
-    
+
     # Agent creation
     agent_count: int = 100
     data_sources: List[str] = field(default_factory=lambda: ["census", "cba"])
     include_reasoning: bool = False  # LLM enrichment
-    
+
     # Behavioral parameters
     simulation_months: int = 12
     scenario_events: List[Dict[str, Any]] = field(default_factory=list)
     seed: Optional[int] = None
-    
+
     # Market events
     rate_scenarios: List[float] = field(default_factory=list)  # BoC rate changes
     competitive_events: List[Dict[str, Any]] = field(default_factory=list)
     macro_events: List[Dict[str, Any]] = field(default_factory=list)
-    
+
     # Quality validation
     validate_statistics: bool = True
     validate_behavior: bool = True
     validate_privacy: bool = True
-    
+
     # Output
     include_reasoning_trails: bool = False  # LLM reasoning logs
     temporal_granularity: str = "monthly"  # monthly, quarterly
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -279,40 +287,42 @@ class PupilRequest:
             "validate_behavior": self.validate_behavior,
             "validate_privacy": self.validate_privacy,
             "include_reasoning_trails": self.include_reasoning_trails,
-            "temporal_granularity": self.temporal_granularity
+            "temporal_granularity": self.temporal_granularity,
         }
 
 
 @dataclass
 class PupilResult:
     """Result from Pupil behavioral generation/simulation."""
-    
+
     request: PupilRequest
     behavioral_profiles: List[BehavioralProfile]
     behavioral_sequences: List[BehavioralSequence]
     simulation_metadata: Dict[str, Any]
-    
+
     # Quality scores
     generation_time_seconds: float
     behavioral_fidelity_score: float  # L8 score
     temporal_coherence_score: float  # L9 score
     statistical_fidelity_score: float  # L2 score
     privacy_score: float  # L7 score
-    
+
     # Validation results
     flywheel_id: str
     validation_passed: bool
     validation_reports: Dict[str, Any]  # L8-L9 reports
-    
+
     def summary(self) -> str:
         """Human-readable summary."""
         profile_count = len(self.behavioral_profiles)
         sequence_count = len(self.behavioral_sequences)
-        avg_quality = (self.behavioral_fidelity_score + 
-                      self.temporal_coherence_score + 
-                      self.statistical_fidelity_score + 
-                      self.privacy_score) / 4
-        
+        avg_quality = (
+            self.behavioral_fidelity_score
+            + self.temporal_coherence_score
+            + self.statistical_fidelity_score
+            + self.privacy_score
+        ) / 4
+
         return (
             f"Generated {profile_count} behavioral profiles "
             f"| {sequence_count} behavioral sequences "

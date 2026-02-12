@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 class Province(str, Enum):
     """Canadian provinces and territories."""
+
     AB = "AB"
     BC = "BC"
     MB = "MB"
@@ -34,11 +35,12 @@ class Province(str, Enum):
 
 class CustomerSegment(str, Enum):
     """Bank customer segments aligned with Big 5 segmentation."""
-    MASS_MARKET = "mass_market"           # <$75K income
-    MASS_AFFLUENT = "mass_affluent"       # $75K-$150K
-    AFFLUENT = "affluent"                 # $150K-$500K
-    HIGH_NET_WORTH = "high_net_worth"     # $500K-$1M
-    ULTRA_HNW = "ultra_hnw"              # >$1M
+
+    MASS_MARKET = "mass_market"  # <$75K income
+    MASS_AFFLUENT = "mass_affluent"  # $75K-$150K
+    AFFLUENT = "affluent"  # $150K-$500K
+    HIGH_NET_WORTH = "high_net_worth"  # $500K-$1M
+    ULTRA_HNW = "ultra_hnw"  # >$1M
     SMALL_BUSINESS = "small_business"
     COMMERCIAL = "commercial"
     NEW_TO_CANADA = "new_to_canada"
@@ -46,6 +48,7 @@ class CustomerSegment(str, Enum):
 
 class ProductType(str, Enum):
     """Canadian financial products."""
+
     CHEQUING = "chequing"
     SAVINGS = "savings"
     TFSA = "tfsa"
@@ -66,6 +69,7 @@ class ProductType(str, Enum):
 
 class TransactionType(str, Enum):
     """Transaction categories."""
+
     DEPOSIT = "deposit"
     WITHDRAWAL = "withdrawal"
     TRANSFER = "transfer"
@@ -82,14 +86,15 @@ class TransactionType(str, Enum):
 
 class RiskFlag(str, Enum):
     """AML/KYC risk indicators for transaction data."""
+
     NONE = "none"
-    STRUCTURING = "structuring"                 # Just under $10K threshold
-    RAPID_MOVEMENT = "rapid_movement"           # In-and-out pattern
-    GEOGRAPHIC_RISK = "geographic_risk"          # High-risk jurisdiction
-    UNUSUAL_VOLUME = "unusual_volume"            # Spike vs baseline
-    ROUND_AMOUNTS = "round_amounts"              # Suspicious round numbers
+    STRUCTURING = "structuring"  # Just under $10K threshold
+    RAPID_MOVEMENT = "rapid_movement"  # In-and-out pattern
+    GEOGRAPHIC_RISK = "geographic_risk"  # High-risk jurisdiction
+    UNUSUAL_VOLUME = "unusual_volume"  # Spike vs baseline
+    ROUND_AMOUNTS = "round_amounts"  # Suspicious round numbers
     DORMANT_REACTIVATION = "dormant_reactivation"  # Dormant account suddenly active
-    THIRD_PARTY = "third_party"                 # Third-party deposits
+    THIRD_PARTY = "third_party"  # Third-party deposits
 
 
 @dataclass

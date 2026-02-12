@@ -19,30 +19,31 @@ import streamlit as st
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from intelligence.signals import SignalDetector, Signal, SignalType
+from health.monitor import HealthMonitor
 from intelligence.contracts import ContractGenerator
 from intelligence.risk import RiskClassifier
-from health.monitor import HealthMonitor
-
+from intelligence.signals import Signal, SignalDetector, SignalType
 
 # Page config
 st.set_page_config(
     page_title="Cortex Intelligence Platform",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
+
 
 # Initialize components
 @st.cache_resource
 def get_components():
     """Initialize all components (cached)."""
     return {
-        'detector': SignalDetector(),
-        'generator': ContractGenerator(),
-        'classifier': RiskClassifier(),
-        'monitor': HealthMonitor(),
+        "detector": SignalDetector(),
+        "generator": ContractGenerator(),
+        "classifier": RiskClassifier(),
+        "monitor": HealthMonitor(),
     }
+
 
 components = get_components()
 cache_dir = Path.home() / ".cortex"
@@ -58,7 +59,7 @@ def main():
     page = st.sidebar.radio(
         "Navigate",
         ["🏥 Health", "🔍 Signals", "📋 Contracts", "📊 Queue"],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     st.sidebar.markdown("---")
@@ -87,7 +88,7 @@ def show_health_page():
     st.title("🏥 System Health")
 
     # Get health status
-    monitor = components['monitor']
+    monitor = components["monitor"]
     metrics, alerts = monitor.health_status()
 
     # Metrics cards
@@ -95,47 +96,27 @@ def show_health_page():
 
     with col1:
         queue_status = "🟢" if 3 <= metrics.queue_depth <= 8 else "🟡"
-        st.metric(
-            "Queue Depth",
-            metrics.queue_depth,
-            help="Optimal: 3-8 tasks"
-        )
+        st.metric("Queue Depth", metrics.queue_depth, help="Optimal: 3-8 tasks")
         st.caption(f"{queue_status} Optimal: 3-8")
 
     with col2:
         success_status = "🟢" if metrics.success_rate >= 0.85 else "🔴"
-        st.metric(
-            "Success Rate",
-            f"{metrics.success_rate:.1%}",
-            help="Optimal: >85%"
-        )
+        st.metric("Success Rate", f"{metrics.success_rate:.1%}", help="Optimal: >85%")
         st.caption(f"{success_status} Optimal: >85%")
 
     with col3:
         cycle_status = "🟢" if metrics.avg_cycle_time_hours <= 4.0 else "🟡"
-        st.metric(
-            "Cycle Time",
-            f"{metrics.avg_cycle_time_hours:.1f}h",
-            help="Optimal: <4h"
-        )
+        st.metric("Cycle Time", f"{metrics.avg_cycle_time_hours:.1f}h", help="Optimal: <4h")
         st.caption(f"{cycle_status} Optimal: <4h")
 
     with col4:
         blocked_status = "🟢" if metrics.blocked_tasks == 0 else "🔴"
-        st.metric(
-            "Blocked Tasks",
-            metrics.blocked_tasks,
-            help="Optimal: 0"
-        )
+        st.metric("Blocked Tasks", metrics.blocked_tasks, help="Optimal: 0")
         st.caption(f"{blocked_status} Optimal: 0")
 
     with col5:
         cost_status = "🟢" if metrics.cost_per_day_usd <= 50 else "🟡"
-        st.metric(
-            "Cost/Day",
-            f"${metrics.cost_per_day_usd:.2f}",
-            help="Optimal: <$50"
-        )
+        st.metric("Cost/Day", f"${metrics.cost_per_day_usd:.2f}", help="Optimal: <$50")
         st.caption(f"{cost_status} Optimal: <$50")
 
     st.markdown("---")
@@ -182,12 +163,14 @@ def show_health_page():
         anti_pattern_detector = AntiPatternDetector(db=None, root_dir=Path.cwd())
 
         # Detect anomalies
-        orchestration_anomalies = anomaly_manager.detect_all(context={
-            "active_projects": 26,  # TODO: Get from actual state
-            "total_projects": 30,
-            "goals_in_progress": 0,
-            "goals_pending": 9
-        })
+        orchestration_anomalies = anomaly_manager.detect_all(
+            context={
+                "active_projects": 26,  # TODO: Get from actual state
+                "total_projects": 30,
+                "goals_in_progress": 0,
+                "goals_pending": 9,
+            }
+        )
 
         # Detect anti-patterns
         anti_patterns = anti_pattern_detector.detect_all()
@@ -197,19 +180,23 @@ def show_health_page():
 
         for anomaly in orchestration_anomalies:
             if anomaly.severity.value.lower() in ["critical", "warning"]:
-                all_issues.append({
-                    "severity": anomaly.severity.value.lower(),
-                    "title": anomaly.title,
-                    "action": anomaly.remediation
-                })
+                all_issues.append(
+                    {
+                        "severity": anomaly.severity.value.lower(),
+                        "title": anomaly.title,
+                        "action": anomaly.remediation,
+                    }
+                )
 
         for pattern in anti_patterns:
             if pattern.severity.value.lower() in ["critical", "high"]:
-                all_issues.append({
-                    "severity": pattern.severity.value.lower(),
-                    "title": f"{pattern.pattern_type.value}: {pattern.validated_item}",
-                    "action": pattern.suggested_action
-                })
+                all_issues.append(
+                    {
+                        "severity": pattern.severity.value.lower(),
+                        "title": f"{pattern.pattern_type.value}: {pattern.validated_item}",
+                        "action": pattern.suggested_action,
+                    }
+                )
 
         if not all_issues:
             st.success("✅ No orchestration issues detected")
@@ -232,16 +219,14 @@ def show_health_page():
     history = monitor.get_history(hours=24)
     if history:
         # Simple line chart of success rate over time
-        timestamps = [h['timestamp'] for h in reversed(history)]
-        success_rates = [h['metrics']['success_rate'] for h in reversed(history)]
+        timestamps = [h["timestamp"] for h in reversed(history)]
+        success_rates = [h["metrics"]["success_rate"] for h in reversed(history)]
 
         import pandas as pd
-        df = pd.DataFrame({
-            'Time': timestamps,
-            'Success Rate': success_rates
-        })
 
-        st.line_chart(df.set_index('Time'))
+        df = pd.DataFrame({"Time": timestamps, "Success Rate": success_rates})
+
+        st.line_chart(df.set_index("Time"))
     else:
         st.info("No historical data available yet")
 
@@ -269,16 +254,16 @@ def show_signals_page():
     st.markdown(f"**Total Signals**: {data.get('count', 0)}")
 
     col1, col2, col3, col4 = st.columns(4)
-    by_severity = data.get('by_severity', {})
+    by_severity = data.get("by_severity", {})
 
     with col1:
-        st.metric("🚨 Critical", by_severity.get('critical', 0))
+        st.metric("🚨 Critical", by_severity.get("critical", 0))
     with col2:
-        st.metric("⚠️ High", by_severity.get('high', 0))
+        st.metric("⚠️ High", by_severity.get("high", 0))
     with col3:
-        st.metric("💡 Medium", by_severity.get('medium', 0))
+        st.metric("💡 Medium", by_severity.get("medium", 0))
     with col4:
-        st.metric("ℹ️ Low", by_severity.get('low', 0))
+        st.metric("ℹ️ Low", by_severity.get("low", 0))
 
     st.markdown("---")
 
@@ -289,59 +274,71 @@ def show_signals_page():
         severity_filter = st.multiselect(
             "Filter by Severity",
             ["critical", "high", "medium", "low"],
-            default=["critical", "high", "medium", "low"]
+            default=["critical", "high", "medium", "low"],
         )
 
     with col2:
         type_filter = st.multiselect(
             "Filter by Type",
-            ["validation_gap", "test_failure", "strategic_gap", "tech_debt", "security", "performance", "documentation"],
-            default=["validation_gap", "test_failure", "strategic_gap", "tech_debt", "security", "performance", "documentation"]
+            [
+                "validation_gap",
+                "test_failure",
+                "strategic_gap",
+                "tech_debt",
+                "security",
+                "performance",
+                "documentation",
+            ],
+            default=[
+                "validation_gap",
+                "test_failure",
+                "strategic_gap",
+                "tech_debt",
+                "security",
+                "performance",
+                "documentation",
+            ],
         )
 
     # Filter signals
     filtered_signals = [
-        s for s in signals_data
-        if s['severity'] in severity_filter and s['type'] in type_filter
+        s for s in signals_data if s["severity"] in severity_filter and s["type"] in type_filter
     ]
 
     st.markdown(f"**Showing {len(filtered_signals)} of {len(signals_data)} signals**")
 
     # Display signals
     for signal in filtered_signals:
-        severity_icon = {
-            "critical": "🚨",
-            "high": "⚠️",
-            "medium": "💡",
-            "low": "ℹ️"
-        }[signal['severity']]
+        severity_icon = {"critical": "🚨", "high": "⚠️", "medium": "💡", "low": "ℹ️"}[
+            signal["severity"]
+        ]
 
         with st.expander(f"{severity_icon} [{signal['type']}] {signal['title']}"):
             st.markdown(f"**Description**: {signal['description']}")
             st.markdown(f"**Impact**: {signal['estimated_impact']}")
 
             st.markdown("**Evidence**:")
-            for evidence in signal['evidence']:
+            for evidence in signal["evidence"]:
                 st.markdown(f"- {evidence}")
 
             st.markdown("**Context**:")
-            st.json(signal['context'])
+            st.json(signal["context"])
 
             # Generate contract button
             col1, col2 = st.columns([1, 3])
             with col1:
                 if st.button("Generate Contract", key=f"gen_{signal['id']}"):
-                    st.session_state['generate_contract_for'] = signal['id']
+                    st.session_state["generate_contract_for"] = signal["id"]
                     st.rerun()
 
             with col2:
                 st.caption(f"Signal ID: `{signal['id']}`")
 
     # Handle contract generation
-    if 'generate_contract_for' in st.session_state:
-        signal_id = st.session_state['generate_contract_for']
+    if "generate_contract_for" in st.session_state:
+        signal_id = st.session_state["generate_contract_for"]
         generate_contract_for_signal(signal_id, signals_data)
-        del st.session_state['generate_contract_for']
+        del st.session_state["generate_contract_for"]
 
 
 def show_contracts_page():
@@ -367,59 +364,58 @@ def show_contracts_page():
         try:
             contract_data = json.loads(contract_file.read_text())
 
-            risk_color = {
-                "low": "🟢",
-                "medium": "🟡",
-                "high": "🟠",
-                "critical": "🔴"
-            }[contract_data['risk_level']]
+            risk_color = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}[
+                contract_data["risk_level"]
+            ]
 
-            auto_exec_badge = "✅ Auto-executable" if contract_data['auto_executable'] else "⚠️ Requires approval"
+            auto_exec_badge = (
+                "✅ Auto-executable" if contract_data["auto_executable"] else "⚠️ Requires approval"
+            )
 
             with st.expander(f"{risk_color} {contract_data['title']} ({auto_exec_badge})"):
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    st.metric("Risk Level", contract_data['risk_level'].upper())
+                    st.metric("Risk Level", contract_data["risk_level"].upper())
 
                 with col2:
                     st.metric("Max Cost", f"${contract_data['max_cost_usd']:.2f}")
 
                 with col3:
-                    st.metric("Max Attempts", contract_data['max_attempts'])
+                    st.metric("Max Attempts", contract_data["max_attempts"])
 
                 st.markdown("---")
 
                 # Requirements
                 st.markdown("**Requirements**:")
-                for i, req in enumerate(contract_data['requirements'], 1):
+                for i, req in enumerate(contract_data["requirements"], 1):
                     st.markdown(f"{i}. {req}")
 
                 # Constraints
-                if contract_data['constraints']:
+                if contract_data["constraints"]:
                     st.markdown("**Constraints**:")
-                    for constraint in contract_data['constraints']:
+                    for constraint in contract_data["constraints"]:
                         st.markdown(f"- {constraint}")
 
                 # Success criteria
                 st.markdown("**Success Criteria**:")
 
-                success = contract_data['success_criteria']
+                success = contract_data["success_criteria"]
 
-                if success.get('tests'):
+                if success.get("tests"):
                     st.markdown("*Tests:*")
-                    for test in success['tests']:
+                    for test in success["tests"]:
                         st.markdown(f"- {test}")
 
-                if success.get('metrics'):
+                if success.get("metrics"):
                     st.markdown("*Metrics:*")
-                    for metric, threshold in success['metrics'].items():
+                    for metric, threshold in success["metrics"].items():
                         st.markdown(f"- {metric}: {threshold}")
 
                 # Human gates
-                if contract_data['human_gates']:
+                if contract_data["human_gates"]:
                     st.markdown("**Human Gates**:")
-                    st.markdown(", ".join(contract_data['human_gates']))
+                    st.markdown(", ".join(contract_data["human_gates"]))
 
                 # Metadata
                 st.caption(f"Contract ID: `{contract_data['contract_id']}`")
@@ -519,7 +515,7 @@ def show_jobs(jobs):
 def scan_signals():
     """Run signal detection and show results."""
     with st.spinner("Scanning for signals..."):
-        detector = components['detector']
+        detector = components["detector"]
         signals = detector.detect_all()
 
         if signals:
@@ -534,7 +530,7 @@ def generate_contract_for_signal(signal_id, signals_data):
     # Find signal
     signal_dict = None
     for s in signals_data:
-        if s['id'] == signal_id:
+        if s["id"] == signal_id:
             signal_dict = s
             break
 
@@ -560,7 +556,8 @@ def generate_contract_for_signal(signal_id, signals_data):
 
             # Generate contract (async)
             import asyncio
-            generator = components['generator']
+
+            generator = components["generator"]
             contract = asyncio.run(generator.generate_contract(signal))
 
             st.success("✅ Contract generated!")
@@ -568,7 +565,9 @@ def generate_contract_for_signal(signal_id, signals_data):
 
             # Show contract details
             st.markdown(f"### Contract: {contract.title}")
-            st.markdown(f"**Risk**: {contract.risk_level} | **Auto-executable**: {contract.auto_executable}")
+            st.markdown(
+                f"**Risk**: {contract.risk_level} | **Auto-executable**: {contract.auto_executable}"
+            )
 
             # Switch to contracts page
             st.info("Contract saved! Switch to 'Contracts' page to view details.")

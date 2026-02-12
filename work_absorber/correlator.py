@@ -101,7 +101,7 @@ class PlanCorrelator:
             Dict mapping work_item.id to (plan_step_id, confidence)
         """
         results = {}
-        plans = self._load_all_plans()  # Load once for all items
+        self._load_all_plans()  # Load once for all items
 
         for item in work_items:
             result = self.correlate(item)

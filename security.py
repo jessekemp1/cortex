@@ -5,18 +5,18 @@ This module provides utilities for enforcing secure file permissions
 on sensitive configuration files and directories.
 """
 
+import logging
 import os
 import stat
 import warnings
 from pathlib import Path
 from typing import Optional, Union
-import logging
 
 logger = logging.getLogger(__name__)
 
 # Secure permission modes
 SECURE_FILE_MODE = 0o600  # rw-------
-SECURE_DIR_MODE = 0o700   # rwx------
+SECURE_DIR_MODE = 0o700  # rwx------
 
 # Maximum permissive modes (anything more permissive triggers warning)
 MAX_PERMISSIVE_FILE_MODE = 0o600
@@ -25,11 +25,13 @@ MAX_PERMISSIVE_DIR_MODE = 0o700
 
 class PermissionWarning(UserWarning):
     """Warning raised when file permissions are too permissive."""
+
     pass
 
 
 class PermissionError(Exception):
     """Exception raised when permission operations fail."""
+
     pass
 
 
@@ -92,9 +94,7 @@ def get_permission_string(mode: int) -> str:
 
 
 def set_secure_permissions(
-    path: Union[str, Path],
-    is_directory: bool = False,
-    mode: Optional[int] = None
+    path: Union[str, Path], is_directory: bool = False, mode: Optional[int] = None
 ) -> None:
     """
     Set secure permissions on a file or directory.
@@ -120,9 +120,7 @@ def set_secure_permissions(
 
 
 def check_and_warn_permissions(
-    path: Union[str, Path],
-    is_directory: bool = False,
-    fix: bool = False
+    path: Union[str, Path], is_directory: bool = False, fix: bool = False
 ) -> bool:
     """
     Check file permissions and warn if too permissive.
@@ -155,26 +153,20 @@ def check_and_warn_permissions(
     if fix:
         try:
             set_secure_permissions(path, is_directory)
-            logger.warning(
-                f"{warning_msg} Permissions have been automatically fixed."
-            )
+            logger.warning(f"{warning_msg} Permissions have been automatically fixed.")
             return True
         except PermissionError as e:
             logger.error(f"Could not fix permissions: {e}")
             warnings.warn(warning_msg, PermissionWarning, stacklevel=2)
             return False
     else:
-        fix_hint = (
-            f"\nTo fix, run: chmod {get_permission_string(expected_mode)} {path}"
-        )
+        fix_hint = f"\nTo fix, run: chmod {get_permission_string(expected_mode)} {path}"
         warnings.warn(warning_msg + fix_hint, PermissionWarning, stacklevel=2)
         return False
 
 
 def secure_create_file(
-    path: Union[str, Path],
-    content: str = "",
-    mode: int = SECURE_FILE_MODE
+    path: Union[str, Path], content: str = "", mode: int = SECURE_FILE_MODE
 ) -> Path:
     """
     Create a file with secure permissions atomically.
@@ -200,7 +192,7 @@ def secure_create_file(
         # Use os.open with mode to create file atomically with correct permissions
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
         try:
-            os.write(fd, content.encode('utf-8'))
+            os.write(fd, content.encode("utf-8"))
         finally:
             os.close(fd)
 
@@ -209,7 +201,7 @@ def secure_create_file(
 
     except FileExistsError:
         # File already exists - write content and fix permissions
-        path.write_text(content, encoding='utf-8')
+        path.write_text(content, encoding="utf-8")
         set_secure_permissions(path, is_directory=False, mode=mode)
         return path
 
@@ -217,10 +209,7 @@ def secure_create_file(
         raise PermissionError(f"Failed to create secure file {path}: {e}")
 
 
-def secure_create_directory(
-    path: Union[str, Path],
-    mode: int = SECURE_DIR_MODE
-) -> Path:
+def secure_create_directory(path: Union[str, Path], mode: int = SECURE_DIR_MODE) -> Path:
     """
     Create a directory with secure permissions.
 
@@ -271,10 +260,10 @@ def secure_config_directory(config_dir: Union[str, Path]) -> bool:
             success = False
 
     # Secure all files in the directory
-    for item in config_dir.rglob('*'):
+    for item in config_dir.rglob("*"):
         if item.is_file():
             # Skip hidden system files
-            if item.name.startswith('.') and item.name in {'.DS_Store', '.gitkeep'}:
+            if item.name.startswith(".") and item.name in {".DS_Store", ".gitkeep"}:
                 continue
 
             if not is_permission_secure(item, is_directory=False):

@@ -149,11 +149,7 @@ ADJUSTMENT_SUGGESTIONS:
         """Test processing learning API result"""
         batcher = LearningBatcher()
 
-        result = {
-            "message": {
-                "content": [
-                    {
-                        "text": """
+        result = {"message": {"content": [{"text": """
 KEY_INSIGHTS:
 - Insight 1
 - Insight 2
@@ -167,11 +163,7 @@ Reasoning: High historical success
 
 ADJUSTMENT_SUGGESTIONS:
 - Suggestion 1
-"""
-                    }
-                ]
-            }
-        }
+"""}]}}
 
         processed = batcher._process_learning_result("test_001", result)
 

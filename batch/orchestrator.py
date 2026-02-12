@@ -361,9 +361,7 @@ class BatchOrchestrator:
             job_definition["project"] = job_data["project"]
 
         # Deduplicate: replace existing queued job with same ID, preserve completed/submitted
-        existing_ids = {
-            (i, job["id"], job.get("status")) for i, job in enumerate(queue_data["priority_jobs"])
-        }
+        {(i, job["id"], job.get("status")) for i, job in enumerate(queue_data["priority_jobs"])}
         replaced = False
         for idx, existing_job in enumerate(queue_data["priority_jobs"]):
             if existing_job["id"] == job_id and existing_job.get("status") == "queued":

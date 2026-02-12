@@ -300,9 +300,7 @@ class SessionManager:
             logger.warning(f"Failed to record context: {e}")
             return None
 
-    def update_outcome(
-        self, item_id: str, outcome: str, quality_score: float
-    ) -> bool:
+    def update_outcome(self, item_id: str, outcome: str, quality_score: float) -> bool:
         """
         Update outcome for a recorded context item.
 
@@ -402,4 +400,3 @@ class SessionManager:
             return {"available": True, "stats": self.tiered_memory.get_stats()}
         except Exception as e:
             return {"available": False, "error": str(e)}
-

@@ -8,8 +8,9 @@ Verifies:
 - Delegation policy enforcement
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from .delegator import (
     AgentCapability,
@@ -18,7 +19,7 @@ from .delegator import (
     DelegationPolicy,
     SupervisorDelegator,
 )
-from .models import WorkItem, WorkItemPriority, TaskTarget
+from .models import TaskTarget, WorkItem, WorkItemPriority
 
 
 class TestAgentCapability:
@@ -159,7 +160,9 @@ class TestDelegationPolicy:
 class TestSupervisorDelegator:
     """Test supervisor delegation routing."""
 
-    def create_work_item(self, task_type: str, priority: WorkItemPriority = WorkItemPriority.MEDIUM) -> WorkItem:
+    def create_work_item(
+        self, task_type: str, priority: WorkItemPriority = WorkItemPriority.MEDIUM
+    ) -> WorkItem:
         """Helper to create test work items."""
         return WorkItem(
             id=f"work-{task_type}-{datetime.now().timestamp()}",

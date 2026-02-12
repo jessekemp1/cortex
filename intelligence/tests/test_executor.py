@@ -98,7 +98,9 @@ class TestContractParsing:
         steps = await executor._parse_contract_to_steps(simple_test_contract)
 
         assert len(steps) > 0, "Should generate at least one step"
-        assert all(isinstance(s, ExecutionStep) for s in steps), "All should be ExecutionStep objects"
+        assert all(
+            isinstance(s, ExecutionStep) for s in steps
+        ), "All should be ExecutionStep objects"
 
         # Check step structure
         for i, step in enumerate(steps, 1):
@@ -215,7 +217,7 @@ class TestSuccessVerification:
             auto_executable=True,
         )
 
-        result = ExecutionResult(
+        ExecutionResult(
             contract_id=contract.contract_id,
             status=ExecutionStatus.VERIFYING,
             success=False,
@@ -226,8 +228,7 @@ class TestSuccessVerification:
 
         # Extract test command
         test_cmd = executor._extract_test_command(
-            contract.success_criteria["tests"],
-            tmp_path  # Use tmp_path which has tests/ dir
+            contract.success_criteria["tests"], tmp_path  # Use tmp_path which has tests/ dir
         )
 
         # Should extract pytest command

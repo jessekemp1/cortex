@@ -9,13 +9,14 @@ import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
 import pytest
 
 from .anti_pattern_detector import (
+    AntiPatternAlert,
     AntiPatternDetector,
     AntiPatternType,
     Severity,
-    AntiPatternAlert,
 )
 from .database import OrchestrationDatabase
 
@@ -125,13 +126,17 @@ Estimated effort: 4-8 hours
 
         # Create mock production config (without the new model)
         prod_config = validation_dir / "production_config.json"
-        prod_config.write_text(json.dumps({
-            "current_production_model": {
-                "name": "SimpleEnsemble",
-                "version": "1.0",
-                "deployed_at": "2026-01-01T00:00:00"
-            }
-        }))
+        prod_config.write_text(
+            json.dumps(
+                {
+                    "current_production_model": {
+                        "name": "SimpleEnsemble",
+                        "version": "1.0",
+                        "deployed_at": "2026-01-01T00:00:00",
+                    }
+                }
+            )
+        )
 
         # Create mock API file (without the new model)
         api_dir = vortex_dir / "app" / "api" / "v2"
@@ -153,8 +158,12 @@ def get_forecast():
         detector = AntiPatternDetector(db=None, root_dir=temp_project)
 
         report_path = (
-            temp_project / "Vortex" / "VortexV2" / "data" / "validation" /
-            "VORTEXV2_VALIDATION_REPORT_20260115.md"
+            temp_project
+            / "Vortex"
+            / "VortexV2"
+            / "data"
+            / "validation"
+            / "VORTEXV2_VALIDATION_REPORT_20260115.md"
         )
 
         improvements = detector._parse_improvements(report_path)
@@ -163,15 +172,15 @@ def get_forecast():
 
         # Check for FieldSelectiveEnsemble
         field_selective = [
-            imp for imp in improvements
-            if "FieldSelectiveEnsemble" in imp["model_name"]
+            imp for imp in improvements if "FieldSelectiveEnsemble" in imp["model_name"]
         ]
         assert len(field_selective) > 0
 
         # Check metrics
         improvement = field_selective[0]
-        assert "improvement" in str(improvement["metrics"]).lower() or \
-               "6.3%" in str(improvement["metrics"])
+        assert "improvement" in str(improvement["metrics"]).lower() or "6.3%" in str(
+            improvement["metrics"]
+        )
 
     def test_check_production_deployment_not_deployed(self, temp_project):
         """Test detecting model NOT in production."""
@@ -188,16 +197,19 @@ def get_forecast():
         """Test detecting model IS in production."""
         # Update production config to include the model
         prod_config_path = (
-            temp_project / "Vortex" / "VortexV2" / "data" / "validation" /
-            "production_config.json"
+            temp_project / "Vortex" / "VortexV2" / "data" / "validation" / "production_config.json"
         )
-        prod_config_path.write_text(json.dumps({
-            "current_production_model": {
-                "name": "FieldSelectiveEnsemble",
-                "version": "2.0",
-                "deployed_at": "2026-01-20T00:00:00"
-            }
-        }))
+        prod_config_path.write_text(
+            json.dumps(
+                {
+                    "current_production_model": {
+                        "name": "FieldSelectiveEnsemble",
+                        "version": "2.0",
+                        "deployed_at": "2026-01-20T00:00:00",
+                    }
+                }
+            )
+        )
 
         detector = AntiPatternDetector(db=None, root_dir=temp_project)
         project_config = detector.projects["VortexV2"]
@@ -229,8 +241,12 @@ def get_forecast():
         detector = AntiPatternDetector(db=None, root_dir=temp_project)
 
         report_path = (
-            temp_project / "Vortex" / "VortexV2" / "data" / "validation" /
-            "VORTEXV2_VALIDATION_REPORT_20260115.md"
+            temp_project
+            / "Vortex"
+            / "VortexV2"
+            / "data"
+            / "validation"
+            / "VORTEXV2_VALIDATION_REPORT_20260115.md"
         )
 
         recommendations = detector._parse_recommendations(report_path)
@@ -270,8 +286,12 @@ def get_forecast():
         detector = AntiPatternDetector(db=None, root_dir=temp_project)
 
         report_path = (
-            temp_project / "Vortex" / "VortexV2" / "data" / "validation" /
-            "VORTEXV2_VALIDATION_REPORT_20260115.md"
+            temp_project
+            / "Vortex"
+            / "VortexV2"
+            / "data"
+            / "validation"
+            / "VORTEXV2_VALIDATION_REPORT_20260115.md"
         )
 
         content = report_path.read_text()
@@ -432,9 +452,7 @@ FieldSelectiveEnsemble achieves +8.5% improvement over baseline.
 
         # Create production config
         prod_config = validation_dir / "production_config.json"
-        prod_config.write_text(json.dumps({
-            "current_production_model": {"name": "Baseline"}
-        }))
+        prod_config.write_text(json.dumps({"current_production_model": {"name": "Baseline"}}))
 
         return db, tmp_path
 

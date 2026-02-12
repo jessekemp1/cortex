@@ -14,7 +14,7 @@ from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 
 if TYPE_CHECKING:
-    from cortex.runtime.executor import RuntimeExecutor
+    pass
 
 logger = structlog.get_logger()
 
@@ -157,7 +157,7 @@ class ActiveContextAgent(BaseAgent):
             buffered = self.absorber.get_buffer()
             for signal in buffered:
                 try:
-                    affected_nodes = self.synthesis.process_signal(signal)
+                    self.synthesis.process_signal(signal)
                     summary["signals_processed"] += 1
                 except Exception as e:
                     logger.error("signal_processing_error", signal_id=signal.id, error=str(e))

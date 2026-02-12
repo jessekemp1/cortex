@@ -17,9 +17,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from .market_env import MarketEnvironment
 from .schemas import CustomerProfile
 from .segment_models import SegmentBehavior, get_behavior
-from .market_env import MarketEnvironment
 
 
 class LifecycleState(str, Enum):

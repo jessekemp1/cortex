@@ -13,9 +13,9 @@ Integrates with Cortex alert manager for desktop notifications.
 import json
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Add cortex to path for imports
 cortex_root = Path(__file__).parent.parent
@@ -28,24 +28,25 @@ class ForecastAccuracyThresholds:
 
     # MAE (Mean Absolute Error) thresholds in knots
     wind_speed_mae_critical: float = 5.0  # MAE > 5 knots is CRITICAL
-    wind_speed_mae_warning: float = 4.0   # MAE > 4 knots is WARNING
+    wind_speed_mae_warning: float = 4.0  # MAE > 4 knots is WARNING
 
     # Direction MAE thresholds in degrees
     wind_direction_mae_critical: float = 50.0  # MAE > 50° is CRITICAL
-    wind_direction_mae_warning: float = 40.0   # MAE > 40° is WARNING
+    wind_direction_mae_warning: float = 40.0  # MAE > 40° is WARNING
 
     # Wave height MAE thresholds in meters
     wave_height_mae_critical: float = 1.5  # MAE > 1.5m is CRITICAL
-    wave_height_mae_warning: float = 1.2   # MAE > 1.2m is WARNING
+    wave_height_mae_warning: float = 1.2  # MAE > 1.2m is WARNING
 
     # Data staleness (hours since last validation)
     data_stale_critical: int = 48  # No data in 48h is CRITICAL
-    data_stale_warning: int = 24   # No data in 24h is WARNING
+    data_stale_warning: int = 24  # No data in 24h is WARNING
 
 
 @dataclass
 class ValidationIssue:
     """A validation accuracy issue."""
+
     severity: str  # "CRITICAL", "WARNING", "INFO"
     field: str  # "wind_speed", "wind_direction", "wave_height"
     metric: str  # "MAE", "RMSE", "staleness"
@@ -346,8 +347,10 @@ class VortexForecastMonitor:
             try:
                 import sys
                 from pathlib import Path
+
                 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
                 from cortex.notifications.alert_manager import AlertManager
+
                 self._alert_manager = AlertManager()
             except ImportError as e:
                 print(f"Alert manager not available: {e}")

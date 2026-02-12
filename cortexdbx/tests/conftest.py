@@ -20,11 +20,10 @@ import pytest
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from cortexdbx.synthetic.generator import SyntheticDataGenerator
+from cortexdbx.agents.orchestrator import AgentOrchestrator
 from cortexdbx.calibration.engine import CalibrationEngine
 from cortexdbx.sdk.client import CortexDBxClient
-from cortexdbx.agents.orchestrator import AgentOrchestrator
-
+from cortexdbx.synthetic.generator import SyntheticDataGenerator
 
 # ============================================================================
 # Client Fixtures
@@ -62,14 +61,16 @@ def clinical_generator():
     return SyntheticDataGenerator("clinical_trial", seed=42)
 
 
-@pytest.fixture(params=[
-    "fraud_investigation",
-    "clinical_trial",
-    "maintenance",
-    "marketing_campaign",
-    "security_incident",
-    "supply_chain",
-])
+@pytest.fixture(
+    params=[
+        "fraud_investigation",
+        "clinical_trial",
+        "maintenance",
+        "marketing_campaign",
+        "security_incident",
+        "supply_chain",
+    ]
+)
 def domain_generator(request):
     """Parametrized generator for all 6 domains."""
     return SyntheticDataGenerator(request.param, seed=42)
@@ -139,9 +140,5 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "e2e: marks tests as end-to-end integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "databricks: marks tests requiring Databricks connection"
-    )
+    config.addinivalue_line("markers", "e2e: marks tests as end-to-end integration tests")
+    config.addinivalue_line("markers", "databricks: marks tests requiring Databricks connection")

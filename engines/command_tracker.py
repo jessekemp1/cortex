@@ -9,7 +9,7 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -136,8 +136,7 @@ class CommandTracker:
         cursor = conn.cursor()
 
         # Command executions table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS command_executions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 command TEXT NOT NULL,
@@ -148,12 +147,10 @@ class CommandTracker:
                 outcome TEXT DEFAULT 'unknown',
                 duration_seconds REAL
             )
-        """
-        )
+        """)
 
         # Workflow patterns table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS workflow_patterns (
                 pattern_id TEXT PRIMARY KEY,
                 commands TEXT NOT NULL,
@@ -165,12 +162,10 @@ class CommandTracker:
                 last_seen TEXT,
                 created_at TEXT
             )
-        """
-        )
+        """)
 
         # Command success rates table
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS command_stats (
                 command TEXT PRIMARY KEY,
                 total_executions INTEGER DEFAULT 0,
@@ -178,8 +173,7 @@ class CommandTracker:
                 avg_duration_seconds REAL DEFAULT 0,
                 last_used TEXT
             )
-        """
-        )
+        """)
 
         conn.commit()
         conn.close()
@@ -493,13 +487,11 @@ class CommandTracker:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT command, total_executions, success_count, avg_duration_seconds
             FROM command_stats
             ORDER BY total_executions DESC
-        """
-        )
+        """)
 
         rows = cursor.fetchall()
         conn.close()

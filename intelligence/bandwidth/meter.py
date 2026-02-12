@@ -111,9 +111,7 @@ class BandwidthMeter:
         with open(self.metrics_file, "a") as f:
             f.write(json.dumps(metrics.to_dict()) + "\n")
 
-    def load_metrics(
-        self, days: int = 7, project: Optional[str] = None
-    ) -> List[BandwidthMetrics]:
+    def load_metrics(self, days: int = 7, project: Optional[str] = None) -> List[BandwidthMetrics]:
         """Load metrics from the last N days."""
         if not self.metrics_file.exists():
             return []
@@ -144,9 +142,7 @@ class BandwidthMeter:
 
         return metrics
 
-    def get_aggregate_stats(
-        self, days: int = 7, project: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def get_aggregate_stats(self, days: int = 7, project: Optional[str] = None) -> Dict[str, Any]:
         """
         Calculate aggregate bandwidth statistics.
 

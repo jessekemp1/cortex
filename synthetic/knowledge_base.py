@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 @dataclass
 class DistributionConstraint:
     """A statistical constraint for synthetic data generation."""
+
     name: str
     dimension: str  # Which field this constrains
     distribution: Dict[str, float]  # value -> probability
@@ -60,17 +61,17 @@ class CanadianFinServKB:
             name="Provincial Population Distribution",
             dimension="province",
             distribution={
-                "ON": 0.385,   # 38.5% — Ontario
-                "QC": 0.228,   # 22.8% — Quebec
-                "BC": 0.134,   # 13.4% — British Columbia
-                "AB": 0.116,   # 11.6% — Alberta
-                "MB": 0.037,   # 3.7% — Manitoba
-                "SK": 0.031,   # 3.1% — Saskatchewan
-                "NS": 0.027,   # 2.7% — Nova Scotia
-                "NB": 0.022,   # 2.2% — New Brunswick
-                "NL": 0.014,   # 1.4% — Newfoundland & Labrador
-                "PE": 0.005,   # 0.5% — PEI
-                "NT": 0.001,   # Northern territories combined
+                "ON": 0.385,  # 38.5% — Ontario
+                "QC": 0.228,  # 22.8% — Quebec
+                "BC": 0.134,  # 13.4% — British Columbia
+                "AB": 0.116,  # 11.6% — Alberta
+                "MB": 0.037,  # 3.7% — Manitoba
+                "SK": 0.031,  # 3.1% — Saskatchewan
+                "NS": 0.027,  # 2.7% — Nova Scotia
+                "NB": 0.022,  # 2.2% — New Brunswick
+                "NL": 0.014,  # 1.4% — Newfoundland & Labrador
+                "PE": 0.005,  # 0.5% — PEI
+                "NT": 0.001,  # Northern territories combined
                 "NU": 0.001,
                 "YT": 0.001,
             },
@@ -134,11 +135,11 @@ class CanadianFinServKB:
             name="Credit Score Distribution (Canadian Adults)",
             dimension="credit_score",
             distribution={
-                "300-579": 0.08,   # Poor
-                "580-659": 0.12,   # Fair
-                "660-724": 0.20,   # Good
-                "725-759": 0.22,   # Very Good
-                "760-900": 0.38,   # Excellent
+                "300-579": 0.08,  # Poor
+                "580-659": 0.12,  # Fair
+                "660-724": 0.20,  # Good
+                "725-759": 0.22,  # Very Good
+                "760-900": 0.38,  # Excellent
             },
             source="Equifax Canada Consumer Credit Trends, 2024",
             year=2024,
@@ -188,9 +189,9 @@ class CanadianFinServKB:
             name="Digital Banking Adoption",
             dimension="digital_adoption",
             distribution={
-                "digital_first": 0.52,    # Mobile/online primary
-                "hybrid": 0.35,           # Mix of digital and branch
-                "branch_preferred": 0.13, # Branch primary
+                "digital_first": 0.52,  # Mobile/online primary
+                "hybrid": 0.35,  # Mix of digital and branch
+                "branch_preferred": 0.13,  # Branch primary
             },
             source="CBA Digital Banking Survey, 2024",
             year=2024,
@@ -215,21 +216,17 @@ class CanadianFinServKB:
             # OSFI B-20 Stress Test (qualifying rate)
             "stress_test_rate": 5.25,  # Current qualifying rate floor
             "stress_test_buffer": 2.0,  # Contract rate + 2%
-
             # AML thresholds (FINTRAC)
             "large_cash_threshold_cad": 10_000,
             "eft_threshold_cad": 10_000,
             "casino_threshold_cad": 10_000,
-
             # CMHC insurance thresholds
             "insured_mortgage_max": 1_000_000,
             "min_down_payment_pct_under_500k": 0.05,
             "min_down_payment_pct_500k_1m": 0.10,
-
             # GDS/TDS ratios
             "max_gds_ratio": 0.39,
             "max_tds_ratio": 0.44,
-
             # Credit score minimums for products
             "min_credit_score_prime_mortgage": 680,
             "min_credit_score_credit_card": 600,
@@ -351,9 +348,7 @@ class CanadianFinServKB:
 
         return "\n\n".join(constraints)
 
-    def _format_profile_constraints(
-        self, segment: Optional[str], province: Optional[str]
-    ) -> str:
+    def _format_profile_constraints(self, segment: Optional[str], province: Optional[str]) -> str:
         """Format profile generation constraints."""
         parts = ["## Canadian FinServ Profile Constraints\n"]
 

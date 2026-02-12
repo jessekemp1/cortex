@@ -4,6 +4,7 @@ Context Intelligence - Predicts relevant context for Cortex
 
 Integrates with personal-ai-dataset to provide relevant context predictions.
 """
+
 import sys
 from pathlib import Path
 

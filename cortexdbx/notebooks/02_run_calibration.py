@@ -38,15 +38,19 @@ aggregated = outcomes_df.groupBy("context_id", "strategy_id").agg(
 
 # Beta-Binomial: alpha = prior_alpha + success + 0.5*partial, beta = prior_beta + failure + 0.5*partial
 # confidence = alpha / (alpha + beta)
-edges_df = aggregated.withColumn(
-    "alpha",
-    F.lit(PRIOR_ALPHA) + F.col("success_count") + 0.5 * F.col("partial_count"),
-).withColumn(
-    "beta",
-    F.lit(PRIOR_BETA) + F.col("failure_count") + 0.5 * F.col("partial_count"),
-).withColumn(
-    "confidence",
-    F.col("alpha") / (F.col("alpha") + F.col("beta")),
+edges_df = (
+    aggregated.withColumn(
+        "alpha",
+        F.lit(PRIOR_ALPHA) + F.col("success_count") + 0.5 * F.col("partial_count"),
+    )
+    .withColumn(
+        "beta",
+        F.lit(PRIOR_BETA) + F.col("failure_count") + 0.5 * F.col("partial_count"),
+    )
+    .withColumn(
+        "confidence",
+        F.col("alpha") / (F.col("alpha") + F.col("beta")),
+    )
 )
 
 # COMMAND ----------
@@ -57,5 +61,9 @@ edges_df.write.mode("overwrite").saveAsTable(f"{CATALOG}.{SCHEMA}.context_strate
 # COMMAND ----------
 
 # Verify
-display(spark.sql(f"SELECT * FROM {CATALOG}.{SCHEMA}.context_strategy_edges ORDER BY confidence DESC LIMIT 20"))
+display(
+    spark.sql(
+        f"SELECT * FROM {CATALOG}.{SCHEMA}.context_strategy_edges ORDER BY confidence DESC LIMIT 20"
+    )
+)
 display(spark.sql(f"SELECT COUNT(*) as total_edges FROM {CATALOG}.{SCHEMA}.context_strategy_edges"))

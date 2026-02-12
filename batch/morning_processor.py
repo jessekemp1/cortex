@@ -14,7 +14,7 @@ This feeds directly into /briefing command results.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 # Paths
 CORTEX_DIR = Path.home() / ".cortex"
@@ -65,18 +65,22 @@ def get_overnight_results() -> List[Dict[str, Any]]:
                     completed_at = job.get("completed_at")
                     if completed_at:
                         try:
-                            completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+                            completed_dt = datetime.fromisoformat(
+                                completed_at.replace("Z", "+00:00")
+                            )
                             if completed_dt.replace(tzinfo=None) > cutoff:
-                                results.append({
-                                    "job_id": job.get("id"),
-                                    "title": job.get("description", ""),
-                                    "status": "completed",
-                                    "completed_at": completed_at,
-                                    "source": job.get("source", "other"),
-                                    "type": job.get("source", "other"),
-                                    "output": json.dumps(job.get("final_status", {})),
-                                    "tokens_used": job.get("estimated_total_tokens", 0),
-                                })
+                                results.append(
+                                    {
+                                        "job_id": job.get("id"),
+                                        "title": job.get("description", ""),
+                                        "status": "completed",
+                                        "completed_at": completed_at,
+                                        "source": job.get("source", "other"),
+                                        "type": job.get("source", "other"),
+                                        "output": json.dumps(job.get("final_status", {})),
+                                        "tokens_used": job.get("estimated_total_tokens", 0),
+                                    }
+                                )
                         except (ValueError, TypeError):
                             continue
         except Exception:
@@ -93,27 +97,31 @@ def get_overnight_results() -> List[Dict[str, Any]]:
                         # Normalize result format
                         if isinstance(data, list):
                             for item in data:
-                                results.append({
-                                    "job_id": item.get("custom_id", result_file.stem),
-                                    "title": item.get("custom_id", result_file.stem),
-                                    "status": item.get("status", "completed"),
+                                results.append(
+                                    {
+                                        "job_id": item.get("custom_id", result_file.stem),
+                                        "title": item.get("custom_id", result_file.stem),
+                                        "status": item.get("status", "completed"),
+                                        "completed_at": file_mtime.isoformat(),
+                                        "source": "research",
+                                        "type": "batch_api",
+                                        "output": json.dumps(item.get("result", {}))[:500],
+                                        "tokens_used": 0,
+                                    }
+                                )
+                        elif isinstance(data, dict):
+                            results.append(
+                                {
+                                    "job_id": data.get("custom_id", result_file.stem),
+                                    "title": data.get("custom_id", result_file.stem),
+                                    "status": data.get("status", "completed"),
                                     "completed_at": file_mtime.isoformat(),
                                     "source": "research",
                                     "type": "batch_api",
-                                    "output": json.dumps(item.get("result", {}))[:500],
+                                    "output": json.dumps(data)[:500],
                                     "tokens_used": 0,
-                                })
-                        elif isinstance(data, dict):
-                            results.append({
-                                "job_id": data.get("custom_id", result_file.stem),
-                                "title": data.get("custom_id", result_file.stem),
-                                "status": data.get("status", "completed"),
-                                "completed_at": file_mtime.isoformat(),
-                                "source": "research",
-                                "type": "batch_api",
-                                "output": json.dumps(data)[:500],
-                                "tokens_used": 0,
-                            })
+                                }
+                            )
                 except Exception:
                     continue
 
@@ -136,7 +144,7 @@ def categorize_results(results: List[Dict]) -> Dict[str, List[Dict]]:
         "tests": [],
         "docs": [],
         "research": [],
-        "other": []
+        "other": [],
     }
 
     for result in results:
@@ -180,35 +188,43 @@ def extract_key_findings(results: List[Dict]) -> List[Dict]:
         output = result.get("output", "")
         if isinstance(output, str):
             # Look for severity indicators
-            if any(word in output.lower() for word in ["critical", "high severity", "vulnerability"]):
-                findings.append({
-                    "type": "security",
-                    "priority": "high",
-                    "job_id": result.get("job_id"),
-                    "summary": _extract_first_issue(output),
-                    "source": result.get("title", "Unknown job")
-                })
+            if any(
+                word in output.lower() for word in ["critical", "high severity", "vulnerability"]
+            ):
+                findings.append(
+                    {
+                        "type": "security",
+                        "priority": "high",
+                        "job_id": result.get("job_id"),
+                        "summary": _extract_first_issue(output),
+                        "source": result.get("title", "Unknown job"),
+                    }
+                )
 
             # Look for test failures
             if any(word in output.lower() for word in ["failed", "failing", "broken"]):
-                findings.append({
-                    "type": "test",
-                    "priority": "medium",
-                    "job_id": result.get("job_id"),
-                    "summary": _extract_first_issue(output),
-                    "source": result.get("title", "Unknown job")
-                })
+                findings.append(
+                    {
+                        "type": "test",
+                        "priority": "medium",
+                        "job_id": result.get("job_id"),
+                        "summary": _extract_first_issue(output),
+                        "source": result.get("title", "Unknown job"),
+                    }
+                )
 
         # Check status
         status = result.get("status", "")
         if status == "failed":
-            findings.append({
-                "type": "batch_failure",
-                "priority": "low",
-                "job_id": result.get("job_id"),
-                "summary": result.get("error", "Unknown error"),
-                "source": result.get("title", "Unknown job")
-            })
+            findings.append(
+                {
+                    "type": "batch_failure",
+                    "priority": "low",
+                    "job_id": result.get("job_id"),
+                    "summary": result.get("error", "Unknown error"),
+                    "source": result.get("title", "Unknown job"),
+                }
+            )
 
     # Sort by priority
     priority_order = {"high": 0, "medium": 1, "low": 2}
@@ -262,34 +278,33 @@ def generate_briefing_summary(results: List[Dict]) -> Dict[str, Any]:
             "total": total,
             "succeeded": succeeded,
             "failed": failed,
-            "success_rate": (succeeded / total * 100) if total > 0 else 0
+            "success_rate": (succeeded / total * 100) if total > 0 else 0,
         },
-        "categories": {
-            cat: len(items) for cat, items in categories.items() if items
-        },
+        "categories": {cat: len(items) for cat, items in categories.items() if items},
         "key_findings": findings,
-        "tokens": {
-            "total_used": total_tokens,
-            "estimated_savings": int(savings_estimate)
-        },
-        "alerts": []
+        "tokens": {"total_used": total_tokens, "estimated_savings": int(savings_estimate)},
+        "alerts": [],
     }
 
     # Add alerts for critical findings
     critical_findings = [f for f in findings if f["priority"] == "high"]
     if critical_findings:
-        summary["alerts"].append({
-            "level": "warning",
-            "message": f"{len(critical_findings)} high-priority issues found overnight",
-            "details": [f["summary"] for f in critical_findings[:3]]
-        })
+        summary["alerts"].append(
+            {
+                "level": "warning",
+                "message": f"{len(critical_findings)} high-priority issues found overnight",
+                "details": [f["summary"] for f in critical_findings[:3]],
+            }
+        )
 
     if failed > 0:
-        summary["alerts"].append({
-            "level": "info",
-            "message": f"{failed} batch jobs failed overnight",
-            "action": "Run /batch-status to investigate"
-        })
+        summary["alerts"].append(
+            {
+                "level": "info",
+                "message": f"{failed} batch jobs failed overnight",
+                "action": "Run /batch-status to investigate",
+            }
+        )
 
     return summary
 
@@ -307,13 +322,13 @@ def update_session_cache(briefing: Dict[str, Any]):
             "overnight_summary": {
                 "jobs_run": briefing["overnight_jobs"]["total"],
                 "success_rate": briefing["overnight_jobs"]["success_rate"],
-                "key_alerts": len(briefing.get("alerts", []))
+                "key_alerts": len(briefing.get("alerts", [])),
             },
-            "action_items": [
-                f["summary"] for f in briefing.get("key_findings", [])[:3]
-            ],
-            "batch_health": "healthy" if briefing["overnight_jobs"]["success_rate"] >= 80 else "degraded"
-        }
+            "action_items": [f["summary"] for f in briefing.get("key_findings", [])[:3]],
+            "batch_health": (
+                "healthy" if briefing["overnight_jobs"]["success_rate"] >= 80 else "degraded"
+            ),
+        },
     }
 
     SESSION_CACHE.parent.mkdir(parents=True, exist_ok=True)
@@ -349,7 +364,11 @@ def print_summary(briefing: Dict[str, Any]):
     if briefing["key_findings"]:
         print("🔍 Key Findings:")
         for finding in briefing["key_findings"][:5]:
-            icon = "🔴" if finding["priority"] == "high" else "🟡" if finding["priority"] == "medium" else "🔵"
+            icon = (
+                "🔴"
+                if finding["priority"] == "high"
+                else "🟡" if finding["priority"] == "medium" else "🔵"
+            )
             print(f"   {icon} [{finding['type']}] {finding['summary'][:60]}...")
         print()
 

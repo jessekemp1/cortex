@@ -8,7 +8,7 @@ Routes tasks based on priority level and deadline constraints:
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from .task import Task, TaskPriority, TaskStatus
 from .task_queue import TaskQueue
@@ -22,7 +22,7 @@ class SchedulingDecision:
         task: Task,
         execution_mode: str,
         reason: str,
-        estimated_completion: Optional[datetime] = None
+        estimated_completion: Optional[datetime] = None,
     ):
         self.task = task
         self.execution_mode = execution_mode  # "realtime" or "batch"
@@ -51,8 +51,8 @@ class TaskScheduler:
     """
 
     # Scheduling thresholds
-    URGENT_THRESHOLD_HOURS = 2.0       # Force realtime if deadline within 2h
-    BATCH_ELIGIBLE_HOURS = 4.0         # B tasks batch-eligible if deadline > 4h
+    URGENT_THRESHOLD_HOURS = 2.0  # Force realtime if deadline within 2h
+    BATCH_ELIGIBLE_HOURS = 4.0  # B tasks batch-eligible if deadline > 4h
     BATCH_PROCESSING_TIME_HOURS = 12.0  # Assume 12h for batch completion
 
     def __init__(self, queue: Optional[TaskQueue] = None):
@@ -80,7 +80,7 @@ class TaskScheduler:
                 task=task,
                 execution_mode="realtime",
                 reason=f"Urgent deadline ({task.hours_until_deadline:.1f}h remaining)",
-                estimated_completion=datetime.now() + timedelta(minutes=30)
+                estimated_completion=datetime.now() + timedelta(minutes=30),
             )
             return decision
 
@@ -90,7 +90,7 @@ class TaskScheduler:
                 task=task,
                 execution_mode="realtime",
                 reason="Priority A (critical) requires immediate execution",
-                estimated_completion=datetime.now() + timedelta(minutes=30)
+                estimated_completion=datetime.now() + timedelta(minutes=30),
             )
             return decision
 
@@ -100,7 +100,8 @@ class TaskScheduler:
                 task=task,
                 execution_mode="batch",
                 reason="Priority C (background) routed to batch for cost savings",
-                estimated_completion=datetime.now() + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS)
+                estimated_completion=datetime.now()
+                + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS),
             )
             return decision
 
@@ -114,7 +115,8 @@ class TaskScheduler:
                     task=task,
                     execution_mode="batch",
                     reason="Priority B with no deadline - batch for cost savings",
-                    estimated_completion=datetime.now() + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS)
+                    estimated_completion=datetime.now()
+                    + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS),
                 )
                 return decision
 
@@ -124,7 +126,7 @@ class TaskScheduler:
                     task=task,
                     execution_mode="realtime",
                     reason=f"Priority B with tight deadline ({hours_until_deadline:.1f}h)",
-                    estimated_completion=datetime.now() + timedelta(minutes=30)
+                    estimated_completion=datetime.now() + timedelta(minutes=30),
                 )
                 return decision
 
@@ -133,7 +135,8 @@ class TaskScheduler:
                 task=task,
                 execution_mode="batch",
                 reason=f"Priority B with sufficient deadline ({hours_until_deadline:.1f}h) - batch eligible",
-                estimated_completion=datetime.now() + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS)
+                estimated_completion=datetime.now()
+                + timedelta(hours=self.BATCH_PROCESSING_TIME_HOURS),
             )
             return decision
 
@@ -142,7 +145,7 @@ class TaskScheduler:
             task=task,
             execution_mode="realtime",
             reason="Fallback to realtime (unknown priority)",
-            estimated_completion=datetime.now() + timedelta(minutes=30)
+            estimated_completion=datetime.now() + timedelta(minutes=30),
         )
         return decision
 
@@ -179,10 +182,7 @@ class TaskScheduler:
         ready_tasks = self.queue.get_ready_tasks()
 
         # Filter for realtime-scheduled tasks
-        realtime_tasks = [
-            t for t in ready_tasks
-            if t.execution_mode == "realtime"
-        ]
+        realtime_tasks = [t for t in ready_tasks if t.execution_mode == "realtime"]
 
         if not realtime_tasks:
             return None
@@ -204,10 +204,7 @@ class TaskScheduler:
         ready_tasks = self.queue.get_ready_tasks()
 
         # Filter for batch-scheduled tasks
-        batch_tasks = [
-            t for t in ready_tasks
-            if t.execution_mode == "batch"
-        ]
+        batch_tasks = [t for t in ready_tasks if t.execution_mode == "batch"]
 
         return batch_tasks[:limit]
 

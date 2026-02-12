@@ -1,6 +1,5 @@
 """Tests for calibration engine."""
 
-import pytest
 from cortexdbx.calibration.engine import CalibrationEngine, CalibrationState
 from cortexdbx.synthetic.generator import SyntheticDataGenerator
 

@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-
 from intelligence.embeddings_client import EmbeddingsClient
 from intelligence.memory.pattern_indexer import Pattern, PatternSearcher
 
@@ -107,9 +106,7 @@ class HybridRetriever:
                 pattern_texts, batch_size=100
             )
             self.pattern_embeddings = np.array(embeddings)
-            logger.info(
-                f"Generated embeddings with shape {self.pattern_embeddings.shape}"
-            )
+            logger.info(f"Generated embeddings with shape {self.pattern_embeddings.shape}")
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")
             self.pattern_embeddings = None
@@ -184,9 +181,7 @@ class HybridRetriever:
 
         return merged
 
-    def _semantic_search(
-        self, query: str, limit: int = 10
-    ) -> List[Tuple[Pattern, float]]:
+    def _semantic_search(self, query: str, limit: int = 10) -> List[Tuple[Pattern, float]]:
         """
         Semantic search using embeddings.
 
@@ -259,9 +254,7 @@ class HybridRetriever:
 
         # Build rank maps
         bm25_ranks = {pattern.id: rank for rank, (pattern, _) in enumerate(bm25_results)}
-        embedding_ranks = {
-            pattern.id: rank for rank, (pattern, _) in enumerate(embedding_results)
-        }
+        embedding_ranks = {pattern.id: rank for rank, (pattern, _) in enumerate(embedding_results)}
 
         # Get all unique pattern IDs
         all_pattern_ids = set(bm25_ranks.keys()) | set(embedding_ranks.keys())

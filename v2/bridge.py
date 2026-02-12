@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from .integrations.git_hooks import GitHookInstaller
 from .learning.calibration import ConfidenceCalibrator
-from .learning.outcomes import OutcomeDetector, OutcomeSource, OutcomeType
+from .learning.outcomes import OutcomeDetector, OutcomeType
 from .learning.skills import SkillExtractor
 from .memory.decay import TemporalDecay
 from .memory.graph import GraphMemory

@@ -24,12 +24,12 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from intelligence.signals import SignalDetector, Signal, SignalType
-from intelligence.contracts import ContractGenerator, TaskContract
-from intelligence.risk import RiskClassifier
-from intelligence.executor import ContractExecutor
-from health.monitor import HealthMonitor
 from batch.orchestrator import BatchOrchestrator
+from health.monitor import HealthMonitor
+from intelligence.contracts import ContractGenerator, TaskContract
+from intelligence.executor import ContractExecutor
+from intelligence.risk import RiskClassifier
+from intelligence.signals import Signal, SignalDetector, SignalType
 
 
 class CortexCLI:
@@ -89,7 +89,7 @@ class CortexCLI:
             "scanned_at": datetime.now().isoformat(),
             "count": len(signals),
             "by_severity": {k: len(v) for k, v in by_severity.items()},
-            "signals": [s.to_dict() for s in signals]
+            "signals": [s.to_dict() for s in signals],
         }
         summary_file.write_text(json.dumps(summary_data, indent=2))
 
@@ -216,6 +216,7 @@ class CortexCLI:
         except Exception as e:
             print(f"❌ Error generating contract: {e}")
             import traceback
+
             traceback.print_exc()
 
     def cmd_health(self, args):
@@ -246,7 +247,7 @@ class CortexCLI:
         print(f"{status} Blocked Tasks: {metrics.blocked_tasks} (optimal: 0)")
 
         # Cost
-        threshold = self.health_monitor.OPTIMAL_THRESHOLDS['cost_per_day_max_usd']
+        threshold = self.health_monitor.OPTIMAL_THRESHOLDS["cost_per_day_max_usd"]
         status = "✅" if metrics.cost_per_day_usd <= threshold else "⚠️"
         print(f"{status} Cost/Day: ${metrics.cost_per_day_usd:.2f} (optimal: <${threshold:.0f})")
         print()
@@ -283,7 +284,9 @@ class CortexCLI:
                 signals = data.get("signals", [])[:10]
 
                 for signal in signals:
-                    severity_icon = {"critical": "🚨", "high": "⚠️", "medium": "💡", "low": "ℹ️"}[signal["severity"]]
+                    severity_icon = {"critical": "🚨", "high": "⚠️", "medium": "💡", "low": "ℹ️"}[
+                        signal["severity"]
+                    ]
                     print(f"{severity_icon} {signal['title']}")
                     print(f"   ID: {signal['id']} | Type: {signal['type']}")
                     print()
@@ -302,7 +305,9 @@ class CortexCLI:
                         contract_data = json.loads(contract_file.read_text())
                         print(f"📄 {contract_data['title']}")
                         print(f"   ID: {contract_data['contract_id']}")
-                        print(f"   Risk: {contract_data['risk_level']} | Auto-exec: {contract_data['auto_executable']}")
+                        print(
+                            f"   Risk: {contract_data['risk_level']} | Auto-exec: {contract_data['auto_executable']}"
+                        )
                         print()
                     except (json.JSONDecodeError, KeyError):
                         continue
@@ -380,7 +385,9 @@ class CortexCLI:
             print("VERIFICATION:")
             print(f"  Tests: {'✅ Passed' if result.tests_passed else '❌ Failed'}")
             print(f"  Metrics: {'✅ Met' if result.metrics_met else '❌ Not Met'}")
-            print(f"  Benchmarks: {'✅ Met' if result.benchmarks_met else '⚠️ Manual Check Required'}")
+            print(
+                f"  Benchmarks: {'✅ Met' if result.benchmarks_met else '⚠️ Manual Check Required'}"
+            )
             print()
 
             if result.error_message:
@@ -399,6 +406,7 @@ class CortexCLI:
         except Exception as e:
             print(f"❌ Error executing contract: {e}")
             import traceback
+
             traceback.print_exc()
 
     def _execute_contract(self, contract: TaskContract, assessment):
@@ -415,14 +423,14 @@ class CortexCLI:
                     "task_id": f"{contract.contract_id}_main",
                     "title": contract.title,
                     "prompt": self._build_execution_prompt(contract),
-                    "context": json.dumps(contract.context if hasattr(contract, 'context') else {}),
+                    "context": json.dumps(contract.context if hasattr(contract, "context") else {}),
                     "files_affected": contract.relevant_files,
                     "estimated_tokens": 5000,
                 }
             ],
             "estimated_total_tokens": 5000,
             "source": "intelligence",
-            "project": contract.context.get("project") if hasattr(contract, 'context') else None,
+            "project": contract.context.get("project") if hasattr(contract, "context") else None,
         }
 
         try:
@@ -460,31 +468,33 @@ def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Cortex Intelligence Platform - MVP CLI",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # scan command
-    parser_scan = subparsers.add_parser("scan", help="Detect signals across monorepo")
+    subparsers.add_parser("scan", help="Detect signals across monorepo")
 
     # contract command
     parser_contract = subparsers.add_parser("contract", help="Generate contract for signal")
     parser_contract.add_argument("signal_id", help="Signal ID from scan results")
 
     # health command
-    parser_health = subparsers.add_parser("health", help="Show system health metrics")
+    subparsers.add_parser("health", help="Show system health metrics")
 
     # list command
     parser_list = subparsers.add_parser("list", help="List signals and contracts")
-    parser_list.add_argument("--type", choices=["signals", "contracts", "all"], default="all",
-                            help="What to list")
+    parser_list.add_argument(
+        "--type", choices=["signals", "contracts", "all"], default="all", help="What to list"
+    )
 
     # execute command
     parser_execute = subparsers.add_parser("execute", help="Execute a contract directly")
     parser_execute.add_argument("contract_id", help="Contract ID to execute")
-    parser_execute.add_argument("--no-dry-run", action="store_true",
-                               help="Skip dry run and execute immediately")
+    parser_execute.add_argument(
+        "--no-dry-run", action="store_true", help="Skip dry run and execute immediately"
+    )
 
     args = parser.parse_args()
 

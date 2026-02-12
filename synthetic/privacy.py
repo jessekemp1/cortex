@@ -35,11 +35,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.schemas import CustomerProfile
 
-
 # Features used for privacy distance calculations
 PRIVACY_FEATURES = [
-    "age", "annual_income", "household_income", "credit_score",
-    "total_deposits", "total_credit_outstanding", "tenure_years",
+    "age",
+    "annual_income",
+    "household_income",
+    "credit_score",
+    "total_deposits",
+    "total_credit_outstanding",
+    "tenure_years",
     "products_per_household",
 ]
 
@@ -47,6 +51,7 @@ PRIVACY_FEATURES = [
 @dataclass
 class RecordPrivacy:
     """Privacy assessment for a single synthetic record."""
+
     profile_id: str
     dcr: float  # Distance to Closest Record (normalized)
     nndr: float  # Nearest Neighbor Distance Ratio
@@ -68,6 +73,7 @@ class RecordPrivacy:
 @dataclass
 class PrivacyReport:
     """Aggregate privacy report for a batch of synthetic records."""
+
     n_synthetic: int
     n_reference: int
     # DCR metrics
@@ -129,9 +135,7 @@ class PrivacyReport:
             "low_privacy_dimensions": {
                 k: round(v, 6) for k, v in self.low_privacy_dimensions.items()
             },
-            "noise_adjustments": {
-                k: round(v, 6) for k, v in self.noise_adjustments.items()
-            },
+            "noise_adjustments": {k: round(v, 6) for k, v in self.noise_adjustments.items()},
             "per_record_count": len(self.per_record),
         }
 
@@ -190,8 +194,12 @@ class PrivacyEngine:
 
         # Per-record privacy scores
         per_record = self._build_per_record(
-            synthetic_profiles, dcr_values, nndr_values,
-            distances, X_synth_norm, X_ref_norm,
+            synthetic_profiles,
+            dcr_values,
+            nndr_values,
+            distances,
+            X_synth_norm,
+            X_ref_norm,
         )
 
         # MIA: Membership Inference Attack
@@ -199,7 +207,9 @@ class PrivacyEngine:
 
         # Low-privacy dimensions
         low_dims = self._identify_low_privacy_dimensions(
-            X_synth_norm, X_ref_norm, distances,
+            X_synth_norm,
+            X_ref_norm,
+            distances,
         )
 
         # Noise adjustments
@@ -227,21 +237,21 @@ class PrivacyEngine:
         """Convert profiles to numeric feature matrix."""
         rows = []
         for p in profiles:
-            rows.append([
-                float(p.age),
-                p.annual_income,
-                p.household_income,
-                float(p.credit_score),
-                p.total_deposits,
-                p.total_credit_outstanding,
-                p.tenure_years,
-                float(p.products_per_household),
-            ])
+            rows.append(
+                [
+                    float(p.age),
+                    p.annual_income,
+                    p.household_income,
+                    float(p.credit_score),
+                    p.total_deposits,
+                    p.total_credit_outstanding,
+                    p.tenure_years,
+                    float(p.products_per_household),
+                ]
+            )
         return np.array(rows, dtype=float)
 
-    def _normalize(
-        self, X_synth: np.ndarray, X_ref: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def _normalize(self, X_synth: np.ndarray, X_ref: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Min-max normalize both matrices using combined range."""
         combined = np.vstack([X_synth, X_ref])
         mins = combined.min(axis=0)
@@ -262,14 +272,12 @@ class PrivacyEngine:
 
     # --- Distance Computation ---
 
-    def _pairwise_distances(
-        self, X_synth: np.ndarray, X_ref: np.ndarray
-    ) -> np.ndarray:
+    def _pairwise_distances(self, X_synth: np.ndarray, X_ref: np.ndarray) -> np.ndarray:
         """Compute Euclidean distance from each synthetic to each reference record."""
         # (n_synth, n_ref) distance matrix
         # Using efficient vectorized computation
-        synth_sq = np.sum(X_synth ** 2, axis=1, keepdims=True)
-        ref_sq = np.sum(X_ref ** 2, axis=1, keepdims=True)
+        synth_sq = np.sum(X_synth**2, axis=1, keepdims=True)
+        ref_sq = np.sum(X_ref**2, axis=1, keepdims=True)
         cross = X_synth @ X_ref.T
         distances = np.sqrt(np.maximum(synth_sq + ref_sq.T - 2 * cross, 0.0))
         return distances
@@ -290,7 +298,7 @@ class PrivacyEngine:
         d2 = partitioned[:, 1]  # Second nearest
 
         # Avoid division by zero — compute safely
-        with np.errstate(divide='ignore', invalid='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore"):
             ratio = np.divide(d1, d2, out=np.ones_like(d1), where=d2 > 0)
         return ratio
 
@@ -367,14 +375,16 @@ class PrivacyEngine:
 
             safe = dcr > self.DCR_THRESHOLD and nndr > self.NNDR_THRESHOLD
 
-            records.append(RecordPrivacy(
-                profile_id=profile.profile_id,
-                dcr=dcr,
-                nndr=nndr,
-                privacy_score=privacy_score,
-                closest_feature=closest_feature,
-                safe=safe,
-            ))
+            records.append(
+                RecordPrivacy(
+                    profile_id=profile.profile_id,
+                    dcr=dcr,
+                    nndr=nndr,
+                    privacy_score=privacy_score,
+                    closest_feature=closest_feature,
+                    safe=safe,
+                )
+            )
 
         return records
 
@@ -412,10 +422,7 @@ class PrivacyEngine:
 
         # Normalize by violation count
         n_violations = len(violation_indices)
-        return {
-            feat: count / n_violations
-            for feat, count in low_privacy_dims.items()
-        }
+        return {feat: count / n_violations for feat, count in low_privacy_dims.items()}
 
     def _calibrate_noise(
         self,

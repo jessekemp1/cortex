@@ -506,9 +506,7 @@ Respond with ONLY the JSON, no additional text."""
 
         return scores
 
-    def _store_evaluation(
-        self, item_type: str, item_id: str, score: Dict, context: Dict
-    ) -> None:
+    def _store_evaluation(self, item_type: str, item_id: str, score: Dict, context: Dict) -> None:
         """Store evaluation result to JSONL file.
 
         Args:

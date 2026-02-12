@@ -36,6 +36,7 @@ from synthetic.schemas import CustomerProfile, Transaction
 @dataclass
 class TaskResult:
     """Result from a single TSTR task evaluation."""
+
     task_name: str
     metric_name: str  # "accuracy", "f1", "rmse", etc.
     synthetic_score: float  # Score when trained on synthetic
@@ -60,6 +61,7 @@ class TaskResult:
 @dataclass
 class TSTRReport:
     """Aggregate report from TSTR evaluation."""
+
     tasks: List[TaskResult] = field(default_factory=list)
     n_synthetic_train: int = 0
     n_reference_train: int = 0
@@ -139,29 +141,21 @@ class TSTRFramework:
 
         # Generate reference data if not provided
         if reference_profiles is None:
-            reference_profiles = self._generate_reference_profiles(
-                len(synthetic_profiles)
-            )
+            reference_profiles = self._generate_reference_profiles(len(synthetic_profiles))
 
         report.n_synthetic_train = len(synthetic_profiles)
         report.n_reference_train = len(reference_profiles)
 
         # Task 1: Credit Score Prediction
-        credit_result = self._task_credit_score_prediction(
-            synthetic_profiles, reference_profiles
-        )
+        credit_result = self._task_credit_score_prediction(synthetic_profiles, reference_profiles)
         report.tasks.append(credit_result)
 
         # Task 2: Segment Classification
-        segment_result = self._task_segment_classification(
-            synthetic_profiles, reference_profiles
-        )
+        segment_result = self._task_segment_classification(synthetic_profiles, reference_profiles)
         report.tasks.append(segment_result)
 
         # Task 3: Income Regression
-        income_result = self._task_income_regression(
-            synthetic_profiles, reference_profiles
-        )
+        income_result = self._task_income_regression(synthetic_profiles, reference_profiles)
         report.tasks.append(income_result)
 
         # Task 4: AML Detection (if transactions provided)
@@ -170,9 +164,7 @@ class TSTRFramework:
                 reference_transactions = self._generate_reference_transactions(
                     len(synthetic_transactions)
                 )
-            aml_result = self._task_aml_detection(
-                synthetic_transactions, reference_transactions
-            )
+            aml_result = self._task_aml_detection(synthetic_transactions, reference_transactions)
             report.tasks.append(aml_result)
 
         # Set test count from the credit task (representative)
@@ -198,11 +190,19 @@ class TSTRFramework:
         from sklearn.model_selection import train_test_split
 
         def _prepare(profiles):
-            X = np.array([
-                [p.age, p.annual_income, p.household_income,
-                 p.tenure_years, p.products_per_household, p.total_deposits]
-                for p in profiles
-            ])
+            X = np.array(
+                [
+                    [
+                        p.age,
+                        p.annual_income,
+                        p.household_income,
+                        p.tenure_years,
+                        p.products_per_household,
+                        p.total_deposits,
+                    ]
+                    for p in profiles
+                ]
+            )
             y = np.array([self._credit_bucket(p.credit_score) for p in profiles])
             return X, y
 
@@ -261,12 +261,19 @@ class TSTRFramework:
         le = LabelEncoder()
 
         def _prepare(profiles, fit=False):
-            X = np.array([
-                [p.age, p.annual_income, p.credit_score,
-                 p.total_deposits, p.total_credit_outstanding,
-                 p.products_per_household]
-                for p in profiles
-            ])
+            X = np.array(
+                [
+                    [
+                        p.age,
+                        p.annual_income,
+                        p.credit_score,
+                        p.total_deposits,
+                        p.total_credit_outstanding,
+                        p.products_per_household,
+                    ]
+                    for p in profiles
+                ]
+            )
             segments = [p.segment for p in profiles]
             if fit:
                 y = le.fit_transform(segments)
@@ -330,11 +337,18 @@ class TSTRFramework:
         from sklearn.model_selection import train_test_split
 
         def _prepare(profiles):
-            X = np.array([
-                [p.age, p.credit_score, p.products_per_household,
-                 p.tenure_years, p.total_deposits]
-                for p in profiles
-            ])
+            X = np.array(
+                [
+                    [
+                        p.age,
+                        p.credit_score,
+                        p.products_per_household,
+                        p.tenure_years,
+                        p.total_deposits,
+                    ]
+                    for p in profiles
+                ]
+            )
             y = np.array([p.annual_income for p in profiles])
             return X, y
 
@@ -384,13 +398,22 @@ class TSTRFramework:
         from sklearn.model_selection import train_test_split
 
         def _prepare(txns):
-            X = np.array([
-                [t.amount, 1.0 if t.is_international else 0.0,
-                 t.risk_score,
-                 1.0 if t.transaction_type in ("wire_domestic", "wire_international") else 0.0,
-                 1.0 if t.transaction_type == "deposit" else 0.0]
-                for t in txns
-            ])
+            X = np.array(
+                [
+                    [
+                        t.amount,
+                        1.0 if t.is_international else 0.0,
+                        t.risk_score,
+                        (
+                            1.0
+                            if t.transaction_type in ("wire_domestic", "wire_international")
+                            else 0.0
+                        ),
+                        1.0 if t.transaction_type == "deposit" else 0.0,
+                    ]
+                    for t in txns
+                ]
+            )
             y = np.array([1 if t.risk_flag != "none" else 0 for t in txns])
             return X, y
 
@@ -475,8 +498,10 @@ class TSTRFramework:
 
         gen = SyntheticGenerator(kb=self.kb)
         request = GenerationRequest(
-            data_type="transactions", count=n,
-            include_risk_flags=True, risk_profile="high",
+            data_type="transactions",
+            count=n,
+            include_risk_flags=True,
+            risk_profile="high",
         )
         txns, _ = gen._generate_transactions(request)
         return txns

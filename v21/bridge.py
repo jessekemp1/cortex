@@ -558,7 +558,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             return json.dumps(deps, indent=2)
         elif format == "mermaid":
             patterns = self.get_patterns_for_project(project)
-            lines = [f"graph TD", f"    {project}[{project}]"]
+            lines = ["graph TD", f"    {project}[{project}]"]
             for i, p in enumerate(patterns[:10]):  # Limit to 10
                 lines.append(f"    P{i}[{p.get('title', 'Pattern')}]")
                 lines.append(f"    {project} --> P{i}")
@@ -647,7 +647,7 @@ class CortexV2_1Bridge(CortexV2Bridge):
             client = BatchAPIClient()
             return client.submit_batch(requests, description=f"V2.1 {batch_type} batch")
 
-        except ImportError as e:
+        except ImportError:
             return f"batch_pending_{uuid.uuid4().hex[:8]}_missing_module"
         except Exception as e:
             return f"batch_error_{uuid.uuid4().hex[:8]}_{str(e)[:20]}"

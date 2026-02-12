@@ -10,13 +10,11 @@ Tests:
 - Dependency checking
 """
 
-import json
 import tempfile
 from pathlib import Path
 from typing import List
 
 import pytest
-
 from cortex.plugins.base import BasePlugin, PluginMetadata
 from cortex.plugins.loader import PluginLoader
 from cortex.plugins.registry import PluginRegistry

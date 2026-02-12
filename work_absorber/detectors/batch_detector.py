@@ -153,7 +153,7 @@ class BatchResultDetector(SignalDetector):
         try:
             # Parse project from filename (e.g., VortexV2_Ensemble_Models_FULL.md)
             filename = md_file.stem
-            parts = filename.replace("_FULL", "").split("_")
+            filename.replace("_FULL", "").split("_")
 
             # Detect project from filename
             project = "unknown"

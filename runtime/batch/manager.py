@@ -40,8 +40,7 @@ class BatchManager:
         cursor = conn.cursor()
 
         # Batch Queue Table (Pending Items)
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS batch_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 prompt TEXT NOT NULL,
@@ -50,12 +49,10 @@ class BatchManager:
                 status TEXT NOT NULL DEFAULT 'pending',
                 batch_id TEXT
             )
-        """
-        )
+        """)
 
         # Batch Tracking Table (Submitted Batches)
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS batch_tracking (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 batch_id TEXT NOT NULL UNIQUE,
@@ -63,8 +60,7 @@ class BatchManager:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 result_file_id TEXT
             )
-        """
-        )
+        """)
 
         conn.commit()
         conn.close()
@@ -182,12 +178,10 @@ class BatchManager:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT * FROM batch_tracking
             WHERE status = 'in_progress'
-        """
-        )
+        """)
 
         rows = cursor.fetchall()
         conn.close()

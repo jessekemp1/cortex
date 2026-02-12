@@ -13,7 +13,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
-
 class TestHealthMonitor:
     """Tests for the HealthMonitor component."""
 
@@ -261,8 +260,8 @@ class TestCortexSupervisor:
         from supervisor import CortexSupervisor, SupervisorConfig
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            from intelligence.process_monitor.batch_queue import BatchTaskQueue
             from intelligence.process_monitor.batch_executor import BatchExecutor
+            from intelligence.process_monitor.batch_queue import BatchTaskQueue
 
             # Create isolated queue for test
             queue = BatchTaskQueue(db_path=Path(tmpdir) / "test.db")
@@ -288,7 +287,7 @@ class TestCortexSupervisor:
             queue = BatchTaskQueue(db_path=Path(tmpdir) / "test.db")
 
             # Add a task that's ready to run
-            task = queue.add_task(
+            queue.add_task(
                 command="echo 'test'",
                 task_type="test",
                 description="Test task",
@@ -337,6 +336,7 @@ class TestCortexSupervisor:
     def test_status_when_not_running(self):
         """Test status() when supervisor is not running."""
         import tempfile
+
         from supervisor import CortexSupervisor, SupervisorConfig
 
         # Create supervisor with isolated PID file

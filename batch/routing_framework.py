@@ -25,20 +25,22 @@ Usage:
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 
 class RouteType(Enum):
     """Request routing decision"""
-    INTERACTIVE = "interactive"       # Must be real-time
-    SUGGEST_BATCH = "suggest_batch"   # Recommend batch, user chooses
-    OFFER_BATCH = "offer_batch"       # Large request, offer batch option
-    FORCE_BATCH = "force_batch"       # Over budget, must batch
+
+    INTERACTIVE = "interactive"  # Must be real-time
+    SUGGEST_BATCH = "suggest_batch"  # Recommend batch, user chooses
+    OFFER_BATCH = "offer_batch"  # Large request, offer batch option
+    FORCE_BATCH = "force_batch"  # Over budget, must batch
 
 
 @dataclass
 class RouteDecision:
     """Result of routing decision"""
+
     route: RouteType
     reason: str
     confidence: float  # 0.0-1.0
@@ -64,7 +66,7 @@ BATCH_PATTERNS = {
         ],
         "template": "code_review",
         "estimated_tokens": 25_000,
-        "confidence": 0.85
+        "confidence": 0.85,
     },
     "documentation": {
         "patterns": [
@@ -74,7 +76,7 @@ BATCH_PATTERNS = {
         ],
         "template": "documentation",
         "estimated_tokens": 15_000,
-        "confidence": 0.90
+        "confidence": 0.90,
     },
     "security_audit": {
         "patterns": [
@@ -84,7 +86,7 @@ BATCH_PATTERNS = {
         ],
         "template": "security_audit",
         "estimated_tokens": 30_000,
-        "confidence": 0.95
+        "confidence": 0.95,
     },
     "test_coverage": {
         "patterns": [
@@ -94,7 +96,7 @@ BATCH_PATTERNS = {
         ],
         "template": "test_coverage",
         "estimated_tokens": 20_000,
-        "confidence": 0.85
+        "confidence": 0.85,
     },
     "research": {
         "patterns": [
@@ -105,7 +107,7 @@ BATCH_PATTERNS = {
         ],
         "template": "research",
         "estimated_tokens": 20_000,
-        "confidence": 0.75
+        "confidence": 0.75,
     },
     "refactoring": {
         "patterns": [
@@ -115,7 +117,7 @@ BATCH_PATTERNS = {
         ],
         "template": "refactoring",
         "estimated_tokens": 25_000,
-        "confidence": 0.80
+        "confidence": 0.80,
     },
     "performance": {
         "patterns": [
@@ -125,7 +127,7 @@ BATCH_PATTERNS = {
         ],
         "template": "performance",
         "estimated_tokens": 25_000,
-        "confidence": 0.85
+        "confidence": 0.85,
     },
     "dependency_audit": {
         "patterns": [
@@ -135,8 +137,8 @@ BATCH_PATTERNS = {
         ],
         "template": "dependency_audit",
         "estimated_tokens": 15_000,
-        "confidence": 0.90
-    }
+        "confidence": 0.90,
+    },
 }
 
 # Patterns that indicate interactive-only requests
@@ -148,7 +150,7 @@ INTERACTIVE_PATTERNS = {
             r"(help|stuck)\s+(with|on)\s+",
             r"(getting|seeing)\s+(an?\s+)?(error|exception)",
         ],
-        "reason": "Active debugging requires real-time iteration"
+        "reason": "Active debugging requires real-time iteration",
     },
     "implementation": {
         "patterns": [
@@ -156,7 +158,7 @@ INTERACTIVE_PATTERNS = {
             r"(add|make)\s+(a|the)?\s*(feature|function|method)",
             r"can\s+you\s+(implement|write|create)",
         ],
-        "reason": "Implementation requires file editing and context"
+        "reason": "Implementation requires file editing and context",
     },
     "urgent": {
         "patterns": [
@@ -164,7 +166,7 @@ INTERACTIVE_PATTERNS = {
             r"(need|want)\s+(this|it)\s+(now|fast|quickly)",
             r"(production|live|critical)\s+(issue|bug|problem)",
         ],
-        "reason": "Time-sensitive request"
+        "reason": "Time-sensitive request",
     },
     "interactive": {
         "patterns": [
@@ -173,8 +175,8 @@ INTERACTIVE_PATTERNS = {
             r"(let's|shall\s+we)\s+",
             r"(can|could)\s+you\s+(help|explain)",
         ],
-        "reason": "Request implies dialog/iteration"
-    }
+        "reason": "Request implies dialog/iteration",
+    },
 }
 
 
@@ -196,15 +198,12 @@ class RequestRouter:
         for key, config in pattern_dict.items():
             compiled[key] = {
                 **config,
-                "compiled": [re.compile(p, re.IGNORECASE) for p in config["patterns"]]
+                "compiled": [re.compile(p, re.IGNORECASE) for p in config["patterns"]],
             }
         return compiled
 
     def classify(
-        self,
-        request: str,
-        force_time_sensitive: bool = False,
-        budget_remaining_pct: float = 100.0
+        self, request: str, force_time_sensitive: bool = False, budget_remaining_pct: float = 100.0
     ) -> RouteDecision:
         """
         Classify a request for routing.
@@ -225,7 +224,7 @@ class RequestRouter:
                 route=RouteType.FORCE_BATCH,
                 reason="Daily interactive budget exhausted",
                 confidence=1.0,
-                estimated_tokens=self._estimate_tokens(request)
+                estimated_tokens=self._estimate_tokens(request),
             )
 
         # Check for time-sensitive indicators
@@ -234,7 +233,7 @@ class RequestRouter:
                 route=RouteType.INTERACTIVE,
                 reason="Time-sensitive request",
                 confidence=0.95,
-                time_sensitive=True
+                time_sensitive=True,
             )
 
         # Check for interactive-only patterns
@@ -244,7 +243,7 @@ class RequestRouter:
                 route=RouteType.INTERACTIVE,
                 reason=interactive_match["reason"],
                 confidence=interactive_match.get("confidence", 0.85),
-                requires_iteration=True
+                requires_iteration=True,
             )
 
         # Check for batch-eligible patterns
@@ -256,7 +255,7 @@ class RequestRouter:
                 confidence=batch_match.get("confidence", 0.80),
                 template_id=batch_match.get("template"),
                 estimated_tokens=batch_match.get("estimated_tokens", 20_000),
-                estimated_hours=batch_match.get("estimated_tokens", 20_000) / 50_000 * 0.5
+                estimated_hours=batch_match.get("estimated_tokens", 20_000) / 50_000 * 0.5,
             )
 
         # Check token estimate for large requests
@@ -267,14 +266,14 @@ class RequestRouter:
                 reason=f"Large request (~{estimated_tokens:,} tokens estimated)",
                 confidence=0.70,
                 estimated_tokens=estimated_tokens,
-                estimated_hours=estimated_tokens / 50_000 * 0.5
+                estimated_hours=estimated_tokens / 50_000 * 0.5,
             )
 
         # Default: interactive
         return RouteDecision(
             route=RouteType.INTERACTIVE,
             reason="Standard request - interactive processing",
-            confidence=0.60
+            confidence=0.60,
         )
 
     def _match_patterns(self, text: str, pattern_dict: Dict) -> Optional[Dict]:
@@ -284,7 +283,7 @@ class RequestRouter:
                 if pattern.search(text):
                     return {
                         "key": key,
-                        **{k: v for k, v in config.items() if k != "compiled" and k != "patterns"}
+                        **{k: v for k, v in config.items() if k != "compiled" and k != "patterns"},
                     }
         return None
 

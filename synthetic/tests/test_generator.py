@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.generator import SyntheticGenerator
+from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.quality import SyntheticQualityTracker
 from synthetic.schemas import (
     CustomerProfile,
@@ -83,7 +83,12 @@ class TestSchemas:
             records_passed_quality=95,
             records_rejected=5,
             average_quality_score=0.87,
-            quality_distribution={"excellent_0.9+": 40, "good_0.8-0.9": 45, "fair_0.7-0.8": 10, "low_<0.7": 5},
+            quality_distribution={
+                "excellent_0.9+": 40,
+                "good_0.8-0.9": 45,
+                "fair_0.7-0.8": 10,
+                "low_<0.7": 5,
+            },
             generation_time_seconds=1.5,
         )
         summary = result.summary()
@@ -151,16 +156,12 @@ class TestGenerator:
         assert result.average_quality_score > 0
 
     def test_generate_profiles_with_segment(self, generator):
-        request = GenerationRequest(
-            data_type="profiles", count=20, segment="affluent"
-        )
+        request = GenerationRequest(data_type="profiles", count=20, segment="affluent")
         result = generator.generate(request)
         assert result.records_generated == 20
 
     def test_generate_profiles_with_province(self, generator):
-        request = GenerationRequest(
-            data_type="profiles", count=10, province="QC"
-        )
+        request = GenerationRequest(data_type="profiles", count=10, province="QC")
         result = generator.generate(request)
         assert result.records_generated == 10
 
@@ -265,11 +266,21 @@ class TestQualityTracker:
 
     def test_uniqueness_detection(self, quality_tracker):
         profile1 = CustomerProfile(
-            profile_id="DUP-001", age=30, province="ON", fsa="M5V",
-            segment="mass_market", annual_income=50000.0, household_income=80000.0,
-            credit_score=700, products_held=["chequing"], total_deposits=10000.0,
-            total_credit_outstanding=0.0, digital_adoption="hybrid",
-            primary_channel="mobile", tenure_years=5.0, products_per_household=1,
+            profile_id="DUP-001",
+            age=30,
+            province="ON",
+            fsa="M5V",
+            segment="mass_market",
+            annual_income=50000.0,
+            household_income=80000.0,
+            credit_score=700,
+            products_held=["chequing"],
+            total_deposits=10000.0,
+            total_credit_outstanding=0.0,
+            digital_adoption="hybrid",
+            primary_channel="mobile",
+            tenure_years=5.0,
+            products_per_household=1,
         )
         # First assessment — unique
         q1 = quality_tracker.assess_profile(profile1)

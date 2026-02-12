@@ -402,7 +402,7 @@ class GitTracker:
     def format_for_briefing(self) -> str:
         """Format Git state for daily briefing."""
         state = self.get_state()
-        summary = self.get_summary()
+        self.get_summary()
         recommendations = self.get_recommendations()
 
         lines = ["## Git & GitHub Status\n"]

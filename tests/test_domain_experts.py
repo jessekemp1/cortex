@@ -71,7 +71,7 @@ class TestVortexExpert:
         vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
         assert expert.is_relevant(vortex_path)
 
-        non_vortex_path = Path("/Users/jesse.kemp/Dev/cortex")
+        Path("/Users/jesse.kemp/Dev/cortex")
         # May still be relevant if task has keywords
         # So don't assert False here
 

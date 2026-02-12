@@ -23,8 +23,8 @@ CLI:
 
 from supervisor.config import SupervisorConfig
 from supervisor.core import CortexSupervisor
-from supervisor.health import HealthMonitor, HealingAction, HealthIssue
-from supervisor.models import TickResult, WorkItem, TaskTarget, RoutedTask
+from supervisor.health import HealingAction, HealthIssue, HealthMonitor
+from supervisor.models import RoutedTask, TaskTarget, TickResult, WorkItem
 
 __all__ = [
     "CortexSupervisor",

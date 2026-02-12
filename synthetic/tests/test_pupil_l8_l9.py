@@ -8,29 +8,22 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.schemas import CustomerProfile
+from synthetic.pupil.behavioral_fidelity import (
+    BehavioralFidelityValidator,
+    FidelityReport,
+)
 from synthetic.pupil.market_env import (
-    CompetitionEvent,
-    EventType,
     build_timeline,
 )
-from synthetic.pupil.persona import ActionType, PersonaAgent
 from synthetic.pupil.simulation import (
     SimulationEngine,
     SimulationResult,
-    StepResult,
-)
-from synthetic.pupil.behavioral_fidelity import (
-    BehavioralFidelityValidator,
-    FidelityCheck,
-    FidelityReport,
 )
 from synthetic.pupil.temporal_coherence import (
-    TemporalCoherenceValidator,
-    CoherenceCheck,
     CoherenceReport,
+    TemporalCoherenceValidator,
 )
-
+from synthetic.schemas import CustomerProfile
 
 # ============================================================================
 # Fixtures
@@ -96,13 +89,15 @@ def make_mixed_profiles(n: int = 75) -> list[CustomerProfile]:
     for seg, count in segments:
         cfg = segment_configs[seg]
         for _ in range(count):
-            profiles.append(make_profile(
-                profile_id=f"mix-{idx:03d}",
-                segment=seg,
-                credit_score=cfg["credit_score"],
-                annual_income=cfg["income"],
-                total_deposits=cfg["deposits"],
-            ))
+            profiles.append(
+                make_profile(
+                    profile_id=f"mix-{idx:03d}",
+                    segment=seg,
+                    credit_score=cfg["credit_score"],
+                    annual_income=cfg["income"],
+                    total_deposits=cfg["deposits"],
+                )
+            )
             idx += 1
 
     return profiles
@@ -185,9 +180,9 @@ class TestBehavioralFidelityBaseline:
     def test_baseline_passes(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
         assert isinstance(report, FidelityReport)
-        assert report.overall_score > 0.6, (
-            f"Baseline should pass L8 (score={report.overall_score:.3f})"
-        )
+        assert (
+            report.overall_score > 0.6
+        ), f"Baseline should pass L8 (score={report.overall_score:.3f})"
         assert report.passed is True
 
     def test_baseline_has_all_checks(self, l8_validator, baseline_result):
@@ -216,18 +211,14 @@ class TestBehavioralFidelityChurnCheck:
 
     def test_churn_check_has_segment_detail(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_rate_fidelity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_rate_fidelity")
         assert isinstance(churn_check.actual, dict)
         # Should have at least mass_market segment detail
         assert "mass_market" in churn_check.actual
 
     def test_churn_check_segments_have_expected(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_rate_fidelity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_rate_fidelity")
         for seg, detail in churn_check.actual.items():
             assert "expected" in detail
             assert "observed" in detail
@@ -237,9 +228,7 @@ class TestBehavioralFidelityChurnCheck:
 
     def test_churn_score_between_0_and_1(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_rate_fidelity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_rate_fidelity")
         assert 0.0 <= churn_check.score <= 1.0
 
 
@@ -248,18 +237,14 @@ class TestBehavioralFidelityCreditCheck:
 
     def test_credit_scores_stay_valid(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        credit_check = next(
-            c for c in report.checks if c.check_name == "credit_score_range"
-        )
+        credit_check = next(c for c in report.checks if c.check_name == "credit_score_range")
         # Baseline scenario should have no violations
         assert credit_check.passed is True
         assert credit_check.score == 1.0, "No credit range violations expected in baseline"
 
     def test_credit_check_reports_observation_count(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        credit_check = next(
-            c for c in report.checks if c.check_name == "credit_score_range"
-        )
+        credit_check = next(c for c in report.checks if c.check_name == "credit_score_range")
         assert credit_check.actual["total_observations"] > 0
 
 
@@ -268,9 +253,7 @@ class TestBehavioralFidelityLifecycleCheck:
 
     def test_no_invalid_transitions_baseline(self, l8_validator, baseline_result):
         report = l8_validator.validate(baseline_result)
-        lc_check = next(
-            c for c in report.checks if c.check_name == "lifecycle_transitions"
-        )
+        lc_check = next(c for c in report.checks if c.check_name == "lifecycle_transitions")
         # The simulation engine should produce only valid transitions
         assert lc_check.passed is True, f"Found invalid transitions: {lc_check.actual}"
         assert lc_check.score == 1.0
@@ -292,9 +275,7 @@ class TestBehavioralFidelityEdgeCases:
         # Single step should still produce some meaningful checks
         assert report.overall_score >= 0.0
         # Lifecycle check should pass (1 step = no transitions)
-        lc_check = next(
-            c for c in report.checks if c.check_name == "lifecycle_transitions"
-        )
+        lc_check = next(c for c in report.checks if c.check_name == "lifecycle_transitions")
         assert lc_check.passed is True
 
     def test_short_result(self, l8_validator, short_result):
@@ -347,9 +328,9 @@ class TestTemporalCoherenceBaseline:
     def test_baseline_passes(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
         assert isinstance(report, CoherenceReport)
-        assert report.overall_score > 0.6, (
-            f"Baseline should pass L9 (score={report.overall_score:.3f})"
-        )
+        assert (
+            report.overall_score > 0.6
+        ), f"Baseline should pass L9 (score={report.overall_score:.3f})"
         assert report.passed is True
 
     def test_baseline_has_all_checks(self, l9_validator, baseline_result):
@@ -372,10 +353,7 @@ class TestTemporalCoherenceAutocorrelation:
 
     def test_autocorrelation_positive(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        ac_check = next(
-            c for c in report.checks
-            if c.check_name == "satisfaction_autocorrelation"
-        )
+        ac_check = next(c for c in report.checks if c.check_name == "satisfaction_autocorrelation")
         # Satisfaction should be positively autocorrelated in baseline
         assert ac_check.actual is not None
         assert ac_check.actual > 0.0, "Satisfaction should show positive autocorrelation"
@@ -387,18 +365,14 @@ class TestTemporalCoherenceChurnMonotonicity:
 
     def test_churn_monotonic_baseline(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_monotonicity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_monotonicity")
         # Simulation engine produces non-decreasing churn
         assert churn_check.passed is True
         assert churn_check.score == 1.0
 
     def test_churn_check_reports_curve(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_monotonicity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_monotonicity")
         assert "churn_curve" in churn_check.actual
         assert len(churn_check.actual["churn_curve"]) == 12
 
@@ -408,19 +382,13 @@ class TestTemporalCoherenceDepositSmoothness:
 
     def test_deposits_smooth_baseline(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        dep_check = next(
-            c for c in report.checks if c.check_name == "deposit_smoothness"
-        )
+        dep_check = next(c for c in report.checks if c.check_name == "deposit_smoothness")
         # Baseline should have smooth deposits (low violation rate)
-        assert dep_check.score > 0.5, (
-            f"Deposit smoothness too low: {dep_check.detail}"
-        )
+        assert dep_check.score > 0.5, f"Deposit smoothness too low: {dep_check.detail}"
 
     def test_deposit_check_has_violation_detail(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        dep_check = next(
-            c for c in report.checks if c.check_name == "deposit_smoothness"
-        )
+        dep_check = next(c for c in report.checks if c.check_name == "deposit_smoothness")
         assert "violations" in dep_check.actual
         assert "total_transitions" in dep_check.actual
         assert "violation_rate" in dep_check.actual
@@ -431,13 +399,8 @@ class TestTemporalCoherenceStateTransitions:
 
     def test_no_invalid_transitions_baseline(self, l9_validator, baseline_result):
         report = l9_validator.validate(baseline_result)
-        trans_check = next(
-            c for c in report.checks
-            if c.check_name == "state_transition_validity"
-        )
-        assert trans_check.passed is True, (
-            f"Found invalid transitions: {trans_check.actual}"
-        )
+        trans_check = next(c for c in report.checks if c.check_name == "state_transition_validity")
+        assert trans_check.passed is True, f"Found invalid transitions: {trans_check.actual}"
         assert trans_check.score == 1.0
 
 
@@ -468,9 +431,7 @@ class TestTemporalCoherenceEdgeCases:
         # Even stress scenario should maintain temporal coherence
         assert 0.0 <= report.overall_score <= 1.0
         # Churn monotonicity should still hold
-        churn_check = next(
-            c for c in report.checks if c.check_name == "churn_monotonicity"
-        )
+        churn_check = next(c for c in report.checks if c.check_name == "churn_monotonicity")
         assert churn_check.passed is True
 
 
@@ -518,13 +479,8 @@ class TestCrossLayerConsistency:
         l8_report = l8_validator.validate(baseline_result)
         l9_report = l9_validator.validate(baseline_result)
 
-        l8_lc = next(
-            c for c in l8_report.checks if c.check_name == "lifecycle_transitions"
-        )
-        l9_lc = next(
-            c for c in l9_report.checks
-            if c.check_name == "state_transition_validity"
-        )
+        l8_lc = next(c for c in l8_report.checks if c.check_name == "lifecycle_transitions")
+        l9_lc = next(c for c in l9_report.checks if c.check_name == "state_transition_validity")
         # Both should pass or both should fail (they check the same transitions)
         assert l8_lc.passed == l9_lc.passed
 

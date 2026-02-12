@@ -13,7 +13,7 @@ import json
 import logging
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -64,8 +64,7 @@ class WorkAbsorberStorage:
     def _init_db(self) -> None:
         """Initialize database schema."""
         with self._get_connection() as conn:
-            conn.executescript(
-                """
+            conn.executescript("""
                 -- Work signals (raw detections)
                 CREATE TABLE IF NOT EXISTS work_signals (
                     id TEXT PRIMARY KEY,
@@ -178,8 +177,7 @@ class WorkAbsorberStorage:
                 CREATE INDEX IF NOT EXISTS idx_progress_plan_step ON progress_entries(plan_step_id);
                 CREATE INDEX IF NOT EXISTS idx_drifts_project ON plan_drifts(project);
                 CREATE INDEX IF NOT EXISTS idx_drifts_resolved ON plan_drifts(resolved);
-            """
-            )
+            """)
 
     @contextmanager
     def _get_connection(self):
@@ -769,11 +767,9 @@ class WorkAbsorberStorage:
 
             # By project
             project_stats = {}
-            rows = conn.execute(
-                """
+            rows = conn.execute("""
                 SELECT project, COUNT(*) as count FROM work_items GROUP BY project
-            """
-            ).fetchall()
+            """).fetchall()
             for row in rows:
                 project_stats[row["project"]] = row["count"]
 

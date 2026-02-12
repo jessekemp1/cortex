@@ -221,7 +221,6 @@ class SpecKnowledgeBase:
         # Find first paragraph after title
         lines = content.split("\n")
 
-        in_paragraph = False
         summary_lines = []
 
         for line in lines:

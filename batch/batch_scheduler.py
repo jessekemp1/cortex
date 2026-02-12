@@ -350,7 +350,7 @@ class BatchScheduler:
                         task.completed_at = datetime.now()
                         completed.append(task)
 
-                except Exception as e:
+                except Exception:
                     # Don't mark as failed yet, might be temporary network issue
                     pass
 

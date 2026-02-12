@@ -6,11 +6,11 @@ Does not rely on memory or promises.
 Cannot be bypassed.
 """
 
-from .testing_gate import TestingEnforcer, DeliveryGate
+from .testing_gate import DeliveryGate, TestingEnforcer
 
 __all__ = [
-    'TestingEnforcer',
-    'DeliveryGate',
+    "TestingEnforcer",
+    "DeliveryGate",
 ]
 
 # Future: pattern_detector, evidence_validator will be added

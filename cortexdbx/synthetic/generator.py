@@ -4,13 +4,13 @@ Synthetic data generator for CortexDBx MVP.
 Generates realistic outcomes across 6 domains for dev and testing.
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Any, Generator, Optional
-import random
 import hashlib
 import json
-from datetime import datetime, timedelta
+import random
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, Generator, List, Optional
 
 
 @dataclass
@@ -157,9 +157,7 @@ class SyntheticDataGenerator:
 
     def __init__(self, domain: str, seed: Optional[int] = 42):
         if domain not in DOMAIN_CONFIGS:
-            raise ValueError(
-                f"Unknown domain: {domain}. Valid: {list(DOMAIN_CONFIGS.keys())}"
-            )
+            raise ValueError(f"Unknown domain: {domain}. Valid: {list(DOMAIN_CONFIGS.keys())}")
         self.domain = domain
         self.config = DOMAIN_CONFIGS[domain]
         random.seed(seed)
@@ -176,9 +174,7 @@ class SyntheticDataGenerator:
                 "name": name,
                 "domain": self.domain,
                 "inherent_success_rate": base_success_rate,
-                "category": random.choice(
-                    ["primary", "fallback", "experimental"]
-                ),
+                "category": random.choice(["primary", "fallback", "experimental"]),
             }
 
     def _generate_context(self) -> Dict[str, Any]:
@@ -261,10 +257,7 @@ class SyntheticDataGenerator:
 
     def get_ground_truth(self) -> Dict[str, float]:
         """Return ground truth success rates for validation."""
-        return {
-            s["strategy_id"]: s["inherent_success_rate"]
-            for s in self._strategies.values()
-        }
+        return {s["strategy_id"]: s["inherent_success_rate"] for s in self._strategies.values()}
 
     @property
     def strategies(self) -> Dict[str, Dict[str, Any]]:

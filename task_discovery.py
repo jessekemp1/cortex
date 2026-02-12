@@ -68,11 +68,27 @@ def _discover_tasks_uncached(root_dir: Optional[Path] = None) -> List[Dict[str, 
 
     # Directories to skip (these are huge and never contain tasks.yaml)
     skip_dirs = {
-        "node_modules", "venv", ".venv", "env", ".env",
-        "__pycache__", ".git", ".idea", ".vscode",
-        "dist", "build", ".cache", ".tox", ".pytest_cache",
-        "vendor", "target", "coverage", "htmlcov",
-        "site-packages", "lib", "lib64",
+        "node_modules",
+        "venv",
+        ".venv",
+        "env",
+        ".env",
+        "__pycache__",
+        ".git",
+        ".idea",
+        ".vscode",
+        "dist",
+        "build",
+        ".cache",
+        ".tox",
+        ".pytest_cache",
+        "vendor",
+        "target",
+        "coverage",
+        "htmlcov",
+        "site-packages",
+        "lib",
+        "lib64",
     }
 
     def walk_filtered(path: Path, max_depth: int = 3, current_depth: int = 0):

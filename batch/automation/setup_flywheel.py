@@ -35,7 +35,7 @@ BUDGET_STATE_DIR = Path.home() / ".cortex" / "budget"
 PLIST_FILES = [
     "com.cortex.flywheel.plist",
     "com.cortex.batch.nightly.plist",
-    "com.cortex.batch.morning.plist"
+    "com.cortex.batch.morning.plist",
 ]
 
 
@@ -74,15 +74,8 @@ def install_launchd_plists():
         print(f"   ✓ Installed {plist_name}")
 
         # Load the agent
-        subprocess.run(
-            ["launchctl", "unload", str(dst)],
-            capture_output=True
-        )
-        result = subprocess.run(
-            ["launchctl", "load", str(dst)],
-            capture_output=True,
-            text=True
-        )
+        subprocess.run(["launchctl", "unload", str(dst)], capture_output=True)
+        result = subprocess.run(["launchctl", "load", str(dst)], capture_output=True, text=True)
 
         if result.returncode == 0:
             print(f"   ✓ Loaded {plist_name}")
@@ -101,7 +94,7 @@ def install_git_hooks():
     # Post-commit hook
     post_commit = GIT_HOOKS_DIR / "post-commit"
 
-    hook_content = '''#!/bin/bash
+    hook_content = """#!/bin/bash
 # Cortex Flywheel - Post-Commit Hook
 # Suggests batch analysis for significant commits
 
@@ -117,7 +110,7 @@ if [ "$FILES" -gt 5 ] || [ "$INSERTIONS" -gt 500 ]; then
     echo "   Consider: /batch-submit review HEAD"
     echo ""
 fi
-'''
+"""
 
     # Check if hook exists and has our marker
     if post_commit.exists():
@@ -153,11 +146,7 @@ def verify_installation():
         plist_path = LAUNCH_AGENTS_DIR / plist_name
         if plist_path.exists():
             # Check if loaded
-            result = subprocess.run(
-                ["launchctl", "list"],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["launchctl", "list"], capture_output=True, text=True)
             label = plist_name.replace(".plist", "")
             if label in result.stdout:
                 checks.append((f"Agent: {label}", True))

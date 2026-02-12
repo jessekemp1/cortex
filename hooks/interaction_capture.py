@@ -297,7 +297,7 @@ def track_command_if_present(prompt: str, session_id: str, cwd: str) -> dict:
                 project = "cortex"
 
             # Track the command execution
-            execution = tracker.track_command(
+            tracker.track_command(
                 command=command_type,
                 session_id=session_id or "unknown",
                 project=project,

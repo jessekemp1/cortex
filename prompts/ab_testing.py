@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Dict, Optional
 
 
-
 @dataclass
 class ExperimentAssignment:
     """Record of an A/B test assignment.
@@ -176,9 +175,10 @@ class ABTestManager:
                 if assignment_data["prompt_name"] != prompt_name:
                     continue
 
-                if experiment_id and assignment_data["metadata"].get(
-                    "experiment_id"
-                ) != experiment_id:
+                if (
+                    experiment_id
+                    and assignment_data["metadata"].get("experiment_id") != experiment_id
+                ):
                     continue
 
                 variant = assignment_data["variant"]

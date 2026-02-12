@@ -105,7 +105,9 @@ class GitStatusAnalyzer:
 
         return groups
 
-    def suggest_commit_sequence(self, change_groups: Dict[str, ChangeGroup]) -> List[CommitSuggestion]:
+    def suggest_commit_sequence(
+        self, change_groups: Dict[str, ChangeGroup]
+    ) -> List[CommitSuggestion]:
         """
         Generate ordered list of suggested commits.
 
@@ -127,12 +129,11 @@ class GitStatusAnalyzer:
             # Check for blockers
             blockers = self._check_blockers(group)
 
-            suggestions.append(CommitSuggestion(
-                priority=priority,
-                group=group,
-                reasoning=reasoning,
-                blockers=blockers
-            ))
+            suggestions.append(
+                CommitSuggestion(
+                    priority=priority, group=group, reasoning=reasoning, blockers=blockers
+                )
+            )
 
         # Sort by priority (lowest number = highest priority)
         suggestions.sort(key=lambda s: s.priority)
@@ -146,16 +147,13 @@ class GitStatusAnalyzer:
             ["git", "diff", "--name-only", "HEAD"],
             cwd=self.repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
         modified = [f for f in result.stdout.strip().split("\n") if f]
 
         # Get deleted files
         result = subprocess.run(
-            ["git", "ls-files", "--deleted"],
-            cwd=self.repo_path,
-            capture_output=True,
-            text=True
+            ["git", "ls-files", "--deleted"], cwd=self.repo_path, capture_output=True, text=True
         )
         deleted = [f for f in result.stdout.strip().split("\n") if f]
 
@@ -164,7 +162,7 @@ class GitStatusAnalyzer:
             ["git", "ls-files", "--others", "--exclude-standard"],
             cwd=self.repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
         untracked = [f for f in result.stdout.strip().split("\n") if f]
 
@@ -219,7 +217,7 @@ class GitStatusAnalyzer:
                     confidence=0.99,
                     should_commit="bulk",
                     suggested_message=f"feat(DJ-CoPilot): Add {len(loop_files)} new loop metadata files",
-                    risk_level="low"
+                    risk_level="low",
                 )
                 # Remove from files list
                 files = [f for f in files if f not in loop_files]
@@ -236,7 +234,7 @@ class GitStatusAnalyzer:
                 confidence=0.95,
                 should_commit="now",
                 suggested_message=f"chore({project}): Archive outdated documentation",
-                risk_level="low"
+                risk_level="low",
             )
             files = [f for f in files if f not in deleted_docs]
 
@@ -255,7 +253,7 @@ class GitStatusAnalyzer:
                         confidence=0.95,
                         should_commit="now",
                         suggested_message=f"fix(ui): Update {Path(ui_file).stem}",
-                        risk_level="low"
+                        risk_level="low",
                     )
                     files = [f for f in files if f != ui_file]
 
@@ -275,12 +273,14 @@ class GitStatusAnalyzer:
                 related_files=test_files,
                 missing_files=[] if test_files else ["tests/unit/test_validation_v2a.py"],
                 warnings=[] if test_files else ["API changes typically include test files"],
-                risk_level="medium" if not test_files else "low"
+                risk_level="medium" if not test_files else "low",
             )
             files = [f for f in files if f not in api_files and f not in test_files]
 
         # 5. Runtime data (portfolio files, logs)
-        data_files = [f for f in files if any(p in f for p in ["data/", "portfolio", "competition_log"])]
+        data_files = [
+            f for f in files if any(p in f for p in ["data/", "portfolio", "competition_log"])
+        ]
         if data_files and project == "alpha_arena":
             group_id = f"{project}_runtime_data"
             groups[group_id] = ChangeGroup(
@@ -292,7 +292,7 @@ class GitStatusAnalyzer:
                 should_commit="maybe",
                 suggested_message="data(alpha_arena): Update portfolio positions",
                 warnings=["Runtime data typically not committed"],
-                risk_level="low"
+                risk_level="low",
             )
             files = [f for f in files if f not in data_files]
 
@@ -308,7 +308,7 @@ class GitStatusAnalyzer:
                 confidence=0.88,
                 should_commit="now",
                 suggested_message=f"chore({project}): Update configuration and memories",
-                risk_level="low"
+                risk_level="low",
             )
             files = [f for f in files if f not in config_files]
 
@@ -324,7 +324,7 @@ class GitStatusAnalyzer:
                 should_commit="review",
                 suggested_message=f"refactor({project}): Update project files",
                 warnings=["Please review these changes manually"],
-                risk_level="medium"
+                risk_level="medium",
             )
 
         return groups
@@ -335,9 +335,17 @@ class GitStatusAnalyzer:
         """Enhance group with pattern-based intelligence."""
         # Check for missing test files if source code changed
         if group.change_type in ["feat", "fix", "refactor"]:
-            source_files = [f for f in group.files if any(f.endswith(ext) for ext in self.FILE_CATEGORIES["source_code"])]
+            source_files = [
+                f
+                for f in group.files
+                if any(f.endswith(ext) for ext in self.FILE_CATEGORIES["source_code"])
+            ]
             if source_files:
-                test_files = [f for f in group.files if any(pattern in f for pattern in self.FILE_CATEGORIES["tests"])]
+                test_files = [
+                    f
+                    for f in group.files
+                    if any(pattern in f for pattern in self.FILE_CATEGORIES["tests"])
+                ]
                 if not test_files and "/test" not in str(group.files):
                     group.warnings.append("Source code changes without test file updates")
                     group.risk_level = "medium"
@@ -424,7 +432,9 @@ def main():
     for i, suggestion in enumerate(suggestions, 1):
         group = suggestion.group
         print(f"{i}. [{group.project}] {group.name}")
-        print(f"   Type: {group.change_type} | Confidence: {group.confidence:.0%} | Risk: {group.risk_level}")
+        print(
+            f"   Type: {group.change_type} | Confidence: {group.confidence:.0%} | Risk: {group.risk_level}"
+        )
         print(f"   Files: {len(group.files)}")
         print(f"   Suggested: {group.suggested_message}")
         print(f"   Reasoning: {suggestion.reasoning}")

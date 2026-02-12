@@ -86,7 +86,8 @@ def detect_vite_port(package_json_path: Path) -> int:
         if "port:" in content:
             # Parse port from config using regex
             import re
-            match = re.search(r'port:\s*(\d+)', content)
+
+            match = re.search(r"port:\s*(\d+)", content)
             if match:
                 return int(match.group(1))
 
@@ -110,7 +111,8 @@ def detect_streamlit_port(project_path: Path) -> int:
         content = config_file.read_text()
         if "port" in content:
             import re
-            match = re.search(r'port\s*=\s*(\d+)', content)
+
+            match = re.search(r"port\s*=\s*(\d+)", content)
             if match:
                 return int(match.group(1))
 
@@ -130,9 +132,7 @@ def get_running_processes() -> Dict[int, Dict]:
 
     try:
         # Get processes
-        ps_output = subprocess.run(
-            ["ps", "aux"], capture_output=True, text=True, check=True
-        ).stdout
+        subprocess.run(["ps", "aux"], capture_output=True, text=True, check=True).stdout
 
         # Get port listeners
         lsof_output = subprocess.run(

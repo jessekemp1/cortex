@@ -37,13 +37,14 @@ from synthetic.generator import SyntheticGenerator
 from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.schemas import GenerationRequest
 
-
 # ============================================================================
 # Pydantic Models
 # ============================================================================
 
+
 class GenerateRequest(BaseModel):
     """Request body for synthetic data generation."""
+
     data_type: str = Field("profiles", description="'profiles' or 'transactions'")
     count: int = Field(100, ge=1, le=10000, description="Number of records")
     segment: Optional[str] = Field(None, description="Target segment filter")
@@ -55,6 +56,7 @@ class GenerateRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     """Client outcome feedback for a generation run."""
+
     outcome: str = Field(..., description="'positive', 'negative', or 'neutral'")
     detail: Optional[str] = Field(None, description="Freeform feedback text")
     metrics: Optional[Dict[str, Any]] = Field(None, description="Custom metric dict")
@@ -62,6 +64,7 @@ class FeedbackRequest(BaseModel):
 
 class GenerationStatus(BaseModel):
     """Status of a generation run."""
+
     flywheel_id: str
     status: str  # "pending", "running", "completed", "failed"
     created_at: str
@@ -109,6 +112,7 @@ _output_dir.mkdir(parents=True, exist_ok=True)
 # ============================================================================
 # Routes
 # ============================================================================
+
 
 @app.post("/api/v1/synthetic/generate", response_model=GenerationStatus)
 async def generate_synthetic(request: GenerateRequest):
@@ -175,25 +179,29 @@ async def generate_synthetic(request: GenerateRequest):
 
         # Update store
         completed_at = datetime.now().isoformat()
-        _generation_store[flywheel_id].update({
-            "status": "completed",
-            "completed_at": completed_at,
-            "flywheel_score": round(report.overall_score, 4),
-            "layers_passed": report.layers_passed,
-            "layers_executed": report.layers_executed,
-            "output_path": str(output_path),
-        })
+        _generation_store[flywheel_id].update(
+            {
+                "status": "completed",
+                "completed_at": completed_at,
+                "flywheel_score": round(report.overall_score, 4),
+                "layers_passed": report.layers_passed,
+                "layers_executed": report.layers_executed,
+                "output_path": str(output_path),
+            }
+        )
 
         # Track quality history
-        _quality_history.append({
-            "flywheel_id": flywheel_id,
-            "timestamp": completed_at,
-            "overall_score": round(report.overall_score, 4),
-            "layers_passed": report.layers_passed,
-            "layers_executed": report.layers_executed,
-            "data_type": request.data_type,
-            "count": request.count,
-        })
+        _quality_history.append(
+            {
+                "flywheel_id": flywheel_id,
+                "timestamp": completed_at,
+                "overall_score": round(report.overall_score, 4),
+                "layers_passed": report.layers_passed,
+                "layers_executed": report.layers_executed,
+                "data_type": request.data_type,
+                "count": request.count,
+            }
+        )
 
         return GenerationStatus(
             flywheel_id=flywheel_id,
@@ -208,10 +216,12 @@ async def generate_synthetic(request: GenerateRequest):
         )
 
     except Exception as e:
-        _generation_store[flywheel_id].update({
-            "status": "failed",
-            "error": str(e),
-        })
+        _generation_store[flywheel_id].update(
+            {
+                "status": "failed",
+                "error": str(e),
+            }
+        )
         raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
 
 
@@ -314,8 +324,8 @@ async def quality_report(last_n: int = 20):
 
     trend = "stable"
     if len(scores) >= 3:
-        first_half = sum(scores[:len(scores)//2]) / max(len(scores)//2, 1)
-        second_half = sum(scores[len(scores)//2:]) / max(len(scores) - len(scores)//2, 1)
+        first_half = sum(scores[: len(scores) // 2]) / max(len(scores) // 2, 1)
+        second_half = sum(scores[len(scores) // 2 :]) / max(len(scores) - len(scores) // 2, 1)
         if second_half > first_half + 0.01:
             trend = "improving"
         elif second_half < first_half - 0.01:
@@ -334,12 +344,16 @@ async def quality_report(last_n: int = 20):
         "feedback_summary": {
             "total_feedback": sum(len(v) for v in _feedback_store.values()),
             "positive": sum(
-                1 for entries in _feedback_store.values()
-                for e in entries if e["outcome"] == "positive"
+                1
+                for entries in _feedback_store.values()
+                for e in entries
+                if e["outcome"] == "positive"
             ),
             "negative": sum(
-                1 for entries in _feedback_store.values()
-                for e in entries if e["outcome"] == "negative"
+                1
+                for entries in _feedback_store.values()
+                for e in entries
+                if e["outcome"] == "negative"
             ),
         },
     }

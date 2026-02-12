@@ -40,7 +40,7 @@ def analyze_tool_success(interactions: list[dict]) -> dict:
                 "success": data["success"],
                 "fail": data["fail"],
                 "total": total,
-                "rate": round(data["success"] / total * 100, 1)
+                "rate": round(data["success"] / total * 100, 1),
             }
     return dict(sorted(results.items(), key=lambda x: x[1]["total"], reverse=True))
 
@@ -70,17 +70,25 @@ def analyze_sessions(interactions: list[dict]) -> dict:
     session_stats = []
     for sid, items in sessions.items():
         if items:
-            session_stats.append({
-                "id": sid[:8],
-                "interactions": len(items),
-                "tools_used": len(set(i.get("tool_name") for i in items)),
-                "success_rate": round(sum(1 for i in items if i.get("success")) / len(items) * 100, 1)
-            })
+            session_stats.append(
+                {
+                    "id": sid[:8],
+                    "interactions": len(items),
+                    "tools_used": len(set(i.get("tool_name") for i in items)),
+                    "success_rate": round(
+                        sum(1 for i in items if i.get("success")) / len(items) * 100, 1
+                    ),
+                }
+            )
 
     return {
         "total_sessions": len(sessions),
-        "avg_interactions": round(sum(s["interactions"] for s in session_stats) / len(session_stats), 1) if session_stats else 0,
-        "top_sessions": sorted(session_stats, key=lambda x: x["interactions"], reverse=True)[:5]
+        "avg_interactions": (
+            round(sum(s["interactions"] for s in session_stats) / len(session_stats), 1)
+            if session_stats
+            else 0
+        ),
+        "top_sessions": sorted(session_stats, key=lambda x: x["interactions"], reverse=True)[:5],
     }
 
 

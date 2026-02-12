@@ -157,7 +157,7 @@ class BatchDaemon:
                     # Parent process - return immediately
                     return {
                         "success": True,
-                        "message": f"Daemon started in background",
+                        "message": "Daemon started in background",
                         "pid": pid,
                         "interval": interval_seconds,
                         "log_file": str(self.LOG_FILE),
@@ -174,7 +174,7 @@ class BatchDaemon:
                 pid = os.fork()
                 if pid > 0:
                     sys.exit(0)
-            except OSError as e:
+            except OSError:
                 sys.exit(1)
 
             # Redirect standard file descriptors
@@ -258,7 +258,7 @@ class BatchDaemon:
 
             return {
                 "success": True,
-                "message": f"Daemon stopped gracefully",
+                "message": "Daemon stopped gracefully",
                 "pid": pid,
                 "forced": False,
             }

@@ -15,15 +15,14 @@ Design Philosophy:
 - TraceEvent provides audit trail for all decisions
 """
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, List, Optional
-import json
-
+from typing import Any, Dict, List, Optional
 
 # Re-export core task models from task.py
-from .task import Task, TaskPhase, TaskPriority, TaskStatus
+from .task import Task
 
 
 class ExecutionBackend(str, Enum):
@@ -36,24 +35,27 @@ class ExecutionBackend(str, Enum):
     - API_BATCH: Anthropic Batch API (overnight processing)
     - API_REALTIME: Anthropic Messages API (immediate processing)
     """
-    LOCAL_SYNC = "local_sync"         # Shell command, immediate
-    LOCAL_BATCH = "local_batch"       # Shell command, queued
-    API_BATCH = "api_batch"           # LLM analysis, overnight
-    API_REALTIME = "api_realtime"     # LLM analysis, immediate
+
+    LOCAL_SYNC = "local_sync"  # Shell command, immediate
+    LOCAL_BATCH = "local_batch"  # Shell command, queued
+    API_BATCH = "api_batch"  # LLM analysis, overnight
+    API_REALTIME = "api_realtime"  # LLM analysis, immediate
 
 
 class WorkerRole(str, Enum):
     """Agent roles in the orchestration system."""
-    SUPERVISOR = "supervisor"         # Delegates and monitors
-    INVESTIGATOR = "investigator"     # Analyzes and researches
-    PLANNER = "planner"               # Designs solutions
-    IMPLEMENTER = "implementer"       # Writes code
-    TESTER = "tester"                 # Validates quality
-    REVIEWER = "reviewer"             # Code review
+
+    SUPERVISOR = "supervisor"  # Delegates and monitors
+    INVESTIGATOR = "investigator"  # Analyzes and researches
+    PLANNER = "planner"  # Designs solutions
+    IMPLEMENTER = "implementer"  # Writes code
+    TESTER = "tester"  # Validates quality
+    REVIEWER = "reviewer"  # Code review
 
 
 class TraceEventType(str, Enum):
     """Types of trace events for audit logging."""
+
     TASK_CREATED = "task_created"
     TASK_SCHEDULED = "task_scheduled"
     TASK_STARTED = "task_started"
@@ -151,8 +153,8 @@ class WorkerState:
     role: WorkerRole
 
     # Capacity tracking
-    max_concurrent_tasks: int = 3          # Max tasks this worker can handle
-    current_task_count: int = 0            # Current active tasks
+    max_concurrent_tasks: int = 3  # Max tasks this worker can handle
+    current_task_count: int = 0  # Current active tasks
 
     # Availability
     is_available: bool = True
@@ -225,8 +227,7 @@ class WorkerState:
                 self.average_task_duration_minutes = duration_minutes
             else:
                 self.average_task_duration_minutes = (
-                    alpha * duration_minutes +
-                    (1 - alpha) * self.average_task_duration_minutes
+                    alpha * duration_minutes + (1 - alpha) * self.average_task_duration_minutes
                 )
 
             self.last_task_completed_at = datetime.now()
@@ -258,8 +259,12 @@ class WorkerState:
             "average_task_duration_minutes": self.average_task_duration_minutes,
             "assigned_task_ids": self.assigned_task_ids,
             "specialties": self.specialties,
-            "last_task_started_at": self.last_task_started_at.isoformat() if self.last_task_started_at else None,
-            "last_task_completed_at": self.last_task_completed_at.isoformat() if self.last_task_completed_at else None,
+            "last_task_started_at": (
+                self.last_task_started_at.isoformat() if self.last_task_started_at else None
+            ),
+            "last_task_completed_at": (
+                self.last_task_completed_at.isoformat() if self.last_task_completed_at else None
+            ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -268,7 +273,12 @@ class WorkerState:
     def from_dict(cls, data: Dict[str, Any]) -> "WorkerState":
         """Deserialize from dict."""
         # Convert datetime strings
-        for field_name in ["last_task_started_at", "last_task_completed_at", "created_at", "updated_at"]:
+        for field_name in [
+            "last_task_started_at",
+            "last_task_completed_at",
+            "created_at",
+            "updated_at",
+        ]:
             if data.get(field_name):
                 data[field_name] = datetime.fromisoformat(data[field_name])
 
@@ -300,8 +310,8 @@ class TraceEvent:
     details: Dict[str, Any] = field(default_factory=dict)
 
     # Metadata
-    phase: Optional[str] = None            # Task phase when event occurred
-    backend: Optional[str] = None          # Execution backend if relevant
+    phase: Optional[str] = None  # Task phase when event occurred
+    backend: Optional[str] = None  # Execution backend if relevant
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dict for storage."""
@@ -350,6 +360,7 @@ class TraceEvent:
 
 
 # Helper functions for creating common trace events
+
 
 def create_task_event(
     event_type: TraceEventType,

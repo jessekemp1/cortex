@@ -11,12 +11,13 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional
 
 
 @dataclass
 class HealthIssue:
     """A health check issue."""
+
     severity: str  # "error", "warning", "info"
     category: str  # "python", "dependencies", "database", "permissions", "config"
     message: str
@@ -27,6 +28,7 @@ class HealthIssue:
 @dataclass
 class HealthCheckResult:
     """Health check results."""
+
     passed: int = 0
     warnings: int = 0
     errors: int = 0
@@ -132,8 +134,8 @@ class HealthChecker:
 
     def _check_virtual_env(self, verbose: bool):
         """Check if running in a virtual environment."""
-        in_venv = hasattr(sys, 'real_prefix') or (
-            hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix
+        in_venv = hasattr(sys, "real_prefix") or (
+            hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
         )
 
         if in_venv:
@@ -218,7 +220,7 @@ class HealthChecker:
             from orchestration.database import OrchestrationDatabase
 
             # Try to create database instance
-            db = OrchestrationDatabase()
+            OrchestrationDatabase()
             self.result.passed += 1
             if verbose:
                 print(f"✓ Database accessible ({db_path})")
@@ -313,7 +315,7 @@ class HealthChecker:
             else:
                 self.result.passed += 1
                 if verbose:
-                    print(f"✓ Optional config (will be created on first use)")
+                    print("✓ Optional config (will be created on first use)")
 
     # =========================================================================
     # Project Checks
@@ -322,8 +324,8 @@ class HealthChecker:
     def _check_active_projects(self, verbose: bool):
         """Check for orchestration issues."""
         try:
-            from orchestration.database import OrchestrationDatabase
             from orchestration.anomaly_detector import OrchestrationAnomalyManager
+            from orchestration.database import OrchestrationDatabase
 
             db = OrchestrationDatabase()
             manager = OrchestrationAnomalyManager(db, enable_alerts=False)

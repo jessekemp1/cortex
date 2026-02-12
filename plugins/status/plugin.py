@@ -10,7 +10,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from cortex.plugins.base import BasePlugin
 
@@ -45,7 +45,7 @@ class StatusPlugin(BasePlugin):
                 "vortex": {"path": "Vortex/VortexV2", "ports": [8000, 8501]},
                 "arena": {"path": "alpha_arena", "ports": [8502]},
                 "cortex": {"path": "cortex", "ports": []},
-            }
+            },
         }
 
         # Load config
@@ -99,11 +99,7 @@ class StatusPlugin(BasePlugin):
             if parsed_args.quick:
                 return self._quick_status(current_dir, parsed_args.verbose)
             elif parsed_args.project:
-                return self._project_status(
-                    parsed_args.project,
-                    current_dir,
-                    parsed_args.verbose
-                )
+                return self._project_status(parsed_args.project, current_dir, parsed_args.verbose)
             else:
                 return self._full_status(current_dir, parsed_args.verbose)
 
@@ -114,6 +110,7 @@ class StatusPlugin(BasePlugin):
             print(f"❌ Error: {e}", file=sys.stderr)
             if parsed_args.verbose:
                 import traceback
+
                 traceback.print_exc()
             return 2
 
@@ -151,8 +148,12 @@ class StatusPlugin(BasePlugin):
         suggestions = self._get_intelligence_suggestions(current_dir, verbose)
         if suggestions:
             safe_count = sum(1 for s in suggestions if s.get("risk", "") == "safe")
-            needs_tests = sum(1 for s in suggestions if "missing test" in s.get("warning", "").lower())
-            print(f"🧠 Suggestions: {len(suggestions)} groups ({safe_count} safe, {needs_tests} need tests)")
+            needs_tests = sum(
+                1 for s in suggestions if "missing test" in s.get("warning", "").lower()
+            )
+            print(
+                f"🧠 Suggestions: {len(suggestions)} groups ({safe_count} safe, {needs_tests} need tests)"
+            )
 
         return 0
 
@@ -251,7 +252,7 @@ class StatusPlugin(BasePlugin):
         # Recent commit
         commits = self._get_recent_commits_data(project_path, 1)
         if commits:
-            print(f"Recent: \"{commits[0][1]}\" ({commits[0][2]})")
+            print(f'Recent: "{commits[0][1]}" ({commits[0][2]})')
 
         print()
         print("Recommendations:")
@@ -282,7 +283,7 @@ class StatusPlugin(BasePlugin):
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode != 0:
                 return None, 0, 0
@@ -295,7 +296,7 @@ class StatusPlugin(BasePlugin):
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode != 0:
                 return branch, 0, 0
@@ -334,10 +335,7 @@ class StatusPlugin(BasePlugin):
         """Check if port is in use."""
         try:
             result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True,
-                text=True,
-                timeout=2
+                ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=2
             )
             return result.returncode == 0 and bool(result.stdout.strip())
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -347,10 +345,7 @@ class StatusPlugin(BasePlugin):
         """Get PID for port."""
         try:
             result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True,
-                text=True,
-                timeout=2
+                ["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=2
             )
             if result.returncode == 0 and result.stdout.strip():
                 return int(result.stdout.strip().split("\n")[0])
@@ -367,7 +362,9 @@ class StatusPlugin(BasePlugin):
         else:
             print("No recent commits")
 
-    def _get_recent_commits_data(self, directory: Path, max_commits: int) -> List[Tuple[str, str, str]]:
+    def _get_recent_commits_data(
+        self, directory: Path, max_commits: int
+    ) -> List[Tuple[str, str, str]]:
         """Get recent commits data."""
         try:
             result = subprocess.run(
@@ -375,7 +372,7 @@ class StatusPlugin(BasePlugin):
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
                 commits = []
@@ -388,8 +385,8 @@ class StatusPlugin(BasePlugin):
                         rest = parts[1]
                         # Extract message and time
                         if "(" in rest and rest.endswith(")"):
-                            message = rest[:rest.rfind("(")].strip()
-                            time_ago = rest[rest.rfind("(")+1:-1]
+                            message = rest[: rest.rfind("(")].strip()
+                            time_ago = rest[rest.rfind("(") + 1 : -1]
                             commits.append((commit_hash, message, time_ago))
                 return commits
         except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -421,7 +418,7 @@ class StatusPlugin(BasePlugin):
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0:
@@ -456,7 +453,7 @@ class StatusPlugin(BasePlugin):
             files = suggestion.get("files", [])
             warning = suggestion.get("warning", "")
 
-            print(f"Group {i}: \"{title}\" (Confidence: {confidence}%)")
+            print(f'Group {i}: "{title}" (Confidence: {confidence}%)')
 
             # Risk indicator
             if risk == "safe":

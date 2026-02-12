@@ -65,7 +65,7 @@ class TestContextInjector:
     def test_inject_completes_reasonably_fast(self, injector):
         """Injection should complete in reasonable time (under 3s for tests)."""
         start = time.time()
-        result = injector.inject(Path.cwd(), task="test task")
+        injector.inject(Path.cwd(), task="test task")
         elapsed = (time.time() - start) * 1000
         # More lenient timeout for tests (3s to account for system load)
         assert elapsed < 3000

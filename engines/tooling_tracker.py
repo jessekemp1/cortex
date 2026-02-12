@@ -28,9 +28,7 @@ from pydantic import BaseModel, Field
 class ToolingChange(BaseModel):
     """Represents a change to Claude Code tooling."""
 
-    category: str = Field(
-        description="Category: settings, command, hook, memory, agent, skill"
-    )
+    category: str = Field(description="Category: settings, command, hook, memory, agent, skill")
     name: str = Field(description="Name of the tooling component")
     file_path: str = Field(description="Full path to the file")
     change_type: str = Field(description="Type: created, modified, deleted")
@@ -142,30 +140,22 @@ class ToolingTracker:
         # List commands
         commands_dir = self.claude_dir / "commands"
         if commands_dir.exists():
-            snapshot.commands = sorted(
-                [f.stem for f in commands_dir.glob("*.md") if f.is_file()]
-            )
+            snapshot.commands = sorted([f.stem for f in commands_dir.glob("*.md") if f.is_file()])
 
         # List hooks
         hooks_dir = self.claude_dir / "hooks"
         if hooks_dir.exists():
-            snapshot.hooks = sorted(
-                [f.stem for f in hooks_dir.glob("*.py") if f.is_file()]
-            )
+            snapshot.hooks = sorted([f.stem for f in hooks_dir.glob("*.py") if f.is_file()])
 
         # List memories
         memories_dir = self.claude_dir / "memories"
         if memories_dir.exists():
-            snapshot.memories = sorted(
-                [f.stem for f in memories_dir.glob("*.md") if f.is_file()]
-            )
+            snapshot.memories = sorted([f.stem for f in memories_dir.glob("*.md") if f.is_file()])
 
         # List agents
         agents_dir = self.claude_dir / "agents"
         if agents_dir.exists():
-            snapshot.agents = sorted(
-                [f.stem for f in agents_dir.glob("*.md") if f.is_file()]
-            )
+            snapshot.agents = sorted([f.stem for f in agents_dir.glob("*.md") if f.is_file()])
 
         return snapshot
 
@@ -200,9 +190,7 @@ class ToolingTracker:
                         is_async = hook_def.get("async", False)
                         timeout = hook_def.get("timeout", "?")
 
-                        hooks_list.append(
-                            f"{hook_name} (async={is_async}, timeout={timeout}s)"
-                        )
+                        hooks_list.append(f"{hook_name} (async={is_async}, timeout={timeout}s)")
 
             result[event_type] = hooks_list
 
@@ -304,9 +292,7 @@ class ToolingTracker:
             )
 
         # Recent changes
-        if any(
-            phrase in question_lower for phrase in ["recent changes", "what changed"]
-        ):
+        if any(phrase in question_lower for phrase in ["recent changes", "what changed"]):
             changes = self.get_recent_changes(days=7)
             if not changes:
                 return "No tooling changes in the last 7 days."

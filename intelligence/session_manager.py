@@ -4,7 +4,7 @@ import json
 import logging
 import subprocess
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """Manages session context derived from git history and project state."""
 
-    def __init__(self, root_dir: Path = Path("/Users/jesse.kemp/Dev"), enable_tiered_memory: bool = True):
+    def __init__(
+        self, root_dir: Path = Path("/Users/jesse.kemp/Dev"), enable_tiered_memory: bool = True
+    ):
         self.root_dir = Path(root_dir)
         self.cache_dir = Path.home() / ".claude" / "session"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -333,9 +335,7 @@ class SessionManager:
             logger.warning(f"Failed to record context: {e}")
             return None
 
-    def update_outcome(
-        self, item_id: str, outcome: str, quality_score: float
-    ) -> bool:
+    def update_outcome(self, item_id: str, outcome: str, quality_score: float) -> bool:
         """
         Update outcome for a recorded context item.
 

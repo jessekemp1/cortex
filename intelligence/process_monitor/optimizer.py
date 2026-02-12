@@ -11,7 +11,6 @@ from .models import (
     CapacityForecast,
     Optimization,
     ProcessCategory,
-    ProcessSnapshot,
     ProcessStatus,
     WasteItem,
     WasteType,
@@ -329,7 +328,7 @@ class ResourceOptimizer:
             CapacityForecast object
         """
         recommendation = self.analyzer.get_capacity_recommendation(task_type.lower())
-        insights = self.analyzer.analyze_utilization_patterns(days=7)
+        self.analyzer.analyze_utilization_patterns(days=7)
 
         # Parse best time
         if recommendation["best_time"] == "now":

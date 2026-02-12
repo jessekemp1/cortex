@@ -56,7 +56,7 @@ class TestTypedMemoryStore:
             projects=["VortexV2"],
         )
 
-        result = store.add(incident)
+        store.add(incident)
         assert len(store.incidents) == 1
 
     def test_add_decision(self, store):
@@ -70,7 +70,7 @@ class TestTypedMemoryStore:
             projects=["VortexV2"],
         )
 
-        result = store.add(decision)
+        store.add(decision)
         assert len(store.decisions) == 1
 
     def test_get_memory(self, store):

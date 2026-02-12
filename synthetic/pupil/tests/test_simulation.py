@@ -1,11 +1,9 @@
 """Standalone tests for Pupil SimulationEngine."""
 
 import pytest
-
+from helpers import make_profiles
 from pupil.market_env import build_timeline
 from pupil.simulation import SimulationEngine, SimulationResult
-
-from helpers import make_profiles
 
 
 @pytest.fixture

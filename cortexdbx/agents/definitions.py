@@ -1,8 +1,8 @@
 """Agent definitions for CortexDBx domain experts."""
 
 from dataclasses import dataclass
-from typing import List
 from enum import Enum
+from typing import List
 
 
 class AgentRole(Enum):
@@ -49,8 +49,7 @@ AGENT_CONFIGS = {
             "learn_from_resolution_outcomes",
         ],
         prompt_template=(
-            "You are the Fraud Investigation Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Fraud Investigation Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),
@@ -63,8 +62,7 @@ AGENT_CONFIGS = {
             "learn_from_trial_outcomes",
         ],
         prompt_template=(
-            "You are the Clinical Trial Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Clinical Trial Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),
@@ -77,8 +75,7 @@ AGENT_CONFIGS = {
             "learn_from_repair_outcomes",
         ],
         prompt_template=(
-            "You are the Maintenance Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Maintenance Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),
@@ -91,8 +88,7 @@ AGENT_CONFIGS = {
             "learn_from_campaign_outcomes",
         ],
         prompt_template=(
-            "You are the Marketing Campaign Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Marketing Campaign Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),
@@ -105,8 +101,7 @@ AGENT_CONFIGS = {
             "learn_from_response_outcomes",
         ],
         prompt_template=(
-            "You are the Security Incident Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Security Incident Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),
@@ -119,8 +114,7 @@ AGENT_CONFIGS = {
             "learn_from_delivery_outcomes",
         ],
         prompt_template=(
-            "You are the Supply Chain Domain Agent. "
-            "Context: {context}. Task: {task}"
+            "You are the Supply Chain Domain Agent. " "Context: {context}. Task: {task}"
         ),
         tools=["query_outcomes", "update_calibration", "generate_recommendation"],
     ),

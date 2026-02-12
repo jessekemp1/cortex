@@ -2,6 +2,7 @@
 """
 Wrapper script to run converx CLI from any location
 """
+
 import sys
 from pathlib import Path
 

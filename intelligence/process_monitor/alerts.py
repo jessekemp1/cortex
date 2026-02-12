@@ -2,13 +2,12 @@
 Process alert generator extending Layer 3 Alert System.
 """
 
-import os
 import subprocess
 from typing import Any, Dict, List, Optional
 
 from .analyzer import ProcessAnalyzer
 from .collector import ProcessCollector
-from .models import Anomaly, ProcessCategory, WasteItem
+from .models import Anomaly, WasteItem
 from .optimizer import ResourceOptimizer
 from .tracker import ProcessTracker
 

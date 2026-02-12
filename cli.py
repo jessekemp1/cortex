@@ -31,13 +31,13 @@ from orchestrator import CortexOrchestrator
 # Deep mode intelligence (Phase 1 Integration)
 try:
     from bridge import CortexBridge
+    from intelligence.adaptive_latency import DEEP_MODE, FAST_MODE, AnalysisMode
     from intelligence.cli_display import (
         display_deep_intelligence,
-        display_quick_intelligence,
         display_error,
+        display_quick_intelligence,
         format_mode_info,
     )
-    from intelligence.adaptive_latency import AnalysisMode, DEEP_MODE, FAST_MODE
 
     DEEP_MODE_AVAILABLE = True
 except ImportError:
@@ -174,19 +174,27 @@ def cmd_status(args):
 
         if next_action:
             # Handle both old and new Recommendation models
-            project = getattr(next_action, 'related_projects', ['General'])[0] if hasattr(next_action, 'related_projects') and next_action.related_projects else "General"
+            project = (
+                getattr(next_action, "related_projects", ["General"])[0]
+                if hasattr(next_action, "related_projects") and next_action.related_projects
+                else "General"
+            )
             print(f"  1. [{project}] {next_action.title}")
             print(f"     {next_action.description}")
-            if hasattr(next_action, 'files') and next_action.files:
+            if hasattr(next_action, "files") and next_action.files:
                 print(f"     📁 {', '.join(next_action.files[:2])}")
             print()
 
         if alternatives:
             for i, alt in enumerate(alternatives[:2], start=2):
-                project = getattr(alt, 'related_projects', ['General'])[0] if hasattr(alt, 'related_projects') and alt.related_projects else "General"
+                project = (
+                    getattr(alt, "related_projects", ["General"])[0]
+                    if hasattr(alt, "related_projects") and alt.related_projects
+                    else "General"
+                )
                 print(f"  {i}. [{project}] {alt.title}")
                 print(f"     {alt.description}")
-                if hasattr(alt, 'files') and alt.files:
+                if hasattr(alt, "files") and alt.files:
                     print(f"     📁 {', '.join(alt.files[:2])}")
                 print()
 
@@ -199,10 +207,13 @@ def cmd_status(args):
         # Get real metrics from strategic documents
         try:
             from orchestration.strategic_parser import get_strategic_context
+
             strategic_context = get_strategic_context(Path(args.root))
             active = strategic_context.get("active_projects", state.get("active_projects", 0))
             total = strategic_context.get("total_projects", state.get("total_projects", 0))
-            in_progress = strategic_context.get("in_progress_goals", state.get("goals_in_progress", 0))
+            in_progress = strategic_context.get(
+                "in_progress_goals", state.get("goals_in_progress", 0)
+            )
             pending = strategic_context.get("pending_goals", state.get("goals_pending", 0))
         except Exception as e:
             # Fallback to state if parsing fails
@@ -222,12 +233,14 @@ def cmd_status(args):
             anomaly_manager = OrchestrationAnomalyManager(db)
 
             # Detect orchestration anomalies
-            orchestration_anomalies = anomaly_manager.detect_all(context={
-                "active_projects": active,
-                "total_projects": total,
-                "goals_in_progress": in_progress,
-                "goals_pending": pending
-            })
+            orchestration_anomalies = anomaly_manager.detect_all(
+                context={
+                    "active_projects": active,
+                    "total_projects": total,
+                    "goals_in_progress": in_progress,
+                    "goals_pending": pending,
+                }
+            )
 
             # Show only CRITICAL and WARNING severity
             for anomaly in orchestration_anomalies:
@@ -247,6 +260,7 @@ def cmd_status(args):
         # Check for anti-patterns (validated-but-undeployed code)
         try:
             from orchestration.anti_pattern_detector import AntiPatternDetector
+
             detector = AntiPatternDetector(db=None, root_dir=Path(args.root))
             alerts = detector.detect_all()
 
@@ -274,7 +288,7 @@ def cmd_status(args):
             print("🚫 BLOCKERS")
             print("────────────────")
             for blocker in blockers:
-                severity = "🔴" if "critical" in blocker.get('blocker', '').lower() else "🟡"
+                severity = "🔴" if "critical" in blocker.get("blocker", "").lower() else "🟡"
                 print(f"  {severity} {blocker['project']}: {blocker['blocker']}")
             print()
 
@@ -282,7 +296,7 @@ def cmd_status(args):
         if next_action:
             print("💡 NEXT ACTION")
             print("────────────────")
-            action_text = getattr(next_action, 'action', next_action.title)
+            action_text = getattr(next_action, "action", next_action.title)
             print(f"  {action_text}")
             if response.command_workflow and response.command_workflow.suggested_command:
                 print(f"  Run: {response.command_workflow.suggested_command}")
@@ -300,6 +314,7 @@ def cmd_status(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
@@ -493,17 +508,15 @@ def cmd_briefing(args):
 def cmd_reflect(args):
     """Generate weekly reflection summary from actual work artifacts."""
     try:
-        from reflection import generate_weekly_reflection, format_reflection
+        from reflection import format_reflection, generate_weekly_reflection
 
         # Generate reflection
-        reflection = generate_weekly_reflection(
-            root_dir=Path(args.root),
-            days=args.days
-        )
+        reflection = generate_weekly_reflection(root_dir=Path(args.root), days=args.days)
 
         # Format output
         if args.json:
             import json
+
             print(json.dumps(reflection, indent=2))
         else:
             output = format_reflection(reflection)
@@ -512,6 +525,7 @@ def cmd_reflect(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
@@ -649,7 +663,7 @@ def cmd_git(args):
 
     try:
         tracker = GitTracker(str(args.root))
-        state = tracker.get_state()
+        tracker.get_state()
 
         if args.json:
             import json
@@ -1154,8 +1168,7 @@ def cmd_interactions(args):
         print("Add the following to your Claude Code settings.json:")
         print("(Usually at ~/.claude/settings.json)")
         print("")
-        print(
-            """
+        print("""
 {
   "hooks": {
     "UserPromptSubmit": [{
@@ -1185,8 +1198,7 @@ def cmd_interactions(args):
     }]
   }
 }
-"""
-        )
+""")
         print("After adding hooks, restart Claude Code to activate.")
         return
 
@@ -1407,8 +1419,9 @@ def cmd_dashboard(args):
     # Assuming local-orchestrator is in path from main setup
     try:
         from batch_system import BatchManager
-        from config import STORAGE_PATH
         from history import ExecutionHistory
+
+        from config import STORAGE_PATH
     except ImportError:
         # Fallback: try adding local-orchestrator explicitly if not in path
         import sys
@@ -1538,8 +1551,12 @@ def cmd_bandwidth(args):
     import json
 
     from intelligence.bandwidth.dashboard import get_dashboard_data, render_dashboard
-    from intelligence.bandwidth.handoff_capture import capture_handoff, WorkstreamType
-    from intelligence.bandwidth.predictions import PredictionTracker, record_outcome, record_prediction
+    from intelligence.bandwidth.handoff_capture import WorkstreamType, capture_handoff
+    from intelligence.bandwidth.predictions import (
+        PredictionTracker,
+        record_outcome,
+        record_prediction,
+    )
 
     action = getattr(args, "action", "dashboard")
 
@@ -1624,11 +1641,15 @@ def cmd_bandwidth(args):
                 else:
                     filled = int(cal.calibrated_confidence * 10)
                     bar = "█" * filled + "░" * (10 - filled)
-                    print(f"{domain:15s}: {bar} {cal.calibrated_confidence*100:.0f}% ({cal.total} outcomes)")
+                    print(
+                        f"{domain:15s}: {bar} {cal.calibrated_confidence*100:.0f}% ({cal.total} outcomes)"
+                    )
 
         elif action == "capture":
             # Capture a session handoff
-            workstream = WorkstreamType(args.workstream) if args.workstream else WorkstreamType.BUILDING
+            workstream = (
+                WorkstreamType(args.workstream) if args.workstream else WorkstreamType.BUILDING
+            )
             handoff = capture_handoff(
                 project=args.project or "cortex",
                 active_task=args.task or "Unknown task",
@@ -1665,10 +1686,7 @@ def cmd_deep(args):
         bridge = CortexBridge(root_dir=Path(args.root))
 
         # Run deep analysis
-        result = bridge.analyze_deep(
-            project=args.project,
-            output_json=args.json
-        )
+        result = bridge.analyze_deep(project=args.project, output_json=args.json)
 
         # Check for errors
         if isinstance(result, dict) and "error" in result:
@@ -1676,16 +1694,13 @@ def cmd_deep(args):
             sys.exit(1)
 
         # Display results
-        display_deep_intelligence(
-            result,
-            verbose=args.verbose,
-            json_output=args.json
-        )
+        display_deep_intelligence(result, verbose=args.verbose, json_output=args.json)
 
     except Exception as e:
         display_error(f"Deep analysis failed: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 
@@ -1741,13 +1756,9 @@ def cmd_auto(args):
             sys.exit(1)
 
         # Display results (auto returns either deep or quick result)
-        if hasattr(result, 'mode'):
+        if hasattr(result, "mode"):
             # Deep result
-            display_deep_intelligence(
-                result,
-                verbose=args.verbose,
-                json_output=False
-            )
+            display_deep_intelligence(result, verbose=args.verbose, json_output=False)
         else:
             # Quick result
             display_quick_intelligence(result)
@@ -1769,15 +1780,15 @@ def cmd_config(args):
         if args.show:
             # Show current configuration
             preferences = bridge.latency_manager.preferences
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("Cortex Deep Mode Configuration")
-            print("="*60 + "\n")
+            print("=" * 60 + "\n")
 
-            default_mode = preferences.get('default_mode', 'deep')
+            default_mode = preferences.get("default_mode", "deep")
             print(f"Default Mode: {default_mode.upper()}")
 
             # Project overrides
-            overrides = preferences.get('project_overrides', {})
+            overrides = preferences.get("project_overrides", {})
             if overrides:
                 print("\nProject Overrides:")
                 for proj, mode in overrides.items():
@@ -1786,7 +1797,9 @@ def cmd_config(args):
             print("\nDeep Mode Config:")
             print(f"  - Git days: {DEEP_MODE.git_days}")
             print(f"  - Spec search: {'enabled' if DEEP_MODE.spec_search_enabled else 'disabled'}")
-            print(f"  - Pattern matching: {'semantic' if DEEP_MODE.pattern_semantic else 'keyword'}")
+            print(
+                f"  - Pattern matching: {'semantic' if DEEP_MODE.pattern_semantic else 'keyword'}"
+            )
             print(f"  - Model: {DEEP_MODE.model}")
             print(f"  - Expected latency: ~{DEEP_MODE.expected_latency_ms/1000:.1f}s")
 
@@ -1800,13 +1813,13 @@ def cmd_config(args):
         elif args.set_default:
             # Set default mode
             mode = args.set_default.lower()
-            if mode not in ['deep', 'fast', 'auto']:
+            if mode not in ["deep", "fast", "auto"]:
                 print(f"❌ Invalid mode: {mode}")
                 print("   Valid options: deep, fast, auto")
                 sys.exit(1)
 
             # Update configuration
-            bridge.latency_manager.preferences['default_mode'] = mode
+            bridge.latency_manager.preferences["default_mode"] = mode
             bridge.latency_manager._save_preferences()
             print(f"✅ Default mode set to: {mode.upper()}")
             print(f"   Saved to: {bridge.latency_manager.preference_file}")
@@ -1879,7 +1892,9 @@ def cmd_tooling(args):
                 for change in changes[:20]:  # Limit to 20
                     timestamp = datetime.fromisoformat(change.timestamp)
                     time_str = timestamp.strftime("%Y-%m-%d %H:%M")
-                    print(f"  [{time_str}] {change.change_type:8} {change.category:10} {change.name}")
+                    print(
+                        f"  [{time_str}] {change.change_type:8} {change.category:10} {change.name}"
+                    )
 
         elif args.action == "summary":
             print(tracker.get_intelligence_summary())
@@ -1891,9 +1906,9 @@ def cmd_tooling(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-
 
 
 def main():
@@ -2103,9 +2118,13 @@ Deep Mode (Phase 1):
     quick_parser.add_argument("project", nargs="?", help="Project name (optional, auto-detected)")
     quick_parser.set_defaults(func=cmd_quick)
 
-    auto_parser = subparsers.add_parser("auto", help="Run adaptive analysis (intelligent mode selection)")
+    auto_parser = subparsers.add_parser(
+        "auto", help="Run adaptive analysis (intelligent mode selection)"
+    )
     auto_parser.add_argument("project", nargs="?", help="Project name (optional, auto-detected)")
-    auto_parser.add_argument("--verbose", "-v", action="store_true", help="Show full analysis if deep mode selected")
+    auto_parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show full analysis if deep mode selected"
+    )
     auto_parser.set_defaults(func=cmd_auto)
 
     config_parser = subparsers.add_parser("config", help="Manage deep mode configuration")
@@ -2168,14 +2187,25 @@ Deep Mode (Phase 1):
     bandwidth_parser.add_argument(
         "action",
         nargs="?",
-        choices=["dashboard", "experiment", "record-prediction", "record-outcome", "calibration", "capture"],
+        choices=[
+            "dashboard",
+            "experiment",
+            "record-prediction",
+            "record-outcome",
+            "calibration",
+            "capture",
+        ],
         default="dashboard",
         help="Action to perform (default: dashboard)",
     )
     bandwidth_parser.add_argument("--json", action="store_true", help="Output JSON format")
     bandwidth_parser.add_argument("--project", type=str, help="Filter by project")
-    bandwidth_parser.add_argument("--days", type=int, default=7, help="Number of days to show (default: 7)")
-    bandwidth_parser.add_argument("--dry-run", action="store_true", help="Preview experiments without running")
+    bandwidth_parser.add_argument(
+        "--days", type=int, default=7, help="Number of days to show (default: 7)"
+    )
+    bandwidth_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview experiments without running"
+    )
     bandwidth_parser.add_argument("--status", action="store_true", help="Show experiment status")
     bandwidth_parser.add_argument("--experiment-name", type=str, help="Specific experiment to run")
     bandwidth_parser.add_argument("--prediction-id", type=str, help="Prediction ID for recording")
@@ -2213,13 +2243,10 @@ Deep Mode (Phase 1):
     # Reflect command
     reflect_parser = subparsers.add_parser(
         "reflect",
-        help="Weekly reflection summary from git commits, batch results, and test outcomes"
+        help="Weekly reflection summary from git commits, batch results, and test outcomes",
     )
     reflect_parser.add_argument(
-        "--days",
-        type=int,
-        default=7,
-        help="Number of days to reflect on (default: 7)"
+        "--days", type=int, default=7, help="Number of days to reflect on (default: 7)"
     )
     reflect_parser.add_argument("--json", action="store_true", help="Output JSON format")
     reflect_parser.set_defaults(func=cmd_reflect)
@@ -2589,6 +2616,7 @@ Deep Mode (Phase 1):
     def cmd_batch_submit(args):
         """Submit job via unified orchestrator (NEW)."""
         import json
+
         from batch.orchestrator import BatchOrchestrator
 
         orchestrator = BatchOrchestrator()
@@ -2638,7 +2666,7 @@ Deep Mode (Phase 1):
         orchestrator = BatchOrchestrator()
 
         # Map backend arg to orchestrator format
-        backend_filter = args.backend if hasattr(args, 'backend') else "both"
+        backend_filter = args.backend if hasattr(args, "backend") else "both"
 
         jobs = orchestrator.list_jobs(backend=backend_filter, limit=args.limit)
 
@@ -2669,7 +2697,9 @@ Deep Mode (Phase 1):
                 print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
                 print(f"   ID: {job.id} | State: {job.state.value}")
                 if job.metadata.get("tokens"):
-                    print(f"   Tokens: {job.metadata['tokens']:,} | Tasks: {job.metadata.get('tasks', 0)}")
+                    print(
+                        f"   Tokens: {job.metadata['tokens']:,} | Tasks: {job.metadata.get('tasks', 0)}"
+                    )
                 if job.progress_pct > 0:
                     print(f"   Progress: {job.progress_pct:.1f}%")
                 print()
@@ -2994,7 +3024,9 @@ Deep Mode (Phase 1):
     batch_add_parser.set_defaults(func=cmd_batch_add)
 
     # batch submit (NEW - unified submission)
-    batch_submit_parser = batch_subparsers.add_parser("submit", help="Submit job (auto-routes to correct backend)")
+    batch_submit_parser = batch_subparsers.add_parser(
+        "submit", help="Submit job (auto-routes to correct backend)"
+    )
     batch_submit_parser.add_argument("job_file", type=Path, help="Job definition JSON file")
     batch_submit_parser.set_defaults(func=cmd_batch_submit)
 
@@ -3235,7 +3267,7 @@ Deep Mode (Phase 1):
         from work_absorber import WorkAbsorber
 
         absorber = WorkAbsorber()
-        since = datetime.now() - timedelta(days=args.days)
+        datetime.now() - timedelta(days=args.days)
 
         items = absorber.get_recent_work(days=args.days)
         drifts = absorber.storage.get_unresolved_drifts()

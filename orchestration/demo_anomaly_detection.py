@@ -7,9 +7,9 @@ Run with: python -m orchestration.demo_anomaly_detection
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from .anomaly_detector import OrchestrationAnomalyManager, AnomalySeverity
+from .anomaly_detector import AnomalySeverity, OrchestrationAnomalyManager
 from .database import OrchestrationDatabase
-from .models import Task, TaskPhase, TaskPriority, TaskStatus, WorkerState, WorkerRole
+from .models import Task, TaskPhase, TaskPriority, TaskStatus, WorkerRole, WorkerState
 
 
 def create_demo_scenario(db: OrchestrationDatabase) -> None:
@@ -155,7 +155,9 @@ def print_anomalies(anomalies: list) -> None:
             print(f"\n  Title: {anomaly.title}")
             print(f"  Type: {anomaly.anomaly_type.value}")
             print(f"  Description: {anomaly.description}")
-            print(f"  Metric: {anomaly.metric_value:.1f} (threshold: {anomaly.threshold_value:.1f})")
+            print(
+                f"  Metric: {anomaly.metric_value:.1f} (threshold: {anomaly.threshold_value:.1f})"
+            )
             print(f"  Remediation: {anomaly.remediation}")
             if anomaly.auto_actionable:
                 print(f"  Auto-action: {anomaly.auto_action_command or 'Suggested'}")

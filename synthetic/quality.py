@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from intelligence.quality.data_quality import QualityDimensions
-
 from synthetic.knowledge_base import CanadianFinServKB
 from synthetic.schemas import CustomerProfile, Transaction
 
@@ -142,10 +141,19 @@ class SyntheticQualityTracker:
     def _check_profile_completeness(self, data: Dict[str, Any]) -> float:
         """Check all required profile fields are populated."""
         required = [
-            "profile_id", "age", "province", "fsa", "segment",
-            "annual_income", "household_income", "credit_score",
-            "products_held", "digital_adoption", "primary_channel",
-            "tenure_years", "products_per_household",
+            "profile_id",
+            "age",
+            "province",
+            "fsa",
+            "segment",
+            "annual_income",
+            "household_income",
+            "credit_score",
+            "products_held",
+            "digital_adoption",
+            "primary_channel",
+            "tenure_years",
+            "products_per_household",
         ]
         present = sum(1 for f in required if data.get(f) is not None)
         return present / len(required)
@@ -223,7 +231,21 @@ class SyntheticQualityTracker:
 
         # Province valid
         total_checks += 1
-        valid_provinces = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+        valid_provinces = {
+            "AB",
+            "BC",
+            "MB",
+            "NB",
+            "NL",
+            "NS",
+            "NT",
+            "NU",
+            "ON",
+            "PE",
+            "QC",
+            "SK",
+            "YT",
+        }
         if data.get("province") in valid_provinces:
             checks_passed += 1
 
@@ -246,8 +268,12 @@ class SyntheticQualityTracker:
     def _check_transaction_completeness(self, data: Dict[str, Any]) -> float:
         """Check required transaction fields."""
         required = [
-            "transaction_id", "profile_id", "timestamp",
-            "transaction_type", "amount", "currency",
+            "transaction_id",
+            "profile_id",
+            "timestamp",
+            "transaction_type",
+            "amount",
+            "currency",
         ]
         present = sum(1 for f in required if data.get(f) is not None)
         return present / len(required)
@@ -315,10 +341,18 @@ class SyntheticQualityTracker:
         # Transaction type is valid enum
         total_checks += 1
         valid_types = {
-            "deposit", "withdrawal", "transfer", "bill_payment",
-            "e_transfer", "wire_domestic", "wire_international",
-            "pos_purchase", "online_purchase", "atm",
-            "mortgage_payment", "investment_contribution",
+            "deposit",
+            "withdrawal",
+            "transfer",
+            "bill_payment",
+            "e_transfer",
+            "wire_domestic",
+            "wire_international",
+            "pos_purchase",
+            "online_purchase",
+            "atm",
+            "mortgage_payment",
+            "investment_contribution",
         }
         if data.get("transaction_type") in valid_types:
             checks_passed += 1
@@ -326,8 +360,14 @@ class SyntheticQualityTracker:
         # Risk flag is valid enum
         total_checks += 1
         valid_flags = {
-            "none", "structuring", "rapid_movement", "geographic_risk",
-            "unusual_volume", "round_amounts", "dormant_reactivation", "third_party",
+            "none",
+            "structuring",
+            "rapid_movement",
+            "geographic_risk",
+            "unusual_volume",
+            "round_amounts",
+            "dormant_reactivation",
+            "third_party",
         }
         if data.get("risk_flag") in valid_flags:
             checks_passed += 1
@@ -382,9 +422,14 @@ class SyntheticQualityTracker:
         # Segment is valid enum
         total_checks += 1
         valid_segments = {
-            "mass_market", "mass_affluent", "affluent",
-            "high_net_worth", "ultra_hnw", "small_business",
-            "commercial", "new_to_canada",
+            "mass_market",
+            "mass_affluent",
+            "affluent",
+            "high_net_worth",
+            "ultra_hnw",
+            "small_business",
+            "commercial",
+            "new_to_canada",
         }
         if data.get("segment") in valid_segments:
             checks_passed += 1
@@ -401,7 +446,21 @@ class SyntheticQualityTracker:
 
         # Province is valid
         total_checks += 1
-        valid_provinces = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+        valid_provinces = {
+            "AB",
+            "BC",
+            "MB",
+            "NB",
+            "NL",
+            "NS",
+            "NT",
+            "NU",
+            "ON",
+            "PE",
+            "QC",
+            "SK",
+            "YT",
+        }
         if data.get("province") in valid_provinces:
             checks_passed += 1
 
@@ -409,8 +468,10 @@ class SyntheticQualityTracker:
 
     def _track(self, data: Dict, item_type: str, quality: QualityDimensions):
         """Track quality measurement for trends."""
-        self.quality_history.append({
-            "timestamp": datetime.now().isoformat(),
-            "item_type": item_type,
-            "quality": quality.to_dict(),
-        })
+        self.quality_history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "item_type": item_type,
+                "quality": quality.to_dict(),
+            }
+        )

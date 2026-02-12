@@ -13,7 +13,7 @@ and outcome quality.
 
 import logging
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -87,9 +87,7 @@ class ShortTermMemory:
         """
         # If at capacity, evict least recently accessed item
         if len(self.items) >= self.max_items:
-            oldest_id = min(
-                self.items.keys(), key=lambda k: self.items[k].last_accessed
-            )
+            oldest_id = min(self.items.keys(), key=lambda k: self.items[k].last_accessed)
             del self.items[oldest_id]
             logger.debug(f"Evicted item {oldest_id} from short-term memory (at capacity)")
 
@@ -110,9 +108,7 @@ class ShortTermMemory:
         if item:
             item.access_count += 1
             item.last_accessed = datetime.now()
-            logger.debug(
-                f"Accessed item {item_id} (count: {item.access_count})"
-            )
+            logger.debug(f"Accessed item {item_id} (count: {item.access_count})")
         return item
 
     def search(self, query: str, limit: int = 10) -> List[MemoryItem]:
@@ -150,9 +146,7 @@ class ShortTermMemory:
         Returns:
             List of frequently accessed items
         """
-        return [
-            item for item in self.items.values() if item.access_count >= threshold
-        ]
+        return [item for item in self.items.values() if item.access_count >= threshold]
 
     def clear(self):
         """Clear all items (session end)."""
@@ -194,9 +188,7 @@ class WorkingMemory:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._init_db()
-        logger.debug(
-            f"Initialized WorkingMemory with retention={retention_days}d, db={db_path}"
-        )
+        logger.debug(f"Initialized WorkingMemory with retention={retention_days}d, db={db_path}")
 
     def _init_db(self):
         """Initialize SQLite database schema."""
@@ -262,9 +254,7 @@ class WorkingMemory:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM memory_items WHERE id = ?", (item_id,)
-            )
+            cursor = conn.execute("SELECT * FROM memory_items WHERE id = ?", (item_id,))
             row = cursor.fetchone()
 
         if not row:
@@ -350,9 +340,7 @@ class WorkingMemory:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM memory_items WHERE outcome = 'success'"
-            )
+            cursor = conn.execute("SELECT * FROM memory_items WHERE outcome = 'success'")
 
             for row in cursor:
                 item = MemoryItem(
@@ -381,9 +369,7 @@ class WorkingMemory:
             conn.commit()
 
         if deleted_count > 0:
-            logger.info(
-                f"Cleaned up {deleted_count} expired items from working memory"
-            )
+            logger.info(f"Cleaned up {deleted_count} expired items from working memory")
 
         return deleted_count
 
@@ -394,9 +380,7 @@ class WorkingMemory:
             total_count = cursor.fetchone()[0]
 
             # Count items with outcomes
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM memory_items WHERE outcome IS NOT NULL"
-            )
+            cursor = conn.execute("SELECT COUNT(*) FROM memory_items WHERE outcome IS NOT NULL")
             outcome_count = cursor.fetchone()[0]
 
         return {
@@ -472,9 +456,7 @@ class PromotionRules:
         Returns:
             True if should promote to working memory
         """
-        return (
-            item.access_count >= self.working_access_threshold or item.outcome is not None
-        )
+        return item.access_count >= self.working_access_threshold or item.outcome is not None
 
     def should_promote_to_long_term(self, item: MemoryItem) -> bool:
         """
@@ -517,9 +499,7 @@ class TieredMemory:
 
         logger.info("Initialized TieredMemory system")
 
-    def query(
-        self, query: str, tiers: Optional[List[str]] = None, limit: int = 10
-    ) -> List[tuple]:
+    def query(self, query: str, tiers: Optional[List[str]] = None, limit: int = 10) -> List[tuple]:
         """
         Query across memory tiers with priority weighting.
 

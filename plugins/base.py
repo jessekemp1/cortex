@@ -13,7 +13,6 @@ Optional overrides:
 """
 
 import re
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -94,11 +93,7 @@ class BasePlugin(ABC):
         content = plugin_md.read_text()
 
         # Extract YAML frontmatter (between --- markers)
-        frontmatter_match = re.match(
-            r'^---\s*\n(.*?)\n---\s*\n',
-            content,
-            re.DOTALL
-        )
+        frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
 
         if not frontmatter_match:
             # No frontmatter, use defaults
@@ -136,34 +131,34 @@ class BasePlugin(ABC):
         result = {}
         current_key = None
 
-        for line in yaml_str.split('\n'):
+        for line in yaml_str.split("\n"):
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith("#"):
                 continue
 
             # Handle list items
-            if line.startswith('- '):
+            if line.startswith("- "):
                 if current_key and isinstance(result.get(current_key), list):
                     result[current_key].append(line[2:].strip())
                 continue
 
             # Handle key: value
-            if ':' in line:
-                key, value = line.split(':', 1)
+            if ":" in line:
+                key, value = line.split(":", 1)
                 key = key.strip()
                 value = value.strip()
 
                 # Handle booleans
-                if value.lower() == 'true':
+                if value.lower() == "true":
                     value = True
-                elif value.lower() == 'false':
+                elif value.lower() == "false":
                     value = False
                 # Handle numbers
                 elif value.isdigit():
                     value = int(value)
                 # Handle lists
-                elif value.startswith('[') and value.endswith(']'):
-                    value = [v.strip().strip('"\'') for v in value[1:-1].split(',')]
+                elif value.startswith("[") and value.endswith("]"):
+                    value = [v.strip().strip("\"'") for v in value[1:-1].split(",")]
                     current_key = None
                 # Handle empty (start of list)
                 elif not value:
@@ -191,7 +186,7 @@ class BasePlugin(ABC):
         content = plugin_md.read_text()
 
         # Remove frontmatter
-        content = re.sub(r'^---\s*\n.*?\n---\s*\n', '', content, flags=re.DOTALL)
+        content = re.sub(r"^---\s*\n.*?\n---\s*\n", "", content, flags=re.DOTALL)
 
         return content.strip()
 
@@ -247,7 +242,7 @@ class BasePlugin(ABC):
 
         # Check Python version
         if "python" in requires:
-            required_version = requires["python"]
+            requires["python"]
             # Simple version check (e.g., ">=3.11")
             # This is basic - could be enhanced with packaging.version
             pass
@@ -313,4 +308,6 @@ class BasePlugin(ABC):
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"<{self.__class__.__name__} name={self.metadata.name} version={self.metadata.version}>"
+        return (
+            f"<{self.__class__.__name__} name={self.metadata.name} version={self.metadata.version}>"
+        )

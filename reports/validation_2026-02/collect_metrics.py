@@ -16,9 +16,7 @@ METRICS_FILE = REPORT_DIR / "metrics_snapshots.json"
 def run_command(cmd):
     """Run shell command and return output."""
     try:
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=30
-        )
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
         return result.stdout.strip()
     except Exception as e:
         return f"ERROR: {e}"
@@ -66,9 +64,10 @@ def collect_snapshot():
         with open(Path.home() / "Dev/cortex/launcher/launcher_data.json") as f:
             launcher_data = json.load(f)
             running_projects = sum(
-                1 for p in launcher_data["projects"]
-                if p.get("status") == "running" or
-                   (p.get("services") and any(s.get("status") == "running" for s in p["services"]))
+                1
+                for p in launcher_data["projects"]
+                if p.get("status") == "running"
+                or (p.get("services") and any(s.get("status") == "running" for s in p["services"]))
             )
             snapshot["projects"] = {
                 "total": len(launcher_data["projects"]),
@@ -190,8 +189,12 @@ def generate_summary():
     # Services
     print("\nServices:")
     latest = snapshots[-1]
-    print(f"  Dashboard: {'✅ Running' if latest.get('dashboard', {}).get('running') else '❌ Stopped'}")
-    print(f"  Supervisor: {'✅ Running' if latest.get('supervisor', {}).get('running') else '❌ Stopped'}")
+    print(
+        f"  Dashboard: {'✅ Running' if latest.get('dashboard', {}).get('running') else '❌ Stopped'}"
+    )
+    print(
+        f"  Supervisor: {'✅ Running' if latest.get('supervisor', {}).get('running') else '❌ Stopped'}"
+    )
     print(f"  Active Services: {latest.get('infrastructure', {}).get('services', 0)}/4")
 
     # Projects

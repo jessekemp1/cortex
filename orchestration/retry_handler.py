@@ -45,7 +45,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from .models import Task, TaskPhase, TraceEvent, TraceEventType, create_task_event
 
@@ -58,20 +58,22 @@ logger = logging.getLogger(__name__)
 
 class RetryStrategy(str, Enum):
     """Strategy for retrying failed tasks."""
-    IMMEDIATE = "immediate"              # Retry immediately (for transient errors)
-    EXPONENTIAL = "exponential"          # Exponential backoff (for resource issues)
+
+    IMMEDIATE = "immediate"  # Retry immediately (for transient errors)
+    EXPONENTIAL = "exponential"  # Exponential backoff (for resource issues)
     DEPENDENCY_WAIT = "dependency_wait"  # Wait for dependencies (long delay)
-    NO_RETRY = "no_retry"               # Don't retry (permanent failures)
+    NO_RETRY = "no_retry"  # Don't retry (permanent failures)
 
 
 class FailureType(str, Enum):
     """Classification of failure types for intelligent retry decisions."""
-    TRANSIENT = "transient"      # Temporary network/service issues
-    RESOURCE = "resource"        # Resource exhaustion (memory, disk, quota)
-    VALIDATION = "validation"    # Test/lint failures (requires code fix)
-    DEPENDENCY = "dependency"    # Blocked by other tasks
-    PERMANENT = "permanent"      # Unrecoverable errors (auth, invalid input)
-    UNKNOWN = "unknown"          # Cannot classify
+
+    TRANSIENT = "transient"  # Temporary network/service issues
+    RESOURCE = "resource"  # Resource exhaustion (memory, disk, quota)
+    VALIDATION = "validation"  # Test/lint failures (requires code fix)
+    DEPENDENCY = "dependency"  # Blocked by other tasks
+    PERMANENT = "permanent"  # Unrecoverable errors (auth, invalid input)
+    UNKNOWN = "unknown"  # Cannot classify
 
 
 @dataclass
@@ -81,6 +83,7 @@ class RetryConfig:
 
     Persisted in database to track retry state across executions.
     """
+
     # Retry limits
     max_retries: int = 3
     current_retry_count: int = 0
@@ -150,6 +153,7 @@ class RetryDecision:
 
     Returned by RetryHandler.handle_failure() to guide orchestration logic.
     """
+
     should_retry: bool
     delay_seconds: int
     failure_type: FailureType
@@ -425,12 +429,16 @@ class RetryHandler:
 
         # Escalate to human if needed
         if escalate:
-            self.escalate_to_human(task, escalation_reason or "Unknown reason", {
-                "error": error,
-                "failure_type": failure_type.value,
-                "retry_count": config.current_retry_count,
-                "phase": phase.value,
-            })
+            self.escalate_to_human(
+                task,
+                escalation_reason or "Unknown reason",
+                {
+                    "error": error,
+                    "failure_type": failure_type.value,
+                    "retry_count": config.current_retry_count,
+                    "phase": phase.value,
+                },
+            )
 
         return RetryDecision(
             should_retry=should_retry,
@@ -488,9 +496,7 @@ class RetryHandler:
             return random.randint(1, 5)
 
         # Calculate exponential backoff
-        delay = config.base_delay_seconds * (
-            config.backoff_multiplier ** config.current_retry_count
-        )
+        delay = config.base_delay_seconds * (config.backoff_multiplier**config.current_retry_count)
 
         # Add jitter (0-20% of delay)
         jitter = delay * random.uniform(0, 0.2)

@@ -13,6 +13,14 @@ improves from real usage feedback, not just statistical plausibility.
 
 __version__ = "0.4.0"
 
+from .constraints import ConstraintEngine, ConstraintReport, ConstraintResult
+from .discriminator import Discriminator, DiscriminatorReport, FeatureImportance
+from .flywheel import Flywheel, FlywheelReport, LayerResult
+from .generator import SyntheticGenerator
+from .knowledge_base import CanadianFinServKB
+from .privacy import PrivacyEngine, PrivacyReport, RecordPrivacy
+from .quality import SyntheticQualityTracker
+from .risk_validator import AdversarialResult, RiskReport, RiskValidator, RuleResult
 from .schemas import (
     CustomerProfile,
     CustomerSegment,
@@ -24,15 +32,7 @@ from .schemas import (
     Transaction,
     TransactionType,
 )
-from .knowledge_base import CanadianFinServKB
-from .generator import SyntheticGenerator
-from .quality import SyntheticQualityTracker
-from .constraints import ConstraintEngine, ConstraintReport, ConstraintResult
-from .risk_validator import RiskValidator, RiskReport, RuleResult, AdversarialResult
-from .flywheel import Flywheel, FlywheelReport, LayerResult
-from .discriminator import Discriminator, DiscriminatorReport, FeatureImportance
-from .tstr import TSTRFramework, TSTRReport, TaskResult
-from .privacy import PrivacyEngine, PrivacyReport, RecordPrivacy
+from .tstr import TaskResult, TSTRFramework, TSTRReport
 
 __all__ = [
     # Core

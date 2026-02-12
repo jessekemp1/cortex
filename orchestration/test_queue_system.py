@@ -4,14 +4,14 @@ Basic tests for task queue system.
 Run with: pytest cortex/orchestration/test_queue_system.py -v
 """
 
-import pytest
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
 
-from orchestration.task import Task, TaskPriority, TaskStatus, TaskPhase
-from orchestration.task_queue import TaskQueue
+import pytest
 from orchestration.scheduler import TaskScheduler
+from orchestration.task import Task, TaskPhase, TaskPriority, TaskStatus
+from orchestration.task_queue import TaskQueue
 
 
 @pytest.fixture
@@ -176,7 +176,9 @@ class TestTaskQueue:
 
     def test_dependency_tracking(self, queue):
         """Test blocked_by/blocks relationships"""
-        task1 = Task(id="dep-1", title="First", description="Must complete first", priority=TaskPriority.B)
+        task1 = Task(
+            id="dep-1", title="First", description="Must complete first", priority=TaskPriority.B
+        )
         task2 = Task(
             id="dep-2",
             title="Second",
@@ -211,7 +213,9 @@ class TestTaskQueue:
         """Test SQLite persistence across instances"""
         # Create queue, add task, close
         queue1 = TaskQueue(db_path=temp_db)
-        task = Task(id="persist-1", title="Persist", description="Test persistence", priority=TaskPriority.A)
+        task = Task(
+            id="persist-1", title="Persist", description="Test persistence", priority=TaskPriority.A
+        )
         queue1.enqueue(task)
 
         # Create new queue instance with same DB

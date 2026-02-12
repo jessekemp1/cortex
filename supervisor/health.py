@@ -214,7 +214,9 @@ class HealthMonitor:
                     else:
                         created_dt = created_at
 
-                    age_hours = (datetime.now(created_dt.tzinfo) - created_dt).total_seconds() / 3600
+                    age_hours = (
+                        datetime.now(created_dt.tzinfo) - created_dt
+                    ).total_seconds() / 3600
 
                     if age_hours > 25:  # Batch API window is 24h
                         issues.append(

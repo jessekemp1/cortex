@@ -26,8 +26,12 @@ class SupervisorConfig:
 
     # Paths
     pid_file: Path = field(default_factory=lambda: Path.home() / ".cortex" / "supervisor.pid")
-    log_file: Path = field(default_factory=lambda: Path.home() / ".cortex" / "logs" / "supervisor.log")
-    state_file: Path = field(default_factory=lambda: Path.home() / ".cortex" / "supervisor_state.json")
+    log_file: Path = field(
+        default_factory=lambda: Path.home() / ".cortex" / "logs" / "supervisor.log"
+    )
+    state_file: Path = field(
+        default_factory=lambda: Path.home() / ".cortex" / "supervisor_state.json"
+    )
 
     # Feature flags
     enable_work_discovery: bool = True  # Proactively find work from sources
@@ -48,7 +52,9 @@ class SupervisorConfig:
         return cls(
             tick_interval_seconds=int(os.getenv("CORTEX_SUPERVISOR_TICK_INTERVAL", "30")),
             health_check_interval_seconds=int(os.getenv("CORTEX_SUPERVISOR_HEALTH_INTERVAL", "60")),
-            work_discovery_interval_seconds=int(os.getenv("CORTEX_SUPERVISOR_DISCOVERY_INTERVAL", "300")),
+            work_discovery_interval_seconds=int(
+                os.getenv("CORTEX_SUPERVISOR_DISCOVERY_INTERVAL", "300")
+            ),
             max_concurrent_shell_tasks=int(os.getenv("CORTEX_SUPERVISOR_MAX_CONCURRENT", "3")),
             stale_task_hours=int(os.getenv("CORTEX_SUPERVISOR_STALE_HOURS", "4")),
         )

@@ -40,13 +40,14 @@ from typing import List, Optional
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from batch.optimizer import DynamicWorkGenerator, CapacityAwareQueueFiller
-from batch.intelligent_orchestrator import IntelligentBatchOrchestrator, BatchWorkItem
+from batch.intelligent_orchestrator import BatchWorkItem, IntelligentBatchOrchestrator
+from batch.optimizer import CapacityAwareQueueFiller, DynamicWorkGenerator
 
 
 @dataclass
 class FlywheelStatus:
     """Current flywheel daemon status"""
+
     running: bool = False
     last_check: Optional[str] = None
     queue_depth_hours: float = 0.0
@@ -61,6 +62,7 @@ class FlywheelStatus:
 @dataclass
 class FlywheelConfig:
     """Flywheel daemon configuration"""
+
     # Queue depth thresholds (hours)
     target_depth_hours: float = 12.0
     warning_depth_hours: float = 8.0
@@ -73,8 +75,8 @@ class FlywheelConfig:
     max_fills_per_cycle: int = 10
 
     # Time windows (don't fill during work hours)
-    quiet_start_hour: int = 9   # 9 AM
-    quiet_end_hour: int = 17    # 5 PM
+    quiet_start_hour: int = 9  # 9 AM
+    quiet_end_hour: int = 17  # 5 PM
     aggressive_fill_hours: List[int] = None  # 6 PM - 6 AM
 
     # Paths
@@ -169,7 +171,6 @@ class FlywheelDaemon:
         # Check if we should fill
         current_hour = datetime.now().hour
         is_quiet_hours = self.config.quiet_start_hour <= current_hour < self.config.quiet_end_hour
-        is_aggressive_hours = current_hour in self.config.aggressive_fill_hours
 
         # During quiet hours, only fill if critical
         if is_quiet_hours and queue_depth >= self.config.critical_depth_hours:
@@ -232,7 +233,8 @@ class FlywheelDaemon:
 
         # Filter to security and pattern jobs
         priority_jobs = [
-            j for j in standard_jobs
+            j
+            for j in standard_jobs
             if j.source in ("security", "pattern") and j.priority in ("immediate", "high")
         ]
 
@@ -255,7 +257,8 @@ class FlywheelDaemon:
 
         # Filter to lower priority work
         backlog_jobs = [
-            j for j in all_jobs
+            j
+            for j in all_jobs
             if j.source in ("docs", "research") or j.priority in ("normal", "low")
         ]
 
@@ -310,7 +313,7 @@ Provide actionable recommendations for the week ahead.""",
             estimated_input_tokens=50_000,
             estimated_output_tokens=8_000,
             source="goal",
-            deadline_hours=72
+            deadline_hours=72,
         )
 
     def _submit_job(self, job: BatchWorkItem) -> bool:
@@ -325,17 +328,19 @@ Provide actionable recommendations for the week ahead.""",
                 "id": job.id,
                 "description": job.description,
                 "priority": job.priority,
-                "tasks": [{
-                    "task_id": f"{job.id}_task_1",
-                    "title": job.title,
-                    "prompt": job.prompt,
-                    "context": "",
-                    "files_affected": job.files,
-                    "estimated_tokens": job.estimated_input_tokens
-                }],
+                "tasks": [
+                    {
+                        "task_id": f"{job.id}_task_1",
+                        "title": job.title,
+                        "prompt": job.prompt,
+                        "context": "",
+                        "files_affected": job.files,
+                        "estimated_tokens": job.estimated_input_tokens,
+                    }
+                ],
                 "estimated_total_tokens": job.total_tokens,
                 "source": job.source,
-                "project": job.project
+                "project": job.project,
             }
 
             job_id = orchestrator.submit_job(api_job, auto_detect=True)
@@ -379,9 +384,7 @@ Provide actionable recommendations for the week ahead.""",
             self.status.uptime_hours = (datetime.now() - self.start_time).total_seconds() / 3600
 
         try:
-            self.config.status_file.write_text(
-                json.dumps(asdict(self.status), indent=2)
-            )
+            self.config.status_file.write_text(json.dumps(asdict(self.status), indent=2))
         except Exception as e:
             self._log(f"Failed to write status: {e}", level="error")
 
@@ -476,7 +479,7 @@ def print_status():
         "critical": "🔴",
         "unknown": "⚪",
         "not_running": "⚫",
-        "error": "❌"
+        "error": "❌",
     }
     icon = health_icons.get(status.health, "⚪")
 

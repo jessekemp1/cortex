@@ -4,7 +4,7 @@
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -126,9 +126,7 @@ class TestHybridRetriever:
         assert retriever.embeddings_available is False
         assert retriever.pattern_embeddings is None
 
-    def test_init_with_embeddings(
-        self, sample_patterns, mock_embeddings_client, temp_cache_dir
-    ):
+    def test_init_with_embeddings(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test initialization with embeddings client."""
         retriever = HybridRetriever(
             sample_patterns, embeddings_client=mock_embeddings_client, cache_dir=temp_cache_dir
@@ -164,9 +162,7 @@ class TestHybridRetriever:
             mock_batch.assert_not_called()
 
         # Embeddings should match
-        np.testing.assert_array_equal(
-            retriever1.pattern_embeddings, retriever2.pattern_embeddings
-        )
+        np.testing.assert_array_equal(retriever1.pattern_embeddings, retriever2.pattern_embeddings)
 
     def test_bm25_only_search(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test BM25-only search (alpha=0.0)."""
@@ -185,9 +181,7 @@ class TestHybridRetriever:
         top_pattern, top_score = results[0]
         assert "async" in top_pattern.keywords or "database" in top_pattern.keywords
 
-    def test_embedding_only_search(
-        self, sample_patterns, mock_embeddings_client, temp_cache_dir
-    ):
+    def test_embedding_only_search(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test embedding-only search (alpha=1.0)."""
         retriever = HybridRetriever(
             sample_patterns, embeddings_client=mock_embeddings_client, cache_dir=temp_cache_dir
@@ -215,9 +209,7 @@ class TestHybridRetriever:
         assert all(isinstance(pattern, Pattern) for pattern, _ in results)
         assert all(isinstance(score, float) for _, score in results)
 
-    def test_rrf_merge_correctness(
-        self, sample_patterns, mock_embeddings_client, temp_cache_dir
-    ):
+    def test_rrf_merge_correctness(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test RRF merge correctness."""
         retriever = HybridRetriever(
             sample_patterns, embeddings_client=mock_embeddings_client, cache_dir=temp_cache_dir
@@ -282,9 +274,7 @@ class TestHybridRetriever:
         assert len(results) > 0
         # Should use BM25 despite alpha=0.5
 
-    def test_invalidate_cache(
-        self, sample_patterns, mock_embeddings_client, temp_cache_dir
-    ):
+    def test_invalidate_cache(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test cache invalidation."""
         retriever = HybridRetriever(
             sample_patterns, embeddings_client=mock_embeddings_client, cache_dir=temp_cache_dir

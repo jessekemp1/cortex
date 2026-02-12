@@ -169,8 +169,7 @@ def install_git_hooks() -> None:
 
     # Post-commit hook
     post_commit = hooks_dir / "post-commit"
-    post_commit.write_text(
-        """#!/bin/bash
+    post_commit.write_text("""#!/bin/bash
 # Auto-suggest batch jobs after commit
 
 python3 -c "
@@ -183,15 +182,13 @@ files = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-o
 hooks = WorkflowBatchHooks()
 hooks.suggest_batch_for_files(files)
 " 2>/dev/null || true
-"""
-    )
+""")
     post_commit.chmod(0o755)
     print(f"✅ Installed: {post_commit}")
 
     # Post-merge hook (for PR merges)
     post_merge = hooks_dir / "post-merge"
-    post_merge.write_text(
-        """#!/bin/bash
+    post_merge.write_text("""#!/bin/bash
 # Auto-queue docs generation after PR merge
 
 python3 -c "
@@ -208,8 +205,7 @@ files = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-o
 hooks = WorkflowBatchHooks()
 hooks.on_feature_merged(project=project, files=files[:5])  # Limit to 5 files
 " 2>/dev/null || true
-"""
-    )
+""")
     post_merge.chmod(0o755)
     print(f"✅ Installed: {post_merge}")
 

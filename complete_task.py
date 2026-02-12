@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Quick script to complete task predictions"""
+
 import json
-import sys
-from datetime import datetime
 from pathlib import Path
 
 from metrics_tracker import MetricsTracker
@@ -71,7 +70,7 @@ def complete_current_task():
     time_diff = actual_min - baseline_min
     time_diff_pct = (time_diff / baseline_min) * 100 if baseline_min > 0 else 0
 
-    print(f"\n✅ Task complete!")
+    print("\n✅ Task complete!")
     print(f"   Predicted: {baseline_min} min")
     print(f"   Actual: {actual_min} min")
     print(f"   Difference: {time_diff:+d} min ({time_diff_pct:+.1f}%)")
@@ -81,15 +80,15 @@ def complete_current_task():
             saved = baseline_min - actual_min
             print(f"   🎉 Saved {saved} minutes with Cortex!")
         elif actual_min == baseline_min:
-            print(f"   ✅ Matched baseline estimate")
+            print("   ✅ Matched baseline estimate")
         else:
             extra = actual_min - baseline_min
             print(f"   ⚠️ Took {extra} minutes longer than baseline")
     else:
         if actual_min < baseline_min:
-            print(f"   ⚡ Faster than expected!")
+            print("   ⚡ Faster than expected!")
         elif actual_min > baseline_min:
-            print(f"   ⏱️ Took longer than expected")
+            print("   ⏱️ Took longer than expected")
 
     print()
     print("Next steps:")

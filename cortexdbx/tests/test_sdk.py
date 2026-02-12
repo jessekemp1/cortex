@@ -1,7 +1,6 @@
 """Tests for CortexDBx SDK client (local backend)."""
 
-import pytest
-from cortexdbx.sdk.client import CortexDBxClient, CortexDBxConfig
+from cortexdbx.sdk.client import CortexDBxClient
 
 
 def test_client_default_uses_local_backend():

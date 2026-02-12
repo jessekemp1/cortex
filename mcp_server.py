@@ -9,6 +9,7 @@ Capabilities:
 - Resources: cortex://context?query=...
 - Tools: inject_recommendation, trigger_action
 """
+
 import json
 import logging
 import sys

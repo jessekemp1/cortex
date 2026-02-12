@@ -11,22 +11,22 @@ Verifies:
 - Migration from batch_queue.db
 """
 
+import tempfile
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-import tempfile
 
 from orchestration.database import OrchestrationDatabase
 from orchestration.models import (
+    ExecutionBackend,
     Task,
     TaskPhase,
     TaskPriority,
     TaskStatus,
-    ExecutionBackend,
-    WorkerState,
-    WorkerRole,
     TraceEventType,
     ValidationCriteria,
+    WorkerRole,
+    WorkerState,
     create_task_event,
 )
 
@@ -358,6 +358,7 @@ def main():
         except Exception as e:
             print(f"❌ Test failed: {e}")
             import traceback
+
             traceback.print_exc()
             failed += 1
 

@@ -4,14 +4,13 @@ Demo script for AI-as-a-Judge Quality Assessment
 
 Demonstrates:
 1. Pattern assessment
-2. Recommendation assessment  
+2. Recommendation assessment
 3. Batch assessment
 4. Integration with learning system
 """
 
 import asyncio
 import json
-from pathlib import Path
 
 from intelligence.evaluation.quality_judge import QualityJudge
 from learning import LearningSystem
@@ -24,7 +23,7 @@ async def demo_pattern_assessment():
     print("=" * 60)
 
     # Create judge
-    judge = QualityJudge()
+    QualityJudge()
 
     # Sample pattern
     pattern = {
@@ -68,7 +67,7 @@ async def demo_recommendation_assessment():
     print("RECOMMENDATION ASSESSMENT DEMO")
     print("=" * 60)
 
-    judge = QualityJudge()
+    QualityJudge()
 
     recommendation = {
         "id": "rec_demo_001",

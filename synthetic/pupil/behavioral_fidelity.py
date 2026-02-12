@@ -18,9 +18,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .simulation import SimulationResult
 from .segment_models import SEGMENT_MODELS, get_behavior
-
+from .simulation import SimulationResult
 
 # ============================================================================
 # Report Dataclasses
@@ -30,6 +29,7 @@ from .segment_models import SEGMENT_MODELS, get_behavior
 @dataclass
 class FidelityCheck:
     """Result of a single behavioral fidelity check."""
+
     check_name: str
     passed: bool
     score: float  # 0.0-1.0
@@ -51,6 +51,7 @@ class FidelityCheck:
 @dataclass
 class FidelityReport:
     """Complete behavioral fidelity validation report."""
+
     overall_score: float
     passed: bool
     checks: List[FidelityCheck] = field(default_factory=list)
@@ -65,9 +66,7 @@ class FidelityReport:
             "n_agents": self.n_agents,
             "n_steps": self.n_steps,
             "checks": [c.to_dict() for c in self.checks],
-            "segment_scores": {
-                k: round(v, 4) for k, v in self.segment_scores.items()
-            },
+            "segment_scores": {k: round(v, 4) for k, v in self.segment_scores.items()},
         }
 
 
@@ -134,12 +133,14 @@ class BehavioralFidelityValidator:
                 passed=False,
                 n_agents=result.n_agents,
                 n_steps=result.n_steps,
-                checks=[FidelityCheck(
-                    check_name="empty_result",
-                    passed=False,
-                    score=0.0,
-                    detail="Simulation result is empty (no steps or snapshots)",
-                )],
+                checks=[
+                    FidelityCheck(
+                        check_name="empty_result",
+                        passed=False,
+                        score=0.0,
+                        detail="Simulation result is empty (no steps or snapshots)",
+                    )
+                ],
             )
 
         checks = []
@@ -343,18 +344,12 @@ class BehavioralFidelityValidator:
         second_half_deposits = []
 
         for step in result.steps[:mid]:
-            active_deps = [
-                s["deposits"] for s in step.snapshots
-                if s["state"] != "churned"
-            ]
+            active_deps = [s["deposits"] for s in step.snapshots if s["state"] != "churned"]
             if active_deps:
                 first_half_deposits.append(sum(active_deps) / len(active_deps))
 
         for step in result.steps[mid:]:
-            active_deps = [
-                s["deposits"] for s in step.snapshots
-                if s["state"] != "churned"
-            ]
+            active_deps = [s["deposits"] for s in step.snapshots if s["state"] != "churned"]
             if active_deps:
                 second_half_deposits.append(sum(active_deps) / len(active_deps))
 
@@ -426,9 +421,7 @@ class BehavioralFidelityValidator:
             check_name="credit_score_range",
             passed=violations == 0,
             score=score,
-            detail=(
-                f"{violations}/{total_observations} observations outside 300-900 range"
-            ),
+            detail=(f"{violations}/{total_observations} observations outside 300-900 range"),
             expected="All credit scores within 300-900",
             actual={"violations": violations, "total_observations": total_observations},
         )
@@ -451,12 +444,8 @@ class BehavioralFidelityValidator:
         total_transitions = 0
 
         for i in range(1, len(result.steps)):
-            prev_states = {
-                s["agent_id"]: s["state"] for s in result.steps[i - 1].snapshots
-            }
-            curr_states = {
-                s["agent_id"]: s["state"] for s in result.steps[i].snapshots
-            }
+            prev_states = {s["agent_id"]: s["state"] for s in result.steps[i - 1].snapshots}
+            curr_states = {s["agent_id"]: s["state"] for s in result.steps[i].snapshots}
 
             for agent_id, curr_state in curr_states.items():
                 prev_state = prev_states.get(agent_id)
@@ -469,12 +458,14 @@ class BehavioralFidelityValidator:
                 transition = (prev_state, curr_state)
 
                 if transition not in self.VALID_TRANSITIONS:
-                    invalid_transitions.append({
-                        "agent_id": agent_id,
-                        "step": i,
-                        "from": prev_state,
-                        "to": curr_state,
-                    })
+                    invalid_transitions.append(
+                        {
+                            "agent_id": agent_id,
+                            "step": i,
+                            "from": prev_state,
+                            "to": curr_state,
+                        }
+                    )
 
         if total_transitions == 0:
             return FidelityCheck(
@@ -492,15 +483,10 @@ class BehavioralFidelityValidator:
             passed=len(invalid_transitions) == 0,
             score=score,
             detail=(
-                f"{len(invalid_transitions)}/{total_transitions} "
-                f"invalid transitions detected"
+                f"{len(invalid_transitions)}/{total_transitions} " f"invalid transitions detected"
             ),
             expected="Only valid lifecycle transitions",
-            actual=(
-                invalid_transitions[:10]
-                if invalid_transitions
-                else "All transitions valid"
-            ),
+            actual=(invalid_transitions[:10] if invalid_transitions else "All transitions valid"),
         )
 
     # ------------------------------------------------------------------

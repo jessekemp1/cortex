@@ -9,16 +9,15 @@ Verifies:
 - Path normalization
 """
 
+# We need to import from the hook file which lives at .claude/hooks/
+# Use importlib to handle the non-standard location
+import importlib.util
 import json
 import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-# We need to import from the hook file which lives at .claude/hooks/
-# Use importlib to handle the non-standard location
-import importlib.util
 
 HOOK_PATH = Path(__file__).resolve().parents[3] / ".claude" / "hooks" / "edit_without_read_guard.py"
 

@@ -7,7 +7,7 @@ Verifies the CortexSupervisor correctly integrates with SupervisorDelegator.
 import pytest
 
 from .core import CortexSupervisor
-from .delegator import DelegationPolicy, AgentCapability
+from .delegator import AgentCapability, DelegationPolicy
 from .models import WorkItem, WorkItemPriority
 
 

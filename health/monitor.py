@@ -23,14 +23,14 @@ from typing import Dict, List
 class HealthMetrics:
     """Current system health metrics."""
 
-    queue_depth: int          # Number of tasks in queue
-    success_rate: float       # % of tasks completing successfully
+    queue_depth: int  # Number of tasks in queue
+    success_rate: float  # % of tasks completing successfully
     avg_cycle_time_hours: float  # Average time from start to completion
-    blocked_tasks: int        # Tasks waiting on dependencies
-    cost_per_day_usd: float   # Daily API cost
-    active_executors: int     # Number of running executors
+    blocked_tasks: int  # Tasks waiting on dependencies
+    cost_per_day_usd: float  # Daily API cost
+    active_executors: int  # Number of running executors
     tasks_completed_24h: int  # Tasks completed in last 24h
-    tasks_failed_24h: int     # Tasks failed in last 24h
+    tasks_failed_24h: int  # Tasks failed in last 24h
 
 
 @dataclass
@@ -39,7 +39,7 @@ class Alert:
 
     severity: str  # "info", "warning", "critical"
     message: str
-    action: str    # What human should do
+    action: str  # What human should do
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -80,9 +80,9 @@ class HealthMonitor:
         """Collect current health metrics."""
 
         # Load queue data
-        signals_dir = self.cortex_dir / "signals"
+        self.cortex_dir / "signals"
         contracts_dir = self.cortex_dir / "contracts"
-        batches_dir = self.cortex_dir / "batches"
+        self.cortex_dir / "batches"
 
         # Count queue depth (pending contracts)
         queue_depth = len(list(contracts_dir.glob("*.json"))) if contracts_dir.exists() else 0
@@ -221,65 +221,81 @@ class HealthMonitor:
 
         # Queue depth alerts
         if metrics.queue_depth < self.OPTIMAL_THRESHOLDS["queue_depth_min"]:
-            alerts.append(Alert(
-                severity="warning",
-                message=f"Queue running low ({metrics.queue_depth} tasks) - may run out of work",
-                action="Run signal detection to generate new tasks: `cortex scan`"
-            ))
+            alerts.append(
+                Alert(
+                    severity="warning",
+                    message=f"Queue running low ({metrics.queue_depth} tasks) - may run out of work",
+                    action="Run signal detection to generate new tasks: `cortex scan`",
+                )
+            )
         elif metrics.queue_depth > self.OPTIMAL_THRESHOLDS["queue_depth_max"]:
-            alerts.append(Alert(
-                severity="info",
-                message=f"Queue backed up ({metrics.queue_depth} tasks) - healthy backlog",
-                action="No action needed - system has work queued"
-            ))
+            alerts.append(
+                Alert(
+                    severity="info",
+                    message=f"Queue backed up ({metrics.queue_depth} tasks) - healthy backlog",
+                    action="No action needed - system has work queued",
+                )
+            )
 
         # Success rate alerts
         if metrics.success_rate < self.OPTIMAL_THRESHOLDS["success_rate_min"]:
-            alerts.append(Alert(
-                severity="critical",
-                message=f"Success rate low ({metrics.success_rate:.1%}) - tasks failing",
-                action=f"Review {metrics.tasks_failed_24h} failed tasks. May need contract refinement or better verification."
-            ))
+            alerts.append(
+                Alert(
+                    severity="critical",
+                    message=f"Success rate low ({metrics.success_rate:.1%}) - tasks failing",
+                    action=f"Review {metrics.tasks_failed_24h} failed tasks. May need contract refinement or better verification.",
+                )
+            )
 
         # Cycle time alerts
         if metrics.avg_cycle_time_hours > self.OPTIMAL_THRESHOLDS["cycle_time_max_hours"]:
-            alerts.append(Alert(
-                severity="warning",
-                message=f"Slow cycle time ({metrics.avg_cycle_time_hours:.1f}h avg, target: {self.OPTIMAL_THRESHOLDS['cycle_time_max_hours']}h)",
-                action="Consider routing more tasks to faster executors or parallelizing"
-            ))
+            alerts.append(
+                Alert(
+                    severity="warning",
+                    message=f"Slow cycle time ({metrics.avg_cycle_time_hours:.1f}h avg, target: {self.OPTIMAL_THRESHOLDS['cycle_time_max_hours']}h)",
+                    action="Consider routing more tasks to faster executors or parallelizing",
+                )
+            )
 
         # Blocked tasks alerts
         if metrics.blocked_tasks > self.OPTIMAL_THRESHOLDS["blocked_tasks_max"]:
-            alerts.append(Alert(
-                severity="critical",
-                message=f"{metrics.blocked_tasks} tasks blocked on dependencies",
-                action="Review blocked tasks and resolve dependencies"
-            ))
+            alerts.append(
+                Alert(
+                    severity="critical",
+                    message=f"{metrics.blocked_tasks} tasks blocked on dependencies",
+                    action="Review blocked tasks and resolve dependencies",
+                )
+            )
 
         # Cost alerts
         if metrics.cost_per_day_usd > self.OPTIMAL_THRESHOLDS["cost_per_day_max_usd"]:
-            alerts.append(Alert(
-                severity="warning",
-                message=f"High daily cost (${metrics.cost_per_day_usd:.2f}, target: ${self.OPTIMAL_THRESHOLDS['cost_per_day_max_usd']:.2f})",
-                action="Review task routing - consider using cheaper models for low-complexity tasks"
-            ))
+            alerts.append(
+                Alert(
+                    severity="warning",
+                    message=f"High daily cost (${metrics.cost_per_day_usd:.2f}, target: ${self.OPTIMAL_THRESHOLDS['cost_per_day_max_usd']:.2f})",
+                    action="Review task routing - consider using cheaper models for low-complexity tasks",
+                )
+            )
 
         # No work alert
         if metrics.active_executors == 0 and metrics.queue_depth == 0:
-            alerts.append(Alert(
-                severity="warning",
-                message="No active work and empty queue",
-                action="Run signal detection to find work: `cortex scan`"
-            ))
+            alerts.append(
+                Alert(
+                    severity="warning",
+                    message="No active work and empty queue",
+                    action="Run signal detection to find work: `cortex scan`",
+                )
+            )
 
         # All green
         if not alerts:
-            alerts.append(Alert(
-                severity="info",
-                message="✅ System healthy - all metrics optimal",
-                action="No action needed"
-            ))
+            alerts.append(
+                Alert(
+                    severity="info",
+                    message="✅ System healthy - all metrics optimal",
+                    action="No action needed",
+                )
+            )
 
         return alerts
 
@@ -306,7 +322,7 @@ class HealthMonitor:
                     "action": a.action,
                 }
                 for a in alerts
-            ]
+            ],
         }
 
         snapshot_file.write_text(json.dumps(data, indent=2))

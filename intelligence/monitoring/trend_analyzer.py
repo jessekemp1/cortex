@@ -5,8 +5,8 @@ Analyzes metric trends over time to detect degradation, improvements,
 and anomalies in project health metrics.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Tuple
 

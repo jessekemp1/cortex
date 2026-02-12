@@ -107,7 +107,6 @@ class HealthTracker:
         else:
             return "stable"
 
-
     def get_health_trends(self, project_name: str, project_path: Path) -> Dict[str, Any]:
         """
         Get comprehensive health trends with historical comparison
@@ -183,7 +182,6 @@ class HealthTracker:
             "recommendations": recommendations,
             "timestamp": datetime.now().isoformat(),
         }
-
 
     def get_portfolio_trends(self, projects: Dict[str, Path]) -> Dict[str, Any]:
         """

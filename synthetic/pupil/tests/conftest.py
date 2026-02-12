@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-
 _CALIBRATED_FILE = Path.home() / ".cortex" / "synthetic" / "pupil" / "calibrated_segments.json"
 
 

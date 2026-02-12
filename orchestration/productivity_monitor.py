@@ -13,17 +13,18 @@ Design Philosophy:
 
 import json
 import subprocess
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from .database import OrchestrationDatabase
 
 
 class ActivityType(str, Enum):
     """Types of activities tracked."""
+
     GIT_COMMIT = "git_commit"
     FILE_EDIT = "file_edit"
     TASK_START = "task_start"
@@ -36,17 +37,19 @@ class ActivityType(str, Enum):
 
 class FocusState(str, Enum):
     """States of focus during work."""
-    DEEP_WORK = "deep_work"          # Focused on single task >25min
-    SHALLOW_WORK = "shallow_work"    # Quick tasks, admin, switching
-    PLANNING = "planning"             # Investigation, design, thinking
-    LEARNING = "learning"             # Research, reading, exploring
-    BREAK = "break"                   # Rest, recovery
-    INTERRUPTED = "interrupted"       # Context switch before completion
+
+    DEEP_WORK = "deep_work"  # Focused on single task >25min
+    SHALLOW_WORK = "shallow_work"  # Quick tasks, admin, switching
+    PLANNING = "planning"  # Investigation, design, thinking
+    LEARNING = "learning"  # Research, reading, exploring
+    BREAK = "break"  # Rest, recovery
+    INTERRUPTED = "interrupted"  # Context switch before completion
 
 
 @dataclass
 class ActivityEvent:
     """Single activity event."""
+
     event_id: str
     timestamp: datetime
     activity_type: ActivityType
@@ -60,6 +63,7 @@ class ActivityEvent:
 @dataclass
 class WorkSession:
     """A continuous work session (until break or context switch)."""
+
     session_id: str
     start_time: datetime
     end_time: Optional[datetime] = None
@@ -89,6 +93,7 @@ class WorkSession:
 @dataclass
 class ProductivityPattern:
     """Detected productivity pattern."""
+
     pattern_id: str
     pattern_type: str
     description: str
@@ -101,6 +106,7 @@ class ProductivityPattern:
 @dataclass
 class MentorRecommendation:
     """Mentor-style recommendation for improvement."""
+
     recommendation_id: str
     category: str  # focus, planning, execution, recovery, learning
     priority: str  # immediate, high, medium, low
@@ -175,12 +181,12 @@ class ProductivityMonitor:
             task_id=task_id,
             details=details or {},
             duration_minutes=duration_minutes,
-            focus_state=self._detect_focus_state(activity_type, duration_minutes)
+            focus_state=self._detect_focus_state(activity_type, duration_minutes),
         )
 
         # Save to JSONL
-        with open(self.events_file, 'a') as f:
-            f.write(json.dumps(asdict(event), default=str) + '\n')
+        with open(self.events_file, "a") as f:
+            f.write(json.dumps(asdict(event), default=str) + "\n")
 
         # Update current session
         self._update_session(event)
@@ -188,9 +194,7 @@ class ProductivityMonitor:
         return event
 
     def _detect_focus_state(
-        self,
-        activity_type: ActivityType,
-        duration_minutes: Optional[float]
+        self, activity_type: ActivityType, duration_minutes: Optional[float]
     ) -> FocusState:
         """Detect focus state from activity."""
         if activity_type == ActivityType.BREAK_TAKEN:
@@ -216,11 +220,12 @@ class ProductivityMonitor:
         # Start new session if none exists
         if self.current_session is None:
             import uuid
+
             self.current_session = WorkSession(
                 session_id=str(uuid.uuid4()),
                 start_time=event.timestamp,
                 project=event.project,
-                task_id=event.task_id
+                task_id=event.task_id,
             )
 
         # Check if session should end (context switch or long break)
@@ -228,11 +233,12 @@ class ProductivityMonitor:
             self._end_session(event.timestamp)
             # Start new session
             import uuid
+
             self.current_session = WorkSession(
                 session_id=str(uuid.uuid4()),
                 start_time=event.timestamp,
                 project=event.project,
-                task_id=event.task_id
+                task_id=event.task_id,
             )
             self.current_session.context_switches += 1
 
@@ -252,8 +258,8 @@ class ProductivityMonitor:
             self.current_session.end_time = end_time
 
             # Save to JSONL
-            with open(self.sessions_file, 'a') as f:
-                f.write(json.dumps(asdict(self.current_session), default=str) + '\n')
+            with open(self.sessions_file, "a") as f:
+                f.write(json.dumps(asdict(self.current_session), default=str) + "\n")
 
             self.current_session = None
 
@@ -270,15 +276,15 @@ class ProductivityMonitor:
                 capture_output=True,
                 text=True,
                 timeout=5,
-                cwd=self.root_dir
+                cwd=self.root_dir,
             )
 
             if result.returncode == 0:
-                for line in result.stdout.strip().split('\n'):
+                for line in result.stdout.strip().split("\n"):
                     if not line:
                         continue
 
-                    parts = line.split('|')
+                    parts = line.split("|")
                     if len(parts) >= 4:
                         commit_hash, message, author, time_ago = parts
 
@@ -291,8 +297,8 @@ class ProductivityMonitor:
                             details={
                                 "commit_hash": commit_hash[:8],
                                 "message": message,
-                                "time_ago": time_ago
-                            }
+                                "time_ago": time_ago,
+                            },
                         )
                         events.append(event)
 
@@ -305,7 +311,8 @@ class ProductivityMonitor:
         """Infer project name from commit message."""
         # Look for patterns like "feat(project):" or "fix(project):"
         import re
-        match = re.match(r'^\w+\(([^)]+)\):', commit_message)
+
+        match = re.match(r"^\w+\(([^)]+)\):", commit_message)
         if match:
             return match.group(1)
 
@@ -334,15 +341,18 @@ class ProductivityMonitor:
         context_switches = [e for e in events if e.activity_type == ActivityType.CONTEXT_SWITCH]
         if len(context_switches) > 10:  # High switching
             import uuid
-            patterns.append(ProductivityPattern(
-                pattern_id=str(uuid.uuid4()),
-                pattern_type="context_switching",
-                description=f"High context switching: {len(context_switches)} switches in {days} days",
-                frequency=len(context_switches),
-                confidence=0.9,
-                recommendation="Consider blocking focus time and batching similar tasks",
-                detected_at=datetime.now()
-            ))
+
+            patterns.append(
+                ProductivityPattern(
+                    pattern_id=str(uuid.uuid4()),
+                    pattern_type="context_switching",
+                    description=f"High context switching: {len(context_switches)} switches in {days} days",
+                    frequency=len(context_switches),
+                    confidence=0.9,
+                    recommendation="Consider blocking focus time and batching similar tasks",
+                    detected_at=datetime.now(),
+                )
+            )
 
         # Pattern 2: Planning vs execution balance
         planning_time, execution_time = self._calculate_planning_execution_balance(events)
@@ -350,15 +360,18 @@ class ProductivityMonitor:
 
         if ratio < 0.1:  # < 10% planning
             import uuid
-            patterns.append(ProductivityPattern(
-                pattern_id=str(uuid.uuid4()),
-                pattern_type="insufficient_planning",
-                description=f"Low planning time: {planning_time:.1f}h vs {execution_time:.1f}h execution",
-                frequency=1,
-                confidence=0.8,
-                recommendation="Spend more time in investigation/planning phases before implementing",
-                detected_at=datetime.now()
-            ))
+
+            patterns.append(
+                ProductivityPattern(
+                    pattern_id=str(uuid.uuid4()),
+                    pattern_type="insufficient_planning",
+                    description=f"Low planning time: {planning_time:.1f}h vs {execution_time:.1f}h execution",
+                    frequency=1,
+                    confidence=0.8,
+                    recommendation="Spend more time in investigation/planning phases before implementing",
+                    detected_at=datetime.now(),
+                )
+            )
 
         # Pattern 3: Deep work sessions
         sessions = self._load_recent_sessions(days)
@@ -366,26 +379,28 @@ class ProductivityMonitor:
 
         if len(deep_work_sessions) < 2:  # Less than 2 deep work sessions per week
             import uuid
-            patterns.append(ProductivityPattern(
-                pattern_id=str(uuid.uuid4()),
-                pattern_type="insufficient_deep_work",
-                description=f"Only {len(deep_work_sessions)} deep work sessions in {days} days",
-                frequency=len(deep_work_sessions),
-                confidence=0.85,
-                recommendation="Schedule 2-3 deep work sessions per week (90-120 min each)",
-                detected_at=datetime.now()
-            ))
+
+            patterns.append(
+                ProductivityPattern(
+                    pattern_id=str(uuid.uuid4()),
+                    pattern_type="insufficient_deep_work",
+                    description=f"Only {len(deep_work_sessions)} deep work sessions in {days} days",
+                    frequency=len(deep_work_sessions),
+                    confidence=0.85,
+                    recommendation="Schedule 2-3 deep work sessions per week (90-120 min each)",
+                    detected_at=datetime.now(),
+                )
+            )
 
         # Save patterns
-        with open(self.patterns_file, 'a') as f:
+        with open(self.patterns_file, "a") as f:
             for pattern in patterns:
-                f.write(json.dumps(asdict(pattern), default=str) + '\n')
+                f.write(json.dumps(asdict(pattern), default=str) + "\n")
 
         return patterns
 
     def _calculate_planning_execution_balance(
-        self,
-        events: List[ActivityEvent]
+        self, events: List[ActivityEvent]
     ) -> Tuple[float, float]:
         """Calculate hours spent planning vs executing."""
         planning_minutes = 0
@@ -430,6 +445,7 @@ class ProductivityMonitor:
     def _recommend_focus_blocks(self, pattern: ProductivityPattern) -> MentorRecommendation:
         """Recommend focus blocks to reduce context switching."""
         import uuid
+
         return MentorRecommendation(
             recommendation_id=str(uuid.uuid4()),
             category="focus",
@@ -446,14 +462,15 @@ class ProductivityMonitor:
             evidence=[
                 f"Detected {pattern.frequency} context switches in last 7 days",
                 "Average flow state requires 15-25 minutes of uninterrupted work",
-                "Deep work sessions correlate with highest quality output"
+                "Deep work sessions correlate with highest quality output",
             ],
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
     def _recommend_planning_time(self, pattern: ProductivityPattern) -> MentorRecommendation:
         """Recommend more planning time."""
         import uuid
+
         return MentorRecommendation(
             recommendation_id=str(uuid.uuid4()),
             category="planning",
@@ -470,14 +487,15 @@ class ProductivityMonitor:
             evidence=[
                 f"Planning ratio: {pattern.description}",
                 "PhaseVerifier enforces investigate → plan → build",
-                "Planned tasks complete 2-3x faster than unplanned"
+                "Planned tasks complete 2-3x faster than unplanned",
             ],
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
     def _recommend_deep_work(self, pattern: ProductivityPattern) -> MentorRecommendation:
         """Recommend deep work sessions."""
         import uuid
+
         return MentorRecommendation(
             recommendation_id=str(uuid.uuid4()),
             category="focus",
@@ -495,9 +513,9 @@ class ProductivityMonitor:
             evidence=[
                 f"Only {pattern.frequency} deep work sessions in last week",
                 "Deep work sessions show 3-5x output quality",
-                "Most valuable work happens during deep work"
+                "Most valuable work happens during deep work",
             ],
-            created_at=datetime.now()
+            created_at=datetime.now(),
         )
 
     def _recommend_by_time_of_day(self) -> List[MentorRecommendation]:
@@ -521,25 +539,28 @@ class ProductivityMonitor:
             peak_hour = max(productivity_by_hour.items(), key=lambda x: x[1])[0]
 
             import uuid
-            recommendations.append(MentorRecommendation(
-                recommendation_id=str(uuid.uuid4()),
-                category="execution",
-                priority="medium",
-                title="Optimize schedule for peak hours",
-                description=f"Your peak productivity is around {peak_hour}:00",
-                why="Leverage natural energy cycles for maximum output with minimum effort.",
-                how=f"""
+
+            recommendations.append(
+                MentorRecommendation(
+                    recommendation_id=str(uuid.uuid4()),
+                    category="execution",
+                    priority="medium",
+                    title="Optimize schedule for peak hours",
+                    description=f"Your peak productivity is around {peak_hour}:00",
+                    why="Leverage natural energy cycles for maximum output with minimum effort.",
+                    how=f"""
 1. Schedule hardest tasks for {peak_hour-1}:00-{peak_hour+2}:00
 2. Use {peak_hour}:00 for deep work, complex problems
 3. Reserve other times for meetings, admin, shallow work
 4. Protect peak hours fiercely
                 """.strip(),
-                evidence=[
-                    f"Most deep work happens around {peak_hour}:00",
-                    f"Productivity peaks at {peak_hour}:00 consistently"
-                ],
-                created_at=datetime.now()
-            ))
+                    evidence=[
+                        f"Most deep work happens around {peak_hour}:00",
+                        f"Productivity peaks at {peak_hour}:00 consistently",
+                    ],
+                    created_at=datetime.now(),
+                )
+            )
 
         return recommendations
 
@@ -553,7 +574,7 @@ class ProductivityMonitor:
         cutoff = datetime.now() - timedelta(days=days)
         events = []
 
-        with open(self.events_file, 'r') as f:
+        with open(self.events_file, "r") as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -574,7 +595,7 @@ class ProductivityMonitor:
         cutoff = datetime.now() - timedelta(days=days)
         sessions = []
 
-        with open(self.sessions_file, 'r') as f:
+        with open(self.sessions_file, "r") as f:
             for line in f:
                 if not line.strip():
                     continue
@@ -627,12 +648,9 @@ class ProductivityMonitor:
 
 def format_mentor_recommendation(rec: MentorRecommendation) -> str:
     """Format recommendation for display."""
-    priority_icon = {
-        "immediate": "🔴",
-        "high": "🟡",
-        "medium": "🔵",
-        "low": "⚪"
-    }.get(rec.priority, "")
+    priority_icon = {"immediate": "🔴", "high": "🟡", "medium": "🔵", "low": "⚪"}.get(
+        rec.priority, ""
+    )
 
     return f"""
 {priority_icon} {rec.title.upper()}

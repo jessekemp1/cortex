@@ -132,14 +132,14 @@ def auto_start(force_manual=False):
     baseline = estimate_baseline_time(files)
 
     print(f"\n{'='*60}")
-    print(f"  🤖 AUTO-CALIBRATION (Smart Defaults)")
+    print("  🤖 AUTO-CALIBRATION (Smart Defaults)")
     print(f"{'='*60}")
     print()
     print(f"📁 Project:   {project}")
     print(f"📝 Task:      {task}")
     print(f"⏱️  Baseline:  {baseline} minutes (estimated)")
-    print(f"📊 Confidence: 70% (default)")
-    print(f"🔧 Use Cortex: Yes (default)")
+    print("📊 Confidence: 70% (default)")
+    print("🔧 Use Cortex: Yes (default)")
 
     if files:
         print(f"\n📂 Files detected ({len(files)}):")
@@ -214,9 +214,9 @@ def auto_start(force_manual=False):
     print(f"   Baseline: {baseline} min")
     print(f"   Confidence: {confidence:.0%}")
     print()
-    print(f"📋 When done:")
-    print(f"   ./cal done <actual_minutes>")
-    print(f"   ./cal auto-done  (auto from commit)")
+    print("📋 When done:")
+    print("   ./cal done <actual_minutes>")
+    print("   ./cal auto-done  (auto from commit)")
     print()
 
 
@@ -249,7 +249,7 @@ def auto_complete_from_commit():
     elapsed = int((datetime.now() - started).total_seconds() / 60)
 
     print(f"\n{'='*60}")
-    print(f"  🤖 AUTO-COMPLETE from Commit")
+    print("  🤖 AUTO-COMPLETE from Commit")
     print(f"{'='*60}")
     print()
     print(f"📝 Task:     {task_data['task']}")
@@ -306,7 +306,7 @@ def auto_complete_from_commit():
         )
 
         print()
-        print(f"✅ Task completed!")
+        print("✅ Task completed!")
         print(f"   Predicted: {task_data['baseline_min']} min")
         print(f"   Actual: {elapsed} min")
         print(f"   Difference: {saved:+d} min ({saved_pct:+.1f}%)")
@@ -314,7 +314,7 @@ def auto_complete_from_commit():
         if task_data.get("use_cortex") and saved > 0:
             print(f"   🎉 Saved {saved} minutes with Cortex!")
         elif saved < 0:
-            print(f"   ⏱️  Took longer than estimated")
+            print("   ⏱️  Took longer than estimated")
 
         # Remove current task file
         task_file.unlink()

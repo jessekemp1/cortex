@@ -89,24 +89,39 @@ class TestAUCInterpretation:
     def test_low_auc_passes(self):
         """AUC < 0.65 means synthetic is near-indistinguishable."""
         report = DiscriminatorReport(
-            auc_roc=0.55, accuracy=0.52, precision=0.50,
-            recall=0.50, n_synthetic=100, n_reference=100, n_folds=5,
+            auc_roc=0.55,
+            accuracy=0.52,
+            precision=0.50,
+            recall=0.50,
+            n_synthetic=100,
+            n_reference=100,
+            n_folds=5,
         )
         assert report.passed is True
 
     def test_high_auc_fails(self):
         """AUC >= 0.65 means synthetic is distinguishable."""
         report = DiscriminatorReport(
-            auc_roc=0.80, accuracy=0.75, precision=0.70,
-            recall=0.70, n_synthetic=100, n_reference=100, n_folds=5,
+            auc_roc=0.80,
+            accuracy=0.75,
+            precision=0.70,
+            recall=0.70,
+            n_synthetic=100,
+            n_reference=100,
+            n_folds=5,
         )
         assert report.passed is False
 
     def test_boundary_auc(self):
         """AUC = 0.65 exactly should fail (not < 0.65)."""
         report = DiscriminatorReport(
-            auc_roc=0.65, accuracy=0.60, precision=0.55,
-            recall=0.55, n_synthetic=100, n_reference=100, n_folds=5,
+            auc_roc=0.65,
+            accuracy=0.60,
+            precision=0.55,
+            recall=0.55,
+            n_synthetic=100,
+            n_reference=100,
+            n_folds=5,
         )
         assert report.passed is False
 
@@ -142,7 +157,7 @@ class TestFeatureEngineering:
         X = discriminator._profiles_to_features(sample_profiles)
         # Province columns should be binary (0 or 1)
         n_numeric = len(FEATURE_COLUMNS)
-        province_cols = X[:, n_numeric:n_numeric + len(CATEGORICAL_FEATURES["province"])]
+        province_cols = X[:, n_numeric : n_numeric + len(CATEGORICAL_FEATURES["province"])]
         assert np.all((province_cols == 0.0) | (province_cols == 1.0))
         # Each profile should have exactly 1 province
         assert np.all(province_cols.sum(axis=1) == 1.0)
@@ -194,8 +209,10 @@ class TestSerialization:
 
     def test_feature_importance_to_dict(self):
         fi = FeatureImportance(
-            feature="age", importance=0.05,
-            direction="too_high", detail="Synthetic mean (42.5) > reference (38.2)",
+            feature="age",
+            importance=0.05,
+            direction="too_high",
+            detail="Synthetic mean (42.5) > reference (38.2)",
         )
         d = fi.to_dict()
         assert d["feature"] == "age"

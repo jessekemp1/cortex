@@ -24,7 +24,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -43,7 +43,7 @@ class BatchCapacity:
 
     # Overnight window
     overnight_start_hour: int = 22  # 10 PM
-    overnight_end_hour: int = 6     # 6 AM
+    overnight_end_hour: int = 6  # 6 AM
     overnight_hours: int = 8
 
     # Token budget constraints
@@ -123,7 +123,7 @@ class IntelligentBatchOrchestratorAnthropic:
                 ["python", str(self.cortex_dir / "cli.py"), "status"],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             # Parse output for key metrics
@@ -188,36 +188,39 @@ class IntelligentBatchOrchestratorAnthropic:
         codebase_context = self._build_codebase_context(projects)
 
         # 1. Security Scan (IMMEDIATE)
-        jobs.append(AnalysisJob(
-            id="security-scan",
-            title="Overnight Security Audit",
-            description="Comprehensive security scan across all active projects",
-            system_prompt="""You are a security expert conducting a comprehensive code audit.
+        jobs.append(
+            AnalysisJob(
+                id="security-scan",
+                title="Overnight Security Audit",
+                description="Comprehensive security scan across all active projects",
+                system_prompt="""You are a security expert conducting a comprehensive code audit.
 Focus on identifying real vulnerabilities, not theoretical ones.
 Prioritize findings by severity: Critical > High > Medium > Low.""",
-            user_prompt=f"""Perform a comprehensive security audit across {active_projects} active projects.
+                user_prompt=f"""Perform a comprehensive security audit across {active_projects} active projects.
 
 Check for SQL injection, XSS, exposed credentials, insecure dependencies, missing input validation, and path traversal vulnerabilities.
 
 For each finding, provide: severity level, file/line, code snippet, exploit scenario, and recommended fix.
 
 Context: {codebase_context[:3000]}""",
-            priority="immediate",
-            estimated_input_tokens=20_000,
-            estimated_output_tokens=4_000,
-            source="security",
-            deadline_hours=8
-        ))
+                priority="immediate",
+                estimated_input_tokens=20_000,
+                estimated_output_tokens=4_000,
+                source="security",
+                deadline_hours=8,
+            )
+        )
 
         # 2. Code Quality Analysis (HIGH)
-        jobs.append(AnalysisJob(
-            id="code-quality-scan",
-            title="Code Quality Analysis",
-            description="Analyze complexity, duplication, and anti-patterns",
-            system_prompt="""You are a senior software engineer conducting a code quality review.
+        jobs.append(
+            AnalysisJob(
+                id="code-quality-scan",
+                title="Code Quality Analysis",
+                description="Analyze complexity, duplication, and anti-patterns",
+                system_prompt="""You are a senior software engineer conducting a code quality review.
 Focus on maintainability issues that will cause problems as the codebase grows.
 Be specific with file names and line numbers. Prioritize by impact on velocity.""",
-            user_prompt=f"""Analyze code quality across {active_projects} projects (cortex, alpha_arena, VortexV2).
+                user_prompt=f"""Analyze code quality across {active_projects} projects (cortex, alpha_arena, VortexV2).
 
 Identify:
 1. **High complexity functions** (>50 lines, >10 branches, deeply nested)
@@ -244,22 +247,24 @@ Identify:
 For each finding: file:line, code snippet, impact, refactoring suggestion.
 
 Context: {codebase_context[:3000]}""",
-            priority="high",
-            estimated_input_tokens=40_000,
-            estimated_output_tokens=6_000,
-            source="pattern",
-            deadline_hours=12
-        ))
+                priority="high",
+                estimated_input_tokens=40_000,
+                estimated_output_tokens=6_000,
+                source="pattern",
+                deadline_hours=12,
+            )
+        )
 
         # 3. Test Coverage Gap Analysis (HIGH)
-        jobs.append(AnalysisJob(
-            id="test-coverage-analysis",
-            title="Test Coverage Gap Analysis",
-            description="Identify untested critical paths and missing test cases",
-            system_prompt="""You are a QA engineer analyzing test coverage.
+        jobs.append(
+            AnalysisJob(
+                id="test-coverage-analysis",
+                title="Test Coverage Gap Analysis",
+                description="Identify untested critical paths and missing test cases",
+                system_prompt="""You are a QA engineer analyzing test coverage.
 Focus on high-risk code that lacks tests, not achieving 100% coverage.
 Prioritize by business impact and failure risk.""",
-            user_prompt=f"""Analyze test coverage across {active_projects} projects.
+                user_prompt=f"""Analyze test coverage across {active_projects} projects.
 
 Identify:
 1. **Critical paths without tests**
@@ -288,22 +293,24 @@ For each gap: file:function, untested scenario, risk level (High/Medium/Low), su
 Focus on tests that would catch real bugs.
 
 Context: {codebase_context[:3000]}""",
-            priority="high",
-            estimated_input_tokens=35_000,
-            estimated_output_tokens=5_000,
-            source="pattern",
-            deadline_hours=12
-        ))
+                priority="high",
+                estimated_input_tokens=35_000,
+                estimated_output_tokens=5_000,
+                source="pattern",
+                deadline_hours=12,
+            )
+        )
 
         # 4. Documentation Completeness (NORMAL)
-        jobs.append(AnalysisJob(
-            id="docs-completeness",
-            title="Documentation Completeness Audit",
-            description="Identify missing or outdated documentation",
-            system_prompt="""You are a technical writer auditing documentation.
+        jobs.append(
+            AnalysisJob(
+                id="docs-completeness",
+                title="Documentation Completeness Audit",
+                description="Identify missing or outdated documentation",
+                system_prompt="""You are a technical writer auditing documentation.
 Focus on documentation that users and developers actually need.
 Distinguish between "nice-to-have" and "must-have" docs.""",
-            user_prompt=f"""Audit documentation across {active_projects} projects.
+                user_prompt=f"""Audit documentation across {active_projects} projects.
 
 Check:
 1. **README completeness**
@@ -334,22 +341,24 @@ For each gap: file:location, what's missing, priority (Critical/High/Medium/Low)
 Focus on docs that reduce onboarding time and prevent mistakes.
 
 Context: {codebase_context[:3000]}""",
-            priority="normal",
-            estimated_input_tokens=25_000,
-            estimated_output_tokens=4_000,
-            source="docs",
-            deadline_hours=24
-        ))
+                priority="normal",
+                estimated_input_tokens=25_000,
+                estimated_output_tokens=4_000,
+                source="docs",
+                deadline_hours=24,
+            )
+        )
 
         # 5. Dependency Audit (NORMAL)
-        jobs.append(AnalysisJob(
-            id="dependency-audit",
-            title="Dependency Version Audit",
-            description="Check outdated packages, CVEs, conflicts, unused deps",
-            system_prompt="""You are a DevOps engineer auditing dependencies.
+        jobs.append(
+            AnalysisJob(
+                id="dependency-audit",
+                title="Dependency Version Audit",
+                description="Check outdated packages, CVEs, conflicts, unused deps",
+                system_prompt="""You are a DevOps engineer auditing dependencies.
 Focus on security vulnerabilities and compatibility issues.
 Prioritize updates by risk level.""",
-            user_prompt=f"""Audit dependencies across {active_projects} projects.
+                user_prompt=f"""Audit dependencies across {active_projects} projects.
 
 Check:
 1. **Outdated packages** (requirements.txt, package.json)
@@ -377,22 +386,24 @@ For each finding: package name, current version, issue, risk level, recommended 
 Focus on security risks and blocking issues, not just "being on latest".
 
 Context: {codebase_context[:3000]}""",
-            priority="normal",
-            estimated_input_tokens=20_000,
-            estimated_output_tokens=3_000,
-            source="security",
-            deadline_hours=24
-        ))
+                priority="normal",
+                estimated_input_tokens=20_000,
+                estimated_output_tokens=3_000,
+                source="security",
+                deadline_hours=24,
+            )
+        )
 
         # 6. Performance Bottleneck Detection (NORMAL)
-        jobs.append(AnalysisJob(
-            id="performance-analysis",
-            title="Performance Bottleneck Detection",
-            description="Identify N+1 queries, inefficient algorithms, missing caching",
-            system_prompt="""You are a performance engineer analyzing code efficiency.
+        jobs.append(
+            AnalysisJob(
+                id="performance-analysis",
+                title="Performance Bottleneck Detection",
+                description="Identify N+1 queries, inefficient algorithms, missing caching",
+                system_prompt="""You are a performance engineer analyzing code efficiency.
 Focus on actual bottlenecks that impact user experience.
 Distinguish between micro-optimizations and real problems.""",
-            user_prompt=f"""Analyze performance across {active_projects} projects.
+                user_prompt=f"""Analyze performance across {active_projects} projects.
 
 Identify:
 1. **N+1 query problems**
@@ -425,12 +436,13 @@ For each bottleneck: file:line, performance impact (latency estimate), user impa
 Focus on issues affecting actual users.
 
 Context: {codebase_context[:3000]}""",
-            priority="normal",
-            estimated_input_tokens=30_000,
-            estimated_output_tokens=4_000,
-            source="pattern",
-            deadline_hours=24
-        ))
+                priority="normal",
+                estimated_input_tokens=30_000,
+                estimated_output_tokens=4_000,
+                source="pattern",
+                deadline_hours=24,
+            )
+        )
 
         return jobs
 
@@ -461,7 +473,9 @@ Context: {codebase_context[:3000]}""",
 
         return selected_jobs
 
-    def submit_batch_queue(self, dry_run: bool = False, max_jobs: Optional[int] = None) -> Dict[str, Any]:
+    def submit_batch_queue(
+        self, dry_run: bool = False, max_jobs: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Submit overnight batch queue to Anthropic Batch API"""
         queue = self.fill_overnight_queue(max_jobs=max_jobs)
 
@@ -477,7 +491,15 @@ Context: {codebase_context[:3000]}""",
             "jobs": [],
             "capacity": {
                 "available_tokens": self.capacity.available_overnight_tokens(),
-                "utilization_pct": (sum(j.total_tokens for j in queue) / self.capacity.available_overnight_tokens() * 100) if self.capacity.available_overnight_tokens() > 0 else 0,
+                "utilization_pct": (
+                    (
+                        sum(j.total_tokens for j in queue)
+                        / self.capacity.available_overnight_tokens()
+                        * 100
+                    )
+                    if self.capacity.available_overnight_tokens() > 0
+                    else 0
+                ),
             },
             "batch_id": None,
         }
@@ -492,21 +514,23 @@ Context: {codebase_context[:3000]}""",
                         "max_tokens": job.estimated_output_tokens,
                         "system": job.system_prompt,
                         "messages": [{"role": "user", "content": job.user_prompt}],
-                    }
+                    },
                 )
                 batch_requests.append(request)
-                summary["jobs"].append({
-                    "id": job.id,
-                    "title": job.title,
-                    "priority": job.priority,
-                    "tokens": job.total_tokens,
-                    "source": job.source,
-                })
+                summary["jobs"].append(
+                    {
+                        "id": job.id,
+                        "title": job.title,
+                        "priority": job.priority,
+                        "tokens": job.total_tokens,
+                        "source": job.source,
+                    }
+                )
 
             try:
                 batch_id = self.batch_client.submit_batch(
                     requests=batch_requests,
-                    description=f"Cortex Overnight Analysis - {datetime.now().strftime('%Y-%m-%d')}"
+                    description=f"Cortex Overnight Analysis - {datetime.now().strftime('%Y-%m-%d')}",
                 )
                 summary["batch_id"] = batch_id
                 summary["submitted"] = True
@@ -516,14 +540,16 @@ Context: {codebase_context[:3000]}""",
                 summary["error"] = str(e)
         else:
             for job in queue:
-                summary["jobs"].append({
-                    "id": job.id,
-                    "title": job.title,
-                    "priority": job.priority,
-                    "tokens": job.total_tokens,
-                    "source": job.source,
-                    "submitted": "dry_run",
-                })
+                summary["jobs"].append(
+                    {
+                        "id": job.id,
+                        "title": job.title,
+                        "priority": job.priority,
+                        "tokens": job.total_tokens,
+                        "source": job.source,
+                        "submitted": "dry_run",
+                    }
+                )
 
         return summary
 
@@ -537,7 +563,10 @@ Context: {codebase_context[:3000]}""",
             "batch_id": batch_id,
             "submitted_at": datetime.now().isoformat(),
             "job_count": len(jobs),
-            "jobs": [{"id": job.id, "title": job.title, "priority": job.priority, "source": job.source} for job in jobs]
+            "jobs": [
+                {"id": job.id, "title": job.title, "priority": job.priority, "source": job.source}
+                for job in jobs
+            ],
         }
         tracking_file.write_text(json.dumps(tracking_data, indent=2))
 
@@ -557,6 +586,7 @@ Context: {codebase_context[:3000]}""",
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Intelligent Batch Orchestrator (Anthropic API)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be submitted")
     parser.add_argument("--max-jobs", type=int, help="Maximum jobs to queue")
@@ -570,7 +600,9 @@ def main():
         if args.dry_run:
             print("💡 This was a dry run. Remove --dry-run to actually submit.")
         elif summary.get("submitted"):
-            print(f"✅ Submitted! Check status: python batch/check_batch_status.py {summary['batch_id']}")
+            print(
+                f"✅ Submitted! Check status: python batch/check_batch_status.py {summary['batch_id']}"
+            )
         else:
             print(f"❌ Failed: {summary.get('error')}")
             sys.exit(1)

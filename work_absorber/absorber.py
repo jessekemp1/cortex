@@ -20,10 +20,8 @@ from .detectors.git_detector import GitSignalDetector
 from .models import (
     AbsorptionReport,
     PlanDrift,
-    ProgressEntry,
     WorkItem,
     WorkSignal,
-    WorkSignalType,
     WorkStatus,
 )
 from .storage import WorkAbsorberStorage

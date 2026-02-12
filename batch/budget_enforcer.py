@@ -38,6 +38,7 @@ from typing import List, Optional
 @dataclass
 class BudgetStatus:
     """Current budget status"""
+
     date: str
     tokens_used: int
     tokens_remaining: int
@@ -52,6 +53,7 @@ class BudgetStatus:
 @dataclass
 class BudgetConfig:
     """Budget enforcer configuration"""
+
     # Token limits
     daily_budget_tokens: int = 100_000  # ~6-8 hours of work
     warning_threshold_pct: float = 0.80
@@ -125,10 +127,7 @@ class BudgetEnforcer:
             conn.row_factory = sqlite3.Row
 
             # Get today's usage
-            row = conn.execute(
-                "SELECT * FROM daily_usage WHERE date = ?",
-                (today,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM daily_usage WHERE date = ?", (today,)).fetchone()
 
             tokens_used = row["tokens_used"] if row else 0
             sessions = row["sessions"] if row else 0
@@ -145,14 +144,10 @@ class BudgetEnforcer:
             warning=usage_pct >= self.config.warning_threshold_pct * 100,
             over_budget=tokens_remaining <= 0,
             sessions_today=sessions,
-            avg_tokens_per_session=tokens_used / sessions if sessions > 0 else 0
+            avg_tokens_per_session=tokens_used / sessions if sessions > 0 else 0,
         )
 
-    def record_usage(
-        self,
-        tokens_used: int,
-        session_id: Optional[str] = None
-    ):
+    def record_usage(self, tokens_used: int, session_id: Optional[str] = None):
         """
         Record token usage for today.
 
@@ -166,7 +161,8 @@ class BudgetEnforcer:
 
         with sqlite3.connect(self.config.db_path) as conn:
             # Update daily usage
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO daily_usage (date, tokens_used, sessions, peak_hour, created_at, updated_at)
                 VALUES (?, ?, 1, ?, ?, ?)
                 ON CONFLICT(date) DO UPDATE SET
@@ -180,21 +176,34 @@ class BudgetEnforcer:
                         ELSE peak_hour
                     END,
                     updated_at = ?
-            """, (
-                today, tokens_used, current_hour, now, now,
-                tokens_used, session_id, tokens_used, current_hour, now
-            ))
+            """,
+                (
+                    today,
+                    tokens_used,
+                    current_hour,
+                    now,
+                    now,
+                    tokens_used,
+                    session_id,
+                    tokens_used,
+                    current_hour,
+                    now,
+                ),
+            )
 
             # Update session usage if session_id provided
             if session_id:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO session_usage (session_id, date, tokens_used, start_time, requests)
                     VALUES (?, ?, ?, ?, 1)
                     ON CONFLICT(session_id) DO UPDATE SET
                         tokens_used = tokens_used + ?,
                         requests = requests + 1,
                         end_time = ?
-                """, (session_id, today, tokens_used, now, tokens_used, now))
+                """,
+                    (session_id, today, tokens_used, now, tokens_used, now),
+                )
 
             conn.commit()
 
@@ -211,12 +220,15 @@ class BudgetEnforcer:
             conn.row_factory = sqlite3.Row
 
             # Daily totals
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT date, tokens_used, sessions
                 FROM daily_usage
                 WHERE date >= ?
                 ORDER BY date DESC
-            """, (cutoff,)).fetchall()
+            """,
+                (cutoff,),
+            ).fetchall()
 
             if not rows:
                 return {
@@ -225,7 +237,7 @@ class BudgetEnforcer:
                     "avg_daily_tokens": 0,
                     "avg_sessions_per_day": 0,
                     "peak_day": None,
-                    "trend": "unknown"
+                    "trend": "unknown",
                 }
 
             total_tokens = sum(r["tokens_used"] for r in rows)
@@ -257,12 +269,10 @@ class BudgetEnforcer:
                 "total_tokens": total_tokens,
                 "avg_daily_tokens": total_tokens // days,
                 "avg_sessions_per_day": total_sessions / days,
-                "peak_day": {
-                    "date": peak_day["date"],
-                    "tokens": peak_day["tokens_used"]
-                },
+                "peak_day": {"date": peak_day["date"], "tokens": peak_day["tokens_used"]},
                 "trend": trend,
-                "budget_utilization_pct": (total_tokens / days / self.config.daily_budget_tokens) * 100
+                "budget_utilization_pct": (total_tokens / days / self.config.daily_budget_tokens)
+                * 100,
             }
 
     def suggest_batch_alternatives(self, request_type: str) -> List[str]:
@@ -278,34 +288,31 @@ class BudgetEnforcer:
         suggestions = {
             "review": [
                 "/batch-submit review <file>",
-                "/batch-orchestrate (includes automated reviews)"
+                "/batch-orchestrate (includes automated reviews)",
             ],
             "documentation": [
                 "/batch-submit docs <module>",
-                "Queue for overnight with /batch-orchestrate"
+                "Queue for overnight with /batch-orchestrate",
             ],
             "research": [
-                "/batch-submit research \"<question>\"",
-                "Add to overnight queue for comprehensive analysis"
+                '/batch-submit research "<question>"',
+                "Add to overnight queue for comprehensive analysis",
             ],
             "security": [
                 "/batch-submit security",
-                "Full security audit runs overnight via /batch-orchestrate"
+                "Full security audit runs overnight via /batch-orchestrate",
             ],
             "refactoring": [
                 "/batch-submit refactor <file>",
-                "Large refactoring analysis overnight"
+                "Large refactoring analysis overnight",
             ],
-            "performance": [
-                "/batch-submit performance",
-                "Performance analysis runs overnight"
-            ]
+            "performance": ["/batch-submit performance", "Performance analysis runs overnight"],
         }
 
-        return suggestions.get(request_type, [
-            "/batch-submit <type> <target>",
-            "Check /batch-orchestrate for overnight processing"
-        ])
+        return suggestions.get(
+            request_type,
+            ["/batch-submit <type> <target>", "Check /batch-orchestrate for overnight processing"],
+        )
 
     def format_budget_warning(self) -> Optional[str]:
         """
@@ -372,10 +379,12 @@ class BudgetEnforcer:
                 "stable": "➡️",
                 "unknown": "❓",
                 "new": "🆕",
-                "insufficient_data": "📊"
+                "insufficient_data": "📊",
             }
             icon = trend_icons.get(weekly["trend"], "📊")
-            lines.append(f"\nWeekly: {icon} {weekly['avg_daily_tokens']:,}/day avg ({weekly['budget_utilization_pct']:.0f}% of budget)")
+            lines.append(
+                f"\nWeekly: {icon} {weekly['avg_daily_tokens']:,}/day avg ({weekly['budget_utilization_pct']:.0f}% of budget)"
+            )
 
         return "\n".join(lines)
 

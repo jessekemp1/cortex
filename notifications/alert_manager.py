@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class Alert:
     """A Cortex alert."""
+
     alert_id: str
     severity: str  # "CRITICAL", "WARNING", "INFO"
     title: str
@@ -256,9 +257,7 @@ class AlertManager:
         min_severity = config.get("min_severity", "WARNING")
         severity_levels = {"INFO": 0, "WARNING": 1, "CRITICAL": 2}
 
-        return severity_levels.get(severity, 0) >= severity_levels.get(
-            min_severity, 1
-        )
+        return severity_levels.get(severity, 0) >= severity_levels.get(min_severity, 1)
 
     def _should_email_notify(self, severity: str) -> bool:
         """Check if email notification should be sent."""
@@ -270,9 +269,7 @@ class AlertManager:
         min_severity = config.get("min_severity", "CRITICAL")
         severity_levels = {"INFO": 0, "WARNING": 1, "CRITICAL": 2}
 
-        return severity_levels.get(severity, 0) >= severity_levels.get(
-            min_severity, 2
-        )
+        return severity_levels.get(severity, 0) >= severity_levels.get(min_severity, 2)
 
     def _load_config(self) -> Dict[str, Any]:
         """Load alert configuration."""
@@ -309,9 +306,7 @@ class AlertManager:
     # Query Alerts
     # =========================================================================
 
-    def get_recent_alerts(
-        self, hours: int = 24, severity: Optional[str] = None
-    ) -> List[Alert]:
+    def get_recent_alerts(self, hours: int = 24, severity: Optional[str] = None) -> List[Alert]:
         """
         Get recent alerts.
 
@@ -392,13 +387,9 @@ def main():
         print("Testing alert channels...")
         manager.send_alert("Test Alert", "This is a test notification", "INFO")
         print("✓ INFO sent (logged only)")
-        manager.send_alert(
-            "Test Warning", "This is a test warning", "WARNING"
-        )
+        manager.send_alert("Test Warning", "This is a test warning", "WARNING")
         print("✓ WARNING sent (desktop + log)")
-        manager.send_alert(
-            "Test Critical", "This is a critical test", "CRITICAL"
-        )
+        manager.send_alert("Test Critical", "This is a critical test", "CRITICAL")
         print("✓ CRITICAL sent (desktop + log)")
 
 

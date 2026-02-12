@@ -2,6 +2,7 @@
 """Next Plugin - Recommend next action"""
 
 from typing import List
+
 from cortex.plugins.base import BasePlugin
 
 

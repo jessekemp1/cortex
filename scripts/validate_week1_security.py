@@ -22,15 +22,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from security import get_file_permissions, get_permission_string, is_permission_secure
 
 # ANSI color codes
-RED = '\033[91m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-BLUE = '\033[94m'
-RESET = '\033[0m'
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+BLUE = "\033[94m"
+RESET = "\033[0m"
 
 
 class ValidationResult:
     """Tracks validation results."""
+
     def __init__(self):
         self.passed = []
         self.failed = []
@@ -91,20 +92,20 @@ def check_username_exposures(root_dir: Path, results: ValidationResult):
 
     # Patterns that indicate username exposure
     username_patterns = [
-        r'/Users/[a-zA-Z][a-zA-Z0-9._-]+/',  # macOS paths
-        r'C:\\Users\\[a-zA-Z][a-zA-Z0-9._-]+\\',  # Windows paths
-        r'username:\s*[a-zA-Z][a-zA-Z0-9._-]+@',  # Email-like usernames
+        r"/Users/[a-zA-Z][a-zA-Z0-9._-]+/",  # macOS paths
+        r"C:\\Users\\[a-zA-Z][a-zA-Z0-9._-]+\\",  # Windows paths
+        r"username:\s*[a-zA-Z][a-zA-Z0-9._-]+@",  # Email-like usernames
     ]
 
     # Files to check
     patterns_to_check = [
-        'README.md',
-        '**/README.md',
-        '**/*.md',
-        'requirements.txt',
-        '**/requirements.txt',
-        '**/.env.template',
-        '**/.env.example',
+        "README.md",
+        "**/README.md",
+        "**/*.md",
+        "requirements.txt",
+        "**/requirements.txt",
+        "**/.env.template",
+        "**/.env.example",
     ]
 
     exposed_files = []
@@ -112,13 +113,15 @@ def check_username_exposures(root_dir: Path, results: ValidationResult):
     for pattern in patterns_to_check:
         for file_path in root_dir.glob(pattern):
             # Skip hidden dirs, venv, node_modules
-            if any(part.startswith('.') or part in {'venv', 'node_modules', '__pycache__'}
-                   for part in file_path.parts):
+            if any(
+                part.startswith(".") or part in {"venv", "node_modules", "__pycache__"}
+                for part in file_path.parts
+            ):
                 continue
 
             if file_path.is_file():
                 try:
-                    content = file_path.read_text(encoding='utf-8', errors='ignore')
+                    content = file_path.read_text(encoding="utf-8", errors="ignore")
                     for pattern_re in username_patterns:
                         if re.search(pattern_re, content):
                             exposed_files.append((file_path, pattern_re))
@@ -130,7 +133,7 @@ def check_username_exposures(root_dir: Path, results: ValidationResult):
         for file_path, pattern in exposed_files:
             results.fail_check(
                 f"Username exposure in {file_path.relative_to(root_dir)}",
-                f"Found pattern: {pattern}"
+                f"Found pattern: {pattern}",
             )
     else:
         results.pass_check("No username exposures found in documentation")
@@ -142,34 +145,38 @@ def check_hardcoded_credentials(root_dir: Path, results: ValidationResult):
 
     # Patterns for hardcoded credentials
     credential_patterns = [
-        (r'api[_-]?key\s*=\s*["\'][a-zA-Z0-9]{20,}["\']', 'Hardcoded API key'),
-        (r'secret\s*=\s*["\'][a-zA-Z0-9]{20,}["\']', 'Hardcoded secret'),
-        (r'password\s*=\s*["\'][^"\']+["\']', 'Hardcoded password'),
-        (r'sk-[a-zA-Z0-9]{20,}', 'Anthropic/OpenAI API key'),
-        (r'ghp_[a-zA-Z0-9]{36}', 'GitHub Personal Access Token'),
-        (r'xai-[a-zA-Z0-9]{20,}', 'XAI API key'),
+        (r'api[_-]?key\s*=\s*["\'][a-zA-Z0-9]{20,}["\']', "Hardcoded API key"),
+        (r'secret\s*=\s*["\'][a-zA-Z0-9]{20,}["\']', "Hardcoded secret"),
+        (r'password\s*=\s*["\'][^"\']+["\']', "Hardcoded password"),
+        (r"sk-[a-zA-Z0-9]{20,}", "Anthropic/OpenAI API key"),
+        (r"ghp_[a-zA-Z0-9]{36}", "GitHub Personal Access Token"),
+        (r"xai-[a-zA-Z0-9]{20,}", "XAI API key"),
     ]
 
     # Files to check (only .py files)
-    python_files = list(root_dir.glob('**/*.py'))
+    python_files = list(root_dir.glob("**/*.py"))
 
     hardcoded_found = []
 
     for file_path in python_files:
         # Skip venv, __pycache__, etc.
-        if any(part in {'.venv', 'venv', 'node_modules', '__pycache__', '.git'}
-               for part in file_path.parts):
+        if any(
+            part in {".venv", "venv", "node_modules", "__pycache__", ".git"}
+            for part in file_path.parts
+        ):
             continue
 
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')
+            content = file_path.read_text(encoding="utf-8", errors="ignore")
             for pattern_re, description in credential_patterns:
                 matches = re.finditer(pattern_re, content, re.IGNORECASE)
                 for match in matches:
                     # Skip if it's obviously a template/example
                     matched_text = match.group(0)
-                    if any(placeholder in matched_text.lower()
-                           for placeholder in ['your_', 'example', 'placeholder', 'xxx', 'yyy']):
+                    if any(
+                        placeholder in matched_text.lower()
+                        for placeholder in ["your_", "example", "placeholder", "xxx", "yyy"]
+                    ):
                         continue
 
                     hardcoded_found.append((file_path, description, matched_text[:50]))
@@ -179,8 +186,7 @@ def check_hardcoded_credentials(root_dir: Path, results: ValidationResult):
     if hardcoded_found:
         for file_path, desc, snippet in hardcoded_found:
             results.fail_check(
-                f"{desc} in {file_path.relative_to(root_dir)}",
-                f"Snippet: {snippet}..."
+                f"{desc} in {file_path.relative_to(root_dir)}", f"Snippet: {snippet}..."
             )
     else:
         results.pass_check("No hardcoded credentials found in source code")
@@ -192,16 +198,16 @@ def check_dependency_versions(root_dir: Path, results: ValidationResult):
 
     # Required minimum versions to fix CVEs
     required_versions = {
-        'requests': '2.31.0',
-        'urllib3': '2.0.7',
-        'PyYAML': '6.0.1',
-        'setuptools': '70.0.0',
+        "requests": "2.31.0",
+        "urllib3": "2.0.7",
+        "PyYAML": "6.0.1",
+        "setuptools": "70.0.0",
     }
 
     requirements_files = [
-        root_dir / 'cortex' / 'requirements.txt',
-        root_dir / 'alpha_arena' / 'requirements.txt',
-        root_dir / 'Vortex' / 'VortexV2' / 'requirements.txt',
+        root_dir / "cortex" / "requirements.txt",
+        root_dir / "alpha_arena" / "requirements.txt",
+        root_dir / "Vortex" / "VortexV2" / "requirements.txt",
     ]
 
     all_passed = True
@@ -211,20 +217,18 @@ def check_dependency_versions(root_dir: Path, results: ValidationResult):
             results.warn_check(f"Requirements file not found: {req_file.relative_to(root_dir)}")
             continue
 
-        content = req_file.read_text(encoding='utf-8')
+        content = req_file.read_text(encoding="utf-8")
 
         for package, min_version in required_versions.items():
             # Check if package is mentioned and has correct version
-            pattern = rf'{package}\s*>=?\s*([0-9.]+)'
+            pattern = rf"{package}\s*>=?\s*([0-9.]+)"
             match = re.search(pattern, content, re.IGNORECASE)
 
             if match:
                 found_version = match.group(1)
                 # Simple version comparison (works for these cases)
                 if found_version >= min_version:
-                    results.pass_check(
-                        f"{req_file.name}: {package}>={found_version} (CVE patched)"
-                    )
+                    results.pass_check(f"{req_file.name}: {package}>={found_version} (CVE patched)")
                 else:
                     results.fail_check(
                         f"{req_file.name}: {package}>={found_version} (needs >={min_version})"
@@ -240,7 +244,7 @@ def check_config_permissions(results: ValidationResult):
     """Check that config file permissions are secure."""
     print(f"\n{BLUE}[4] Checking Config File Permissions...{RESET}")
 
-    config_dir = Path.home() / '.cortex'
+    config_dir = Path.home() / ".cortex"
 
     if not config_dir.exists():
         results.warn_check(f"Config directory {config_dir} does not exist")
@@ -253,13 +257,13 @@ def check_config_permissions(results: ValidationResult):
         perms = get_permission_string(get_file_permissions(config_dir))
         results.fail_check(
             f"{config_dir} has insecure permissions ({perms})",
-            "Run: python scripts/fix_config_permissions.py"
+            "Run: python scripts/fix_config_permissions.py",
         )
 
     # Sample some important files
     important_files = [
-        config_dir / 'config.yaml',
-        config_dir / '.env',
+        config_dir / "config.yaml",
+        config_dir / ".env",
     ]
 
     for file_path in important_files:
@@ -272,18 +276,19 @@ def check_config_permissions(results: ValidationResult):
             perms = get_permission_string(get_file_permissions(file_path))
             results.fail_check(
                 f"{file_path.name} has insecure permissions ({perms})",
-                "Run: python scripts/fix_config_permissions.py"
+                "Run: python scripts/fix_config_permissions.py",
             )
 
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Validate Week 1 Security Fixes")
     parser.add_argument(
-        '--project-root',
+        "--project-root",
         type=Path,
-        default=Path.home() / 'Dev',
-        help="Project root directory (default: ~/Dev)"
+        default=Path.home() / "Dev",
+        help="Project root directory (default: ~/Dev)",
     )
 
     args = parser.parse_args()
@@ -313,5 +318,5 @@ def main():
     sys.exit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

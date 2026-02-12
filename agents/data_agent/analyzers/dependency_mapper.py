@@ -16,7 +16,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 # Standard library modules (Python 3.9+)
 STDLIB_MODULES = {
@@ -800,7 +800,7 @@ class DependencyMapper:
         Returns:
             ASCII tree string
         """
-        analysis = self.get_cached_analysis()
+        self.get_cached_analysis()
         graph = self._build_import_graph()
 
         lines = []

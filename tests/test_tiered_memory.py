@@ -7,9 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from intelligence.memory.tiered_memory import (
-    LongTermMemory,
     MemoryItem,
     PromotionRules,
     ShortTermMemory,
@@ -210,9 +208,7 @@ class TestWorkingMemory:
 
         # Verify schema
         with sqlite3.connect(temp_db) as conn:
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
 
         assert "memory_items" in tables
@@ -224,9 +220,7 @@ class TestWorkingMemory:
 
         # Verify in database
         with sqlite3.connect(temp_db) as conn:
-            cursor = conn.execute(
-                "SELECT id FROM memory_items WHERE id = ?", (memory_item.id,)
-            )
+            cursor = conn.execute("SELECT id FROM memory_items WHERE id = ?", (memory_item.id,))
             result = cursor.fetchone()
 
         assert result is not None

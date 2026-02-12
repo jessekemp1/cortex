@@ -240,7 +240,7 @@ class GitSignalDetector(SignalDetector):
             description = commit["body"] if commit["body"] else ""
 
             # Extract tags from commit message
-            tags = self._extract_tags(commit["subject"], commit["body"])
+            self._extract_tags(commit["subject"], commit["body"])
 
             return WorkSignal(
                 id=signal_id,

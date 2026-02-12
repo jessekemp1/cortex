@@ -12,9 +12,10 @@ Tests the integration of:
 All tests verify both enabled and disabled paths for graceful degradation.
 """
 
-import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 
 class TestBridgeImports:
@@ -22,27 +23,27 @@ class TestBridgeImports:
 
     def test_tiered_memory_import(self):
         """TieredMemory imports with availability flag."""
-        from cortex.bridge import TIERED_MEMORY_AVAILABLE, TieredMemory
+        from cortex.bridge import TIERED_MEMORY_AVAILABLE
 
         # Should be importable (may be None if deps missing)
         assert TIERED_MEMORY_AVAILABLE in (True, False)
 
     def test_hybrid_retriever_import(self):
         """HybridRetriever imports with availability flag."""
-        from cortex.bridge import HYBRID_RETRIEVER_AVAILABLE, HybridRetriever
+        from cortex.bridge import HYBRID_RETRIEVER_AVAILABLE
 
         # Should be importable (may be None if deps missing)
         assert HYBRID_RETRIEVER_AVAILABLE in (True, False)
 
     def test_context_optimizer_import(self):
         """ContextOptimizer imports with availability flag."""
-        from cortex.bridge import CONTEXT_OPTIMIZER_AVAILABLE, ContextOptimizer
+        from cortex.bridge import CONTEXT_OPTIMIZER_AVAILABLE
 
         assert CONTEXT_OPTIMIZER_AVAILABLE in (True, False)
 
     def test_implicit_feedback_import(self):
         """ImplicitFeedbackCollector imports with availability flag."""
-        from cortex.bridge import IMPLICIT_FEEDBACK_AVAILABLE, ImplicitFeedbackCollector
+        from cortex.bridge import IMPLICIT_FEEDBACK_AVAILABLE
 
         assert IMPLICIT_FEEDBACK_AVAILABLE in (True, False)
 
@@ -59,7 +60,7 @@ class TestBridgeInitialization:
 
     def test_tiered_memory_init_when_enabled(self):
         """TieredMemory initializes when feature flag is enabled."""
-        from cortex.bridge import CortexBridge, TIERED_MEMORY_AVAILABLE
+        from cortex.bridge import TIERED_MEMORY_AVAILABLE, CortexBridge
 
         bridge = CortexBridge()
 
@@ -70,7 +71,7 @@ class TestBridgeInitialization:
 
     def test_hybrid_retriever_init_when_enabled(self):
         """HybridRetriever initializes when feature flag is enabled."""
-        from cortex.bridge import CortexBridge, HYBRID_RETRIEVER_AVAILABLE
+        from cortex.bridge import HYBRID_RETRIEVER_AVAILABLE, CortexBridge
 
         bridge = CortexBridge()
 
@@ -161,7 +162,7 @@ class TestSearchSpecs:
             results = bridge.search_specs("machine learning patterns", limit=5)
 
             # Check if any results came from hybrid_retriever
-            sources = [r.get("source") for r in results if "source" in r]
+            [r.get("source") for r in results if "source" in r]
             # hybrid_retriever results should be included when available
             assert isinstance(results, list)
 
@@ -348,7 +349,12 @@ class TestAIEngineeringStatus:
         bridge = CortexBridge()
         status = bridge.get_ai_engineering_status()
 
-        for module in ["context_optimizer", "implicit_feedback", "tiered_memory", "hybrid_retriever"]:
+        for module in [
+            "context_optimizer",
+            "implicit_feedback",
+            "tiered_memory",
+            "hybrid_retriever",
+        ]:
             assert "available" in status[module], f"{module} missing 'available' field"
             assert "enabled" in status[module], f"{module} missing 'enabled' field"
 
@@ -371,7 +377,7 @@ class TestFullContextPipeline:
 
     def test_full_pipeline_memory_persists(self):
         """Memory persists across queries in the same session."""
-        from cortex.bridge import CortexBridge, TIERED_MEMORY_AVAILABLE, MemoryItem
+        from cortex.bridge import TIERED_MEMORY_AVAILABLE, CortexBridge, MemoryItem
 
         bridge = CortexBridge()
 

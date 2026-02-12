@@ -144,7 +144,7 @@ def test_intelligence_query():
 
         if resp.status_code == 200:
             data = resp.json()
-            print_success(f"Intelligence query succeeded")
+            print_success("Intelligence query succeeded")
             print(f"  Response keys: {list(data.keys())}")
             if "error" in data:
                 print_warning(f"  Query returned error: {data['error']}")
@@ -191,7 +191,7 @@ def test_recommendations():
         )
         if resp.status_code == 200:
             data = resp.json()
-            print_success(f"Recommendations endpoint works")
+            print_success("Recommendations endpoint works")
             print(f"  Response keys: {list(data.keys())}")
             return True
         print_error(f"Recommendations failed: {resp.status_code}")

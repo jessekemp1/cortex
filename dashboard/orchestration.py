@@ -177,13 +177,15 @@ def detect_needs_attention(tasks: List[Dict]) -> List[Dict[str, Any]]:
                             dep_states.append(dep_task.get("state"))
 
                     if dep_states and not all(s == "completed" for s in dep_states):
-                        alerts.append({
-                            "type": "blocked",
-                            "severity": "warning",
-                            "task_id": task_id,
-                            "description": task.get("description", "Unknown task"),
-                            "reason": f"Waiting on {len(dependencies)} dependencies",
-                        })
+                        alerts.append(
+                            {
+                                "type": "blocked",
+                                "severity": "warning",
+                                "task_id": task_id,
+                                "description": task.get("description", "Unknown task"),
+                                "reason": f"Waiting on {len(dependencies)} dependencies",
+                            }
+                        )
             except (json.JSONDecodeError, TypeError):
                 pass
 
@@ -195,26 +197,30 @@ def detect_needs_attention(tasks: List[Dict]) -> List[Dict[str, Any]]:
                 start_time = datetime.fromisoformat(started_at)
                 elapsed_min = (datetime.now() - start_time).total_seconds() / 60
                 if elapsed_min > estimated_duration_min * 2:
-                    alerts.append({
-                        "type": "slow",
-                        "severity": "warning",
-                        "task_id": task_id,
-                        "description": task.get("description", "Unknown task"),
-                        "reason": f"Running {elapsed_min:.0f}m (expected {estimated_duration_min:.0f}m)",
-                    })
+                    alerts.append(
+                        {
+                            "type": "slow",
+                            "severity": "warning",
+                            "task_id": task_id,
+                            "description": task.get("description", "Unknown task"),
+                            "reason": f"Running {elapsed_min:.0f}m (expected {estimated_duration_min:.0f}m)",
+                        }
+                    )
             except (ValueError, TypeError):
                 pass
 
         # Failed tasks
         if state == "failed":
             error_msg = task.get("error_message", "Unknown error")
-            alerts.append({
-                "type": "failed",
-                "severity": "error",
-                "task_id": task_id,
-                "description": task.get("description", "Unknown task"),
-                "reason": error_msg[:100],
-            })
+            alerts.append(
+                {
+                    "type": "failed",
+                    "severity": "error",
+                    "task_id": task_id,
+                    "description": task.get("description", "Unknown task"),
+                    "reason": error_msg[:100],
+                }
+            )
 
     # Sort by severity
     severity_order = {"error": 0, "warning": 1, "info": 2}
@@ -249,15 +255,17 @@ def get_running_tasks_with_progress(tasks: List[Dict]) -> List[Dict[str, Any]]:
             else:
                 phase = "Completing"
 
-            running.append({
-                "task_id": task.get("task_id", "")[:8],
-                "description": task.get("description", "Unknown task"),
-                "task_type": task.get("task_type", "general"),
-                "progress_pct": progress_pct,
-                "phase": phase,
-                "elapsed_min": int(elapsed_min),
-                "estimated_min": int(estimated_duration_min),
-            })
+            running.append(
+                {
+                    "task_id": task.get("task_id", "")[:8],
+                    "description": task.get("description", "Unknown task"),
+                    "task_type": task.get("task_type", "general"),
+                    "progress_pct": progress_pct,
+                    "phase": phase,
+                    "elapsed_min": int(elapsed_min),
+                    "estimated_min": int(estimated_duration_min),
+                }
+            )
         except (ValueError, TypeError):
             pass
 
@@ -628,7 +636,7 @@ with tab3:
 
     if durations:
         st.markdown("Average duration by type:")
-        for task_type, times in sorted(durations.items(), key=lambda x: -sum(x[1])/len(x[1]))[:5]:
+        for task_type, times in sorted(durations.items(), key=lambda x: -sum(x[1]) / len(x[1]))[:5]:
             avg_min = sum(times) / len(times)
             st.markdown(f"- **{task_type}**: {avg_min:.1f}m (n={len(times)})")
 
@@ -640,4 +648,6 @@ with tab3:
         st.metric("Success Rate", f"{success_rate:.1f}%")
 
 st.markdown("---")
-st.caption(f"Data sources: {BATCH_QUEUE_DB} ({len(tasks)} tasks), {BATCHES_DIR} ({len(batch_jobs)} API jobs)")
+st.caption(
+    f"Data sources: {BATCH_QUEUE_DB} ({len(tasks)} tasks), {BATCHES_DIR} ({len(batch_jobs)} API jobs)"
+)

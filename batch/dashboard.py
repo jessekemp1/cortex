@@ -10,7 +10,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List
 
 # Try to import batch components (use absolute imports for module compatibility)
 try:
@@ -94,7 +94,7 @@ class BatchDashboard:
             cursor.execute(
                 "SELECT COUNT(*), SUM(actual_input_tokens + actual_output_tokens) "
                 "FROM batch_tasks WHERE submitted_at >= ? AND status = 'completed'",
-                (cutoff,)
+                (cutoff,),
             )
             row = cursor.fetchone()
             total_tasks = row[0] or 0
@@ -104,7 +104,7 @@ class BatchDashboard:
             cursor.execute(
                 "SELECT source, COUNT(*), SUM(actual_input_tokens + actual_output_tokens) "
                 "FROM batch_tasks WHERE submitted_at >= ? GROUP BY source",
-                (cutoff,)
+                (cutoff,),
             )
             by_source = {}
             for row in cursor.fetchall():
@@ -117,7 +117,7 @@ class BatchDashboard:
             cursor.execute(
                 "SELECT priority, COUNT(*) "
                 "FROM batch_tasks WHERE submitted_at >= ? GROUP BY priority",
-                (cutoff,)
+                (cutoff,),
             )
             by_priority = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -142,7 +142,7 @@ class BatchDashboard:
                 },
             }
 
-        except Exception as e:
+        except Exception:
             return self._empty_metrics()
 
     def _empty_metrics(self) -> Dict[str, Any]:
@@ -210,9 +210,7 @@ class BatchDashboard:
                     "ended": "OK",
                 }.get(status, "??")
 
-                lines.append(
-                    f"  [{status_icon:4}] {batch['id'][:25]}... | {done}/{total} done"
-                )
+                lines.append(f"  [{status_icon:4}] {batch['id'][:25]}... | {done}/{total} done")
         else:
             lines.append("  No recent API batches found")
             lines.append("  (Or API key not configured)")
@@ -254,7 +252,9 @@ class BatchDashboard:
         lines.append(f"  Total Tokens:       {metrics['total_tokens']:,}")
         lines.append("")
         lines.append("  Cost Analysis:")
-        lines.append(f"    Real-time would be: ${metrics['cost_estimate']['real_time_would_be']:.2f}")
+        lines.append(
+            f"    Real-time would be: ${metrics['cost_estimate']['real_time_would_be']:.2f}"
+        )
         lines.append(f"    Batch actual:       ${metrics['cost_estimate']['batch_actual']:.2f}")
         lines.append(f"    SAVINGS:            ${metrics['cost_estimate']['savings']:.2f}")
         lines.append("")

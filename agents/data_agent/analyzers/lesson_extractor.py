@@ -1,11 +1,10 @@
 """Lesson Extraction Tools - Extract lessons from git history."""
 
-import json
 import logging
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

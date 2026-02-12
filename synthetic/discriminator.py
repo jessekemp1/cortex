@@ -38,6 +38,7 @@ def _get_xgboost():
     global _xgboost
     if _xgboost is None:
         import xgboost
+
         _xgboost = xgboost
     return _xgboost
 
@@ -46,22 +47,36 @@ def _get_shap():
     global _shap
     if _shap is None:
         import shap
+
         _shap = shap
     return _shap
 
 
 # Feature columns used for discrimination
 FEATURE_COLUMNS = [
-    "age", "annual_income", "household_income", "credit_score",
-    "total_deposits", "total_credit_outstanding", "tenure_years",
+    "age",
+    "annual_income",
+    "household_income",
+    "credit_score",
+    "total_deposits",
+    "total_credit_outstanding",
+    "tenure_years",
     "products_per_household",
 ]
 
 # Categorical features encoded as numeric
 CATEGORICAL_FEATURES = {
     "province": ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"],
-    "segment": ["mass_market", "mass_affluent", "affluent", "high_net_worth", "ultra_hnw",
-                 "small_business", "commercial", "new_to_canada"],
+    "segment": [
+        "mass_market",
+        "mass_affluent",
+        "affluent",
+        "high_net_worth",
+        "ultra_hnw",
+        "small_business",
+        "commercial",
+        "new_to_canada",
+    ],
     "digital_adoption": ["digital_first", "hybrid", "branch_preferred"],
     "primary_channel": ["mobile", "online", "branch", "telephone"],
 }
@@ -70,6 +85,7 @@ CATEGORICAL_FEATURES = {
 @dataclass
 class FeatureImportance:
     """SHAP-based feature importance with direction."""
+
     feature: str
     importance: float  # Mean absolute SHAP value
     direction: str  # "too_high", "too_low", or "wrong_shape"
@@ -87,6 +103,7 @@ class FeatureImportance:
 @dataclass
 class DiscriminatorReport:
     """Report from discriminator training and evaluation."""
+
     auc_roc: float
     accuracy: float
     precision: float
@@ -160,8 +177,8 @@ class Discriminator:
             DiscriminatorReport with AUC, accuracy, and SHAP feedback
         """
         xgb = _get_xgboost()
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
         from sklearn.model_selection import StratifiedKFold
-        from sklearn.metrics import roc_auc_score, accuracy_score, precision_score, recall_score
 
         # Generate reference data if not provided
         if reference_profiles is None:
@@ -344,12 +361,14 @@ class Discriminator:
                 direction = "unknown"
                 detail = "Feature index out of range"
 
-            importances.append(FeatureImportance(
-                feature=feature_name,
-                importance=imp,
-                direction=direction,
-                detail=detail,
-            ))
+            importances.append(
+                FeatureImportance(
+                    feature=feature_name,
+                    importance=imp,
+                    direction=direction,
+                    detail=detail,
+                )
+            )
 
         # Sort by importance descending
         importances.sort(key=lambda x: x.importance, reverse=True)

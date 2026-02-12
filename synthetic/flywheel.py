@@ -54,6 +54,7 @@ def _get_discriminator():
     global _discriminator_cls
     if _discriminator_cls is None:
         from synthetic.discriminator import Discriminator
+
         _discriminator_cls = Discriminator
     return _discriminator_cls
 
@@ -62,6 +63,7 @@ def _get_tstr():
     global _tstr_cls
     if _tstr_cls is None:
         from synthetic.tstr import TSTRFramework
+
         _tstr_cls = TSTRFramework
     return _tstr_cls
 
@@ -70,6 +72,7 @@ def _get_privacy():
     global _privacy_cls
     if _privacy_cls is None:
         from synthetic.privacy import PrivacyEngine
+
         _privacy_cls = PrivacyEngine
     return _privacy_cls
 
@@ -78,6 +81,7 @@ def _get_behavioral_fidelity():
     global _behavioral_fidelity_cls
     if _behavioral_fidelity_cls is None:
         from synthetic.pupil.behavioral_fidelity import BehavioralFidelityValidator
+
         _behavioral_fidelity_cls = BehavioralFidelityValidator
     return _behavioral_fidelity_cls
 
@@ -86,6 +90,7 @@ def _get_temporal_coherence():
     global _temporal_coherence_cls
     if _temporal_coherence_cls is None:
         from synthetic.pupil.temporal_coherence import TemporalCoherenceValidator
+
         _temporal_coherence_cls = TemporalCoherenceValidator
     return _temporal_coherence_cls
 
@@ -94,6 +99,7 @@ def _get_pupil_bridge():
     global _pupil_bridge_cls
     if _pupil_bridge_cls is None:
         from synthetic.pupil.bridge import PupilBridge
+
         _pupil_bridge_cls = PupilBridge
     return _pupil_bridge_cls
 
@@ -101,6 +107,7 @@ def _get_pupil_bridge():
 @dataclass
 class LayerResult:
     """Result from a single flywheel layer."""
+
     layer_num: int
     layer_name: str
     passed: bool
@@ -122,6 +129,7 @@ class LayerResult:
 @dataclass
 class FlywheelReport:
     """Complete report from a flywheel cycle."""
+
     cycle_id: str
     flywheel_id: str
     layers_executed: int = 0
@@ -164,9 +172,7 @@ class FlywheelReport:
             "needs_hard_reset": self.needs_hard_reset,
             "total_execution_time_ms": round(self.total_execution_time_ms, 1),
             "quality_improvement": (
-                round(self.quality_improvement, 4)
-                if self.quality_improvement is not None
-                else None
+                round(self.quality_improvement, 4) if self.quality_improvement is not None else None
             ),
         }
 
@@ -414,8 +420,10 @@ class Flywheel:
         improvement = scores[-1] - scores[0]
         avg_improvement = improvement / (len(scores) - 1)
 
-        trend = "improving" if avg_improvement > 0.001 else (
-            "declining" if avg_improvement < -0.001 else "stable"
+        trend = (
+            "improving"
+            if avg_improvement > 0.001
+            else ("declining" if avg_improvement < -0.001 else "stable")
         )
 
         return {
@@ -435,8 +443,12 @@ class Flywheel:
 
         scores = []
         low_quality_dims = {
-            "completeness": 0, "consistency": 0, "accuracy": 0,
-            "timeliness": 0, "uniqueness": 0, "validity": 0,
+            "completeness": 0,
+            "consistency": 0,
+            "accuracy": 0,
+            "timeliness": 0,
+            "uniqueness": 0,
+            "validity": 0,
         }
 
         for profile in profiles:
@@ -490,14 +502,10 @@ class Flywheel:
             score=constraint_report.pass_rate,
             feedback={
                 "pass_rate": round(constraint_report.pass_rate, 4),
-                "deviation_vector": {
-                    k: round(v, 6) for k, v in deviation_vector.items()
-                },
+                "deviation_vector": {k: round(v, 6) for k, v in deviation_vector.items()},
                 "needs_hard_reset": constraint_report.needs_hard_reset,
                 "reset_dimensions": constraint_report.reset_dimensions,
-                "failed_tests": [
-                    r.to_dict() for r in constraint_report.results if not r.passed
-                ],
+                "failed_tests": [r.to_dict() for r in constraint_report.results if not r.passed],
             },
             execution_time_ms=elapsed_ms,
         )
@@ -547,9 +555,7 @@ class Flywheel:
                 inconsistencies["digital_age_mismatch"] += 1
 
         n = len(profiles)
-        inconsistency_rates = {
-            k: round(v / n, 4) for k, v in inconsistencies.items()
-        }
+        inconsistency_rates = {k: round(v / n, 4) for k, v in inconsistencies.items()}
 
         # Score: 1.0 - weighted average inconsistency rate
         total_inconsistency = sum(inconsistencies.values()) / (n * len(inconsistencies))
@@ -599,9 +605,7 @@ class Flywheel:
             execution_time_ms=elapsed_ms,
         )
 
-    def _run_layer5_discriminator(
-        self, profiles: List[CustomerProfile]
-    ) -> Optional[LayerResult]:
+    def _run_layer5_discriminator(self, profiles: List[CustomerProfile]) -> Optional[LayerResult]:
         """
         Layer 5: Discriminator feedback via XGBoost + SHAP.
 
@@ -645,12 +649,8 @@ class Flywheel:
                 "accuracy": round(disc_report.accuracy, 4),
                 "passed": disc_report.passed,
                 "top_distinguishing_features": disc_report.top_distinguishing_features,
-                "shap_corrections": {
-                    k: round(v, 6) for k, v in shap_corrections.items()
-                },
-                "feature_importances": [
-                    fi.to_dict() for fi in disc_report.feature_importances[:5]
-                ],
+                "shap_corrections": {k: round(v, 6) for k, v in shap_corrections.items()},
+                "feature_importances": [fi.to_dict() for fi in disc_report.feature_importances[:5]],
             },
             execution_time_ms=elapsed_ms,
         )
@@ -685,7 +685,9 @@ class Flywheel:
 
         # Score based on average delta (0 delta = perfect)
         # Map to 0-1 range: 0 delta → 1.0, ±0.10 delta → 0.0
-        avg_abs_delta = sum(abs(t.delta) for t in tstr_report.tasks) / max(len(tstr_report.tasks), 1)
+        avg_abs_delta = sum(abs(t.delta) for t in tstr_report.tasks) / max(
+            len(tstr_report.tasks), 1
+        )
         score = max(0.0, 1.0 - avg_abs_delta * 10)  # 0.10 delta → 0.0
 
         # Build task-level corrections from failed tasks
@@ -704,18 +706,14 @@ class Flywheel:
                 "avg_delta": round(tstr_report.avg_delta, 4),
                 "worst_delta": round(tstr_report.worst_delta, 4),
                 "task_results": [t.to_dict() for t in tstr_report.tasks],
-                "task_corrections": {
-                    k: round(v, 6) for k, v in task_corrections.items()
-                },
+                "task_corrections": {k: round(v, 6) for k, v in task_corrections.items()},
                 "n_synthetic_train": tstr_report.n_synthetic_train,
                 "n_test": tstr_report.n_test,
             },
             execution_time_ms=elapsed_ms,
         )
 
-    def _run_layer7_privacy(
-        self, profiles: List[CustomerProfile]
-    ) -> Optional[LayerResult]:
+    def _run_layer7_privacy(self, profiles: List[CustomerProfile]) -> Optional[LayerResult]:
         """
         Layer 7: Privacy audit via DCR, NNDR, and MIA.
 
@@ -740,7 +738,7 @@ class Flywheel:
         dcr_component = privacy_report.dcr_pass_rate
         nndr_component = privacy_report.nndr_pass_rate
         mia_component = max(0.0, 1.0 - (privacy_report.mia_accuracy - 0.5) * 10)
-        score = (dcr_component * 0.4 + nndr_component * 0.3 + mia_component * 0.3)
+        score = dcr_component * 0.4 + nndr_component * 0.3 + mia_component * 0.3
 
         return LayerResult(
             layer_num=7,
@@ -884,9 +882,7 @@ class Flywheel:
 
     # --- Feedback Aggregation ---
 
-    def _aggregate_corrections(
-        self, layer_results: List[LayerResult]
-    ) -> Dict[str, Any]:
+    def _aggregate_corrections(self, layer_results: List[LayerResult]) -> Dict[str, Any]:
         """
         Aggregate feedback from all layers into a correction vector.
 
@@ -952,14 +948,10 @@ class Flywheel:
                 for check in lr.feedback.get("checks", []):
                     if check.get("score", 1.0) < 0.7:
                         key = f"temporal_{check['check_name']}"
-                        corrections["adjustments"][key] = (
-                            (check["score"] - 1.0) * weight
-                        )
+                        corrections["adjustments"][key] = (check["score"] - 1.0) * weight
 
         if total_weight > 0:
-            corrections["weighted_score"] = round(
-                corrections["weighted_score"] / total_weight, 4
-            )
+            corrections["weighted_score"] = round(corrections["weighted_score"] / total_weight, 4)
 
         # Bound all corrections
         for dim in corrections["adjustments"]:

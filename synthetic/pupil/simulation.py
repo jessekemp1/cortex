@@ -17,15 +17,16 @@ Architecture:
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .schemas import CustomerProfile
-from .persona import Action, PersonaAgent
-from .segment_models import get_behavior
 from .market_env import MarketEnvironment
+from .persona import Action, PersonaAgent
+from .schemas import CustomerProfile
+from .segment_models import get_behavior
 
 
 @dataclass
 class StepResult:
     """Results from a single simulation step (month)."""
+
     step: int
     date_label: str
     actions: List[Action]
@@ -61,6 +62,7 @@ class StepResult:
 @dataclass
 class SimulationResult:
     """Complete simulation results."""
+
     n_agents: int
     n_steps: int
     steps: List[StepResult]
@@ -196,28 +198,14 @@ class SimulationEngine:
 
     def _compute_step_aggregates(self, result: StepResult):
         """Compute aggregate counts for a step result."""
-        result.n_active = sum(
-            1 for s in result.snapshots if s["state"] == "active"
-        )
-        result.n_at_risk = sum(
-            1 for s in result.snapshots if s["state"] == "at_risk"
-        )
-        result.n_churned = sum(
-            1 for s in result.snapshots if s["state"] == "churned"
-        )
+        result.n_active = sum(1 for s in result.snapshots if s["state"] == "active")
+        result.n_at_risk = sum(1 for s in result.snapshots if s["state"] == "at_risk")
+        result.n_churned = sum(1 for s in result.snapshots if s["state"] == "churned")
         result.total_actions = len(result.actions)
-        result.churn_count = sum(
-            1 for a in result.actions if a.action_type.value == "churn"
-        )
+        result.churn_count = sum(1 for a in result.actions if a.action_type.value == "churn")
         result.adoption_count = sum(
             1 for a in result.actions if a.action_type.value == "adopt_product"
         )
-        result.switch_count = sum(
-            1 for a in result.actions if a.action_type.value == "switch"
-        )
-        result.miss_count = sum(
-            1 for a in result.actions if a.action_type.value == "miss_payment"
-        )
-        result.default_count = sum(
-            1 for a in result.actions if a.action_type.value == "default"
-        )
+        result.switch_count = sum(1 for a in result.actions if a.action_type.value == "switch")
+        result.miss_count = sum(1 for a in result.actions if a.action_type.value == "miss_payment")
+        result.default_count = sum(1 for a in result.actions if a.action_type.value == "default")

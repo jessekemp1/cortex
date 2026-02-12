@@ -10,7 +10,7 @@ Supports:
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional
 
 # Try to import tomli for TOML parsing (Python 3.11+ has tomllib built-in)
 try:

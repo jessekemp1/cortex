@@ -4,10 +4,9 @@ End-to-end test: full CortexDBx learning loop (generate, ingest, calibrate, reco
 Validates MVP success criteria locally before Databricks deployment.
 """
 
-import pytest
-from cortexdbx.synthetic.generator import SyntheticDataGenerator
 from cortexdbx.agents.orchestrator import AgentOrchestrator
 from cortexdbx.sdk.client import CortexDBxClient
+from cortexdbx.synthetic.generator import SyntheticDataGenerator
 
 
 def test_e2e_learning_loop_orchestrator():
@@ -49,7 +48,9 @@ def test_e2e_learning_loop_orchestrator():
     assert "error" not in metrics or metrics.get("num_evaluated", 0) > 0
     assert metrics.get("num_evaluated", 0) >= 1, "At least one strategy should have enough evidence"
     if metrics.get("brier_score") is not None:
-        assert metrics["brier_score"] < 0.25, f"Brier score {metrics['brier_score']} should be < 0.25"
+        assert (
+            metrics["brier_score"] < 0.25
+        ), f"Brier score {metrics['brier_score']} should be < 0.25"
 
     # 5. Recommendations for a known context from the dataset
     sample_context_id = data[0]["context"]["context_id"]

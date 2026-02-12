@@ -5,12 +5,12 @@ Reads git commits, batch results, and test outcomes to provide concise progress 
 No monitoring overhead - just synthesizes what already happened.
 """
 
+import json
+import re
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import json
-import re
+from typing import Any, Dict, List, Optional
 
 
 class ReflectionSynthesizer:
@@ -85,12 +85,14 @@ class ReflectionSynthesizer:
                     continue
                 parts = line.split("|", 3)
                 if len(parts) == 4:
-                    commits.append({
-                        "hash": parts[0][:8],
-                        "message": parts[1],
-                        "author": parts[2],
-                        "date": parts[3],
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0][:8],
+                            "message": parts[1],
+                            "author": parts[2],
+                            "date": parts[3],
+                        }
+                    )
 
             return commits
         except Exception:
@@ -114,12 +116,14 @@ class ReflectionSynthesizer:
 
                 with open(result_file) as f:
                     data = json.load(f)
-                    results.append({
-                        "job_id": result_file.stem.replace("_result", ""),
-                        "success": data.get("success", False),
-                        "error": data.get("error"),
-                        "duration": data.get("duration_seconds"),
-                    })
+                    results.append(
+                        {
+                            "job_id": result_file.stem.replace("_result", ""),
+                            "success": data.get("success", False),
+                            "error": data.get("error"),
+                            "duration": data.get("duration_seconds"),
+                        }
+                    )
             except Exception:
                 continue
 
@@ -153,12 +157,12 @@ class ReflectionSynthesizer:
             content = goals_file.read_text()
 
             # Count goals by status
-            in_progress = len(re.findall(r'\[IN PROGRESS\]', content, re.IGNORECASE))
-            completed = len(re.findall(r'Status:.*?Complete', content, re.IGNORECASE))
+            in_progress = len(re.findall(r"\[IN PROGRESS\]", content, re.IGNORECASE))
+            completed = len(re.findall(r"Status:.*?Complete", content, re.IGNORECASE))
 
             # Extract goal titles
             goals = []
-            for match in re.finditer(r'### Goal \d+: ([^\n\[]+)', content):
+            for match in re.finditer(r"### Goal \d+: ([^\n\[]+)", content):
                 title = match.group(1).strip()
                 goals.append(title)
 
@@ -177,9 +181,9 @@ class ReflectionSynthesizer:
 
         # Pattern matching for meaningful commits
         feature_patterns = [
-            r'feat\(([^)]+)\):?\s*(.+)',
-            r'fix\(([^)]+)\):?\s*(.+)',
-            r'docs\(([^)]+)\):?\s*(.+)',
+            r"feat\(([^)]+)\):?\s*(.+)",
+            r"fix\(([^)]+)\):?\s*(.+)",
+            r"docs\(([^)]+)\):?\s*(.+)",
         ]
 
         for commit in commits:
@@ -237,9 +241,7 @@ class ReflectionSynthesizer:
 
         return blockers
 
-    def _suggest_focus(
-        self, blockers: List[str], goals_progress: Dict[str, Any]
-    ) -> str:
+    def _suggest_focus(self, blockers: List[str], goals_progress: Dict[str, Any]) -> str:
         """Suggest next focus based on blockers and goal progress."""
         # Priority 1: Unblock failing work
         if blockers:
@@ -263,7 +265,7 @@ class ReflectionSynthesizer:
 
         for commit in commits:
             # Try to extract project from commit message
-            match = re.match(r'(?:feat|fix|docs)\(([^)]+)\)', commit["message"])
+            match = re.match(r"(?:feat|fix|docs)\(([^)]+)\)", commit["message"])
             if match:
                 projects.add(match.group(1))
 
@@ -316,7 +318,9 @@ class ReflectionSynthesizer:
         lines.append("📊 METRICS")
         lines.append("─" * 54)
         lines.append(f"  Commits: {metrics['commits']}")
-        lines.append(f"  Batch jobs: {metrics['batch_jobs_completed']} completed, {metrics['batch_jobs_failed']} failed")
+        lines.append(
+            f"  Batch jobs: {metrics['batch_jobs_completed']} completed, {metrics['batch_jobs_failed']} failed"
+        )
         lines.append(f"  Active projects: {metrics['active_projects']}")
         lines.append("")
 

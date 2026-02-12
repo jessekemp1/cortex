@@ -26,7 +26,7 @@ def test_layer1_project_profiling():
         if profile.warnings:
             print(f"   ⚠️  Warnings: {len(profile.warnings)}")
     else:
-        print(f"   ⚠️  Project profiler not available")
+        print("   ⚠️  Project profiler not available")
 
     print("\n2️⃣ Getting tech stack...")
     tech_stack = engine.get_tech_stack()
@@ -37,7 +37,7 @@ def test_layer1_project_profiling():
         if tech_stack["databases"]:
             print(f"   • Databases: {', '.join(tech_stack['databases'])}")
     else:
-        print(f"   ⚠️  Tech stack not available")
+        print("   ⚠️  Tech stack not available")
 
     print("\n3️⃣ Getting coverage info...")
     coverage = engine.get_test_coverage_info()
@@ -47,7 +47,7 @@ def test_layer1_project_profiling():
         print(f"   • Estimated Coverage: {coverage['estimated_coverage']:.1f}%")
         print(f"   • Low Coverage: {coverage['is_low']}")
     else:
-        print(f"   ⚠️  Coverage info not available")
+        print("   ⚠️  Coverage info not available")
 
     print("\n✅ Layer 1 test complete!\n")
 
@@ -69,7 +69,7 @@ def test_layer2_pattern_memory():
             print(f"   {i}. [{work['project']}] {work['title']}")
             print(f"      Score: {work['relevance_score']:.2f}")
     else:
-        print(f"   ⚠️  No similar work found (pattern memory may be empty)")
+        print("   ⚠️  No similar work found (pattern memory may be empty)")
 
     print("\n2️⃣ Getting relevant patterns...")
     patterns = engine.get_relevant_patterns(context="authentication error handling", limit=3)
@@ -79,7 +79,7 @@ def test_layer2_pattern_memory():
         for i, pattern in enumerate(patterns, 1):
             print(f"   {i}. [{pattern['project']}] {pattern['title']}")
     else:
-        print(f"   ⚠️  No patterns found")
+        print("   ⚠️  No patterns found")
 
     print("\n✅ Layer 2 test complete!\n")
 
@@ -205,10 +205,10 @@ def test_full_integration():
     print(f"  ✅ Health: {health['alerts']['total']} alerts")
 
     print("\nLayer 4: Smart Recommendations")
-    print(f"  ✅ Engine: Ready")
+    print("  ✅ Engine: Ready")
 
     print("\nLayer 5: Planning")
-    print(f"  ✅ Planner: Ready")
+    print("  ✅ Planner: Ready")
 
     print("\n" + "=" * 60)
     print("✅ ALL 5 LAYERS OPERATIONAL!")

@@ -8,16 +8,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.schemas import CustomerProfile
 from synthetic.pupil.market_env import (
     CompetitionEvent,
     EventType,
     MarketEnvironment,
     build_timeline,
-)
-from synthetic.pupil.segment_models import (
-    SEGMENT_MODELS,
-    get_behavior,
 )
 from synthetic.pupil.persona import (
     Action,
@@ -25,7 +20,11 @@ from synthetic.pupil.persona import (
     LifecycleState,
     PersonaAgent,
 )
-
+from synthetic.pupil.segment_models import (
+    SEGMENT_MODELS,
+    get_behavior,
+)
+from synthetic.schemas import CustomerProfile
 
 # ============================================================================
 # Fixtures
@@ -293,14 +292,14 @@ class TestSegmentModels:
         for name, model in SEGMENT_MODELS.items():
             assert 0.0 < model.base_annual_churn_rate < 0.5, f"{name} churn out of range"
             assert 0.0 <= model.rate_sensitivity <= 1.0, f"{name} rate_sensitivity out of range"
-            assert 0.0 <= model.competitor_susceptibility <= 1.0, (
-                f"{name} competitor_susceptibility"
-            )
+            assert (
+                0.0 <= model.competitor_susceptibility <= 1.0
+            ), f"{name} competitor_susceptibility"
             assert 0.0 <= model.digital_preference <= 1.0, f"{name} digital_preference"
             assert 300 <= model.payment_miss_threshold <= 900, f"{name} payment_miss_threshold"
-            assert model.default_threshold < model.payment_miss_threshold, (
-                f"{name} default_threshold >= payment_miss_threshold"
-            )
+            assert (
+                model.default_threshold < model.payment_miss_threshold
+            ), f"{name} default_threshold >= payment_miss_threshold"
 
 
 # ============================================================================
@@ -451,9 +450,9 @@ class TestPersonaAgentChurn:
 
         mm_churn = sum(1 for a in mm_agents if a.state == LifecycleState.CHURNED) / n
         hnw_churn = sum(1 for a in hnw_agents if a.state == LifecycleState.CHURNED) / n
-        assert hnw_churn < mm_churn, (
-            f"HNW churn ({hnw_churn:.2%}) should be < mass_market ({mm_churn:.2%})"
-        )
+        assert (
+            hnw_churn < mm_churn
+        ), f"HNW churn ({hnw_churn:.2%}) should be < mass_market ({mm_churn:.2%})"
 
 
 class TestPersonaAgentStress:

@@ -81,7 +81,7 @@ def create_demo_patterns():
 def demo_bm25_search(retriever, query):
     """Demo BM25-only search."""
     print(f"\n{'='*80}")
-    print(f"BM25-ONLY SEARCH (alpha=0.0)")
+    print("BM25-ONLY SEARCH (alpha=0.0)")
     print(f"Query: '{query}'")
     print(f"{'='*80}")
 
@@ -97,7 +97,7 @@ def demo_bm25_search(retriever, query):
 def demo_embedding_search(retriever, query):
     """Demo embedding-only search."""
     print(f"\n{'='*80}")
-    print(f"EMBEDDING-ONLY SEARCH (alpha=1.0)")
+    print("EMBEDDING-ONLY SEARCH (alpha=1.0)")
     print(f"Query: '{query}'")
     print(f"{'='*80}")
 
@@ -113,7 +113,7 @@ def demo_embedding_search(retriever, query):
 def demo_hybrid_search(retriever, query):
     """Demo hybrid search."""
     print(f"\n{'='*80}")
-    print(f"HYBRID SEARCH (alpha=0.5)")
+    print("HYBRID SEARCH (alpha=0.5)")
     print(f"Query: '{query}'")
     print(f"{'='*80}")
 
@@ -129,7 +129,7 @@ def demo_hybrid_search(retriever, query):
 def demo_synonym_detection(retriever):
     """Demo synonym detection via semantic search."""
     print(f"\n{'='*80}")
-    print(f"SYNONYM DETECTION TEST")
+    print("SYNONYM DETECTION TEST")
     print(f"{'='*80}")
 
     # Test queries that use different terminology
@@ -178,7 +178,7 @@ def main():
 
     # Show stats
     stats = retriever.get_stats()
-    print(f"\nRetriever stats:")
+    print("\nRetriever stats:")
     print(f"  Patterns: {stats['pattern_count']}")
     print(f"  Embeddings available: {stats['embeddings_available']}")
     print(f"  Embeddings cached: {stats['embeddings_cached']}")
@@ -219,7 +219,7 @@ def main():
         retriever.search("database", limit=5, alpha=0.5)
     hybrid_time = (time.time() - start) / 100 * 1000
 
-    print(f"\nAverage search latency (100 iterations):")
+    print("\nAverage search latency (100 iterations):")
     print(f"  BM25 only:     {bm25_time:.2f}ms")
     print(f"  Embedding only: {embedding_time:.2f}ms")
     print(f"  Hybrid:        {hybrid_time:.2f}ms")

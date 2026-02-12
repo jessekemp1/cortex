@@ -67,13 +67,15 @@ def make_mixed_profiles(n: int = 75) -> list[CustomerProfile]:
     for seg, count in segments:
         cfg = segment_configs[seg]
         for _ in range(count):
-            profiles.append(make_profile(
-                profile_id=f"mix-{idx:03d}",
-                segment=seg,
-                credit_score=cfg["credit_score"],
-                annual_income=cfg["income"],
-                total_deposits=cfg["deposits"],
-            ))
+            profiles.append(
+                make_profile(
+                    profile_id=f"mix-{idx:03d}",
+                    segment=seg,
+                    credit_score=cfg["credit_score"],
+                    annual_income=cfg["income"],
+                    total_deposits=cfg["deposits"],
+                )
+            )
             idx += 1
 
     return profiles

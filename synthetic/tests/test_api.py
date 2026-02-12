@@ -9,7 +9,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from fastapi.testclient import TestClient
-
 from synthetic.api import app
 
 
@@ -22,11 +21,14 @@ class TestGenerate:
     """Test POST /api/v1/synthetic/generate."""
 
     def test_generate_profiles(self, client):
-        resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles",
-            "count": 20,
-            "skip_heavy_layers": True,
-        })
+        resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 20,
+                "skip_heavy_layers": True,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "completed"
@@ -36,25 +38,31 @@ class TestGenerate:
         assert data["flywheel_score"] > 0
 
     def test_generate_transactions(self, client):
-        resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "transactions",
-            "count": 30,
-            "include_risk_flags": True,
-            "risk_profile": "high",
-            "skip_heavy_layers": True,
-        })
+        resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "transactions",
+                "count": 30,
+                "include_risk_flags": True,
+                "risk_profile": "high",
+                "skip_heavy_layers": True,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "completed"
 
     def test_generate_with_filters(self, client):
-        resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles",
-            "count": 15,
-            "segment": "mass_affluent",
-            "province": "ON",
-            "skip_heavy_layers": True,
-        })
+        resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 15,
+                "segment": "mass_affluent",
+                "province": "ON",
+                "skip_heavy_layers": True,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "completed"
@@ -72,9 +80,14 @@ class TestStatus:
 
     def test_get_status_after_generate(self, client):
         # First generate
-        gen_resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-        })
+        gen_resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 10,
+                "skip_heavy_layers": True,
+            },
+        )
         fw_id = gen_resp.json()["flywheel_id"]
 
         # Then check status
@@ -93,9 +106,14 @@ class TestDownload:
     """Test GET /api/v1/synthetic/download/{flywheel_id}."""
 
     def test_download_completed(self, client):
-        gen_resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-        })
+        gen_resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 10,
+                "skip_heavy_layers": True,
+            },
+        )
         fw_id = gen_resp.json()["flywheel_id"]
 
         dl_resp = client.get(f"/api/v1/synthetic/download/{fw_id}")
@@ -114,54 +132,84 @@ class TestFeedback:
     """Test POST /api/v1/synthetic/feedback/{flywheel_id}."""
 
     def test_submit_feedback(self, client):
-        gen_resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-        })
+        gen_resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 10,
+                "skip_heavy_layers": True,
+            },
+        )
         fw_id = gen_resp.json()["flywheel_id"]
 
-        fb_resp = client.post(f"/api/v1/synthetic/feedback/{fw_id}", json={
-            "outcome": "positive",
-            "detail": "Data quality was excellent for our use case",
-        })
+        fb_resp = client.post(
+            f"/api/v1/synthetic/feedback/{fw_id}",
+            json={
+                "outcome": "positive",
+                "detail": "Data quality was excellent for our use case",
+            },
+        )
         assert fb_resp.status_code == 200
         data = fb_resp.json()
         assert data["status"] == "accepted"
         assert data["feedback_count"] == 1
 
     def test_submit_multiple_feedback(self, client):
-        gen_resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-        })
+        gen_resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 10,
+                "skip_heavy_layers": True,
+            },
+        )
         fw_id = gen_resp.json()["flywheel_id"]
 
         for outcome in ["positive", "negative", "neutral"]:
-            client.post(f"/api/v1/synthetic/feedback/{fw_id}", json={
-                "outcome": outcome,
-            })
+            client.post(
+                f"/api/v1/synthetic/feedback/{fw_id}",
+                json={
+                    "outcome": outcome,
+                },
+            )
 
         # Check count
-        fb_resp = client.post(f"/api/v1/synthetic/feedback/{fw_id}", json={
-            "outcome": "positive",
-        })
+        fb_resp = client.post(
+            f"/api/v1/synthetic/feedback/{fw_id}",
+            json={
+                "outcome": "positive",
+            },
+        )
         assert fb_resp.json()["feedback_count"] == 4
 
     def test_feedback_not_found(self, client):
-        resp = client.post("/api/v1/synthetic/feedback/NONEXISTENT-ID", json={
-            "outcome": "positive",
-        })
+        resp = client.post(
+            "/api/v1/synthetic/feedback/NONEXISTENT-ID",
+            json={
+                "outcome": "positive",
+            },
+        )
         assert resp.status_code == 404
 
     def test_feedback_with_metrics(self, client):
-        gen_resp = client.post("/api/v1/synthetic/generate", json={
-            "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-        })
+        gen_resp = client.post(
+            "/api/v1/synthetic/generate",
+            json={
+                "data_type": "profiles",
+                "count": 10,
+                "skip_heavy_layers": True,
+            },
+        )
         fw_id = gen_resp.json()["flywheel_id"]
 
-        fb_resp = client.post(f"/api/v1/synthetic/feedback/{fw_id}", json={
-            "outcome": "positive",
-            "detail": "Used for credit model training",
-            "metrics": {"model_accuracy": 0.87, "false_positive_rate": 0.03},
-        })
+        fb_resp = client.post(
+            f"/api/v1/synthetic/feedback/{fw_id}",
+            json={
+                "outcome": "positive",
+                "detail": "Used for credit model training",
+                "metrics": {"model_accuracy": 0.87, "false_positive_rate": 0.03},
+            },
+        )
         assert fb_resp.status_code == 200
 
 
@@ -179,9 +227,14 @@ class TestQualityReport:
     def test_quality_report_after_generations(self, client):
         # Generate a few runs
         for _ in range(3):
-            client.post("/api/v1/synthetic/generate", json={
-                "data_type": "profiles", "count": 10, "skip_heavy_layers": True,
-            })
+            client.post(
+                "/api/v1/synthetic/generate",
+                json={
+                    "data_type": "profiles",
+                    "count": 10,
+                    "skip_heavy_layers": True,
+                },
+            )
 
         resp = client.get("/api/v1/synthetic/quality/report")
         data = resp.json()

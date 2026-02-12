@@ -64,9 +64,7 @@ class TestPrivacyEvaluation:
     def test_mia_in_valid_range(self, privacy_engine, sample_profiles):
         report = privacy_engine.evaluate(sample_profiles)
         assert 0.0 <= report.mia_accuracy <= 1.0
-        assert report.mia_advantage == pytest.approx(
-            report.mia_accuracy - 0.5, abs=1e-9
-        )
+        assert report.mia_advantage == pytest.approx(report.mia_accuracy - 0.5, abs=1e-9)
 
     def test_sample_counts_correct(self, privacy_engine, sample_profiles):
         report = privacy_engine.evaluate(sample_profiles)
@@ -106,12 +104,20 @@ class TestDCR:
         """If synthetic copies reference exactly, DCR should be very low."""
         profiles = [
             CustomerProfile(
-                profile_id=f"COPY-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"COPY-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(30)
@@ -158,12 +164,20 @@ class TestMIA:
         """MIA with < 20 samples should return 0.50 (random)."""
         profiles = [
             CustomerProfile(
-                profile_id=f"TINY-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"TINY-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(10)
@@ -194,12 +208,20 @@ class TestPerRecordPrivacy:
         """Identical records should be flagged as unsafe."""
         profiles = [
             CustomerProfile(
-                profile_id=f"UNSAFE-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"UNSAFE-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(30)
@@ -222,12 +244,20 @@ class TestNoiseCalibration:
         """Identical records should trigger noise adjustments."""
         profiles = [
             CustomerProfile(
-                profile_id=f"ADJ-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"ADJ-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(30)
@@ -240,12 +270,20 @@ class TestNoiseCalibration:
         """Noise adjustments should always be non-negative (increase noise)."""
         profiles = [
             CustomerProfile(
-                profile_id=f"POS-{i}", age=35, province="ON", fsa="M5V",
-                segment="mass_market", annual_income=50000.0,
-                household_income=80000.0, credit_score=700,
-                products_held=["chequing"], total_deposits=10000.0,
-                total_credit_outstanding=0.0, digital_adoption="hybrid",
-                primary_channel="mobile", tenure_years=5.0,
+                profile_id=f"POS-{i}",
+                age=35,
+                province="ON",
+                fsa="M5V",
+                segment="mass_market",
+                annual_income=50000.0,
+                household_income=80000.0,
+                credit_score=700,
+                products_held=["chequing"],
+                total_deposits=10000.0,
+                total_credit_outstanding=0.0,
+                digital_adoption="hybrid",
+                primary_channel="mobile",
+                tenure_years=5.0,
                 products_per_household=1,
             )
             for i in range(30)

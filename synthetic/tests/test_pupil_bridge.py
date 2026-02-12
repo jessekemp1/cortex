@@ -9,12 +9,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from synthetic.generator import SyntheticGenerator
-from synthetic.schemas import CustomerProfile, GenerationRequest
+from synthetic.pupil.analysis import AnalysisReport
 from synthetic.pupil.bridge import PupilBridge
 from synthetic.pupil.market_env import CompetitionEvent, EventType
 from synthetic.pupil.simulation import SimulationResult
-from synthetic.pupil.analysis import AnalysisReport
-
+from synthetic.schemas import CustomerProfile, GenerationRequest
 
 # ============================================================================
 # Fixtures
@@ -67,13 +66,15 @@ def make_mixed_profiles() -> list[CustomerProfile]:
     idx = 0
     for seg, count in segments:
         for _ in range(count):
-            profiles.append(make_profile(
-                profile_id=f"mix-{idx}",
-                segment=seg,
-                credit_score=720 if seg != "new_to_canada" else 650,
-                annual_income=65000 if seg not in ("high_net_worth", "affluent") else 300000,
-                total_deposits=25000 if seg != "high_net_worth" else 500000,
-            ))
+            profiles.append(
+                make_profile(
+                    profile_id=f"mix-{idx}",
+                    segment=seg,
+                    credit_score=720 if seg != "new_to_canada" else 650,
+                    annual_income=65000 if seg not in ("high_net_worth", "affluent") else 300000,
+                    total_deposits=25000 if seg != "high_net_worth" else 500000,
+                )
+            )
             idx += 1
     return profiles
 
@@ -101,6 +102,7 @@ def generated_profiles():
     result = gen.generate(request)
     # Read back from the output file
     import json
+
     profiles = []
     if result.output_path:
         with open(result.output_path) as f:
@@ -117,14 +119,16 @@ def stress_kwargs():
         "rate_schedule": {0: 4.50, 3: 5.00, 6: 5.50},
         "unemployment_schedule": {0: 6.1, 4: 7.5, 8: 8.5},
         "events": {
-            2: [CompetitionEvent(
-                event_type=EventType.PRODUCT_LAUNCH,
-                institution="EQ Bank",
-                description="5% HISA",
-                product="savings",
-                rate_offered=5.0,
-                impact_magnitude=0.8,
-            )],
+            2: [
+                CompetitionEvent(
+                    event_type=EventType.PRODUCT_LAUNCH,
+                    institution="EQ Bank",
+                    description="5% HISA",
+                    product="savings",
+                    rate_offered=5.0,
+                    impact_magnitude=0.8,
+                )
+            ],
         },
     }
 
@@ -249,14 +253,16 @@ class TestScenarioComparison:
                 "rate_schedule": {0: 4.50, 3: 5.50, 6: 6.50},
                 "unemployment_schedule": {0: 6.1, 4: 8.5, 8: 9.0},
                 "events": {
-                    2: [CompetitionEvent(
-                        event_type=EventType.PRODUCT_LAUNCH,
-                        institution="EQ Bank",
-                        description="6% HISA",
-                        product="savings",
-                        rate_offered=6.0,
-                        impact_magnitude=0.9,
-                    )],
+                    2: [
+                        CompetitionEvent(
+                            event_type=EventType.PRODUCT_LAUNCH,
+                            institution="EQ Bank",
+                            description="6% HISA",
+                            product="savings",
+                            rate_offered=6.0,
+                            impact_magnitude=0.9,
+                        )
+                    ],
                 },
             },
         }
@@ -285,9 +291,7 @@ class TestDeterminism:
     def test_same_seed_same_satisfaction(self, bridge, profiles_50):
         r1 = bridge.from_profiles(profiles_50, seed=42)
         r2 = bridge.from_profiles(profiles_50, seed=42)
-        assert r1.avg_final_satisfaction == pytest.approx(
-            r2.avg_final_satisfaction, abs=1e-6
-        )
+        assert r1.avg_final_satisfaction == pytest.approx(r2.avg_final_satisfaction, abs=1e-6)
 
     def test_same_seed_same_churn_rate(self, bridge, profiles_50):
         r1 = bridge.from_profiles(profiles_50, seed=42)
@@ -298,11 +302,8 @@ class TestDeterminism:
         r1 = bridge.from_profiles(profiles_50, seed=42)
         r2 = bridge.from_profiles(profiles_50, seed=999)
         # With different seeds, at least one metric should differ
-        assert (
-            r1.total_churned != r2.total_churned
-            or r1.avg_final_satisfaction != pytest.approx(
-                r2.avg_final_satisfaction, abs=1e-6
-            )
+        assert r1.total_churned != r2.total_churned or r1.avg_final_satisfaction != pytest.approx(
+            r2.avg_final_satisfaction, abs=1e-6
         )
 
     def test_scenario_comparison_deterministic(self, bridge, profiles_50):
@@ -347,10 +348,6 @@ class TestSegmentMixes:
         r_hnw = bridge.from_profiles(hnw, seed=42)
         r_mm = bridge.from_profiles(mm, seed=42)
 
-        avg_hnw = sum(
-            s["deposits"] for s in r_hnw.final_snapshots
-        ) / len(r_hnw.final_snapshots)
-        avg_mm = sum(
-            s["deposits"] for s in r_mm.final_snapshots
-        ) / len(r_mm.final_snapshots)
+        avg_hnw = sum(s["deposits"] for s in r_hnw.final_snapshots) / len(r_hnw.final_snapshots)
+        avg_mm = sum(s["deposits"] for s in r_mm.final_snapshots) / len(r_mm.final_snapshots)
         assert avg_hnw > avg_mm

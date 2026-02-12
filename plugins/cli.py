@@ -200,17 +200,17 @@ Examples:
         print(f"Status:      {'✓ Enabled' if info['enabled'] else '✗ Disabled'}")
         print()
 
-        if info.get('tags'):
+        if info.get("tags"):
             print(f"Tags:        {', '.join(info['tags'])}")
             print()
 
-        if info.get('requires'):
+        if info.get("requires"):
             print("Requirements:")
-            requires = info['requires']
-            if 'python' in requires:
+            requires = info["requires"]
+            if "python" in requires:
                 print(f"  Python:    {requires['python']}")
-            if 'packages' in requires:
-                packages = requires['packages']
+            if "packages" in requires:
+                packages = requires["packages"]
                 if isinstance(packages, list):
                     print(f"  Packages:  {', '.join(packages)}")
                 elif isinstance(packages, dict):
@@ -218,11 +218,11 @@ Examples:
                         print(f"  - {pkg}: {ver}")
             print()
 
-        if info.get('homepage'):
+        if info.get("homepage"):
             print(f"Homepage:    {info['homepage']}")
-        if info.get('repository'):
+        if info.get("repository"):
             print(f"Repository:  {info['repository']}")
-        if info.get('license'):
+        if info.get("license"):
             print(f"License:     {info['license']}")
 
         print()
@@ -333,6 +333,7 @@ Examples:
 
         # Copy to plugins directory
         import shutil
+
         dest_path = self.plugins_dir / plugin_path.name
 
         if dest_path.exists():

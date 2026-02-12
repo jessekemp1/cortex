@@ -135,7 +135,7 @@ def cmd_goal(args):
             print(f"    [{icon}] {t['title']}")
 
         if result["blockers"]:
-            print(f"\n  Blockers:")
+            print("\n  Blockers:")
             for b in result["blockers"]:
                 print(f"    ! {b['description']}")
 

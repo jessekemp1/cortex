@@ -10,7 +10,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -396,7 +396,7 @@ class FileSelector:
                     continue
 
                 # Check for keyword matches
-                file_lower = file.lower()
+                file.lower()
                 path_lower = rel_path.lower()
                 matches = sum(1 for kw in keywords if kw in path_lower)
 
@@ -407,7 +407,7 @@ class FileSelector:
                     candidates.append(
                         FileInfo(
                             path=rel_path,
-                            reason=f"Filename matches goal keywords",
+                            reason="Filename matches goal keywords",
                             priority=6 + min(3, matches),
                             metadata={
                                 "source": "keyword_match",

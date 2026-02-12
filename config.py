@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from security import check_and_warn_permissions, secure_create_file, secure_create_directory
+
+from security import check_and_warn_permissions, secure_create_directory, secure_create_file
 
 
 @dataclass
@@ -83,7 +84,9 @@ def load_config() -> CortexConfig:
         if proposed_root.exists() and proposed_root.is_dir():
             config.root_dir = proposed_root
         else:
-            print(f"Warning: Invalid CORTEX_ROOT_DIR: {os.environ['CORTEX_ROOT_DIR']}, using default")
+            print(
+                f"Warning: Invalid CORTEX_ROOT_DIR: {os.environ['CORTEX_ROOT_DIR']}, using default"
+            )
 
     return config
 
@@ -114,7 +117,7 @@ data_quality_enabled: true       # Track data quality metrics
 defensive_prompting_enabled: true # Apply input/output validation
 quality_weighting_enabled: true  # Use quality scores in learning
 prompt_version: v1               # Default prompt version
-"""
+""",
             )
         except ImportError:
             # YAML optional - config will use defaults

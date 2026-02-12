@@ -27,10 +27,10 @@ spark.sql(f"USE {CATALOG}.{SCHEMA}")
 
 # COMMAND ----------
 
-# Import cortexdbx (must be on PYTHONPATH or installed)
-from cortexdbx.synthetic.generator import SyntheticDataGenerator, DOMAIN_CONFIGS
 import json
-from datetime import datetime
+
+# Import cortexdbx (must be on PYTHONPATH or installed)
+from cortexdbx.synthetic.generator import DOMAIN_CONFIGS, SyntheticDataGenerator
 
 # COMMAND ----------
 
@@ -60,15 +60,17 @@ for domain in DOMAIN_CONFIGS:
             "category": strat.get("category", "primary"),
             "created_at": out["created_at"],
         }
-        all_outcomes.append({
-            "outcome_id": out["outcome_id"],
-            "context_id": out["context_id"],
-            "strategy_id": out["strategy_id"],
-            "result": out["result"],
-            "evidence": out["evidence"],
-            "actor": out["actor"],
-            "created_at": out["created_at"],
-        })
+        all_outcomes.append(
+            {
+                "outcome_id": out["outcome_id"],
+                "context_id": out["context_id"],
+                "strategy_id": out["strategy_id"],
+                "result": out["result"],
+                "evidence": out["evidence"],
+                "actor": out["actor"],
+                "created_at": out["created_at"],
+            }
+        )
 
 # COMMAND ----------
 
@@ -91,5 +93,7 @@ outcomes_df.write.mode("overwrite").saveAsTable(f"{CATALOG}.{SCHEMA}.outcomes")
 # COMMAND ----------
 
 # Verify
-display(spark.sql(f"SELECT domain, COUNT(*) as cnt FROM {CATALOG}.{SCHEMA}.outcomes GROUP BY domain"))
+display(
+    spark.sql(f"SELECT domain, COUNT(*) as cnt FROM {CATALOG}.{SCHEMA}.outcomes GROUP BY domain")
+)
 display(spark.sql(f"SELECT COUNT(*) as total_outcomes FROM {CATALOG}.{SCHEMA}.outcomes"))

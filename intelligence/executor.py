@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from anthropic import Anthropic
-
 from intelligence.contracts import TaskContract
 
 logging.basicConfig(level=logging.INFO)
@@ -113,9 +112,7 @@ class ContractExecutor:
         self.client = Anthropic(api_key=api_key)
 
     async def execute_contract(
-        self,
-        contract: TaskContract,
-        dry_run: bool = False
+        self, contract: TaskContract, dry_run: bool = False
     ) -> ExecutionResult:
         """
         Execute a contract autonomously.
@@ -227,7 +224,7 @@ class ContractExecutor:
             response = self.client.messages.create(
                 model="claude-sonnet-4-5",
                 max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Parse response
@@ -392,7 +389,7 @@ Output ONLY the JSON, no other text."""
             working_dir = self.root_dir / "cortex"
 
         # Legacy: check context if provided
-        if "project" in getattr(contract, 'context', {}):
+        if "project" in getattr(contract, "context", {}):
             project = contract.context["project"]
             if project == "VortexV2":
                 working_dir = self.root_dir / "Vortex" / "VortexV2"
@@ -520,9 +517,7 @@ Output ONLY the JSON, no other text."""
         return True
 
     async def _verify_success_criteria(
-        self,
-        contract: TaskContract,
-        result: ExecutionResult
+        self, contract: TaskContract, result: ExecutionResult
     ) -> None:
         """
         Verify all success criteria.
@@ -562,10 +557,7 @@ Output ONLY the JSON, no other text."""
             result.benchmarks_met = True
 
     async def _verify_tests(
-        self,
-        tests: List[str],
-        contract: TaskContract,
-        result: ExecutionResult
+        self, tests: List[str], contract: TaskContract, result: ExecutionResult
     ) -> bool:
         """
         Run test suites to verify success.
@@ -593,7 +585,7 @@ Output ONLY the JSON, no other text."""
             working_dir = self.root_dir / "cortex"
 
         # Legacy: check context if provided
-        if "project" in getattr(contract, 'context', {}):
+        if "project" in getattr(contract, "context", {}):
             project = contract.context["project"]
             if project == "VortexV2":
                 working_dir = self.root_dir / "Vortex" / "VortexV2"
@@ -677,11 +669,7 @@ Output ONLY the JSON, no other text."""
 
         return None
 
-    async def _verify_metrics(
-        self,
-        metrics: Dict[str, str],
-        result: ExecutionResult
-    ) -> bool:
+    async def _verify_metrics(self, metrics: Dict[str, str], result: ExecutionResult) -> bool:
         """
         Verify metric thresholds.
 
@@ -735,6 +723,7 @@ Output ONLY the JSON, no other text."""
 
 if __name__ == "__main__":
     import asyncio
+
     from intelligence.contracts import ContractGenerator
     from intelligence.signals import SignalDetector
 
@@ -777,6 +766,7 @@ if __name__ == "__main__":
 
         # Ask for confirmation (only in interactive mode)
         import sys
+
         if sys.stdin.isatty():
             response = input("Execute for real? (y/n): ")
             if response.lower() == "y":

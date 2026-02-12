@@ -7,8 +7,8 @@ Shows before/after examples and integration patterns.
 """
 
 from context_optimizer import (
-    ContextItem,
     CategoryType,
+    ContextItem,
     ContextOptimizer,
     optimize_prompt_context,
 )
@@ -60,7 +60,9 @@ def demo_basic_usage():
     print("\nOptimized order (importance-based):")
     for i, item in enumerate(optimized, 1):
         position = "START" if i <= 2 else "MIDDLE" if i <= 3 else "END"
-        print(f"  {i}. [{position}] [{item.category.value}] (imp={item.importance}) {item.content[:50]}...")
+        print(
+            f"  {i}. [{position}] [{item.category.value}] (imp={item.importance}) {item.content[:50]}..."
+        )
 
     print("\nFormatted with markers:")
     formatted = optimizer.format_context(optimized, include_markers=True)
