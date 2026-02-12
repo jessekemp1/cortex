@@ -28,8 +28,13 @@ export const colors = {
   textSecondary: '#9CA3AF',     // gray-400
   textMuted: '#6B7280',         // gray-500
 
-  // Accent
-  accent: '#8B5CF6',            // violet
+  // Primary accent — Palantir cyan
+  cyan: '#06b6d4',
+  cyanMuted: '#164e63',
+  cyanGlow: 'rgba(6, 182, 212, 0.15)',
+
+  // Accent (violet — kept for AI suggestions)
+  accent: '#8B5CF6',
   accentMuted: '#6D28D9',
 } as const
 
@@ -48,6 +53,8 @@ export const typography = {
   fontFamily: {
     sans: 'Inter, system-ui, sans-serif',
     mono: 'JetBrains Mono, monospace',
+    display: 'Orbitron, monospace',
+    data: 'Share Tech Mono, monospace',
   },
   fontSize: {
     xs: '0.75rem',      // 12px

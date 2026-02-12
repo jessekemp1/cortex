@@ -2,7 +2,7 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
 import { cn } from '@/utils/cn'
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'elevated' | 'outlined'
+  variant?: 'default' | 'elevated' | 'outlined' | 'accent'
   padding?: 'none' | 'sm' | 'md' | 'lg'
 }
 
@@ -16,6 +16,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       default: 'bg-cortex-surface border border-cortex-border',
       elevated: 'bg-cortex-elevated border border-cortex-border shadow-elevated',
       outlined: 'bg-transparent border border-cortex-border',
+      accent: 'bg-cortex-surface border border-cortex-border border-l-[3px] border-l-cortex-cyan',
     }
 
     const paddingStyles = {

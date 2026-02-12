@@ -1,6 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { healthApi, batchApi, queueApi, metricsApi } from './client'
+import {
+  healthApi,
+  batchApi,
+  queueApi,
+  metricsApi,
+  anomalyApi,
+  recommendationsApi,
+  intelligenceApi,
+  projectsApi,
+  vortexHealthApi,
+  vortexSchedulerApi,
+  vortexModelsApi,
+} from './client'
 import type { PendingTask } from './types'
+import type { IntelligenceQuery } from '@/types/cortex'
 
 export const queryKeys = {
   health: ['health'] as const,
@@ -8,8 +21,15 @@ export const queryKeys = {
   batch: (id: string) => ['batch', id] as const,
   queue: ['queue'] as const,
   metrics: (days: number) => ['metrics', days] as const,
+  anomalies: ['anomalies'] as const,
+  recommendations: ['recommendations'] as const,
+  projects: ['projects'] as const,
+  vortexHealth: ['vortex', 'health'] as const,
+  vortexScheduler: ['vortex', 'scheduler'] as const,
+  vortexModels: ['vortex', 'models'] as const,
 }
 
+// ── Cortex: Health ──
 export function useHealthQuery() {
   return useQuery({
     queryKey: queryKeys.health,
@@ -21,6 +41,7 @@ export function useHealthQuery() {
   })
 }
 
+// ── Cortex: Batches ──
 export function useBatchesQuery(limit = 20) {
   return useQuery({
     queryKey: queryKeys.batches,
@@ -39,15 +60,14 @@ export function useBatchStatusQuery(batchId: string, enabled = true) {
     enabled: enabled && !!batchId,
     staleTime: 1000 * 5,
     refetchInterval: (query) => {
-      if (query.state.data?.status === 'ended') {
-        return false
-      }
+      if (query.state.data?.status === 'ended') return false
       return 1000 * 5
     },
     retry: 2,
   })
 }
 
+// ── Cortex: Queue ──
 export function useQueueQuery() {
   return useQuery({
     queryKey: queryKeys.queue,
@@ -59,6 +79,7 @@ export function useQueueQuery() {
   })
 }
 
+// ── Cortex: Metrics ──
 export function useMetricsQuery(days = 7) {
   return useQuery({
     queryKey: queryKeys.metrics(days),
@@ -69,9 +90,82 @@ export function useMetricsQuery(days = 7) {
   })
 }
 
+// ── Cortex: Anomalies ──
+export function useAnomaliesQuery() {
+  return useQuery({
+    queryKey: queryKeys.anomalies,
+    queryFn: anomalyApi.getAnomalies,
+    staleTime: 1000 * 60 * 2,
+    refetchInterval: 1000 * 60 * 2,
+    retry: 1,
+  })
+}
+
+// ── Cortex: Recommendations ──
+export function useRecommendationsQuery() {
+  return useQuery({
+    queryKey: queryKeys.recommendations,
+    queryFn: recommendationsApi.getRecommendations,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 5,
+    retry: 1,
+  })
+}
+
+// ── Cortex: Intelligence ──
+export function useIntelligenceMutation() {
+  return useMutation({
+    mutationFn: (payload: IntelligenceQuery) => intelligenceApi.query(payload),
+  })
+}
+
+// ── Cortex: Projects ──
+export function useProjectsQuery() {
+  return useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: projectsApi.getProjects,
+    staleTime: 1000 * 60 * 2,
+    refetchInterval: 1000 * 60 * 2,
+    retry: 1,
+  })
+}
+
+// ── Vortex: Health ──
+export function useVortexHealthQuery() {
+  return useQuery({
+    queryKey: queryKeys.vortexHealth,
+    queryFn: vortexHealthApi.getHealth,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    retry: 1,
+  })
+}
+
+// ── Vortex: Scheduler ──
+export function useVortexSchedulerQuery() {
+  return useQuery({
+    queryKey: queryKeys.vortexScheduler,
+    queryFn: vortexSchedulerApi.getScheduler,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    retry: 1,
+  })
+}
+
+// ── Vortex: Models ──
+export function useVortexModelsQuery() {
+  return useQuery({
+    queryKey: queryKeys.vortexModels,
+    queryFn: vortexModelsApi.getPerformance,
+    staleTime: 1000 * 60,
+    refetchInterval: 1000 * 60,
+    retry: 1,
+  })
+}
+
+// ── Mutations ──
 export function useAddTaskMutation() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (task: Omit<PendingTask, 'id' | 'created_at' | 'status'>) =>
       queueApi.addTask(task),
@@ -83,15 +177,9 @@ export function useAddTaskMutation() {
 
 export function useUpdateTaskPriorityMutation() {
   const queryClient = useQueryClient()
-
   return useMutation({
-    mutationFn: ({
-      taskId,
-      priority,
-    }: {
-      taskId: string
-      priority: PendingTask['priority']
-    }) => queueApi.updateTaskPriority(taskId, priority),
+    mutationFn: ({ taskId, priority }: { taskId: string; priority: PendingTask['priority'] }) =>
+      queueApi.updateTaskPriority(taskId, priority),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.queue })
     },
@@ -100,7 +188,6 @@ export function useUpdateTaskPriorityMutation() {
 
 export function useDeleteTaskMutation() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (taskId: string) => queueApi.deleteTask(taskId),
     onSuccess: () => {
@@ -111,7 +198,6 @@ export function useDeleteTaskMutation() {
 
 export function useCancelBatchMutation() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (batchId: string) => batchApi.cancelBatch(batchId),
     onSuccess: (_, batchId) => {
@@ -123,7 +209,6 @@ export function useCancelBatchMutation() {
 
 export function usePrefetchBatchStatus() {
   const queryClient = useQueryClient()
-
   return (batchId: string) => {
     queryClient.prefetchQuery({
       queryKey: queryKeys.batch(batchId),
