@@ -10,7 +10,30 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,  // Cortex Command Center
+    port: 3001,
+    strictPort: true,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+      },
+      '/vortex': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/vortex/, ''),
+      },
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+          chart: ['recharts'],
+        },
+      },
+    },
   },
 })

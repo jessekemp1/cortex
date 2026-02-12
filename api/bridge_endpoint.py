@@ -86,8 +86,10 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:18789",  # Moltbot
         "http://localhost:18789",  # Moltbot
-        "http://localhost:5173",  # React dev server
-        "http://127.0.0.1:5173",  # React dev server
+        "http://localhost:5173",  # React dev server (legacy)
+        "http://127.0.0.1:5173",  # React dev server (legacy)
+        "http://localhost:3001",  # Cortex Mission Control
+        "http://127.0.0.1:3001",  # Cortex Mission Control
         "http://localhost:*",  # Other local services
     ],
     allow_credentials=True,
