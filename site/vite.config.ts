@@ -18,10 +18,10 @@ export default defineConfig({
         target: 'http://localhost:8765',
         changeOrigin: true,
       },
-      '/vortex': {
+      '/vortex-api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/vortex/, ''),
+        rewrite: (path) => path.replace(/^\/vortex-api/, ''),
       },
     },
   },

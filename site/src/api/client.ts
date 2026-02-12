@@ -7,7 +7,7 @@ import type {
   APIError,
 } from './types'
 import type { AnomalyResponse, RecommendationResponse, IntelligenceQuery, IntelligenceResult, ProjectStatus } from '@/types/cortex'
-import type { VortexHealth, SchedulerStatus, ModelPerformance } from '@/types/vortex'
+import type { VortexHealth, SchedulerStatusRaw, ModelPerformance } from '@/types/vortex'
 
 const API_BASE_URL = import.meta.env.VITE_CORTEX_API_URL || '/api'
 
@@ -38,7 +38,7 @@ cortexApi.interceptors.response.use(
 
 // Vortex API — proxied through /vortex → :8000
 export const vortexApi = axios.create({
-  baseURL: '/vortex/api/v2',
+  baseURL: '/vortex-api/api/v2',
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 })
@@ -143,24 +143,27 @@ export const projectsApi = {
   },
 }
 
-// ── VortexV2: Health / Scheduler / Models ──
+// ── VortexV2: Health (detailed) / Scheduler / Models ──
 export const vortexHealthApi = {
   getHealth: async (): Promise<VortexHealth> => {
-    const response = await vortexApi.get<VortexHealth>('/health')
+    const response = await vortexApi.get<VortexHealth>('/health/detailed')
     return response.data
   },
 }
 
 export const vortexSchedulerApi = {
-  getScheduler: async (): Promise<SchedulerStatus> => {
-    const response = await vortexApi.get<SchedulerStatus>('/scheduler/status')
+  getScheduler: async (): Promise<SchedulerStatusRaw> => {
+    const response = await vortexApi.get<SchedulerStatusRaw>('/scheduler/status')
     return response.data
   },
 }
 
 export const vortexModelsApi = {
   getPerformance: async (): Promise<ModelPerformance[]> => {
-    const response = await vortexApi.get<ModelPerformance[]>('/models/performance')
+    // Default location: offshore buoy 41002 (South Hatteras)
+    const response = await vortexApi.get<ModelPerformance[]>('/models/performance', {
+      params: { lat: 32.27, lon: -75.42, days: 7 },
+    })
     return response.data
   },
 }

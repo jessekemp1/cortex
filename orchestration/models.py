@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 # Re-export core task models from task.py
-from .task import Task
+from .task import Task, TaskPhase, TaskPriority, TaskStatus
 
 
 class ExecutionBackend(str, Enum):
