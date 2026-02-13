@@ -4,9 +4,10 @@
       "name": "Cortex Command Center",
       "path": "/Users/jesse.kemp/Dev/cortex/site",
       "type": "react",
-      "port": 5173,
+      "port": 3001,
       "start_command": "npm run dev",
-      "status": "stopped"
+      "status": "running",
+      "pid": 4328
     },
     {
       "name": "Cortex Orchestration",
@@ -15,7 +16,7 @@
       "port": 8502,
       "start_command": "streamlit run app.py --server.port 8502",
       "status": "running",
-      "pid": 64551
+      "pid": 1641
     },
     {
       "name": "Cortex Bridge API",
@@ -23,7 +24,8 @@
       "type": "fastapi",
       "port": 8765,
       "start_command": "uvicorn api.bridge_endpoint:app --port 8765",
-      "status": "stopped"
+      "status": "running",
+      "pid": 71940
     },
     {
       "name": "VortexV2",
@@ -38,7 +40,7 @@
           "port": 8000,
           "start_command": "uvicorn app.main:app --port 8000",
           "status": "running",
-          "pid": 78205
+          "pid": 29634
         },
         {
           "name": "UI",
@@ -53,7 +55,8 @@
       "type": "react",
       "port": 3002,
       "start_command": "npm run dev",
-      "status": "stopped"
+      "status": "running",
+      "pid": 39415
     },
     {
       "name": "Alpha Arena",
@@ -67,10 +70,9 @@
       "name": "Kempion Research",
       "path": "/Users/jesse.kemp/Dev/kempion-research-site",
       "type": "react",
-      "port": 5176,
+      "port": 5174,
       "start_command": "npm run dev",
-      "status": "running",
-      "pid": 89891
+      "status": "stopped"
     },
     {
       "name": "DJ CoPilot",
@@ -82,71 +84,86 @@
     }
   ],
   "running_processes": {
+    "8502": {
+      "pid": 1641,
+      "command": "Python",
+      "status": "running"
+    },
     "6379": {
-      "pid": 2026,
+      "pid": 1645,
       "command": "redis-ser",
       "status": "running"
     },
-    "3000": {
-      "pid": 2036,
-      "command": "node",
-      "status": "running"
-    },
     "5432": {
-      "pid": 2043,
+      "pid": 1662,
       "command": "postgres",
       "status": "running"
     },
-    "11434": {
-      "pid": 4590,
-      "command": "ollama",
-      "status": "running"
-    },
-    "59830": {
-      "pid": 15918,
-      "command": "Code\\x20H",
-      "status": "running"
-    },
-    "8081": {
-      "pid": 23899,
+    "3001": {
+      "pid": 4328,
       "command": "node",
       "status": "running"
     },
-    "8502": {
-      "pid": 64551,
+    "3010": {
+      "pid": 15739,
+      "command": "node",
+      "status": "running"
+    },
+    "8501": {
+      "pid": 25902,
       "command": "Python",
       "status": "running"
     },
-    "7679": {
-      "pid": 71342,
-      "command": "Google",
+    "8002": {
+      "pid": 27026,
+      "command": "Python",
       "status": "running"
     },
     "8000": {
-      "pid": 78205,
+      "pid": 29634,
       "command": "Python",
       "status": "running"
     },
-    "61885": {
-      "pid": 78785,
-      "command": "Cursor",
-      "status": "running"
-    },
-    "57429": {
-      "pid": 78785,
-      "command": "Cursor",
-      "status": "running"
-    },
-    "5176": {
-      "pid": 89891,
+    "3002": {
+      "pid": 39415,
       "command": "node",
       "status": "running"
     },
-    "3333": {
-      "pid": 95518,
+    "3003": {
+      "pid": 52293,
+      "command": "node",
+      "status": "running"
+    },
+    "7679": {
+      "pid": 61583,
+      "command": "Google",
+      "status": "running"
+    },
+    "3005": {
+      "pid": 63727,
+      "command": "node",
+      "status": "running"
+    },
+    "8003": {
+      "pid": 68085,
       "command": "Python",
+      "status": "running"
+    },
+    "8765": {
+      "pid": 71940,
+      "command": "Python",
+      "status": "running"
+    },
+    "53608": {
+      "pid": 85582,
+      "command": "Ollama",
+      "status": "running"
+    },
+    "11434": {
+      "pid": 85752,
+      "command": "ollama",
       "status": "running"
     }
   },
-  "generated_at": "2026-02-04T17:13:49Z"
+  "generated_at": "2026-02-13T05:24:17Z"
 }
