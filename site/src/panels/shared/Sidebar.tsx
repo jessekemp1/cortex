@@ -17,6 +17,8 @@ const navItems: NavItem[] = [
   { path: '/batch', label: 'BATCH OPS', icon: '⬡' },
   { path: '/metrics', label: 'METRICS', icon: '▦' },
   { path: '/vortex', label: 'VORTEX', icon: '◎' },
+  { path: '/sessions', label: 'SESSIONS', icon: '⊚' },
+  { path: '/taskboard', label: 'TASKS', icon: '⬢' },
 ]
 
 export function Sidebar() {

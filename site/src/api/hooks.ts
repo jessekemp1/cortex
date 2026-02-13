@@ -8,6 +8,8 @@ import {
   recommendationsApi,
   intelligenceApi,
   projectsApi,
+  sessionsApi,
+  taskBoardApi,
   vortexHealthApi,
   vortexSchedulerApi,
   vortexModelsApi,
@@ -15,6 +17,7 @@ import {
 import type { PendingTask } from './types'
 import type { IntelligenceQuery } from '@/types/cortex'
 import type { SchedulerStatusRaw } from '@/types/vortex'
+import type { Task } from '@/types/task'
 
 export const queryKeys = {
   health: ['health'] as const,
@@ -25,6 +28,8 @@ export const queryKeys = {
   anomalies: ['anomalies'] as const,
   recommendations: ['recommendations'] as const,
   projects: ['projects'] as const,
+  sessions: ['sessions'] as const,
+  taskboard: ['taskboard'] as const,
   vortexHealth: ['vortex', 'health'] as const,
   vortexScheduler: ['vortex', 'scheduler'] as const,
   vortexModels: ['vortex', 'models'] as const,
@@ -217,4 +222,76 @@ export function usePrefetchBatchStatus() {
       staleTime: 1000 * 5,
     })
   }
+}
+
+// ── Cortex: Sessions ──
+export function useSessionsQuery(activeOnly = false) {
+  return useQuery({
+    queryKey: queryKeys.sessions,
+    queryFn: () => sessionsApi.getSessions(activeOnly),
+    staleTime: 1000 * 10,
+    refetchInterval: 1000 * 15,
+    retry: 1,
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ── Cortex: TaskBoard ──
+export function useTaskBoardQuery(filters?: { status?: string; project?: string; priority?: string }) {
+  return useQuery({
+    queryKey: queryKeys.taskboard,
+    queryFn: () => taskBoardApi.getTasks(filters),
+    staleTime: 1000 * 5,
+    refetchInterval: 1000 * 10,
+    retry: 2,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useCreateTaskBoardTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (task: Parameters<typeof taskBoardApi.createTask>[0]) =>
+      taskBoardApi.createTask(task),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
+    },
+  })
+}
+
+export function useUpdateTaskBoardTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      update,
+    }: {
+      taskId: string
+      update: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'project' | 'tags' | 'notes'>>
+    }) => taskBoardApi.updateTask(taskId, update),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
+    },
+  })
+}
+
+export function useDeleteTaskBoardTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (taskId: string) => taskBoardApi.deleteTask(taskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
+    },
+  })
+}
+
+export function useDecomposeTaskMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (req: Parameters<typeof taskBoardApi.decompose>[0]) =>
+      taskBoardApi.decompose(req),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
+    },
+  })
 }
