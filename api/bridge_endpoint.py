@@ -617,13 +617,401 @@ async def get_recommendations_alias(
 
 
 # ============================================================================
+# Sessions — Claude Code session visibility
+# ============================================================================
+
+CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+
+
+@app.get("/sessions")
+async def get_sessions(
+    active_only: bool = Query(False, description="Only return active/waiting sessions"),
+    limit: int = Query(20, description="Max sessions to return"),
+) -> Dict[str, Any]:
+    """
+    Scan Claude Code session JSONL files for real-time session visibility.
+
+    Derives session state from last event age:
+    - ACTIVE: last event < 60s (Claude or tool running)
+    - WAITING: last event type is 'user' and age < 60s
+    - IDLE: last event age 60s-300s
+    - STALE: last event age > 300s
+    """
+    import json as _json
+
+    try:
+        sessions = []
+        now = time.time()
+
+        if not CLAUDE_PROJECTS_DIR.exists():
+            return {"sessions": [], "total": 0, "active_count": 0}
+
+        # Scan all project directories for session JSONL files
+        for project_dir in CLAUDE_PROJECTS_DIR.iterdir():
+            if not project_dir.is_dir():
+                continue
+
+            project_name = project_dir.name.replace("-Users-jesse-kemp-", "").replace("-", "/")
+
+            for jsonl_file in project_dir.glob("*.jsonl"):
+                try:
+                    mtime = jsonl_file.stat().st_mtime
+                    age_seconds = now - mtime
+
+                    # Read last few lines for state detection
+                    content = jsonl_file.read_bytes()
+                    lines = content.strip().split(b"\n")
+                    if not lines:
+                        continue
+
+                    last_event = {}
+                    event_count = len(lines)
+                    first_event = {}
+
+                    # Parse last line
+                    try:
+                        last_event = _json.loads(lines[-1])
+                    except (ValueError, _json.JSONDecodeError):
+                        pass
+
+                    # Parse first line for start time
+                    try:
+                        first_event = _json.loads(lines[0])
+                    except (ValueError, _json.JSONDecodeError):
+                        pass
+
+                    # Derive status
+                    last_type = last_event.get("type", "")
+                    if age_seconds < 60:
+                        status = "WAITING" if last_type == "user" else "ACTIVE"
+                    elif age_seconds < 300:
+                        status = "IDLE"
+                    else:
+                        status = "STALE"
+
+                    if active_only and status in ("STALE",):
+                        continue
+
+                    session_id = jsonl_file.stem
+                    sessions.append(
+                        {
+                            "id": session_id,
+                            "project": project_name,
+                            "status": status,
+                            "git_branch": last_event.get("gitBranch", ""),
+                            "last_event_type": last_type,
+                            "last_event_age_seconds": round(age_seconds, 1),
+                            "started_at": first_event.get("timestamp", ""),
+                            "last_activity": last_event.get("timestamp", ""),
+                            "event_count": event_count,
+                            "model": last_event.get("model", ""),
+                            "cwd": last_event.get("cwd", ""),
+                        }
+                    )
+                except Exception:
+                    continue
+
+        # Sort by most recent activity
+        sessions.sort(key=lambda s: s.get("last_event_age_seconds", 999999))
+        sessions = sessions[:limit]
+
+        active_count = sum(1 for s in sessions if s["status"] in ("ACTIVE", "WAITING"))
+        return {"sessions": sessions, "total": len(sessions), "active_count": active_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# TaskBoard — Spec-driven task management
+# ============================================================================
+
+TASKBOARD_DIR = Path.home() / ".cortex" / "taskboard"
+TASKBOARD_FILE = TASKBOARD_DIR / "tasks.json"
+
+
+def _load_taskboard() -> Dict[str, Any]:
+    """Load task board from disk."""
+    if not TASKBOARD_FILE.exists():
+        TASKBOARD_DIR.mkdir(parents=True, exist_ok=True)
+        default = {"version": "1.0", "tasks": []}
+        TASKBOARD_FILE.write_text(__import__("json").dumps(default, indent=2))
+        return default
+    import json as _json
+
+    return _json.loads(TASKBOARD_FILE.read_text())
+
+
+def _save_taskboard(data: Dict[str, Any]) -> None:
+    """Save task board to disk."""
+    import json as _json
+
+    TASKBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    TASKBOARD_FILE.write_text(_json.dumps(data, indent=2))
+
+
+class TaskBoardCreateRequest(BaseModel):
+    """Request to create a task."""
+
+    title: str = Field(..., description="Task title")
+    description: str = Field(default="", description="Task description")
+    status: str = Field(default="backlog", description="Status: backlog, ready, in_progress, done")
+    priority: str = Field(default="MEDIUM", description="Priority: HIGH, MEDIUM, LOW")
+    project: str = Field(default="", description="Project name")
+    tags: List[str] = Field(default_factory=list, description="Tags")
+    parent_id: Optional[str] = Field(default=None, description="Parent task ID")
+
+
+class TaskBoardUpdateRequest(BaseModel):
+    """Request to update a task."""
+
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    project: Optional[str] = None
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+
+class DecomposeRequest(BaseModel):
+    """Request to decompose a spec into tasks."""
+
+    description: str = Field(..., description="Spec or feature description")
+    project: str = Field(default="", description="Project name")
+    context: str = Field(default="", description="Additional context")
+
+
+@app.get("/taskboard")
+async def get_taskboard(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    project: Optional[str] = Query(None, description="Filter by project"),
+    priority: Optional[str] = Query(None, description="Filter by priority"),
+) -> Dict[str, Any]:
+    """Get all tasks, optionally filtered."""
+    try:
+        data = _load_taskboard()
+        tasks = data.get("tasks", [])
+
+        if status:
+            tasks = [t for t in tasks if t.get("status") == status]
+        if project:
+            tasks = [t for t in tasks if t.get("project", "").lower() == project.lower()]
+        if priority:
+            tasks = [t for t in tasks if t.get("priority") == priority]
+
+        return {"tasks": tasks, "total": len(tasks)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/taskboard")
+async def create_task(task: TaskBoardCreateRequest) -> Dict[str, Any]:
+    """Create a new task."""
+    try:
+        data = _load_taskboard()
+
+        new_task = {
+            "id": f"task_{int(time.time())}",
+            "title": task.title,
+            "description": task.description,
+            "status": task.status,
+            "priority": task.priority,
+            "project": task.project,
+            "tags": task.tags,
+            "parent_id": task.parent_id,
+            "subtasks": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "started_at": None,
+            "completed_at": None,
+            "source": "manual",
+            "notes": "",
+        }
+
+        data.setdefault("tasks", []).append(new_task)
+        _save_taskboard(data)
+
+        return {"status": "added", "task": new_task}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/taskboard/{task_id}")
+async def update_task(task_id: str, update: TaskBoardUpdateRequest) -> Dict[str, Any]:
+    """Update a task."""
+    try:
+        data = _load_taskboard()
+
+        for task in data.get("tasks", []):
+            if task.get("id") == task_id:
+                if update.title is not None:
+                    task["title"] = update.title
+                if update.description is not None:
+                    task["description"] = update.description
+                if update.status is not None:
+                    old_status = task.get("status")
+                    task["status"] = update.status
+                    if update.status == "in_progress" and old_status != "in_progress":
+                        task["started_at"] = datetime.now().isoformat()
+                    if update.status == "done" and old_status != "done":
+                        task["completed_at"] = datetime.now().isoformat()
+                if update.priority is not None:
+                    task["priority"] = update.priority
+                if update.project is not None:
+                    task["project"] = update.project
+                if update.tags is not None:
+                    task["tags"] = update.tags
+                if update.notes is not None:
+                    task["notes"] = update.notes
+                task["updated_at"] = datetime.now().isoformat()
+
+                _save_taskboard(data)
+                return {"status": "updated", "task": task}
+
+        raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/taskboard/{task_id}")
+async def delete_taskboard_task(task_id: str) -> Dict[str, Any]:
+    """Delete a task."""
+    try:
+        data = _load_taskboard()
+        tasks = data.get("tasks", [])
+        new_tasks = [t for t in tasks if t.get("id") != task_id]
+
+        if len(new_tasks) == len(tasks):
+            raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+
+        data["tasks"] = new_tasks
+        _save_taskboard(data)
+
+        return {"status": "deleted", "task_id": task_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/taskboard/decompose")
+async def decompose_task(req: DecomposeRequest) -> Dict[str, Any]:
+    """
+    Decompose a feature description into subtasks using Cortex intelligence.
+
+    Falls back to heuristic decomposition if intelligence engine unavailable.
+    """
+    try:
+        # Try Cortex intelligence for smart decomposition
+        bridge = get_bridge()
+        result = bridge.query_intelligence(
+            f"Decompose this into 3-5 actionable implementation tasks. "
+            f"For each task, provide a title and priority (HIGH/MEDIUM/LOW).\n\n"
+            f"Feature: {req.description}\n"
+            f"Project: {req.project}\n"
+            f"Context: {req.context}",
+            project=req.project or "cortex",
+        )
+
+        # Parse AI response into structured tasks
+        response_text = result.get("result", "") or result.get("response", "")
+
+        # Create parent task
+        parent_id = f"task_{int(time.time())}"
+        parent_task = {
+            "id": parent_id,
+            "title": req.description[:100],
+            "description": req.description,
+            "status": "backlog",
+            "priority": "HIGH",
+            "project": req.project,
+            "tags": ["decomposed"],
+            "parent_id": None,
+            "subtasks": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "started_at": None,
+            "completed_at": None,
+            "source": "decompose",
+            "notes": "",
+        }
+
+        # Create subtasks from AI response (simple line-based parsing)
+        subtasks = []
+        for i, line in enumerate(response_text.split("\n")):
+            line = line.strip().lstrip("0123456789.-) ")
+            if len(line) > 10 and not line.startswith("#"):
+                sub_id = f"task_{int(time.time())}_{i}"
+                priority = (
+                    "HIGH"
+                    if "high" in line.lower()
+                    else "MEDIUM"
+                    if "medium" in line.lower()
+                    else "LOW"
+                )
+                subtask = {
+                    "id": sub_id,
+                    "title": line[:120],
+                    "description": "",
+                    "status": "backlog",
+                    "priority": priority,
+                    "project": req.project,
+                    "tags": ["subtask"],
+                    "parent_id": parent_id,
+                    "subtasks": [],
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat(),
+                    "started_at": None,
+                    "completed_at": None,
+                    "source": "decompose",
+                    "notes": "",
+                }
+                subtasks.append(subtask)
+                parent_task["subtasks"].append(sub_id)
+
+                if len(subtasks) >= 7:
+                    break
+
+        return {
+            "parent_task": parent_task,
+            "subtasks": subtasks,
+            "ai_response": response_text[:500],
+        }
+    except Exception as e:
+        # Fallback: return the description as a single task
+        parent_id = f"task_{int(time.time())}"
+        return {
+            "parent_task": {
+                "id": parent_id,
+                "title": req.description[:100],
+                "description": req.description,
+                "status": "backlog",
+                "priority": "HIGH",
+                "project": req.project,
+                "tags": [],
+                "parent_id": None,
+                "subtasks": [],
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "started_at": None,
+                "completed_at": None,
+                "source": "decompose_fallback",
+                "notes": f"Decomposition failed: {str(e)}",
+            },
+            "subtasks": [],
+            "ai_response": "",
+        }
+
+
+# ============================================================================
 # Main Entry Point
 # ============================================================================
 
 if __name__ == "__main__":
     import uvicorn
 
-    print("🧠 Starting Cortex Bridge API on http://127.0.0.1:8765")
-    print("📚 API docs: http://127.0.0.1:8765/docs")
-    print("🦞 Ready for Moltbot integration!")
+    print("Starting Cortex Bridge API on http://127.0.0.1:8765")
+    print("API docs: http://127.0.0.1:8765/docs")
     uvicorn.run(app, host="127.0.0.1", port=8765)

@@ -8,6 +8,8 @@ import type {
 } from './types'
 import type { AnomalyResponse, RecommendationResponse, IntelligenceQuery, IntelligenceResult, ProjectStatus } from '@/types/cortex'
 import type { VortexHealth, SchedulerStatusRaw, ModelPerformance } from '@/types/vortex'
+import type { SessionsResponse } from '@/types/session'
+import type { TaskBoardResponse, Task, DecomposeResponse } from '@/types/task'
 
 const API_BASE_URL = import.meta.env.VITE_CORTEX_API_URL || '/api'
 
@@ -238,6 +240,62 @@ export const vortexModelsApi = {
   },
 }
 
+// ── Cortex: Sessions ──
+export const sessionsApi = {
+  getSessions: async (activeOnly = false, limit = 20): Promise<SessionsResponse> => {
+    const response = await cortexApi.get('/sessions', {
+      params: { active_only: activeOnly, limit },
+    })
+    return response.data
+  },
+}
+
+// ── Cortex: TaskBoard ──
+export const taskBoardApi = {
+  getTasks: async (filters?: {
+    status?: string
+    project?: string
+    priority?: string
+  }): Promise<TaskBoardResponse> => {
+    const response = await cortexApi.get('/taskboard', { params: filters })
+    return response.data
+  },
+
+  createTask: async (task: {
+    title: string
+    description?: string
+    status?: string
+    priority?: string
+    project?: string
+    tags?: string[]
+    parent_id?: string | null
+  }): Promise<{ status: string; task: Task }> => {
+    const response = await cortexApi.post('/taskboard', task)
+    return response.data
+  },
+
+  updateTask: async (
+    taskId: string,
+    update: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'project' | 'tags' | 'notes'>>
+  ): Promise<{ status: string; task: Task }> => {
+    const response = await cortexApi.patch(`/taskboard/${taskId}`, update)
+    return response.data
+  },
+
+  deleteTask: async (taskId: string): Promise<void> => {
+    await cortexApi.delete(`/taskboard/${taskId}`)
+  },
+
+  decompose: async (req: {
+    description: string
+    project?: string
+    context?: string
+  }): Promise<DecomposeResponse> => {
+    const response = await cortexApi.post('/taskboard/decompose', req)
+    return response.data
+  },
+}
+
 export default {
   health: healthApi,
   batch: batchApi,
@@ -248,6 +306,8 @@ export default {
   anomaly: anomalyApi,
   recommendations: recommendationsApi,
   projects: projectsApi,
+  sessions: sessionsApi,
+  taskBoard: taskBoardApi,
   vortexHealth: vortexHealthApi,
   vortexScheduler: vortexSchedulerApi,
   vortexModels: vortexModelsApi,

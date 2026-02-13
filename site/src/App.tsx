@@ -9,6 +9,8 @@ const RecommendationsPanel = lazy(() => import('@/panels/recommendations/Recomme
 const BatchDashboard = lazy(() => import('@/panels/batch/BatchDashboard'))
 const MetricsPanel = lazy(() => import('@/panels/metrics/MetricsPanel'))
 const VortexHealthPanel = lazy(() => import('@/panels/vortex/VortexHealthPanel'))
+const SessionPanel = lazy(() => import('@/panels/sessions/SessionPanel'))
+const TaskBoardPanel = lazy(() => import('@/panels/taskboard/TaskBoardPanel'))
 
 function LoadingFallback() {
   return (
@@ -33,6 +35,8 @@ export default function App() {
           <Route path="batch" element={<Suspense fallback={<LoadingFallback />}><BatchDashboard /></Suspense>} />
           <Route path="metrics" element={<Suspense fallback={<LoadingFallback />}><MetricsPanel /></Suspense>} />
           <Route path="vortex" element={<Suspense fallback={<LoadingFallback />}><VortexHealthPanel /></Suspense>} />
+          <Route path="sessions" element={<Suspense fallback={<LoadingFallback />}><SessionPanel /></Suspense>} />
+          <Route path="taskboard" element={<Suspense fallback={<LoadingFallback />}><TaskBoardPanel /></Suspense>} />
         </Route>
       </Routes>
     </BrowserRouter>
