@@ -26,8 +26,15 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+try:
+    from intelligence.bandwidth.contracts import ContractMetricsStore, ContractSessionMetrics
+except Exception:
+    ContractMetricsStore = None
+    ContractSessionMetrics = None
+
 # Queue file location (shared with hooks)
 INTERACTION_QUEUE = Path.home() / ".cortex" / "interaction_queue.jsonl"
+PROCESSING_QUEUE = Path.home() / ".cortex" / "interaction_queue.processing.jsonl"
 LEARNING_STATE = Path.home() / ".cortex" / "interaction_learning_state.json"
 
 
@@ -87,9 +94,18 @@ class InteractionLearner:
     from real-time interaction patterns.
     """
 
-    def __init__(self):
-        self.queue_file = INTERACTION_QUEUE
-        self.state_file = LEARNING_STATE
+    def __init__(
+        self,
+        queue_file: Optional[Path] = None,
+        state_file: Optional[Path] = None,
+        contract_store: Optional[Any] = None,
+    ):
+        self.queue_file = queue_file or INTERACTION_QUEUE
+        self.processing_file = self.queue_file.with_name(PROCESSING_QUEUE.name)
+        self.state_file = state_file or LEARNING_STATE
+        self.contract_store = contract_store
+        if self.contract_store is None and ContractMetricsStore:
+            self.contract_store = ContractMetricsStore()
         self._state = self._load_state()
 
     def _load_state(self) -> Dict[str, Any]:
@@ -119,12 +135,13 @@ class InteractionLearner:
 
         Returns summary of processing results.
         """
-        if not self.queue_file.exists():
+        queue_path = self._acquire_queue_snapshot()
+        if queue_path is None:
             return {"status": "no_queue", "processed": 0}
 
         interactions = []
         try:
-            with open(self.queue_file) as f:
+            with open(queue_path) as f:
                 for line in f:
                     line = line.strip()
                     if line:
@@ -137,6 +154,7 @@ class InteractionLearner:
             return {"status": "error", "error": str(e)}
 
         if not interactions:
+            self._clear_processing_queue()
             return {"status": "empty_queue", "processed": 0}
 
         # Process interactions
@@ -158,6 +176,9 @@ class InteractionLearner:
             session_insights = self._generate_insights(session_id, session_interactions)
             insights.extend(session_insights)
 
+            # Record Phase 1 contract metrics
+            self._record_contract_metrics(session_id, session_interactions)
+
         # Update learning system with implicit outcomes
         self._update_learning_system(outcomes)
 
@@ -165,7 +186,7 @@ class InteractionLearner:
         self._update_session_patterns(interactions)
 
         # Clear processed queue
-        self._clear_queue()
+        self._clear_processing_queue()
 
         # Update state
         self._state["last_processed"] = datetime.now().isoformat()
@@ -181,6 +202,89 @@ class InteractionLearner:
             "insights_generated": len(insights),
             "sessions_analyzed": len(by_session),
         }
+
+    def _record_contract_metrics(self, session_id: str, interactions: List[Dict]) -> None:
+        """Record Phase 1 contract metrics for this session."""
+        if not self.contract_store or not ContractSessionMetrics:
+            return
+
+        prompts = [i for i in interactions if i.get("type") == "prompt_received"]
+        tools = [i for i in interactions if i.get("type") == "tool_completed"]
+
+        correction_count = sum(
+            1 for p in prompts if self._is_correction(str(p.get("prompt", "")).lower())
+        )
+        confirmation_count = sum(
+            1 for p in prompts if self._is_approval(str(p.get("prompt", "")).lower())
+        )
+
+        brainstorm_keywords = ["divergent", "convergent", "adversarial", "analogical", "brainstorm"]
+        novelty_keywords = ["novel", "new idea", "alternative", "what if", "variant"]
+        brainstorm_signal_count = sum(
+            1
+            for p in prompts
+            if any(k in str(p.get("prompt", "")).lower() for k in brainstorm_keywords)
+        )
+        novelty_signal_count = sum(
+            1 for p in prompts if any(k in str(p.get("prompt", "")).lower() for k in novelty_keywords)
+        )
+
+        prompt_count = len(prompts)
+        tool_count = len(tools)
+        override_rate = correction_count / max(prompt_count, 1)
+        autonomy_level = max(0.0, 1.0 - (confirmation_count / max(tool_count, 1)))
+        novelty_score = min(10.0, (brainstorm_signal_count * 2.0) + (novelty_signal_count * 1.0))
+
+        project = "unknown"
+        source = "unknown"
+        for event in interactions:
+            cwd = str(event.get("cwd", ""))
+            if cwd:
+                project = cwd.rstrip("/").split("/")[-1] or "unknown"
+            source = str(event.get("source", source))
+            if project != "unknown":
+                break
+
+        metrics = ContractSessionMetrics(
+            timestamp=datetime.now(),
+            session_id=session_id,
+            project=project,
+            source=source,
+            prompt_count=prompt_count,
+            correction_count=correction_count,
+            confirmation_count=confirmation_count,
+            tool_count=tool_count,
+            brainstorm_signal_count=brainstorm_signal_count,
+            novelty_signal_count=novelty_signal_count,
+            override_rate=round(override_rate, 3),
+            autonomy_level=round(autonomy_level, 3),
+            novelty_score=round(novelty_score, 2),
+        )
+        try:
+            self.contract_store.record(metrics)
+        except Exception as e:
+            logger.error(f"Failed to record contract metrics: {e}")
+
+    def _acquire_queue_snapshot(self) -> Optional[Path]:
+        """
+        Acquire a stable queue snapshot for replay-safe processing.
+
+        If a previous processing snapshot exists, resume from it.
+        Otherwise atomically rename the live queue so new events are written
+        to a fresh queue file while this batch is processed.
+        """
+        try:
+            if self.processing_file.exists():
+                return self.processing_file
+
+            if not self.queue_file.exists():
+                return None
+
+            self.queue_file.rename(self.processing_file)
+            return self.processing_file
+        except Exception as e:
+            logger.error(f"Failed to acquire queue snapshot: {e}")
+            return None
 
     def _analyze_session(self, session_id: str, interactions: List[Dict]) -> List[ImplicitOutcome]:
         """
@@ -459,13 +563,13 @@ class InteractionLearner:
         except Exception as e:
             logger.error(f"Failed to update session patterns: {e}")
 
-    def _clear_queue(self) -> None:
-        """Clear processed interactions from queue."""
+    def _clear_processing_queue(self) -> None:
+        """Clear processed interactions from the processing snapshot."""
         try:
-            if self.queue_file.exists():
-                self.queue_file.unlink()
+            if self.processing_file.exists():
+                self.processing_file.unlink()
         except Exception as e:
-            logger.error(f"Failed to clear queue: {e}")
+            logger.error(f"Failed to clear processing queue: {e}")
 
     def get_learning_summary(self, days: int = 7) -> Dict[str, Any]:
         """Get a summary of learning from recent interactions."""

@@ -46,6 +46,7 @@ Usage in Claude Code settings.json:
 import json
 import logging
 import os
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,30 @@ logger = logging.getLogger(__name__)
 
 # Storage path for async processing
 INTERACTION_QUEUE = Path.home() / ".cortex" / "interaction_queue.jsonl"
+HOOK_STATUS_FILE = Path.home() / ".cortex" / "interaction_hook_status.json"
+HOOK_ERROR_LOG = Path.home() / ".cortex" / "interaction_hook_errors.log"
+
+
+def _write_hook_status(**kwargs) -> None:
+    """Best-effort write of hook health state."""
+    try:
+        HOOK_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        status = {"timestamp": datetime.now().isoformat()}
+        status.update(kwargs)
+        with open(HOOK_STATUS_FILE, "w") as f:
+            json.dump(status, f, indent=2)
+    except Exception:
+        pass
+
+
+def _append_hook_error(message: str) -> None:
+    """Best-effort append of hook errors."""
+    try:
+        HOOK_ERROR_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(HOOK_ERROR_LOG, "a") as f:
+            f.write(f"{datetime.now().isoformat()} {message}\n")
+    except Exception:
+        pass
 
 
 def get_hook_input() -> dict:
@@ -87,6 +112,7 @@ def queue_interaction(interaction: dict) -> None:
 
     with open(INTERACTION_QUEUE, "a") as f:
         f.write(json.dumps(interaction) + "\n")
+    _write_hook_status(last_queue_write="success", event_type=interaction.get("type"))
 
 
 def capture_prompt(hook_input: dict) -> None:
@@ -113,16 +139,14 @@ def capture_prompt(hook_input: dict) -> None:
     except Exception:
         pass  # Never block on command tracking
 
-    queue_interaction(
-        {
-            "type": "prompt_received",
-            "session_id": session_id,
-            "cwd": cwd,
-            "prompt": prompt,
-            "transcript_path": hook_input.get("transcript_path"),
-            "command": command_info.get("command") if command_info else None,
-        }
-    )
+    from intelligence.bandwidth.event_adapter import normalize_claude_event
+
+    event = normalize_claude_event("prompt", hook_input)
+    event["session_id"] = session_id or event.get("session_id")
+    event["cwd"] = cwd or event.get("cwd")
+    event["prompt"] = prompt
+    event["command"] = command_info.get("command") if command_info else None
+    queue_interaction(event)
 
     # Output context enhancement based on patterns (optional)
     try:
@@ -149,17 +173,14 @@ def capture_tool_complete(hook_input: dict) -> None:
     tool_response = hook_input.get("tool_response", {})
     success = determine_tool_success(tool_response)
 
-    queue_interaction(
-        {
-            "type": "tool_completed",
-            "session_id": hook_input.get("session_id"),
-            "cwd": hook_input.get("cwd", os.getcwd()),
-            "tool_name": hook_input.get("tool_name"),
-            "tool_input": sanitize_tool_input(hook_input.get("tool_input", {})),
-            "success": success,
-            "response_summary": summarize_response(tool_response),
-        }
-    )
+    from intelligence.bandwidth.event_adapter import normalize_claude_event
+
+    event = normalize_claude_event("tool_complete", hook_input)
+    event["cwd"] = hook_input.get("cwd", os.getcwd())
+    event["tool_input"] = sanitize_tool_input(hook_input.get("tool_input", {}))
+    event["success"] = success
+    event["response_summary"] = summarize_response(tool_response)
+    queue_interaction(event)
 
 
 def capture_stop(hook_input: dict) -> None:
@@ -169,13 +190,11 @@ def capture_stop(hook_input: dict) -> None:
     This signals that Claude has finished responding, allowing us to
     correlate prompts with responses.
     """
-    queue_interaction(
-        {
-            "type": "response_completed",
-            "session_id": hook_input.get("session_id"),
-            "cwd": hook_input.get("cwd", os.getcwd()),
-        }
-    )
+    from intelligence.bandwidth.event_adapter import normalize_claude_event
+
+    event = normalize_claude_event("stop", hook_input)
+    event["cwd"] = hook_input.get("cwd", os.getcwd())
+    queue_interaction(event)
 
 
 def capture_session_end(hook_input: dict) -> None:
@@ -200,14 +219,12 @@ def capture_session_end(hook_input: dict) -> None:
     except Exception as e:
         logger.debug(f"Command session finalization failed: {e}")
 
-    queue_interaction(
-        {
-            "type": "session_ended",
-            "session_id": session_id,
-            "cwd": hook_input.get("cwd", os.getcwd()),
-            "reason": hook_input.get("reason", "unknown"),
-        }
-    )
+    from intelligence.bandwidth.event_adapter import normalize_claude_event
+
+    event = normalize_claude_event("session_end", hook_input)
+    event["session_id"] = session_id or event.get("session_id")
+    event["cwd"] = hook_input.get("cwd", os.getcwd())
+    queue_interaction(event)
 
     # Trigger async learning processing
     try:
@@ -346,20 +363,25 @@ def trigger_learning_pipeline() -> None:
 
     This runs asynchronously and doesn't block the hook.
     """
-    import subprocess
-
-    # Fire-and-forget subprocess
-    subprocess.Popen(
-        [
-            sys.executable,
-            "-c",
-            "from cortex.learning import InteractionLearner; InteractionLearner().process_queue()",
-        ],
-        cwd=str(CORTEX_DIR),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+    cmd = (
+        "from engines.interaction_learner import process_interaction_queue; "
+        "result = process_interaction_queue(); "
+        "print(result.get('status','unknown'))"
     )
+
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-c", cmd],
+            cwd=str(CORTEX_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            text=True,
+        )
+        _write_hook_status(last_trigger_pid=proc.pid, last_trigger="spawned")
+    except Exception as e:
+        _append_hook_error(f"trigger_learning_pipeline error={e}")
+        _write_hook_status(last_trigger="failed", last_error=str(e))
 
 
 def main():
@@ -388,6 +410,8 @@ def main():
             sys.exit(0)  # Success
         except Exception as e:
             logger.error(f"Hook handler failed: {e}")
+            _append_hook_error(f"handler={command} error={e}")
+            _write_hook_status(last_handler=command, last_error=str(e))
             sys.exit(0)  # Don't block on errors
     else:
         print(f"Unknown command: {command}", file=sys.stderr)

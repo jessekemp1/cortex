@@ -10,6 +10,8 @@ Synthesizes:
 """
 
 import sys
+import inspect
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -72,6 +74,147 @@ try:
 except ImportError:
     MetricsTracker = None
 
+try:
+    from intelligence.bandwidth.contracts import ContractMetricsStore
+except ImportError:
+    ContractMetricsStore = None
+
+
+DEFAULT_BRIEFING_STYLE = {
+    "separator_width": 64,
+    "show_ascii_graphics": True,
+    "show_infographics": True,
+    "show_sparklines": True,
+    "progress_bar": {
+        "width": 10,
+        "filled_char": "#",
+        "empty_char": ".",
+        "left_bracket": "[",
+        "right_bracket": "]",
+    },
+    "sparkline_chars": "▁▂▃▄▅▆▇█",
+}
+
+
+def _load_briefing_style() -> Dict[str, Any]:
+    """Load persistent briefing style contract from disk."""
+    style_path = Path(__file__).parent / "config" / "briefing_style.json"
+    style = dict(DEFAULT_BRIEFING_STYLE)
+
+    try:
+        if style_path.exists():
+            raw = json.loads(style_path.read_text())
+            if isinstance(raw, dict):
+                style.update({k: v for k, v in raw.items() if k in style})
+                if isinstance(raw.get("progress_bar"), dict):
+                    pb = dict(style["progress_bar"])
+                    pb.update(raw["progress_bar"])
+                    style["progress_bar"] = pb
+    except Exception:
+        # Keep defaults if style file is malformed.
+        pass
+
+    return style
+
+
+def _build_progress_bar(percent: int, style: Dict[str, Any]) -> str:
+    """Build an ASCII progress bar using style config."""
+    pb = style.get("progress_bar", {})
+    width = max(1, int(pb.get("width", 10)))
+    filled_char = str(pb.get("filled_char", "#"))[:1]
+    empty_char = str(pb.get("empty_char", "."))[:1]
+    left = str(pb.get("left_bracket", "["))[:1]
+    right = str(pb.get("right_bracket", "]"))[:1]
+
+    pct = max(0, min(100, int(percent)))
+    filled = min(width, int(round((pct / 100) * width)))
+    return f"{left}{filled_char * filled}{empty_char * (width - filled)}{right}"
+
+
+def _sparkline(values: List[float], charset: str) -> str:
+    """Render mini trend chart from numeric values."""
+    if not values:
+        return ""
+    chars = charset or "▁▂▃▄▅▆▇█"
+    lo = min(values)
+    hi = max(values)
+    if hi <= lo:
+        return chars[0] * len(values)
+    span = hi - lo
+    out = []
+    last_idx = len(chars) - 1
+    for v in values:
+        idx = int(((v - lo) / span) * last_idx)
+        out.append(chars[max(0, min(last_idx, idx))])
+    return "".join(out)
+
+
+def _compute_signal_quality(modified: int, untracked: int) -> str:
+    """Compute signal quality from working-tree noise."""
+    dirty_total = int(modified) + int(untracked)
+    if dirty_total >= 75:
+        return "LOW"
+    if dirty_total >= 30:
+        return "MED"
+    return "HIGH"
+
+
+def get_briefing_signal_quality(briefing: "BriefingData") -> Dict[str, int | str]:
+    """Return signal quality and dirty-tree counts from briefing git summary."""
+    modified = 0
+    untracked = 0
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        modified = int(gs.get("uncommitted_changes", gs.get("working_tree", {}).get("modified", 0)))
+        untracked = int(gs.get("untracked_files", gs.get("working_tree", {}).get("untracked", 0)))
+    quality = _compute_signal_quality(modified, untracked)
+    return {
+        "quality": quality,
+        "modified": modified,
+        "untracked": untracked,
+        "dirty_total": modified + untracked,
+    }
+
+
+def get_briefing_style_path() -> Path:
+    """Get path to persistent briefing style config."""
+    return Path(__file__).parent / "config" / "briefing_style.json"
+
+
+def get_briefing_style() -> Dict[str, Any]:
+    """Get effective briefing style (defaults merged with file)."""
+    return _load_briefing_style()
+
+
+def validate_briefing_style(style: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Validate briefing style and return list of errors (empty if valid)."""
+    data = style or _load_briefing_style()
+    errors: List[str] = []
+
+    if not isinstance(data.get("separator_width"), int) or data.get("separator_width", 0) < 20:
+        errors.append("separator_width must be an integer >= 20")
+
+    for key in ["show_ascii_graphics", "show_infographics", "show_sparklines"]:
+        if not isinstance(data.get(key), bool):
+            errors.append(f"{key} must be true/false")
+
+    pb = data.get("progress_bar")
+    if not isinstance(pb, dict):
+        errors.append("progress_bar must be an object")
+    else:
+        if not isinstance(pb.get("width"), int) or pb.get("width", 0) < 1:
+            errors.append("progress_bar.width must be an integer >= 1")
+        for char_key in ["filled_char", "empty_char", "left_bracket", "right_bracket"]:
+            val = pb.get(char_key)
+            if not isinstance(val, str) or len(val) != 1:
+                errors.append(f"progress_bar.{char_key} must be a single character")
+
+    sparkline_chars = data.get("sparkline_chars")
+    if not isinstance(sparkline_chars, str) or len(sparkline_chars) < 2:
+        errors.append("sparkline_chars must be a string with at least 2 characters")
+
+    return errors
+
 
 @dataclass
 class BriefingData:
@@ -100,6 +243,7 @@ class BriefingData:
     batch_queue_status: Optional[Dict[str, Any]] = None
     git_status: Optional[Dict[str, Any]] = None
     work_progress: Optional[Dict[str, Any]] = None  # Work absorber status
+    project_snapshot: Optional[List[Dict[str, Any]]] = None  # Top active projects with metrics
     period: str = "24h"
 
     # Enhanced intelligence fields
@@ -118,6 +262,7 @@ class BriefingData:
 
     # Overnight batch insights (surfaced from completed AI analysis tasks)
     batch_insights: Optional[Dict[str, Any]] = None
+    bandwidth_contract_metrics: Optional[Dict[str, Any]] = None
 
 
 class BriefingGenerator:
@@ -141,6 +286,7 @@ class BriefingGenerator:
         # Initialize resource & orchestration tools
         self.usage_optimizer = UsageOptimizer() if UsageOptimizer else None
         self.metrics_tracker = MetricsTracker() if MetricsTracker else None
+        self.contract_metrics_store = ContractMetricsStore() if ContractMetricsStore else None
 
     def generate_daily_briefing(self) -> BriefingData:
         """
@@ -170,10 +316,24 @@ class BriefingGenerator:
         recommendations = []
         if self.recommendation_engine:
             try:
-                recommendations = self.recommendation_engine.generate_recommendations(
-                    project_activity=project_activity if project_activity else None,
-                    limit=5,
-                )
+                generate_fn = self.recommendation_engine.generate_recommendations
+                params = set(inspect.signature(generate_fn).parameters)
+
+                if "project_activity" in params:
+                    recommendations = generate_fn(
+                        project_activity=project_activity if project_activity else None,
+                        limit=5,
+                    )
+                elif "goals" in params or "context" in params:
+                    recommendations = generate_fn(
+                        goals=goals if goals else None,
+                        context={"project_activity": project_activity} if project_activity else None,
+                        limit=5,
+                    )
+                elif "tasks" in params:
+                    recommendations = generate_fn(limit=5)
+                else:
+                    recommendations = generate_fn()
             except Exception as e:
                 print(f"Warning: Could not generate recommendations: {e}", file=sys.stderr)
 
@@ -229,7 +389,10 @@ class BriefingGenerator:
                     # V2a orchestrator not available or no V2a tasks
                     pass
             except Exception as e:
-                print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
+                # Sandbox-limited environments can block sysctl introspection.
+                # Suppress this expected warning to keep briefing output clean.
+                if "Operation not permitted" not in str(e):
+                    print(f"Warning: Could not get resource status: {e}", file=sys.stderr)
 
         # 5b. Get overnight batch insights from completed tasks
         batch_insights = self._get_batch_insights()
@@ -279,6 +442,7 @@ class BriefingGenerator:
             resource_intelligence, batch_queue_status, project_activity
         )
         velocity_metrics = self._get_velocity_metrics()
+        bandwidth_contract_metrics = self._get_bandwidth_contract_metrics()
 
         # 9. Build briefing sections
         briefing = BriefingData(
@@ -293,6 +457,7 @@ class BriefingGenerator:
             batch_queue_status=batch_queue_status,
             git_status=git_status,
             work_progress=work_progress,
+            project_snapshot=self._build_project_snapshot(project_activity),
             generated_at=datetime.now(),
             # Enhanced intelligence fields
             intelligence_metrics=intelligence_metrics,
@@ -306,6 +471,7 @@ class BriefingGenerator:
             velocity_metrics=velocity_metrics,
             # Overnight batch insights
             batch_insights=batch_insights,
+            bandwidth_contract_metrics=bandwidth_contract_metrics,
         )
 
         return briefing
@@ -315,16 +481,54 @@ class BriefingGenerator:
         if not projects:
             return []
 
-        # Active = has commits in last 7 days
-        active = [p.name for p in projects if p.commits_7d > 0]
+        # Active = has commits in last 7 days; dedupe by name and keep strongest signal.
+        by_name: Dict[str, ProjectActivity] = {}
+        for p in projects:
+            if p.commits_7d <= 0:
+                continue
+            existing = by_name.get(p.name)
+            if existing is None or p.commits_7d > existing.commits_7d:
+                by_name[p.name] = p
 
-        # Sort by activity (most commits first)
-        active.sort(
-            key=lambda name: next((p.commits_7d for p in projects if p.name == name), 0),
-            reverse=True,
-        )
-
+        active = list(by_name.keys())
+        active.sort(key=lambda name: by_name[name].commits_7d, reverse=True)
         return active
+
+    def _build_project_snapshot(self, projects: List[ProjectActivity]) -> List[Dict[str, Any]]:
+        """Build top-project snapshot table rows for briefing display."""
+        if not projects:
+            return []
+
+        by_name: Dict[str, ProjectActivity] = {}
+        for p in projects:
+            existing = by_name.get(p.name)
+            if existing is None or p.commits_7d > existing.commits_7d:
+                by_name[p.name] = p
+
+        top = sorted(by_name.values(), key=lambda p: p.commits_7d, reverse=True)[:6]
+        max_commits = max((p.commits_7d for p in top), default=0)
+        rows: List[Dict[str, Any]] = []
+        for p in top:
+            # Relative trend buckets produce more informative variation.
+            if max_commits > 0 and p.commits_7d >= max_commits * 0.60:
+                trend = "hot"
+            elif max_commits > 0 and p.commits_7d >= max_commits * 0.25:
+                trend = "active"
+            elif p.commits_7d > 0:
+                trend = "steady"
+            else:
+                trend = "idle"
+
+            rows.append(
+                {
+                    "project": p.name,
+                    "commits_7d": p.commits_7d,
+                    "uncommitted": p.uncommitted_changes,
+                    "status": p.status,
+                    "trend": trend,
+                }
+            )
+        return rows
 
     def _count_recent_commits(
         self,
@@ -487,8 +691,15 @@ class BriefingGenerator:
         if not projects:
             return patterns
 
-        # 1. Most productive project
-        active_projects = [p for p in projects if p.commits_7d > 0]
+        # 1. Most productive project (dedupe by name to avoid double counting)
+        by_name: Dict[str, ProjectActivity] = {}
+        for p in projects:
+            if p.commits_7d <= 0:
+                continue
+            existing = by_name.get(p.name)
+            if existing is None or p.commits_7d > existing.commits_7d:
+                by_name[p.name] = p
+        active_projects = list(by_name.values())
         if active_projects:
             most_active = max(active_projects, key=lambda p: p.commits_7d)
             patterns.append(
@@ -943,6 +1154,14 @@ class BriefingGenerator:
             target_hours = targets.get("daily_target_hours", 8.6)
             weekly_limit = targets.get("weekly_limit_hours", 60)
 
+            # Normalize likely minute-based values if telemetry source changed units.
+            # Heuristic: daily "hours" above 24 are implausible as true hours.
+            if daily_hours > 24:
+                daily_hours = daily_hours / 60.0
+                current_weekly = current.get("weekly_real_time_hours", 0)
+                if current_weekly > weekly_limit * 2:
+                    current["weekly_real_time_hours"] = current_weekly / 60.0
+
             # Pacing status
             if daily_hours <= target_hours * 0.8:
                 pacing_status = "under_budget"
@@ -1233,6 +1452,20 @@ class BriefingGenerator:
             print(f"Warning: Could not get velocity metrics: {e}", file=sys.stderr)
             return None
 
+    def _get_bandwidth_contract_metrics(self) -> Optional[Dict[str, Any]]:
+        """Get Phase 1 contract metrics from bandwidth research store."""
+        if not self.contract_metrics_store:
+            return None
+
+        try:
+            metrics = self.contract_metrics_store.aggregate(days=7)
+            if metrics.get("sessions", 0) == 0:
+                return None
+            return metrics
+        except Exception as e:
+            print(f"Warning: Could not get bandwidth contract metrics: {e}", file=sys.stderr)
+            return None
+
 
 def generate_daily_briefing(root_dir: Optional[Path] = None) -> BriefingData:
     """
@@ -1260,6 +1493,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         Formatted briefing string
     """
     lines = []
+    style = _load_briefing_style()
+    sep_width = int(style.get("separator_width", 64))
+    show_ascii = bool(style.get("show_ascii_graphics", True))
+    show_infographics = bool(style.get("show_infographics", True))
+    show_sparklines = bool(style.get("show_sparklines", True))
 
     # Try to use rich/colorama for colors, fallback to plain text
     try:
@@ -1279,13 +1517,36 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         BOLD = RESET = BLUE = GREEN = YELLOW = RED = ""
 
     # Header
-    lines.append("=" * 64)
-    lines.append(f"{BOLD}DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}{RESET}")
-    lines.append("=" * 64)
+    date_title = f"CORTEX DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}"
+    if show_ascii:
+        inner_width = max(sep_width - 4, len(date_title) + 2)
+        lines.append("+" + "-" * (inner_width + 2) + "+")
+        lines.append(f"| {BOLD}{date_title:^{inner_width}}{RESET} |")
+        lines.append("+" + "-" * (inner_width + 2) + "+")
+    else:
+        lines.append("=" * sep_width)
+        lines.append(f"{BOLD}DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}{RESET}")
+        lines.append("=" * sep_width)
     lines.append("")
+
+    # Hard warning when workspace noise degrades briefing confidence.
+    if briefing.git_status and briefing.git_status.get("summary"):
+        signal = get_briefing_signal_quality(briefing)
+        signal_quality = str(signal["quality"])
+        modified = int(signal["modified"])
+        untracked = int(signal["untracked"])
+        if signal_quality == "LOW":
+            lines.append(f"{RED}[SIGNAL QUALITY: LOW] {modified + untracked} local changes distort recommendations{RESET}")
+            lines.append(f"{RED}Action: commit/stash or reduce working tree noise before trusting priorities{RESET}")
+            lines.append("")
+        elif signal_quality == "MED":
+            lines.append(f"{YELLOW}[SIGNAL QUALITY: MED] moderate working tree noise detected ({modified + untracked} files){RESET}")
+            lines.append("")
 
     # ==================== TL;DR SECTION ====================
     lines.append(f"{BOLD}TL;DR{RESET}")
+    if show_ascii:
+        lines.append("  " + "-" * 8)
     lines.append("")
 
     # Portfolio status bullet
@@ -1299,6 +1560,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     lines.append(
         f"  • {BOLD}Portfolio:{RESET} {active_count} active projects, {briefing.total_commits_7d} commits this week, {blocker_status}"
     )
+    if show_infographics:
+        blocker_pct = int((blocker_count / max(1, active_count)) * 100)
+        lines.append(
+            f"    Health ratio: {_build_progress_bar(100 - blocker_pct, style)} {100 - blocker_pct}% clear"
+        )
 
     # Top priority bullet
     if briefing.priority_actions:
@@ -1314,9 +1580,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     if briefing.git_status and briefing.git_status.get("summary"):
         gs = briefing.git_status["summary"]
         branch = gs.get("current_branch", "unknown")
-        modified = gs.get("working_tree", {}).get("modified", 0)
-        untracked = gs.get("working_tree", {}).get("untracked", 0)
-        pr_count = len(gs.get("pull_requests", []))
+        modified = gs.get("uncommitted_changes", gs.get("working_tree", {}).get("modified", 0))
+        untracked = gs.get("untracked_files", gs.get("working_tree", {}).get("untracked", 0))
+        pr_count = gs.get("open_prs")
+        if pr_count is None:
+            pr_count = len(gs.get("pull_requests", []))
         pr_text = f", {pr_count} open PR{'s' if pr_count != 1 else ''}" if pr_count > 0 else ""
         lines.append(
             f"  • {BOLD}Git:{RESET} on `{branch}`, {modified} modified, {untracked} untracked{pr_text}"
@@ -1427,7 +1695,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             )
 
     lines.append("")
-    lines.append("-" * 64)
+    lines.append("-" * sep_width)
     lines.append("")
 
     # ==================== RESOURCE INTELLIGENCE (HIGH-VALUE) ====================
@@ -1438,7 +1706,10 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         weekly = ri.get("weekly", {})
         batch_opt = ri.get("batch_optimization", {})
 
-        lines.append(f"{BOLD}⚡ RESOURCE INTELLIGENCE{RESET}")
+        if show_ascii:
+            lines.append(f"{BOLD}/== RESOURCE INTELLIGENCE ==/{RESET}")
+        else:
+            lines.append(f"{BOLD}⚡ RESOURCE INTELLIGENCE{RESET}")
         lines.append("")
 
         # Pacing status - THE most important metric
@@ -1495,7 +1766,10 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         oa = briefing.orchestration_advisory
         mode_rec = oa.get("mode_recommendation")
 
-        lines.append(f"{BOLD}🎮 ORCHESTRATION ADVISORY{RESET}")
+        if show_ascii:
+            lines.append(f"{BOLD}/== ORCHESTRATION ADVISORY ==/{RESET}")
+        else:
+            lines.append(f"{BOLD}🎮 ORCHESTRATION ADVISORY{RESET}")
         lines.append("")
 
         # Mode recommendation
@@ -1561,6 +1835,40 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
 
     # ==================== EXPANDED DETAILS ====================
 
+    # Executive Summary
+    lines.append(f"{BOLD}EXECUTIVE SUMMARY{RESET}")
+    exec_points = []
+    if briefing.priority_actions:
+        top = briefing.priority_actions[0]
+        exec_points.append(f"Top move: [{top.get('priority', 'MEDIUM')}] {top.get('title', 'Action')}")
+    if briefing.blockers:
+        blocker_names = ", ".join(b["project"] for b in briefing.blockers[:2])
+        exec_points.append(f"Blockers concentrated in: {blocker_names}")
+    if briefing.batch_insights:
+        jobs = briefing.batch_insights.get("total_completed_24h", 0)
+        exec_points.append(f"Overnight throughput: {jobs} completed analyses")
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        exec_points.append(
+            f"Working tree pressure: {gs.get('uncommitted_changes', 0)} modified, {gs.get('untracked_files', 0)} untracked"
+        )
+    if not exec_points:
+        exec_points.append("No exceptional pressure signals detected.")
+    for point in exec_points[:4]:
+        lines.append(f"  • {point}")
+    lines.append("")
+
+    # Project Snapshot (table-style)
+    if briefing.project_snapshot:
+        lines.append(f"{BOLD}PROJECT SNAPSHOT{RESET}")
+        lines.append("  Project                     C7d  WIP  Trend")
+        lines.append("  -------------------------  ---  ---  ------")
+        for row in briefing.project_snapshot[:6]:
+            lines.append(
+                f"  {row['project'][:25]:25}  {int(row['commits_7d']):>3}  {int(row['uncommitted']):>3}  {row['trend']}"
+            )
+        lines.append("")
+
     # Portfolio Pulse
     lines.append(f"{BOLD}PORTFOLIO PULSE{RESET}")
     lines.append(
@@ -1569,6 +1877,21 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     lines.append(
         f"  Recent commits: {briefing.recent_commits_24h} in last 24h, {briefing.total_commits_7d} in last 7d"
     )
+    if show_ascii and show_sparklines:
+        trend = _sparkline(
+            [float(briefing.recent_commits_24h), float(briefing.total_commits_7d)],
+            str(style.get("sparkline_chars", "▁▂▃▄▅▆▇█")),
+        )
+        lines.append(f"  Commit trend (24h→7d): {trend}")
+        commit_pct = int(
+            min(
+                100,
+                round(
+                    (briefing.recent_commits_24h / max(1, briefing.total_commits_7d)) * 100
+                ),
+            )
+        )
+        lines.append(f"  Commit pulse meter: {_build_progress_bar(commit_pct, style)} {commit_pct}%")
 
     if briefing.blockers:
         lines.append(f"  {RED}Blockers: {len(briefing.blockers)}{RESET}")
@@ -1825,11 +2148,14 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     # Overnight Batch Insights (AI analysis results from last 24h)
     if briefing.batch_insights:
         bi = briefing.batch_insights
+        total_completed = bi.get("total_completed_24h", 0)
+        total_output_kb = bi.get("total_output_kb", 0.0)
+        avg_duration_s = bi.get("avg_duration_s", 0.0)
         lines.append(f"{BOLD}🔬 OVERNIGHT BATCH INSIGHTS{RESET}")
         lines.append(
-            f"  {bi['total_completed_24h']} analyses completed "
-            f"({bi['total_output_kb']:.0f} KB output, "
-            f"avg {bi['avg_duration_s']:.0f}s each)"
+            f"  {total_completed} analyses completed "
+            f"({total_output_kb:.0f} KB output, "
+            f"avg {avg_duration_s:.0f}s each)"
         )
         lines.append("")
 
@@ -1847,9 +2173,19 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             "test-coverage-analysis": "Test Coverage Gaps",
             "api-docs-generation": "API Docs",
         }
-        for cat, info in sorted(bi["categories"].items(), key=lambda x: -x[1]["count"]):
-            label = category_labels.get(cat, cat.replace("-", " ").title())
-            lines.append(f"  • {label}: {info['count']} runs, {info['total_output_kb']:.0f} KB")
+        categories = bi.get("categories", {})
+        if isinstance(categories, dict):
+            for cat, info in sorted(
+                categories.items(), key=lambda x: -(x[1].get("count", 0) if isinstance(x[1], dict) else 0)
+            ):
+                label = category_labels.get(cat, cat.replace("-", " ").title())
+                if isinstance(info, dict):
+                    count = info.get("count", 0)
+                    output_kb = info.get("total_output_kb", 0.0)
+                else:
+                    count = 0
+                    output_kb = 0.0
+                lines.append(f"  • {label}: {count} runs, {output_kb:.0f} KB")
 
         lines.append("")
         lines.append(
@@ -1953,15 +2289,21 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             # Show progress if available
             if action.get("completion_percentage", 0) > 0:
                 pct = action["completion_percentage"]
-                progress_bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
-                lines.append(f"     Progress: [{progress_bar}] {pct}%")
+                progress_bar = _build_progress_bar(pct, style)
+                lines.append(f"     Progress: {progress_bar} {pct}%")
 
             # Show steps/actions if available
             steps = action.get("steps", [])
             if steps:
                 lines.append(f"     {YELLOW}Next steps:{RESET}")
                 for step in steps[:3]:
-                    step_text = step[:70] + "..." if len(step) > 70 else step
+                    if isinstance(step, str):
+                        step_text = step
+                    else:
+                        step_text = getattr(step, "description", None) or getattr(
+                            step, "title", None
+                        ) or str(step)
+                    step_text = step_text[:70] + "..." if len(step_text) > 70 else step_text
                     lines.append(f"       → {step_text}")
 
             # Show success criteria if available
@@ -2110,6 +2452,27 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
 
             lines.append("")
 
+    # Phase 1 contract metrics (bandwidth instrumentation)
+    if briefing.bandwidth_contract_metrics:
+        bcm = briefing.bandwidth_contract_metrics
+        sessions = int(bcm.get("sessions", 0))
+        if sessions > 0:
+            lines.append(f"{BOLD}🧩 BANDWIDTH CONTRACTS{RESET}")
+            override_rate = float(bcm.get("override_rate", 0)) * 100
+            autonomy_level = float(bcm.get("autonomy_level", 0)) * 100
+            novelty_score = float(bcm.get("novelty_score", 0))
+
+            override_color = GREEN if override_rate < 10 else YELLOW if override_rate < 20 else RED
+            autonomy_color = GREEN if autonomy_level >= 70 else YELLOW if autonomy_level >= 50 else RED
+            novelty_color = GREEN if novelty_score >= 5 else YELLOW if novelty_score >= 3 else RED
+
+            lines.append(
+                f"  override_rate: {override_color}{override_rate:.1f}%{RESET} ({sessions} sessions, 7d)"
+            )
+            lines.append(f"  autonomy_level: {autonomy_color}{autonomy_level:.1f}%{RESET}")
+            lines.append(f"  novelty_score: {novelty_color}{novelty_score:.2f}/10{RESET}")
+            lines.append("")
+
     # Cross-Project Insights
     if briefing.cross_project_insights:
         cpi = briefing.cross_project_insights
@@ -2193,9 +2556,77 @@ def format_briefing_json(briefing: BriefingData) -> str:
         "temporal_context": briefing.temporal_context,
         "cross_project_insights": briefing.cross_project_insights,
         "predictive_insights": briefing.predictive_insights,
+        "bandwidth_contract_metrics": briefing.bandwidth_contract_metrics,
     }
 
     return json.dumps(data, indent=2, default=str)
+
+
+def format_statusline(
+    briefing: BriefingData, use_color: bool = False, max_width: int = 140
+) -> str:
+    """Format a compact, single-line status summary for Claude statusLine hooks."""
+    style = _load_briefing_style()
+
+    active = len(briefing.active_projects)
+    commits_7d = int(briefing.total_commits_7d)
+    blockers = len(briefing.blockers)
+
+    health_pct = int(max(0, min(100, round((1 - (blockers / max(1, active))) * 100))))
+    health_bar = _build_progress_bar(health_pct, style)
+
+    signal_quality = "HIGH"
+    tokens = [
+        f"[CORTEX]",
+        f"P:{active}",
+        f"C7:{commits_7d}",
+        f"B:{blockers}",
+        f"H:{health_bar}",
+    ]
+
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        modified = int(gs.get("uncommitted_changes", gs.get("working_tree", {}).get("modified", 0)))
+        untracked = int(gs.get("untracked_files", gs.get("working_tree", {}).get("untracked", 0)))
+        branch = gs.get("current_branch", "unknown")
+        signal_quality = str(get_briefing_signal_quality(briefing)["quality"])
+        tokens.append(f"G:{branch}+{modified}/?{untracked}")
+
+    if briefing.batch_queue_status:
+        bq = briefing.batch_queue_status
+        running = int(bq.get("running_count", 0))
+        queued = int(bq.get("pending_count", 0) + bq.get("scheduled_count", 0))
+        if running > 0 or queued > 0:
+            tokens.append(f"Q:{running}R/{queued}Q")
+
+    tokens.append(f"SIG:{signal_quality}")
+
+    line = " ".join(tokens)
+
+    if briefing.priority_actions:
+        top = briefing.priority_actions[0]
+        top_title = top.get("title", "No title")
+        top_priority = top.get("priority", "MEDIUM")
+        line += f" | TOP[{top_priority}]: {top_title}"
+
+    if len(line) > max_width:
+        line = line[: max(0, max_width - 3)].rstrip() + "..."
+
+    if use_color:
+        return line
+    return line
+
+
+def format_statusline_json(briefing: BriefingData) -> str:
+    """Format compact statusline payload as JSON."""
+    payload = {
+        "generated_at": briefing.generated_at.isoformat(),
+        "active_projects": len(briefing.active_projects),
+        "commits_7d": briefing.total_commits_7d,
+        "blockers": len(briefing.blockers),
+        "statusline": format_statusline(briefing, use_color=False),
+    }
+    return json.dumps(payload, indent=2)
 
 
 def get_executive_summary(briefing: BriefingData) -> str:
