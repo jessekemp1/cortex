@@ -8,8 +8,12 @@ Usage:
 """
 
 import argparse
+import json
+import logging
+import subprocess
 import sys
 from pathlib import Path
+from typing import Dict, Optional, Tuple, Union
 
 # Add cortex directory and its parent to path to support both module and direct execution
 cortex_dir = Path(__file__).parent
@@ -23,10 +27,28 @@ if site_packages.exists() and str(site_packages) not in sys.path:
 
 from formatter import CortexFormatter
 
-from briefing import format_briefing, format_briefing_json, generate_daily_briefing
+from briefing import (
+    format_briefing,
+    format_briefing_json,
+    format_statusline,
+    format_statusline_json,
+    generate_daily_briefing,
+    get_briefing_signal_quality,
+    get_briefing_style,
+    get_briefing_style_path,
+    validate_briefing_style,
+)
 from feedback import FeedbackLogger
+from goal_parser import GoalParser
 from learning import LearningSystem
 from orchestrator import CortexOrchestrator
+
+try:
+    from ai_intelligence import ProjectScanner
+except ImportError:
+    ProjectScanner = None
+
+logger = logging.getLogger(__name__)
 
 # Deep mode intelligence (Phase 1 Integration)
 try:
@@ -106,6 +128,103 @@ def get_model_recommendation(recommendation, budget=5.00):
         return {"error": str(e)}
 
 
+def _compute_signal_quality(modified: int, untracked: int) -> str:
+    dirty_total = int(modified) + int(untracked)
+    if dirty_total >= 75:
+        return "LOW"
+    if dirty_total >= 30:
+        return "MED"
+    return "HIGH"
+
+
+def _get_root_signal_quality(root: Path) -> Dict[str, Union[int, str]]:
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return {"quality": "UNKNOWN", "modified": 0, "untracked": 0, "dirty_total": 0}
+
+        modified = 0
+        untracked = 0
+        for line in proc.stdout.splitlines():
+            if not line.strip():
+                continue
+            if line.startswith("??"):
+                untracked += 1
+            else:
+                modified += 1
+
+        return {
+            "quality": _compute_signal_quality(modified, untracked),
+            "modified": modified,
+            "untracked": untracked,
+            "dirty_total": modified + untracked,
+        }
+    except Exception:
+        return {"quality": "UNKNOWN", "modified": 0, "untracked": 0, "dirty_total": 0}
+
+
+def _portfolio_counts_from_scanner(root: Path) -> Optional[Tuple[int, int]]:
+    if not ProjectScanner:
+        return None
+    try:
+        scanner = ProjectScanner(str(root))
+        repos = scanner.find_git_repos()
+        activities = [scanner.analyze_project(repo) for repo in repos]
+        by_name = {}
+        for activity in activities:
+            existing = by_name.get(activity.name)
+            if existing is None or activity.commits_7d > existing.commits_7d:
+                by_name[activity.name] = activity
+        total = len(by_name)
+        active = sum(1 for activity in by_name.values() if activity.commits_7d > 0)
+        return active, total
+    except Exception:
+        return None
+
+
+def _goal_counts_from_parser(root: Path) -> Optional[Tuple[int, int]]:
+    try:
+        parser = GoalParser(action_plan_path=root / "ACTION_PLAN.md")
+        goals = parser.parse()
+        in_progress = sum(1 for goal in goals if goal.status == "in_progress")
+        pending = sum(1 for goal in goals if goal.status == "pending")
+        return in_progress, pending
+    except Exception:
+        return None
+
+
+def _apply_signal_gate_to_briefing(briefing, signal: Dict[str, Union[int, str]]) -> None:
+    if signal.get("quality") != "LOW":
+        return
+    dirty_total = int(signal.get("dirty_total", 0))
+    modified = int(signal.get("modified", 0))
+    untracked = int(signal.get("untracked", 0))
+    briefing.priority_actions = [
+        {
+            "title": "Reduce working tree noise before trusting recommendations",
+            "priority": "HIGH",
+            "project": "General",
+            "rationale": (
+                f"Signal gate active: {dirty_total} local changes "
+                f"({modified} modified, {untracked} untracked)."
+            ),
+            "source": "signal_gate",
+            "steps": [
+                "Commit or stash active edits by project.",
+                "Archive scratch artifacts and generated outputs.",
+                "Re-run briefing/status after noise falls below threshold.",
+            ],
+            "estimated_impact": "high",
+        }
+    ]
+
+
 def cmd_next(args):
     """Get next action."""
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
@@ -152,7 +271,8 @@ def cmd_next(args):
 
 def cmd_status(args):
     """Show intelligent strategic status."""
-    orchestrator = CortexOrchestrator(root_dir=Path(args.root))
+    root = Path(args.root)
+    orchestrator = CortexOrchestrator(root_dir=root)
 
     try:
         # Get full intelligence (recommendations + state)
@@ -162,6 +282,8 @@ def cmd_status(args):
         health = response.system_health
         next_action = response.next_action
         alternatives = response.alternative_actions
+        signal = _get_root_signal_quality(root)
+        signal_blocked = signal.get("quality") == "LOW"
 
         print("╔══════════════════════════════════════════════════════╗")
         print("║         CORTEX - STRATEGIC INTELLIGENCE              ║")
@@ -172,7 +294,17 @@ def cmd_status(args):
         print("🎯 STRATEGIC FOCUS")
         print("────────────────")
 
-        if next_action:
+        if signal_blocked:
+            print(
+                "  [SIGNAL GATE] High-trust recommendations blocked until workspace noise is reduced"
+            )
+            print(
+                f"  Current noise: {signal['dirty_total']} changes "
+                f"({signal['modified']} modified, {signal['untracked']} untracked)"
+            )
+            print("  Immediate move: commit/stash/archive and rerun status")
+            print()
+        elif next_action:
             # Handle both old and new Recommendation models
             project = (
                 getattr(next_action, "related_projects", ["General"])[0]
@@ -185,7 +317,7 @@ def cmd_status(args):
                 print(f"     📁 {', '.join(next_action.files[:2])}")
             print()
 
-        if alternatives:
+        if (not signal_blocked) and alternatives:
             for i, alt in enumerate(alternatives[:2], start=2):
                 project = (
                     getattr(alt, "related_projects", ["General"])[0]
@@ -204,24 +336,27 @@ def cmd_status(args):
             print()
 
         # === 2. ORCHESTRATION INTELLIGENCE ===
-        # Get real metrics from strategic documents
-        try:
-            from orchestration.strategic_parser import get_strategic_context
+        # Portfolio counts: use same scanner semantics as briefing (single source of truth).
+        active = state.get("active_projects", 0)
+        total = state.get("total_projects", 0)
+        scanner_counts = _portfolio_counts_from_scanner(root)
+        if scanner_counts is not None:
+            active, total = scanner_counts
+        else:
+            # Fallback to strategic documents if scanner is unavailable.
+            try:
+                from orchestration.strategic_parser import get_strategic_context
 
-            strategic_context = get_strategic_context(Path(args.root))
-            active = strategic_context.get("active_projects", state.get("active_projects", 0))
-            total = strategic_context.get("total_projects", state.get("total_projects", 0))
-            in_progress = strategic_context.get(
-                "in_progress_goals", state.get("goals_in_progress", 0)
-            )
-            pending = strategic_context.get("pending_goals", state.get("goals_pending", 0))
-        except Exception as e:
-            # Fallback to state if parsing fails
-            logger.debug(f"Strategic parser failed: {e}")
-            active = state.get("active_projects", 0)
-            total = state.get("total_projects", 0)
-            in_progress = state.get("goals_in_progress", 0)
-            pending = state.get("goals_pending", 0)
+                strategic_context = get_strategic_context(root)
+                active = strategic_context.get("active_projects", active)
+                total = strategic_context.get("total_projects", total)
+            except Exception as e:
+                logger.debug(f"Strategic parser failed: {e}")
+        in_progress = state.get("goals_in_progress", 0)
+        pending = state.get("goals_pending", 0)
+        goal_counts = _goal_counts_from_parser(root)
+        if goal_counts is not None:
+            in_progress, pending = goal_counts
 
         # Anomaly detection using OrchestrationAnomalyManager
         anomalies = []
@@ -293,7 +428,13 @@ def cmd_status(args):
             print()
 
         # === 4. NEXT ACTION (Prominent) ===
-        if next_action:
+        if signal_blocked:
+            print("💡 NEXT ACTION")
+            print("────────────────")
+            print("  Reduce workspace noise to restore recommendation trust.")
+            print("  Suggested: git add/commit or git stash push, then rerun `scripts/audit-start.sh`.")
+            print()
+        elif next_action:
             print("💡 NEXT ACTION")
             print("────────────────")
             action_text = getattr(next_action, "action", next_action.title)
@@ -307,6 +448,10 @@ def cmd_status(args):
         print("────────────────")
         print(f"  Projects: {active} active, {total} total")
         print(f"  Goals: {in_progress} in progress, {pending} pending")
+        print(
+            f"  Signal: {signal['quality']} "
+            f"({signal['modified']} modified, {signal['untracked']} untracked)"
+        )
         status_icon = "✅" if health.all_active else "⚠️"
         print(f"  {status_icon} Integrations: {health.active_count}/4 active")
         print()
@@ -489,8 +634,57 @@ def cmd_health(args):
 def cmd_briefing(args):
     """Generate and display daily briefing."""
     try:
+        root = Path(args.root)
         # Generate briefing
-        briefing = generate_daily_briefing(root_dir=Path(args.root))
+        briefing = generate_daily_briefing(root_dir=root)
+        signal = get_briefing_signal_quality(briefing)
+        _apply_signal_gate_to_briefing(briefing, signal)
+
+        if args.strict_signal:
+            if signal["quality"] == "LOW":
+                print(
+                    f"Signal gate failed: SIG:LOW ({signal['dirty_total']} local changes: "
+                    f"{signal['modified']} modified, {signal['untracked']} untracked)",
+                    file=sys.stderr,
+                )
+                print(
+                    "Run after reducing workspace noise (commit/stash/archive) or remove --strict-signal.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+
+            # Security gate: require baseline dependency policy to pass.
+            baseline_script = root / "cortex" / "scripts" / "check_dependency_baseline.py"
+            requirements = root / "cortex" / "requirements.txt"
+            if baseline_script.exists() and requirements.exists():
+                proc = subprocess.run(
+                    [sys.executable, str(baseline_script), str(requirements)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    print(
+                        "Security gate failed: dependency baseline check did not pass.",
+                        file=sys.stderr,
+                    )
+                    if proc.stdout.strip():
+                        try:
+                            payload = json.loads(proc.stdout)
+                            for issue in payload.get("issues", []):
+                                print(f"  - {issue}", file=sys.stderr)
+                        except Exception:
+                            print(proc.stdout.strip(), file=sys.stderr)
+                    if proc.stderr.strip():
+                        print(proc.stderr.strip(), file=sys.stderr)
+                    sys.exit(3)
+            else:
+                print(
+                    "Security gate failed: missing dependency baseline checker or requirements file.",
+                    file=sys.stderr,
+                )
+                sys.exit(3)
 
         # Format output
         if args.format == "json":
@@ -499,6 +693,81 @@ def cmd_briefing(args):
             output = format_briefing(briefing, use_color=not args.no_color)
 
         print(output)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_briefing_style(args):
+    """Validate/show persistent briefing style contract."""
+    try:
+        style = get_briefing_style()
+        errors = validate_briefing_style(style)
+
+        if args.show:
+            import json
+
+            print(json.dumps(style, indent=2))
+            print("")
+
+        style_path = get_briefing_style_path()
+        if errors:
+            print(f"INVALID briefing style: {style_path}")
+            for err in errors:
+                print(f"  - {err}")
+            sys.exit(1)
+        else:
+            print(f"OK briefing style: {style_path}")
+            if args.validate:
+                print("Validation passed")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_statusline(args):
+    """Generate compact single-line status output for Claude statusLine hooks."""
+    try:
+        import json
+        import time
+
+        cache_path = Path.home() / ".claude" / "statusline_cache.json"
+        max_age = max(0, int(args.max_age))
+
+        # Read cache first unless explicitly refreshed
+        if not args.refresh and cache_path.exists():
+            try:
+                data = json.loads(cache_path.read_text())
+                age = time.time() - float(data.get("ts", 0))
+                if age <= max_age:
+                    if args.json:
+                        print(json.dumps(data.get("payload", {}), indent=2))
+                    else:
+                        print(str(data.get("line", "")).strip())
+                    return
+            except Exception:
+                pass
+
+        briefing = generate_daily_briefing(root_dir=Path(args.root))
+        line = format_statusline(briefing, use_color=not args.no_color)
+
+        if args.json:
+            payload = json.loads(format_statusline_json(briefing))
+            print(json.dumps(payload, indent=2))
+        else:
+            print(line)
+            payload = {"statusline": line}
+
+        # Best-effort cache write; never fail command for cache issues.
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(
+                json.dumps({"ts": time.time(), "line": line, "payload": payload})
+            )
+        except Exception:
+            pass
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -1929,6 +2198,7 @@ Examples:
   cortex health                 # Show system health
   cortex briefing               # Generate daily briefing
   cortex briefing --format=json # Daily briefing in JSON
+  cortex statusline             # Compact line for Claude statusLine
   cortex feedback --stats       # Show feedback statistics
   cortex feedback --log "Note"  # Quick log entry
 
@@ -2238,7 +2508,39 @@ Deep Mode (Phase 1):
         help="Output format (default: text)",
     )
     briefing_parser.add_argument("--no-color", action="store_true", help="Disable color output")
+    briefing_parser.add_argument(
+        "--strict-signal",
+        action="store_true",
+        help="Exit non-zero when signal quality is LOW",
+    )
     briefing_parser.set_defaults(func=cmd_briefing)
+
+    # Briefing style command
+    briefing_style_parser = subparsers.add_parser(
+        "briefing-style", help="Validate/show persistent briefing style contract"
+    )
+    briefing_style_parser.add_argument(
+        "--validate", action="store_true", help="Validate style file and exit with status"
+    )
+    briefing_style_parser.add_argument("--show", action="store_true", help="Print effective style JSON")
+    briefing_style_parser.set_defaults(func=cmd_briefing_style)
+
+    # Statusline command
+    statusline_parser = subparsers.add_parser(
+        "statusline", help="Generate compact single-line status output"
+    )
+    statusline_parser.add_argument("--json", action="store_true", help="Output JSON")
+    statusline_parser.add_argument("--no-color", action="store_true", help="Disable color output")
+    statusline_parser.add_argument(
+        "--max-age",
+        type=int,
+        default=90,
+        help="Use cached output up to N seconds old (default: 90)",
+    )
+    statusline_parser.add_argument(
+        "--refresh", action="store_true", help="Bypass cache and regenerate now"
+    )
+    statusline_parser.set_defaults(func=cmd_statusline)
 
     # Reflect command
     reflect_parser = subparsers.add_parser(
