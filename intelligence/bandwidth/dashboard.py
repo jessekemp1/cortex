@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from intelligence.bandwidth.handoff_capture import HandoffStorage
 from intelligence.bandwidth.meter import BandwidthMeter
 from intelligence.bandwidth.predictions import PredictionTracker
+from intelligence.bandwidth.contracts import ContractMetricsStore
 
 
 def render_dashboard(
@@ -54,6 +55,10 @@ def render_dashboard(
     # Context Efficiency Section
     lines.append("")
     lines.extend(_render_context_efficiency(project, days))
+
+    # Phase 1 Contract Metrics
+    lines.append("")
+    lines.extend(_render_contract_metrics(project, days))
 
     # Recent Handoffs Section
     if show_handoffs:
@@ -199,6 +204,28 @@ def _render_recent_handoffs(project: Optional[str], limit: int = 3) -> list:
     return lines
 
 
+def _render_contract_metrics(project: Optional[str], days: int) -> list:
+    """Render Phase 1 contract metrics."""
+    lines = []
+    store = ContractMetricsStore()
+    metrics = store.aggregate(days=days, project=project)
+
+    lines.append("│  🧩 PHASE 1 CONTRACT METRICS                           │")
+    lines.append("│  ────────────────────────────────────────              │")
+
+    if metrics["sessions"] == 0:
+        lines.append("│  No contract metrics yet. Process interactions first. │")
+        lines.append("│                                                        │")
+        lines.append("│  Usage: cortex interactions --process                  │")
+        return lines
+
+    lines.append(f"│  Sessions: {metrics['sessions']:<45}│")
+    lines.append(f"│  override_rate: {metrics['override_rate']*100:>5.1f}%                           │")
+    lines.append(f"│  autonomy_level: {metrics['autonomy_level']*100:>5.1f}%                          │")
+    lines.append(f"│  novelty_score:  {metrics['novelty_score']:>5.2f}/10                        │")
+    return lines
+
+
 def _render_trends(project: Optional[str], days: int) -> list:
     """Render trend comparison section."""
     lines = []
@@ -251,6 +278,7 @@ def get_dashboard_data(
         "period_days": days,
         "project_filter": project,
         "session_stats": meter.get_aggregate_stats(days=days, project=project),
+        "contract_metrics": ContractMetricsStore().aggregate(days=days, project=project),
         "calibration": {domain: cal.to_dict() for domain, cal in tracker.get_calibration().items()},
         "trends": meter.compare_to_baseline(baseline_days=30, recent_days=days, project=project),
         "recent_handoffs": [h.to_dict() for h in storage.load_recent(limit=5, project=project)],

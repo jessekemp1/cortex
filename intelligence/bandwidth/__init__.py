@@ -20,6 +20,14 @@ from intelligence.bandwidth.meter import (
     BandwidthMetrics,
     get_session_metrics,
 )
+from intelligence.bandwidth.event_adapter import (
+    normalize_claude_event,
+    normalize_codex_event,
+)
+from intelligence.bandwidth.contracts import (
+    ContractMetricsStore,
+    ContractSessionMetrics,
+)
 from intelligence.bandwidth.predictions import (
     DomainCalibration,
     PredictionTracker,
@@ -37,6 +45,12 @@ __all__ = [
     "BandwidthMeter",
     "BandwidthMetrics",
     "get_session_metrics",
+    # Event Adapter
+    "normalize_claude_event",
+    "normalize_codex_event",
+    # Metric contracts
+    "ContractMetricsStore",
+    "ContractSessionMetrics",
     # Prediction Tracker
     "PredictionTracker",
     "DomainCalibration",
