@@ -386,53 +386,6 @@ class TaskRouter:
         )
         return scored
 
-    def calibrate_confidence(self, raw_confidence: float, state_key: str) -> float:
-        """
-        Calibrate confidence using state familiarity and action separation.
-
-        Low-visit states and flat Q-values are damped to avoid overconfidence.
-        """
-        bounded = max(0.0, min(1.0, raw_confidence))
-        q_vals = self.q_table.get(state_key, {a: 0.0 for a in ACTIONS})
-        visits = self.visit_count.get(state_key, 0)
-
-        q_range = max(q_vals.values()) - min(q_vals.values())
-        separation = min(max(q_range / 2.0, 0.0), 1.0)
-        maturity = min(visits / 20.0, 1.0)
-
-        # Combine uncertainty penalties; keep floor to prevent zero-confidence outputs.
-        dampener = 0.35 + 0.65 * (0.5 * separation + 0.5 * maturity)
-        calibrated = bounded * dampener
-        return round(max(0.05, min(0.95, calibrated)), 3)
-
-    def score_hypothesis(
-        self,
-        project: str,
-        task_type: str,
-        priority: str,
-        context: str,
-    ) -> dict:
-        """
-        Score a forecast hypothesis and return calibrated routing payload.
-        """
-        recommendation = self.recommend(
-            project=project,
-            task_type=task_type,
-            priority=priority,
-            context=context,
-        )
-        state_key = recommendation["state"]
-        calibrated = self.calibrate_confidence(recommendation["confidence"], state_key)
-        q_values = recommendation.get("q_values", {})
-        action = recommendation["action"]
-        q_score = float(q_values.get(action, 0.0))
-        return {
-            **recommendation,
-            "raw_confidence": recommendation["confidence"],
-            "confidence": calibrated,
-            "q_score": round(q_score, 4),
-        }
-
     def report(self) -> str:
         """Generate a human-readable Q-table summary."""
         if not self.q_table:
