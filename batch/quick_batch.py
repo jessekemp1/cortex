@@ -16,40 +16,19 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Optional
 
-# Add repo and cortex roots to path for direct script execution.
-# Some submodules import via `cortex.*`, so both roots are required.
-cortex_root = Path(__file__).resolve().parent.parent
-repo_root = cortex_root.parent
-# Default to repo-local writable data path for Codex/sandbox runs.
-os.environ.setdefault("CORTEX_HOME", str((repo_root / ".cortex-local").resolve()))
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-if str(cortex_root) not in sys.path:
-    sys.path.insert(0, str(cortex_root))
+# Add cortex intelligence module to path
+cortex_root = Path(__file__).parent.parent
+sys.path.insert(0, str(cortex_root))
 
 try:
     from intelligence.process_monitor.batch_queue import BatchTaskQueue
-    from intelligence.counterfactual_learning import CounterfactualLedger
-    from intelligence.decision_twin import DecisionTwinEngine, PlanScenario, PlanTask
-    from intelligence.memory_distiller import MemoryDistiller
-    from intelligence.portfolio_allocator import PortfolioAllocator, ProjectSignal
-    from intelligence.pre_mortem import Initiative, PreMortemEngine
-    from intelligence.trust_governor import TrustGovernor
-except Exception as e:
-    # Surface real import failure to avoid masking root causes.
-    print(
-        f"Error importing BatchTaskQueue: {type(e).__name__}: {e}",
-        file=sys.stderr,
-    )
-    print(
-        "Hint: run from repo root with `python3 cortex/batch/quick_batch.py ...`.",
-        file=sys.stderr,
-    )
+except ImportError:
+    # Fallback error message if BatchTaskQueue not available
+    print("Error: BatchTaskQueue not found. Ensure cortex is properly installed.", file=sys.stderr)
     sys.exit(1)
 
 # Common prompt templates for different batch types
@@ -348,89 +327,6 @@ def show_pending():
     print()
 
 
-def run_decision_twin_demo() -> dict:
-    """Run a lightweight Decision Twin simulation."""
-    engine = DecisionTwinEngine()
-    scenarios = [
-        PlanScenario(
-            scenario_id="balanced",
-            name="Balanced Build",
-            tasks=(
-                PlanTask("Ship routing integration", impact_points=9, effort_hours=7, focus_cost=3, risk=1),
-                PlanTask("Harden tests", impact_points=6, effort_hours=4, focus_cost=2, risk=1),
-            ),
-        ),
-        PlanScenario(
-            scenario_id="aggressive",
-            name="Aggressive Expansion",
-            tasks=(
-                PlanTask("Ship 3 new modules", impact_points=12, effort_hours=12, focus_cost=8, risk=3),
-            ),
-        ),
-    ]
-    ranked = engine.rank_scenarios(scenarios)
-    return {
-        "best": ranked[0].__dict__,
-        "ranked": [item.__dict__ for item in ranked],
-    }
-
-
-def run_portfolio_allocator_demo(total_hours: float = 40.0) -> dict:
-    """Run daily attention rebalance on default portfolio signals."""
-    allocator = PortfolioAllocator()
-    signals = [
-        ProjectSignal("vortex", risk=0.8, opportunity=0.9, strategic_alignment=0.95),
-        ProjectSignal("cortex", risk=0.6, opportunity=0.85, strategic_alignment=0.9),
-        ProjectSignal("alpha_arena", risk=0.5, opportunity=0.7, strategic_alignment=0.75),
-        ProjectSignal("winfield", risk=0.45, opportunity=0.65, strategic_alignment=0.7),
-    ]
-    allocations = allocator.allocate(signals=signals, total_hours=total_hours)
-    return {
-        "total_hours": total_hours,
-        "allocations": [entry.__dict__ for entry in allocations],
-    }
-
-
-def summarize_counterfactuals() -> dict:
-    """Read and summarize counterfactual learning ledger."""
-    ledger = CounterfactualLedger()
-    return ledger.summarize()
-
-
-def run_trust_governor(current_level: int = 1) -> dict:
-    """Evaluate current trust state and autonomy transition advice."""
-    governor = TrustGovernor()
-    return governor.evaluate(current_level=current_level)
-
-
-def run_pre_mortem(topic: Optional[str] = None) -> dict:
-    """Generate pre-mortem narratives and mitigation routing."""
-    name = topic or "co-navigator roll-out"
-    engine = PreMortemEngine()
-    narratives = engine.generate(
-        [
-            Initiative(
-                name=name,
-                complexity=0.75,
-                dependency_risk=0.7,
-                deadline_pressure=0.65,
-                context="autonomy expansion",
-            )
-        ]
-    )
-    actions = engine.route_mitigations(narratives)
-    return {
-        "narratives": [n.__dict__ for n in narratives],
-        "mitigations": actions,
-    }
-
-
-def run_memory_distill() -> dict:
-    """Distill noisy logs into compact strategy memory."""
-    distiller = MemoryDistiller()
-    return distiller.distill()
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Quick Batch Submission - Submit work to Anthropic Batch API",
@@ -444,33 +340,13 @@ Examples:
   %(prog)s security                   # Security audit
   %(prog)s patterns                   # Code pattern analysis
   %(prog)s test-gaps cortex/tests/    # Find test gaps
-  %(prog)s decision-twin              # Simulate and rank weekly plan scenarios
-  %(prog)s allocator                  # Rebalance portfolio attention
-  %(prog)s counterfactual-summary     # Show recommendation follow-through metrics
-  %(prog)s trust-governor             # Evaluate autonomy transition policy
-  %(prog)s premortem "Feature rollout"  # Generate risk narratives + mitigations
-  %(prog)s memory-distill             # Distill outcomes into strategy memory
   %(prog)s status                     # Show pending jobs
         """,
     )
 
     parser.add_argument(
         "type",
-        choices=[
-            "review",
-            "docs",
-            "research",
-            "security",
-            "patterns",
-            "test-gaps",
-            "status",
-            "decision-twin",
-            "allocator",
-            "counterfactual-summary",
-            "trust-governor",
-            "premortem",
-            "memory-distill",
-        ],
+        choices=["review", "docs", "research", "security", "patterns", "test-gaps", "status"],
         help="Type of batch job",
     )
     parser.add_argument("target", nargs="?", help="File/directory path or research topic")
@@ -491,39 +367,6 @@ Examples:
 
     if args.type == "status":
         show_pending()
-        return
-    if args.type == "decision-twin":
-        result = run_decision_twin_demo()
-        print(json.dumps(result, indent=2) if args.json else f"Best scenario: {result['best']['name']}")
-        return
-    if args.type == "allocator":
-        result = run_portfolio_allocator_demo()
-        if args.json:
-            print(json.dumps(result, indent=2))
-        else:
-            print("Daily Attention Allocation")
-            for item in result["allocations"]:
-                print(f"- {item['project']}: {item['hours']}h ({item['share']*100:.1f}%)")
-        return
-    if args.type == "counterfactual-summary":
-        result = summarize_counterfactuals()
-        print(json.dumps(result, indent=2) if args.json else str(result))
-        return
-    if args.type == "trust-governor":
-        result = run_trust_governor()
-        print(json.dumps(result, indent=2) if args.json else str(result))
-        return
-    if args.type == "premortem":
-        result = run_pre_mortem(args.target)
-        if args.json:
-            print(json.dumps(result, indent=2))
-        else:
-            for n in result["narratives"]:
-                print(f"{n['initiative']}: risk={n['risk_score']} :: {n['narrative']}")
-        return
-    if args.type == "memory-distill":
-        result = run_memory_distill()
-        print(json.dumps(result, indent=2) if args.json else str(result))
         return
 
     try:
