@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from cortex.state_paths import get_cortex_dir
+
 # Import quality tracking
 try:
     from intelligence.quality.data_quality import DataQualityTracker
@@ -61,26 +63,13 @@ class FeedbackLogger:
 
     def __init__(self, log_file: Optional[Path] = None, outcomes_file: Optional[Path] = None):
         if log_file is None:
-            # Default to ~/.cortex/feedback.json
-            home = Path.home()
-
-            # Migrate from old location if exists
-            old_dir = home / ".converx"
-            new_dir = home / ".cortex"
-            if old_dir.exists() and not new_dir.exists():
-                import shutil
-
-                shutil.copytree(old_dir, new_dir)
-
-            log_dir = new_dir
-            log_dir.mkdir(exist_ok=True)
+            # Default to writable cortex state dir
+            log_dir = get_cortex_dir()
             log_file = log_dir / "feedback.json"
             outcomes_file = log_dir / "outcomes.jsonl"
 
         self.log_file = log_file
-        self.outcomes_file = (
-            outcomes_file if outcomes_file else Path.home() / ".cortex" / "outcomes.jsonl"
-        )
+        self.outcomes_file = outcomes_file if outcomes_file else get_cortex_dir() / "outcomes.jsonl"
         self._ensure_log_exists()
         self._ensure_outcomes_exists()
 

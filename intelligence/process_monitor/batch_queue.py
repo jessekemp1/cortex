@@ -17,6 +17,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+from cortex.state_paths import get_cortex_dir
+
 
 class TaskState(Enum):
     """Task execution states."""
@@ -160,9 +162,9 @@ class BatchTaskQueue:
             db_path: Path to SQLite database (defaults to ~/.cortex/batch_queue.db)
         """
         if db_path is None:
-            cortex_dir = Path.home() / ".cortex"
-            cortex_dir.mkdir(exist_ok=True)
+            cortex_dir = get_cortex_dir()
             db_path = cortex_dir / "batch_queue.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.db_path = db_path
         self._init_database()

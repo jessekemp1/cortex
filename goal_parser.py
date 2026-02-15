@@ -250,9 +250,11 @@ class GoalParser:
     def _infer_status(self, title: str, content: str) -> str:
         """Infer goal status from content."""
         # First check for explicit **Status:** field (most reliable)
-        status_match = re.search(r"\*\*Status:\*\*\s*(\w+)", content, re.IGNORECASE)
+        status_match = re.search(
+            r"\*\*Status:\*\*\s*(\w+)|\*\*Status\*\*:\s*(\w+)", content, re.IGNORECASE
+        )
         if status_match:
-            explicit_status = status_match.group(1).lower()
+            explicit_status = (status_match.group(1) or status_match.group(2)).lower()
             if explicit_status in ("completed", "done", "finished"):
                 return "completed"
             elif explicit_status in ("in_progress", "active", "started"):

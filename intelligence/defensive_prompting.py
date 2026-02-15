@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from cortex.state_paths import get_cortex_dir
+
 
 @dataclass
 class ValidationResult:
@@ -49,7 +51,7 @@ class DefensivePrompting:
             log_dir: Directory for security logs (default: ~/.cortex/)
         """
         if log_dir is None:
-            log_dir = Path.home() / ".cortex"
+            log_dir = get_cortex_dir()
 
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(exist_ok=True)

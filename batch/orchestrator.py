@@ -334,9 +334,17 @@ class BatchOrchestrator:
         Returns:
             job_id (without prefix)
         """
-        # Load existing queue
-        with open(self.queue_file) as f:
-            queue_data = json.load(f)
+        # Load existing queue (with corruption recovery)
+        try:
+            with open(self.queue_file) as f:
+                queue_data = json.load(f)
+            if not isinstance(queue_data, dict) or "priority_jobs" not in queue_data:
+                raise ValueError("Invalid queue structure")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Queue file corrupt or invalid ({e}), reinitializing")
+            self._init_queue_file()
+            with open(self.queue_file) as f:
+                queue_data = json.load(f)
 
         # Generate job ID if not provided
         job_id = job_data.get("id", f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}")

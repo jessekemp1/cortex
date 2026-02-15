@@ -26,6 +26,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Generator
 
+from cortex.state_paths import get_cortex_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -195,12 +197,11 @@ class MetricTracker:
             DatabaseError: If database initialization fails.
         """
         if db_path is None:
-            cortex_dir = Path.home() / ".cortex"
-            cortex_dir.mkdir(parents=True, exist_ok=True)
+            cortex_dir = get_cortex_dir()
             self.db_path = cortex_dir / "metrics.db"
         else:
             self.db_path = Path(db_path)
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.retention_days = retention_days
         self._local = threading.local()

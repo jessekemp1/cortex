@@ -44,18 +44,74 @@ class BatchQueueManager:
         self.check_interval = check_interval
 
     def load_queue(self) -> Dict:
-        """Load queue from JSON file"""
+        """Load queue from JSON file with corruption recovery.
+
+        If the JSON file is corrupt (e.g., interrupted write), backs up
+        the corrupt file and reinitializes an empty queue so the pipeline
+        can continue operating.
+        """
+        empty_queue = {"priority_jobs": [], "queue_metadata": {}}
+
         if not self.queue_file.exists():
             logger.error(f"Queue file not found: {self.queue_file}")
-            return {"priority_jobs": [], "queue_metadata": {}}
+            return empty_queue
 
-        with open(self.queue_file) as f:
-            return json.load(f)
+        try:
+            with open(self.queue_file) as f:
+                data = json.load(f)
+
+            # Validate expected structure
+            if not isinstance(data, dict) or "priority_jobs" not in data:
+                raise ValueError(
+                    f"Invalid queue structure: missing 'priority_jobs' key "
+                    f"(got keys: {list(data.keys()) if isinstance(data, dict) else type(data).__name__})"
+                )
+
+            return data
+
+        except (json.JSONDecodeError, ValueError) as e:
+            # Back up corrupt file before reinitializing
+            from datetime import datetime
+
+            backup_path = self.queue_file.with_suffix(
+                f".corrupt.{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
+            try:
+                import shutil
+
+                shutil.copy2(self.queue_file, backup_path)
+                logger.warning(
+                    f"Queue file corrupt ({e}). Backed up to {backup_path} "
+                    f"and reinitializing empty queue."
+                )
+            except OSError as copy_err:
+                logger.error(
+                    f"Queue file corrupt ({e}) and backup failed ({copy_err}). "
+                    f"Reinitializing empty queue."
+                )
+
+            # Reinitialize with empty queue (atomic write)
+            self.save_queue(empty_queue)
+            return empty_queue
 
     def save_queue(self, queue_data: Dict):
-        """Save queue back to JSON file"""
-        with open(self.queue_file, "w") as f:
-            json.dump(queue_data, f, indent=2)
+        """Save queue back to JSON file using atomic write to prevent corruption."""
+        import os
+        import tempfile
+
+        self.queue_file.parent.mkdir(parents=True, exist_ok=True)
+        dir_path = str(self.queue_file.parent)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".json.tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(queue_data, f, indent=2)
+            os.rename(tmp_path, str(self.queue_file))
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
         logger.debug(f"Queue saved to {self.queue_file}")
 
     def get_active_batch_count(self) -> int:
@@ -79,18 +135,18 @@ class BatchQueueManager:
 
         for task in job["tasks"]:
             # Build the full prompt with context
-            full_prompt = f"""You are helping with a code improvement task as part of {job['description']}.
+            full_prompt = f"""You are helping with a code improvement task as part of {job["description"]}.
 
-**Task:** {task['title']}
+**Task:** {task["title"]}
 
 **Context:**
-{task['context']}
+{task["context"]}
 
 **Files Affected:**
-{', '.join(task['files_affected']) if task['files_affected'] else 'N/A'}
+{", ".join(task["files_affected"]) if task["files_affected"] else "N/A"}
 
 **Instructions:**
-{task['prompt']}
+{task["prompt"]}
 
 **Important:**
 - Provide specific, actionable code changes
@@ -282,9 +338,9 @@ Please provide a comprehensive implementation plan and any code changes needed."
         try:
             while True:
                 iteration += 1
-                logger.info(f"\n{'='*60}")
+                logger.info(f"\n{'=' * 60}")
                 logger.info(f"Queue check iteration #{iteration}")
-                logger.info(f"{'='*60}")
+                logger.info(f"{'=' * 60}")
 
                 # Check and update status of submitted jobs
                 self.monitor_and_update_status()

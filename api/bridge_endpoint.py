@@ -14,6 +14,7 @@ Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 
 import sys
 import time
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -60,6 +61,23 @@ class RecommendationRequest(BaseModel):
 
     project: Optional[str] = Field(default=None, description="Filter by project")
     limit: int = Field(default=5, description="Max recommendations to return")
+
+
+class BriefingExecutionRequest(BaseModel):
+    """Request model for recording recommendation execution events."""
+
+    execution_id: str = Field(..., description="Unique execution identifier")
+    recommendation_id: str = Field(..., description="Recommendation identifier")
+    recommendation_title: str = Field(..., description="Recommendation title")
+    project: str = Field(..., description="Project name")
+    mode: str = Field(..., description="Execution mode (queue/manual/etc)")
+    status: str = Field(..., description="Execution status")
+    source_version: Optional[str] = Field(
+        default=None, description="Source version or channel"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="Additional execution metadata"
+    )
 
 
 class StatusResponse(BaseModel):
@@ -226,6 +244,44 @@ async def get_recommendations(
             recommendations["recommendations"] = filtered[:limit]
         elif "recommendations" in recommendations:
             recommendations["recommendations"] = recommendations["recommendations"][:limit]
+        else:
+            # Backward-compatible normalization for report-style recommendation payloads.
+            normalized: List[Dict[str, Any]] = []
+
+            next_action = recommendations.get("next_action")
+            if isinstance(next_action, dict) and next_action.get("action"):
+                normalized.append(
+                    {
+                        "project": next_action.get("project", project or "cortex"),
+                        "priority": next_action.get("priority", "MEDIUM"),
+                        "title": next_action.get("action"),
+                        "type": next_action.get("type", "next_action"),
+                    }
+                )
+
+            for item in recommendations.get("priority_projects", []) or []:
+                if isinstance(item, dict):
+                    normalized.append(
+                        {
+                            "project": item.get("project", project or "cortex"),
+                            "priority": item.get("priority", "MEDIUM"),
+                            "title": item.get("reason", "Priority project requires attention"),
+                            "type": "priority_project",
+                        }
+                    )
+
+            for alert in recommendations.get("risk_alerts", []) or []:
+                if isinstance(alert, dict):
+                    normalized.append(
+                        {
+                            "project": alert.get("project", project or "cortex"),
+                            "priority": alert.get("severity", "MEDIUM"),
+                            "title": alert.get("message", "Risk alert detected"),
+                            "type": "risk_alert",
+                        }
+                    )
+
+            recommendations["recommendations"] = normalized[:limit]
 
         return recommendations
     except Exception as e:
@@ -621,6 +677,67 @@ async def get_recommendations_alias(
 # ============================================================================
 
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+BRIEFING_EXECUTIONS_DIR = Path.home() / ".cortex" / "briefing"
+BRIEFING_EXECUTIONS_FILE = BRIEFING_EXECUTIONS_DIR / "executions.jsonl"
+
+
+def _append_briefing_execution(record: Dict[str, Any]) -> None:
+    BRIEFING_EXECUTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    with BRIEFING_EXECUTIONS_FILE.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, separators=(",", ":")) + "\n")
+
+
+def _read_briefing_executions(limit: int = 20) -> List[Dict[str, Any]]:
+    if not BRIEFING_EXECUTIONS_FILE.exists():
+        return []
+
+    rows: List[Dict[str, Any]] = []
+    with BRIEFING_EXECUTIONS_FILE.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    rows.sort(key=lambda r: r.get("recorded_at", ""), reverse=True)
+    return rows[:limit]
+
+
+@app.post("/briefing/executions")
+async def record_briefing_execution(payload: BriefingExecutionRequest) -> Dict[str, Any]:
+    """Record a briefing recommendation execution event."""
+    try:
+        recorded_at = datetime.utcnow().isoformat() + "Z"
+        record = {
+            "execution_id": payload.execution_id,
+            "recommendation_id": payload.recommendation_id,
+            "recommendation_title": payload.recommendation_title,
+            "project": payload.project,
+            "mode": payload.mode,
+            "status": payload.status,
+            "source_version": payload.source_version,
+            "metadata": payload.metadata or {},
+            "recorded_at": recorded_at,
+        }
+        _append_briefing_execution(record)
+        return {"status": "recorded", "execution": record}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/briefing/executions")
+async def list_briefing_executions(
+    limit: int = Query(20, ge=1, le=200, description="Max executions to return"),
+) -> Dict[str, Any]:
+    """List recent briefing execution events, newest first."""
+    try:
+        executions = _read_briefing_executions(limit=limit)
+        return {"executions": executions, "count": len(executions)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/sessions")
