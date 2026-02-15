@@ -10,8 +10,10 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
@@ -685,6 +687,34 @@ def cmd_briefing(args):
                     file=sys.stderr,
                 )
                 sys.exit(3)
+
+            # Contract coverage gate.
+            try:
+                from intelligence.bandwidth.contracts import ContractMetricsStore
+
+                contracts = ContractMetricsStore().aggregate(days=7)
+                if int(contracts.get("sessions", 0)) < 3:
+                    print(
+                        f"Contract gate failed: only {contracts.get('sessions', 0)} contract sessions in last 7d (min 3).",
+                        file=sys.stderr,
+                    )
+                    sys.exit(4)
+            except Exception:
+                pass
+
+            # Queue backlog gate.
+            try:
+                from intelligence.bandwidth.queue_slo import check_queue_slo
+
+                queue = check_queue_slo()
+                if queue.get("status") == "critical":
+                    print(
+                        f"Queue SLO gate failed: backlog critical (total_lines={queue.get('total_lines')}).",
+                        file=sys.stderr,
+                    )
+                    sys.exit(5)
+            except Exception:
+                pass
 
         # Format output
         if args.format == "json":
@@ -1374,6 +1404,12 @@ def cmd_interactions(args):
     if args.process:
         # Process queued interactions
         result = process_interaction_queue()
+        try:
+            from intelligence.bandwidth.queue_slo import check_queue_slo
+
+            queue_slo = check_queue_slo()
+        except Exception:
+            queue_slo = None
         print("╔══════════════════════════════════════════════════════╗")
         print("║        CORTEX - INTERACTION QUEUE PROCESSED          ║")
         print("╚══════════════════════════════════════════════════════╝")
@@ -1383,6 +1419,10 @@ def cmd_interactions(args):
         print(f"Implicit outcomes derived: {result.get('outcomes_derived', 0)}")
         print(f"Insights generated: {result.get('insights_generated', 0)}")
         print(f"Sessions analyzed: {result.get('sessions_analyzed', 0)}")
+        if queue_slo:
+            print(
+                f"Queue SLO: {queue_slo.get('status')} (queue={queue_slo.get('queue_lines')}, processing={queue_slo.get('processing_lines')})"
+            )
         return
 
     if args.patterns:
@@ -1874,15 +1914,20 @@ def cmd_bandwidth(args):
 
         elif action == "record-prediction":
             # Record a new prediction
+            prediction_id = args.prediction_id or f"pred_{int(datetime.now().timestamp())}"
             prediction = record_prediction(
-                prediction_id=args.prediction_id,
+                prediction_id=prediction_id,
                 confidence=args.confidence,
                 domain=args.domain,
                 description=args.description or "",
+                source=args.source or os.environ.get("CORTEX_SOURCE", "cli"),
+                session_id=args.session_id or os.environ.get("CORTEX_SESSION_ID", "unknown"),
             )
             print(f"✓ Recorded prediction: {prediction.prediction_id}")
             print(f"  Domain: {prediction.domain}")
             print(f"  Confidence: {prediction.confidence:.0%}")
+            print(f"  Source: {prediction.source}")
+            print(f"  Session: {prediction.session_id}")
 
         elif action == "record-outcome":
             # Record outcome for a prediction
@@ -1929,6 +1974,26 @@ def cmd_bandwidth(args):
             print(f"  Project: {handoff.project}")
             print(f"  Task: {handoff.active_task}")
             print(f"  Workstream: {handoff.workstream.value}")
+
+        elif action == "queue-slo":
+            from intelligence.bandwidth.queue_slo import check_queue_slo
+
+            status = check_queue_slo()
+            if args.json:
+                print(json.dumps(status, indent=2))
+            else:
+                print(f"Queue SLO: {status['status']} (total={status['total_lines']})")
+
+        elif action == "baseline":
+            from intelligence.bandwidth.baseline_report import generate_baseline_report
+
+            output_dir = Path.home() / ".cortex" / "research" / "bandwidth" / "reports"
+            report = generate_baseline_report(output_dir=output_dir, project=args.project, days=args.days)
+            if args.json:
+                print(json.dumps(report, indent=2))
+            else:
+                print("✓ Baseline report generated")
+                print(f"  Output: {output_dir / 'baseline_report.json'}")
 
         else:
             print(f"Unknown action: {action}", file=sys.stderr)
@@ -2464,6 +2529,8 @@ Deep Mode (Phase 1):
             "record-outcome",
             "calibration",
             "capture",
+            "queue-slo",
+            "baseline",
         ],
         default="dashboard",
         help="Action to perform (default: dashboard)",
@@ -2480,6 +2547,17 @@ Deep Mode (Phase 1):
     bandwidth_parser.add_argument("--experiment-name", type=str, help="Specific experiment to run")
     bandwidth_parser.add_argument("--prediction-id", type=str, help="Prediction ID for recording")
     bandwidth_parser.add_argument("--confidence", type=float, help="Confidence level (0-1)")
+    bandwidth_parser.add_argument(
+        "--source",
+        type=str,
+        choices=["claude", "codex", "cli", "system", "unknown"],
+        help="Source tool for prediction identity propagation",
+    )
+    bandwidth_parser.add_argument(
+        "--session-id",
+        type=str,
+        help="Session ID for cross-tool identity propagation",
+    )
     bandwidth_parser.add_argument(
         "--domain",
         type=str,

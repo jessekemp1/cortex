@@ -28,6 +28,8 @@ from intelligence.bandwidth.contracts import (
     ContractMetricsStore,
     ContractSessionMetrics,
 )
+from intelligence.bandwidth.queue_slo import check_queue_slo
+from intelligence.bandwidth.baseline_report import generate_baseline_report
 from intelligence.bandwidth.predictions import (
     DomainCalibration,
     PredictionTracker,
@@ -51,6 +53,8 @@ __all__ = [
     # Metric contracts
     "ContractMetricsStore",
     "ContractSessionMetrics",
+    "check_queue_slo",
+    "generate_baseline_report",
     # Prediction Tracker
     "PredictionTracker",
     "DomainCalibration",

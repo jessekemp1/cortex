@@ -44,6 +44,8 @@ class Prediction:
     domain: str
     description: str
     confidence: float  # AI's stated confidence (0-1)
+    source: str = "unknown"
+    session_id: str = "unknown"
     outcome: Optional[bool] = None  # True=correct, False=incorrect, None=pending
     outcome_timestamp: Optional[datetime] = None
 
@@ -141,6 +143,8 @@ class PredictionTracker:
         confidence: float,
         domain: str,
         description: str = "",
+        source: str = "unknown",
+        session_id: str = "unknown",
     ) -> Prediction:
         """
         Record a new prediction.
@@ -163,6 +167,8 @@ class PredictionTracker:
             domain=domain,
             description=description,
             confidence=confidence,
+            source=source,
+            session_id=session_id,
         )
 
         # Append to predictions file
@@ -334,10 +340,19 @@ def record_prediction(
     confidence: float,
     domain: str,
     description: str = "",
+    source: str = "unknown",
+    session_id: str = "unknown",
 ) -> Prediction:
     """Record a prediction (convenience function)."""
     tracker = PredictionTracker()
-    return tracker.record_prediction(prediction_id, confidence, domain, description)
+    return tracker.record_prediction(
+        prediction_id,
+        confidence,
+        domain,
+        description,
+        source=source,
+        session_id=session_id,
+    )
 
 
 def record_outcome(prediction_id: str, was_correct: bool) -> Optional[Prediction]:
