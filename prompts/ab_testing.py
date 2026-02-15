@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 
+from cortex.state_paths import get_cortex_dir
+
 
 @dataclass
 class ExperimentAssignment:
@@ -43,7 +45,7 @@ class ABTestManager:
             log_dir: Directory to log assignments (defaults to ~/.cortex/ab_tests/)
         """
         if log_dir is None:
-            log_dir = Path.home() / ".cortex" / "ab_tests"
+            log_dir = get_cortex_dir() / "ab_tests"
 
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)

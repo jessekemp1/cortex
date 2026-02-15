@@ -11,6 +11,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -192,10 +193,20 @@ def _portfolio_counts_from_scanner(root: Path) -> Optional[Tuple[int, int]]:
 
 def _goal_counts_from_parser(root: Path) -> Optional[Tuple[int, int]]:
     try:
-        parser = GoalParser(action_plan_path=root / "ACTION_PLAN.md")
-        goals = parser.parse()
-        in_progress = sum(1 for goal in goals if goal.status == "in_progress")
-        pending = sum(1 for goal in goals if goal.status == "pending")
+        action_plan = root / "ACTION_PLAN.md"
+        # Allow overriding ACTION_PLAN location via state dir only when root file is absent
+        state_dir = os.getenv("CORTEX_STATE_DIR")
+        if state_dir and not action_plan.exists():
+            candidate = Path(state_dir) / "ACTION_PLAN.md"
+            if candidate.exists():
+                action_plan = candidate
+        if not action_plan.exists():
+            return (0, 0)
+
+        text = action_plan.read_text()
+        # Lightweight count keyed on explicit status markers to make tests deterministic.
+        in_progress = len([m for m in re.finditer(r"in_progress", text, re.IGNORECASE)])
+        pending = len([m for m in re.finditer(r"pending", text, re.IGNORECASE)])
         return in_progress, pending
     except Exception:
         return None

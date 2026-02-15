@@ -99,6 +99,13 @@ class OutcomeDetector:
         r"\b(wip|progress|partial|initial|draft)\b",
         r"\b(part\s*\d+|step\s*\d+)\b",
     ]
+    FAILURE_OVERRIDE_PATTERNS = [
+        r"\b(revert|rollback|undo)\b",
+        r"\b(remove|delete)\s+.*\b(feature|implementation)\b",
+    ]
+    FAILURE_TIE_PATTERNS = [
+        r"\b(broken|fail|error)\b",
+    ]
 
     def __init__(self, data_dir: Optional[Path] = None):
         """Initialize outcome detector.
@@ -212,8 +219,17 @@ class OutcomeDetector:
             1 for pattern in self.PARTIAL_PATTERNS if re.search(pattern, message_lower)
         )
 
-        # Determine outcome based on matches
-        if failure_matches > success_matches and failure_matches > partial_matches:
+        # Determine outcome based on matches.
+        # Failure precedence on ties only when explicit rollback-like intent is present.
+        has_failure_override = any(
+            re.search(pattern, message_lower) for pattern in self.FAILURE_OVERRIDE_PATTERNS
+        )
+        has_failure_tie_signal = any(
+            re.search(pattern, message_lower) for pattern in self.FAILURE_TIE_PATTERNS
+        )
+        if failure_matches > success_matches and failure_matches >= partial_matches:
+            return OutcomeType.FAILURE, min(0.9, 0.5 + failure_matches * 0.15)
+        if (has_failure_override or has_failure_tie_signal) and failure_matches > 0 and failure_matches >= success_matches:
             return OutcomeType.FAILURE, min(0.9, 0.5 + failure_matches * 0.15)
 
         if partial_matches > success_matches and partial_matches > failure_matches:

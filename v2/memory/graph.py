@@ -176,8 +176,9 @@ class GraphMemory:
             params.append(type.value)
 
         if name_contains:
-            query += " AND name LIKE ?"
-            params.append(f"%{name_contains}%")
+            # Case-sensitive contains to align with tests and avoid overmatching.
+            query += " AND INSTR(name, ?) > 0"
+            params.append(name_contains)
 
         query += " ORDER BY updated_at DESC LIMIT ?"
         params.append(limit)

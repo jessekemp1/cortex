@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from cortex.state_paths import get_cortex_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -183,7 +185,7 @@ class WorkingMemory:
         self.retention_days = retention_days
 
         if db_path is None:
-            db_path = Path.home() / ".cortex" / "working_memory.db"
+            db_path = get_cortex_dir() / "working_memory.db"
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
