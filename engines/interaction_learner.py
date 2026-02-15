@@ -320,6 +320,7 @@ class InteractionLearner:
                             "prompt_index": i,
                             "prompt_snippet": prompt[:200],
                             "project": prompt_data.get("cwd", "").split("/")[-1],
+                            "source": source,
                         },
                     )
                 )
@@ -336,6 +337,7 @@ class InteractionLearner:
                             "session_id": session_id,
                             "prompt_index": i,
                             "project": prompt_data.get("cwd", "").split("/")[-1],
+                            "source": source,
                         },
                     )
                 )
@@ -359,6 +361,7 @@ class InteractionLearner:
                             "failure_rate": failure_rate,
                             "total_tools": len(tools),
                             "failed_tools": [t.get("tool_name") for t in tool_failures],
+                            "source": source,
                         },
                     )
                 )
@@ -376,6 +379,7 @@ class InteractionLearner:
                         "session_id": session_id,
                         "tool_count": len(tools),
                         "success_rate": len(tool_successes) / max(len(tools), 1),
+                        "source": source,
                     },
                 )
             )
@@ -519,6 +523,8 @@ class InteractionLearner:
                     context={
                         "project": outcome.context.get("project", "unknown"),
                         "session_id": outcome.context.get("session_id"),
+                        "source": outcome.context.get("source", "unknown"),
+                        "prediction_id": f"implicit_{outcome.outcome_id}",
                         "implicit": True,
                     },
                 )

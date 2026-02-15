@@ -99,3 +99,79 @@ def test_contract_metrics_store_aggregate(tmp_path):
     assert agg["override_rate"] == 0.15
     assert agg["autonomy_level"] == 0.8
     assert agg["novelty_score"] == 5.0
+
+
+def test_queue_slo_thresholds(tmp_path):
+    from intelligence.bandwidth.queue_slo import check_queue_slo
+
+    queue = tmp_path / "interaction_queue.jsonl"
+    proc = tmp_path / "interaction_queue.processing.jsonl"
+    queue.write_text("\n".join(["x"] * 12))
+    proc.write_text("\n".join(["x"] * 3))
+
+    status = check_queue_slo(queue_file=queue, processing_file=proc, backlog_warn=10, backlog_crit=20)
+    assert status["total_lines"] == 15
+    assert status["status"] == "warning"
+
+
+def test_baseline_report_generation(tmp_path):
+    from datetime import datetime
+
+    from intelligence.bandwidth.baseline_report import generate_baseline_report
+    from intelligence.bandwidth.contracts import ContractMetricsStore, ContractSessionMetrics
+    from intelligence.bandwidth.meter import BandwidthMeter, BandwidthMetrics
+
+    contracts = ContractMetricsStore(storage_dir=tmp_path / "bandwidth")
+    contracts.record(
+        ContractSessionMetrics(
+            timestamp=datetime.now(),
+            session_id="s1",
+            project="cortex",
+            source="claude",
+            override_rate=0.2,
+            autonomy_level=0.8,
+            novelty_score=4.0,
+        )
+    )
+
+    meter = BandwidthMeter(storage_dir=tmp_path / "bandwidth")
+    meter.record(
+        BandwidthMetrics(
+            timestamp=datetime.now(),
+            session_id="s1",
+            project="cortex",
+            tokens_in=1000,
+            tokens_out=500,
+            tokens_useful=350,
+            corrections=1,
+            iterations=4,
+            time_to_productive_seconds=120,
+            files_modified=2,
+        )
+    )
+
+    report = generate_baseline_report(
+        output_dir=tmp_path / "reports",
+        project="cortex",
+        days=7,
+        storage_dir=tmp_path / "bandwidth",
+    )
+    assert report["window"]["frozen"] is True
+    assert (tmp_path / "reports" / "baseline_report.json").exists()
+    assert (tmp_path / "reports" / "baseline_report.md").exists()
+
+
+def test_prediction_identity_fields(tmp_path):
+    from intelligence.bandwidth.predictions import PredictionTracker
+
+    tracker = PredictionTracker(storage_dir=tmp_path / "bandwidth")
+    pred = tracker.record_prediction(
+        prediction_id="p1",
+        confidence=0.8,
+        domain="code",
+        description="identity test",
+        source="codex",
+        session_id="sess-123",
+    )
+    assert pred.source == "codex"
+    assert pred.session_id == "sess-123"

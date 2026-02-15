@@ -79,6 +79,11 @@ try:
 except ImportError:
     ContractMetricsStore = None
 
+try:
+    from intelligence.bandwidth.queue_slo import check_queue_slo
+except ImportError:
+    check_queue_slo = None
+
 
 DEFAULT_BRIEFING_STYLE = {
     "separator_width": 64,
@@ -263,6 +268,7 @@ class BriefingData:
     # Overnight batch insights (surfaced from completed AI analysis tasks)
     batch_insights: Optional[Dict[str, Any]] = None
     bandwidth_contract_metrics: Optional[Dict[str, Any]] = None
+    queue_slo: Optional[Dict[str, Any]] = None
 
 
 class BriefingGenerator:
@@ -443,6 +449,7 @@ class BriefingGenerator:
         )
         velocity_metrics = self._get_velocity_metrics()
         bandwidth_contract_metrics = self._get_bandwidth_contract_metrics()
+        queue_slo = self._get_queue_slo_metrics()
 
         # 9. Build briefing sections
         briefing = BriefingData(
@@ -472,6 +479,7 @@ class BriefingGenerator:
             # Overnight batch insights
             batch_insights=batch_insights,
             bandwidth_contract_metrics=bandwidth_contract_metrics,
+            queue_slo=queue_slo,
         )
 
         return briefing
@@ -1464,6 +1472,16 @@ class BriefingGenerator:
             return metrics
         except Exception as e:
             print(f"Warning: Could not get bandwidth contract metrics: {e}", file=sys.stderr)
+            return None
+
+    def _get_queue_slo_metrics(self) -> Optional[Dict[str, Any]]:
+        """Get interaction queue SLO status."""
+        if not check_queue_slo:
+            return None
+        try:
+            return check_queue_slo()
+        except Exception as e:
+            print(f"Warning: Could not get queue SLO metrics: {e}", file=sys.stderr)
             return None
 
 
@@ -2473,6 +2491,16 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             lines.append(f"  novelty_score: {novelty_color}{novelty_score:.2f}/10{RESET}")
             lines.append("")
 
+    if briefing.queue_slo:
+        qs = briefing.queue_slo
+        status = str(qs.get("status", "unknown"))
+        color = GREEN if status == "healthy" else YELLOW if status == "warning" else RED
+        lines.append(f"{BOLD}🚦 INTERACTION QUEUE SLO{RESET}")
+        lines.append(
+            f"  status: {color}{status.upper()}{RESET} (queue={qs.get('queue_lines', 0)}, processing={qs.get('processing_lines', 0)})"
+        )
+        lines.append("")
+
     # Cross-Project Insights
     if briefing.cross_project_insights:
         cpi = briefing.cross_project_insights
@@ -2557,6 +2585,7 @@ def format_briefing_json(briefing: BriefingData) -> str:
         "cross_project_insights": briefing.cross_project_insights,
         "predictive_insights": briefing.predictive_insights,
         "bandwidth_contract_metrics": briefing.bandwidth_contract_metrics,
+        "queue_slo": briefing.queue_slo,
     }
 
     return json.dumps(data, indent=2, default=str)
