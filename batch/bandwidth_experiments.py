@@ -304,12 +304,12 @@ class BandwidthExperimentRunner:
     def _build_context_compression_command(self) -> str:
         """Build command for context compression experiment."""
         return (
-            "python -c \""
+            'python -c "'
             f"import sys; sys.path.insert(0, '{self.cortex_root}'); "
-            "from intelligence.bandwidth.experiments_real import run_context_compression; "
+            "from intelligence.bandwidth.bandwidth_observers import run_context_compression; "
             f"res=run_context_compression('{self.results_dir}'); "
             "print('context_compression sample_size=', res.get('sample_size', 0))"
-            "\""
+            '"'
         )
         scenarios_json = json.dumps(COMPRESSION_SCENARIOS)
 
@@ -365,12 +365,12 @@ print(f'\\n✓ Results saved: {{results_file}}')
     def _build_trust_calibration_command(self) -> str:
         """Build command for trust calibration experiment."""
         return (
-            "python -c \""
+            'python -c "'
             f"import sys; sys.path.insert(0, '{self.cortex_root}'); "
-            "from intelligence.bandwidth.experiments_real import run_trust_calibration; "
+            "from intelligence.bandwidth.bandwidth_observers import run_trust_calibration; "
             f"res=run_trust_calibration('{self.results_dir}'); "
             "print('trust_calibration domains=', len(res.get('domains', {})))"
-            "\""
+            '"'
         )
         domains_json = json.dumps(CALIBRATION_DOMAINS)
 
@@ -442,12 +442,12 @@ print(f'\\n✓ Calibration data saved: {{results_file}}')
     def _build_handoff_protocol_command(self) -> str:
         """Build command for handoff protocol experiment."""
         return (
-            "python -c \""
+            'python -c "'
             f"import sys; sys.path.insert(0, '{self.cortex_root}'); "
-            "from intelligence.bandwidth.experiments_real import run_handoff_protocol; "
+            "from intelligence.bandwidth.bandwidth_observers import run_handoff_protocol; "
             f"res=run_handoff_protocol('{self.results_dir}'); "
             "print('handoff avg_retention=', res.get('summary',{}).get('avg_retention_rate'))"
-            "\""
+            '"'
         )
         return f"""python -c "
 import json
@@ -507,12 +507,12 @@ print(f'   Average retention: {{avg_retention*100:.0f}}% (+48% vs baseline)')
     def _build_idea_augmentation_command(self) -> str:
         """Build command for idea augmentation experiment."""
         return (
-            "python -c \""
+            'python -c "'
             f"import sys; sys.path.insert(0, '{self.cortex_root}'); "
-            "from intelligence.bandwidth.experiments_real import run_idea_augmentation; "
+            "from intelligence.bandwidth.bandwidth_observers import run_idea_augmentation; "
             f"res=run_idea_augmentation('{self.results_dir}'); "
             "print('idea_augmentation novelty=', res.get('protocols',[{}])[0].get('novelty_score'))"
-            "\""
+            '"'
         )
         return f"""python -c "
 import json
@@ -577,12 +577,12 @@ print(f'   Best protocol: {{best_protocol[\"name\"]}} (+{{improvement*100:.0f}}%
     def _build_synthesis_command(self) -> str:
         """Build command for synthesis report."""
         return (
-            "python -c \""
+            'python -c "'
             f"import sys; sys.path.insert(0, '{self.cortex_root}'); "
-            "from intelligence.bandwidth.experiments_real import run_synthesis; "
+            "from intelligence.bandwidth.bandwidth_observers import run_synthesis; "
             f"res=run_synthesis('{self.results_dir}'); "
             "print('synthesis experiments_completed=', res.get('experiments_completed', 0))"
-            "\""
+            '"'
         )
         return f"""python -c "
 import json
