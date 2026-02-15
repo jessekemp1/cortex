@@ -19,7 +19,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from portfolio_memory import PortfolioMemory
+try:
+    from cortex.portfolio_memory import PortfolioMemory
+except ImportError:  # Backward compatibility for legacy direct execution contexts.
+    from portfolio_memory import PortfolioMemory
 
 
 class RecommendationEngine:
@@ -250,6 +253,42 @@ class RecommendationEngine:
 
         return alerts
 
+    def _get_session_activity(self, hours: int = 24) -> Dict[str, Any]:
+        """Read recent session summaries to understand activity patterns."""
+        session_file = Path.home() / ".cortex" / "session_summaries.jsonl"
+        if not session_file.exists():
+            return {"sessions": 0, "total_insights": 0, "total_patterns": 0}
+
+        cutoff = datetime.now() - __import__("datetime").timedelta(hours=hours)
+        sessions = 0
+        total_insights = 0
+        total_patterns = 0
+        projects_touched = set()
+
+        try:
+            for line in session_file.read_text().splitlines()[-100:]:  # Last 100 entries
+                try:
+                    entry = json.loads(line)
+                    ts = datetime.fromisoformat(entry.get("timestamp", ""))
+                    if ts > cutoff:
+                        sessions += 1
+                        total_insights += entry.get("insights_captured", 0)
+                        total_patterns += entry.get("patterns_extracted", 0)
+                        cwd = entry.get("cwd", "")
+                        if cwd:
+                            projects_touched.add(Path(cwd).name)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+        return {
+            "sessions": sessions,
+            "total_insights": total_insights,
+            "total_patterns": total_patterns,
+            "projects_touched": list(projects_touched),
+        }
+
     def get_recommended_next_action(self) -> Dict[str, Any]:
         """
         Get single most important next action.
@@ -258,6 +297,7 @@ class RecommendationEngine:
         - Highest priority uncompleted goal
         - Critical risk alerts
         - Health-based recommendations
+        - Recent session activity patterns
 
         Returns:
             Recommended action with context
@@ -288,6 +328,16 @@ class RecommendationEngine:
                 "health_score": top.get("health_score"),
             }
 
+        # Check session activity for staleness patterns
+        activity = self._get_session_activity(hours=24)
+        if activity["sessions"] > 5 and activity["total_insights"] == 0:
+            return {
+                "action": "High session count but no insights extracted — review learning pipeline",
+                "priority": "MEDIUM",
+                "type": "activity_pattern",
+                "sessions_24h": activity["sessions"],
+            }
+
         # Default - everything is good!
         return {
             "action": "All goals on track - consider adding new objectives",
@@ -312,6 +362,7 @@ class RecommendationEngine:
                 "medium_pending": len(self._parse_goals()["medium"]),
                 "completed": len(self._parse_goals()["completed"]),
             },
+            "session_activity_24h": self._get_session_activity(hours=24),
         }
 
 
@@ -354,7 +405,9 @@ if __name__ == "__main__":
                 icon = (
                     "🔴"
                     if alert["severity"] == "HIGH"
-                    else "🟡" if alert["severity"] == "MEDIUM" else "🟢"
+                    else "🟡"
+                    if alert["severity"] == "MEDIUM"
+                    else "🟢"
                 )
                 print(f"   {icon} [{alert['severity']}] {alert['message']}")
                 print(f"      → {alert['recommendation']}")
