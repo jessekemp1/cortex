@@ -409,14 +409,17 @@ class BatchOrchestrator:
         try:
             from .queue_sync import sync_json_to_sqlite
         except ImportError:
-            from batch.queue_sync import sync_json_to_sqlite
+            try:
+                from cortex.batch.queue_sync import sync_json_to_sqlite
+            except ImportError:
+                from batch.queue_sync import sync_json_to_sqlite
         try:
             synced = sync_json_to_sqlite()
             if synced > 0:
                 logger.info(f"Synced {synced} jobs to daemon queue")
             return synced
         except Exception as e:
-            logger.warning(f"Queue sync failed (daemon won't see jobs): {e}")
+            logger.error(f"Queue sync FAILED — jobs won't execute: {e}")
             return 0
 
     def get_status(self, job_id: str) -> Optional[JobStatus]:

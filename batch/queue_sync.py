@@ -62,7 +62,10 @@ def sync_json_to_sqlite(queue_path: Path = JSON_QUEUE) -> int:
     Returns:
         Number of jobs synced
     """
-    from intelligence.process_monitor.batch_queue import BatchTaskQueue
+    try:
+        from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
+    except ImportError:
+        from intelligence.process_monitor.batch_queue import BatchTaskQueue
 
     if not queue_path.exists():
         logger.warning(f"JSON queue not found: {queue_path}")
@@ -171,7 +174,10 @@ def get_sync_status(queue_path: Path = JSON_QUEUE) -> Dict[str, Any]:
     Returns:
         Dict with json_queue and sqlite_queue stats
     """
-    from intelligence.process_monitor.batch_queue import BatchTaskQueue
+    try:
+        from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
+    except ImportError:
+        from intelligence.process_monitor.batch_queue import BatchTaskQueue
 
     # JSON side
     json_stats = {"queued": 0, "synced": 0, "submitted": 0, "completed": 0, "total": 0}
