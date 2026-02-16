@@ -764,6 +764,19 @@ async def get_v2_graph_stats() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/v2/compound-health")
+async def get_compound_health() -> Dict[str, Any]:
+    """Get compound loop health metrics — outcomes, graph, memory, context."""
+    try:
+        from cortex.measurement.compound_metrics import full_report
+
+        return full_report()
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"measurement module not available: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/recommendations")
 async def get_recommendations_alias(
     project: Optional[str] = Query(None, description="Filter by project"),
