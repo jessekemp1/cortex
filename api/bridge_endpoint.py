@@ -72,9 +72,7 @@ class BriefingExecutionRequest(BaseModel):
     project: str = Field(..., description="Project name")
     mode: str = Field(..., description="Execution mode (queue/manual/etc)")
     status: str = Field(..., description="Execution status")
-    source_version: Optional[str] = Field(
-        default=None, description="Source version or channel"
-    )
+    source_version: Optional[str] = Field(default=None, description="Source version or channel")
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional execution metadata"
     )
@@ -618,49 +616,152 @@ async def get_metrics(days: int = Query(7, description="Days of history to inclu
 
 @app.get("/projects")
 async def list_projects() -> List[Dict[str, Any]]:
-    """List available projects with status."""
-    return [
-        {
-            "name": "VortexV2",
-            "status": "healthy",
-            "health_score": 0.92,
-            "last_activity": datetime.now().isoformat(),
-            "key_metric": "MAE",
-            "key_metric_value": "2.20 kt",
-        },
-        {
-            "name": "VortexV3",
-            "status": "healthy",
-            "health_score": 0.95,
-            "last_activity": datetime.now().isoformat(),
-            "key_metric": "Tests",
-            "key_metric_value": "50/50",
-        },
-        {
-            "name": "Cortex",
-            "status": "healthy",
-            "health_score": 0.88,
-            "last_activity": datetime.now().isoformat(),
-            "key_metric": "Uptime",
-            "key_metric_value": "99.9%",
-        },
-        {
-            "name": "Winfield",
-            "status": "healthy",
-            "health_score": 0.85,
-            "last_activity": datetime.now().isoformat(),
-            "key_metric": "Tests",
-            "key_metric_value": "161 pass",
-        },
-        {
-            "name": "Alpha Arena",
-            "status": "warning",
-            "health_score": 0.60,
-            "last_activity": datetime.now().isoformat(),
-            "key_metric": "Phase",
-            "key_metric_value": "Planning",
-        },
+    """List available projects with status, detected from filesystem."""
+    import subprocess
+
+    workspace = Path.home() / "Dev"
+    projects = []
+
+    # Project definitions: (dir_name, display_name, test_dir)
+    project_defs = [
+        ("Vortex/backend", "Vortex Backend", "Vortex/backend/tests"),
+        ("Vortex/frontend", "Vortex Frontend", "Vortex/frontend/src"),
+        ("Vortex/Winfield", "Winfield", "Vortex/Winfield/tests"),
+        ("cortex", "Cortex", "cortex/tests"),
+        ("alpha_arena", "Alpha Arena", "alpha_arena/tests"),
+        ("pupil", "Pupil", "pupil/tests"),
     ]
+
+    for dir_name, display_name, test_dir in project_defs:
+        project_path = workspace / dir_name
+        if not project_path.exists():
+            continue
+
+        # Get last commit touching this directory
+        last_activity = datetime.now().isoformat()
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%aI", "--", dir_name],
+                cwd=str(workspace),
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                last_activity = result.stdout.strip()
+        except Exception:
+            pass
+
+        projects.append(
+            {
+                "name": display_name,
+                "path": dir_name,
+                "status": "healthy",
+                "last_activity": last_activity,
+            }
+        )
+
+    return projects
+
+
+# ============================================================================
+# V2 Intelligence Endpoints (lazy-import for fast startup)
+# ============================================================================
+
+
+@app.get("/v2/outcomes")
+async def get_v2_outcomes(
+    project: Optional[str] = Query(None, description="Filter by project"),
+    days: int = Query(7, description="Look back N days"),
+    limit: int = Query(50, description="Max outcomes to return"),
+) -> Dict[str, Any]:
+    """Get recent outcomes from OutcomeDetector (v2 compound learning)."""
+    try:
+        from cortex.v2.learning.outcomes import OutcomeDetector
+
+        detector = OutcomeDetector()
+        outcomes = detector.get_recent_outcomes(project=project, days=days)
+        return {
+            "outcomes": [o.to_dict() for o in outcomes[:limit]],
+            "total": len(outcomes),
+        }
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v2/outcomes/stats")
+async def get_v2_outcome_stats(
+    project: Optional[str] = Query(None, description="Filter by project"),
+    days: int = Query(30, description="Look back N days"),
+) -> Dict[str, Any]:
+    """Get outcome statistics for compound learning measurement."""
+    try:
+        from cortex.v2.learning.outcomes import OutcomeDetector
+
+        detector = OutcomeDetector()
+        return detector.get_outcome_stats(project=project, days=days)
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v2/graph/search")
+async def search_v2_graph(
+    query: str = Query(..., description="Search query"),
+    limit: int = Query(10, description="Max results"),
+) -> Dict[str, Any]:
+    """Search the v2 knowledge graph for patterns, projects, and outcomes."""
+    try:
+        from cortex.v2.memory.graph import GraphMemory
+
+        graph = GraphMemory()
+        nodes = graph.search_nodes(query, limit=limit)
+        return {
+            "results": [
+                {
+                    "id": n.id,
+                    "type": n.type.value if hasattr(n.type, "value") else str(n.type),
+                    "name": n.name,
+                    "data": n.data,
+                    "updated_at": n.updated_at.isoformat()
+                    if hasattr(n.updated_at, "isoformat")
+                    else str(n.updated_at),
+                }
+                for n in nodes
+            ],
+            "total": len(nodes),
+        }
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v2/graph/stats")
+async def get_v2_graph_stats() -> Dict[str, Any]:
+    """Get graph memory statistics (node/edge counts by type)."""
+    try:
+        from cortex.v2.memory.graph import GraphMemory
+
+        graph = GraphMemory()
+        with graph._connect() as conn:
+            node_count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+            edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+            type_counts = dict(
+                conn.execute("SELECT type, COUNT(*) FROM nodes GROUP BY type").fetchall()
+            )
+        return {
+            "total_nodes": node_count,
+            "total_edges": edge_count,
+            "nodes_by_type": type_counts,
+        }
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/recommendations")
