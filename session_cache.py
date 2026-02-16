@@ -255,18 +255,17 @@ def build_fast_session_context() -> Dict:
             content = goals_file.read_text()
             goals = []
             for line in content.split("\n"):
-                # Look for bullet points or numbered lists
                 line = line.strip()
-                if line.startswith("- [ ]") or line.startswith("*"):
-                    goal = line.lstrip("- [ ]").lstrip("*").strip()
-                    if goal and len(goal) > 10:  # Meaningful goals only
-                        goals.append(goal)
-                elif line.startswith(("1.", "2.", "3.")):
-                    goal = line.split(".", 1)[1].strip()
-                    if goal and len(goal) > 10:
-                        goals.append(goal)
+                # Match "### Goal N: Title [Status]" headers
+                if line.startswith("### Goal"):
+                    # Extract title after "Goal N: "
+                    parts = line.lstrip("#").strip()
+                    if ":" in parts:
+                        title = parts.split(":", 1)[1].strip()
+                        if title:
+                            goals.append(title)
 
-            context["goals"] = goals[:3]  # Top 3
+            context["goals"] = goals[:5]  # Top 5 goals
     except Exception:
         pass
 
