@@ -7,9 +7,8 @@ Tests implicit signal tracking for follows, ignores, and overrides.
 import time
 
 import pytest
-from cortex.intelligence.feedback.implicit_collector import (
-    ImplicitFeedbackCollector,
-)
+
+from cortex.intelligence.feedback.implicit_collector import ImplicitFeedbackCollector
 
 
 @pytest.fixture

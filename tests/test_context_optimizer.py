@@ -10,6 +10,7 @@ Tests cover:
 """
 
 import pytest
+
 from cortex.intelligence.context_optimizer import (
     CategoryType,
     ContextItem,

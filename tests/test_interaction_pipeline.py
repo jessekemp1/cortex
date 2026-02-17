@@ -3,7 +3,10 @@ from pathlib import Path
 
 
 def test_event_adapter_normalizes_claude_and_codex():
-    from intelligence.bandwidth.event_adapter import normalize_claude_event, normalize_codex_event
+    from intelligence.bandwidth.event_adapter import (
+        normalize_claude_event,
+        normalize_codex_event,
+    )
 
     claude = normalize_claude_event(
         "prompt",
@@ -41,8 +44,7 @@ def test_interaction_learner_snapshot_is_replay_safe(tmp_path):
     def _analyze_and_append(session_id, interactions):
         if not inserted["done"]:
             queue_file.write_text(
-                json.dumps({"type": "prompt_received", "session_id": "s2", "prompt": "new"})
-                + "\n"
+                json.dumps({"type": "prompt_received", "session_id": "s2", "prompt": "new"}) + "\n"
             )
             inserted["done"] = True
         return []
@@ -67,8 +69,12 @@ def test_interaction_learner_snapshot_is_replay_safe(tmp_path):
 
 
 def test_contract_metrics_store_aggregate(tmp_path):
-    from intelligence.bandwidth.contracts import ContractMetricsStore, ContractSessionMetrics
     from datetime import datetime
+
+    from intelligence.bandwidth.contracts import (
+        ContractMetricsStore,
+        ContractSessionMetrics,
+    )
 
     store = ContractMetricsStore(storage_dir=tmp_path / "bandwidth")
     store.record(
@@ -109,7 +115,9 @@ def test_queue_slo_thresholds(tmp_path):
     queue.write_text("\n".join(["x"] * 12))
     proc.write_text("\n".join(["x"] * 3))
 
-    status = check_queue_slo(queue_file=queue, processing_file=proc, backlog_warn=10, backlog_crit=20)
+    status = check_queue_slo(
+        queue_file=queue, processing_file=proc, backlog_warn=10, backlog_crit=20
+    )
     assert status["total_lines"] == 15
     assert status["status"] == "warning"
 
@@ -118,7 +126,10 @@ def test_baseline_report_generation(tmp_path):
     from datetime import datetime
 
     from intelligence.bandwidth.baseline_report import generate_baseline_report
-    from intelligence.bandwidth.contracts import ContractMetricsStore, ContractSessionMetrics
+    from intelligence.bandwidth.contracts import (
+        ContractMetricsStore,
+        ContractSessionMetrics,
+    )
     from intelligence.bandwidth.meter import BandwidthMeter, BandwidthMetrics
 
     contracts = ContractMetricsStore(storage_dir=tmp_path / "bandwidth")
