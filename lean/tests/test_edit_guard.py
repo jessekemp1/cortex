@@ -19,7 +19,13 @@ from unittest.mock import patch
 
 import pytest
 
-HOOK_PATH = Path(__file__).resolve().parents[3] / ".claude" / "hooks" / "edit_without_read_guard.py"
+HOOK_PATH = (
+    Path(__file__).resolve().parents[3]
+    / ".claude"
+    / "hooks"
+    / "archive"
+    / "edit_without_read_guard.py"
+)
 
 
 @pytest.fixture
