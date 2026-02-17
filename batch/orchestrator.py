@@ -301,7 +301,13 @@ class BatchOrchestrator:
         Returns:
             task_id (without prefix)
         """
-        from intelligence.process_monitor import ProcessMonitor
+        try:
+            from intelligence.process_monitor import ProcessMonitor
+        except ImportError:
+            try:
+                from cortex.intelligence.process_monitor import ProcessMonitor
+            except ImportError:
+                from process_monitor import ProcessMonitor
 
         monitor = ProcessMonitor()
 
@@ -447,7 +453,13 @@ class BatchOrchestrator:
     def _get_local_status(self, task_id: str) -> Optional[JobStatus]:
         """Get status from ProcessMonitor."""
         try:
-            from intelligence.process_monitor import ProcessMonitor
+            try:
+                from intelligence.process_monitor import ProcessMonitor
+            except ImportError:
+                try:
+                    from cortex.intelligence.process_monitor import ProcessMonitor
+                except ImportError:
+                    from process_monitor import ProcessMonitor
 
             monitor = ProcessMonitor()
             task = monitor.batch_queue.get_task(task_id)
@@ -567,7 +579,13 @@ class BatchOrchestrator:
     def _list_local_jobs(self, limit: int) -> List[JobStatus]:
         """List jobs from ProcessMonitor."""
         try:
-            from intelligence.process_monitor import ProcessMonitor
+            try:
+                from intelligence.process_monitor import ProcessMonitor
+            except ImportError:
+                try:
+                    from cortex.intelligence.process_monitor import ProcessMonitor
+                except ImportError:
+                    from process_monitor import ProcessMonitor
 
             monitor = ProcessMonitor()
             tasks = monitor.batch_queue.get_task_history(limit=limit)

@@ -340,21 +340,8 @@ def get_contextual_hint(hook_input: dict) -> str:
     This is optional and provides real-time guidance based on
     historical patterns without blocking the user.
     """
-    try:
-        from engines.claude_session_absorber import ClaudeSessionSource
-
-        source = ClaudeSessionSource()
-        stats = source.get_implicit_feedback_stats(days=7)
-
-        # If correction rate is high, suggest being more careful
-        if stats.get("correction_rate", 0) > 0.15:
-            return (
-                "Pattern: Higher than usual corrections detected. Consider verifying assumptions."
-            )
-
-        return ""
-    except Exception:
-        return ""
+    # DEAD: engines module archived — ClaudeSessionSource no longer available
+    return ""
 
 
 def trigger_learning_pipeline() -> None:

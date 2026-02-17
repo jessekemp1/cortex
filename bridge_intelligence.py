@@ -9,6 +9,7 @@ Split from bridge.py for maintainability (Feb 2026).
 
 import json
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -335,7 +336,7 @@ class IntelligenceMixin:
                 return False
             rationale = rationale_validation.sanitized_input
 
-        rec_id = f"bridge_{int(datetime.now().timestamp())}_{abs(hash(title)) % 1000}"
+        rec_id = f"bridge_{uuid.uuid4().hex[:8]}"
         rec_data = {
             "id": rec_id,
             "title": title,
@@ -437,6 +438,7 @@ class IntelligenceMixin:
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
+
     # --- 4. Portfolio Bridge ---
 
     def get_portfolio_context(self, project: str) -> Dict[str, Any]:
@@ -524,6 +526,7 @@ class IntelligenceMixin:
             return self.portfolio.get_lessons_learned(project=project, pattern=pattern)
         except Exception as e:
             return [{"error": str(e)}]
+
     # --- Intelligence Enhancement Methods ---
 
     def generate_synthetic(
@@ -953,6 +956,7 @@ class IntelligenceMixin:
             }
         except Exception as e:
             return {"error": str(e)}
+
     # --- Recommendation Methods ---
 
     def get_recommendations(self) -> Dict[str, Any]:
@@ -1039,6 +1043,7 @@ class IntelligenceMixin:
             return engine.get_priority_projects(limit=limit)
         except Exception as e:
             return [{"error": str(e)}]
+
     # --- Implicit Feedback Methods ---
 
     def track_recommendation_shown(
@@ -1128,6 +1133,7 @@ class IntelligenceMixin:
             return {"available": True, "stats": self.implicit_feedback.get_stats(days)}
         except Exception as e:
             return {"available": False, "error": str(e)}
+
     # --- 8. Layer 2: Pattern Memory Bridge ---
 
     def find_similar_work_by_task(self, project: str, task: str, limit: int = 5) -> Dict[str, Any]:
@@ -1517,4 +1523,3 @@ class IntelligenceMixin:
         else:
             # Default to deep for balanced and deep modes
             return self.analyze_deep(project)
-
