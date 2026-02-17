@@ -20,8 +20,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from anthropic import Anthropic
-from intelligence.signals import Signal
+try:
+    from cortex.intelligence.signals import Signal
+except ImportError:
+    from intelligence.signals import Signal  # type: ignore[no-redef]
 
 
 @dataclass
@@ -100,12 +102,20 @@ class ContractGenerator:
         self.cache_dir = Path.home() / ".cortex" / "contracts"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize Anthropic client
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+        # Initialize AI client — prefer conductor for cost optimization
+        self._conductor_available = False
+        try:
+            from cortex.conductor import call as conductor_call
 
-        self.client = Anthropic(api_key=api_key)
+            self._conductor_call = conductor_call
+            self._conductor_available = True
+        except ImportError:
+            from anthropic import Anthropic
+
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+            self._anthropic_client = Anthropic(api_key=api_key)
 
     async def generate_contract(
         self, signal: Signal, user_answers: Optional[Dict[str, str]] = None
@@ -144,14 +154,24 @@ class ContractGenerator:
         )
 
         try:
-            response = self.client.messages.create(
-                model="claude-opus-4-5",
-                max_tokens=8000,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            # Route through conductor for cost optimization
+            if self._conductor_available:
+                result = self._conductor_call(
+                    prompt,
+                    use_case="architecture",
+                    max_tokens=8000,
+                )
+                response_text = result.content
+            else:
+                response = self._anthropic_client.messages.create(
+                    model="claude-opus-4-6",
+                    max_tokens=8000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                response_text = response.content[0].text
 
             # Parse response
-            contract_data = self._parse_contract_response(response.content[0].text)
+            contract_data = self._parse_contract_response(response_text)
 
             # 5. Build TaskContract
             contract = TaskContract(
@@ -201,7 +221,7 @@ class ContractGenerator:
             user_answers_section = f"""
 
 USER ANSWERS TO CLARIFYING QUESTIONS:
-{chr(10).join(f'Q: {q}\nA: {a}' for q, a in user_answers.items())}
+{chr(10).join(f"Q: {q}\nA: {a}" for q, a in user_answers.items())}
 """
 
         prompt = f"""You are a technical architect generating a comprehensive task contract.
@@ -218,13 +238,13 @@ CONTEXT:
 {json.dumps(signal.context, indent=2)}
 
 EVIDENCE:
-{chr(10).join(f'- {e}' for e in signal.evidence)}
+{chr(10).join(f"- {e}" for e in signal.evidence)}
 
 ESTIMATED IMPACT:
 {signal.estimated_impact}
 
 SIMILAR PAST WORK:
-{chr(10).join(f'- {w}' for w in similar_work) if similar_work else 'None found'}
+{chr(10).join(f"- {w}" for w in similar_work) if similar_work else "None found"}
 
 RELEVANT FILES ({len(relevant_files)} total):
 {chr(10).join(relevant_files[:10])}

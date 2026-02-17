@@ -23,8 +23,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from anthropic import Anthropic
-from intelligence.contracts import TaskContract
+try:
+    from cortex.intelligence.contracts import TaskContract
+except ImportError:
+    from intelligence.contracts import TaskContract  # type: ignore[no-redef]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -104,12 +106,20 @@ class ContractExecutor:
         self.results_dir = Path.home() / ".cortex" / "execution_results"
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize Anthropic client for step generation
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+        # Initialize AI client — prefer conductor for cost optimization
+        self._conductor_available = False
+        try:
+            from cortex.conductor import call as conductor_call
 
-        self.client = Anthropic(api_key=api_key)
+            self._conductor_call = conductor_call
+            self._conductor_available = True
+        except ImportError:
+            from anthropic import Anthropic
+
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+            self._anthropic_client = Anthropic(api_key=api_key)
 
     async def execute_contract(
         self, contract: TaskContract, dry_run: bool = False
@@ -220,15 +230,24 @@ class ContractExecutor:
         prompt = self._build_step_generation_prompt(contract)
 
         try:
-            # Use Sonnet 4.5 for step generation (faster, cheaper than Opus)
-            response = self.client.messages.create(
-                model="claude-sonnet-4-5",
-                max_tokens=4000,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            # Route through conductor for cost optimization
+            if self._conductor_available:
+                result = self._conductor_call(
+                    prompt,
+                    use_case="interactive_coding",
+                    max_tokens=4000,
+                )
+                response_text = result.content
+            else:
+                response = self._anthropic_client.messages.create(
+                    model="claude-sonnet-4-5-20250929",
+                    max_tokens=4000,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                response_text = response.content[0].text
 
             # Parse response
-            steps_data = self._parse_steps_response(response.content[0].text)
+            steps_data = self._parse_steps_response(response_text)
 
             # Convert to ExecutionStep objects
             steps = []
@@ -259,14 +278,14 @@ Title: {contract.title}
 Description: {contract.description}
 
 REQUIREMENTS:
-{chr(10).join(f'{i}. {req}' for i, req in enumerate(contract.requirements, 1))}
+{chr(10).join(f"{i}. {req}" for i, req in enumerate(contract.requirements, 1))}
 
 CONSTRAINTS:
-{chr(10).join(f'- {c}' for c in contract.constraints)}
+{chr(10).join(f"- {c}" for c in contract.constraints)}
 
 SUCCESS CRITERIA:
-Tests: {contract.success_criteria.get('tests', [])}
-Metrics: {contract.success_criteria.get('metrics', {})}
+Tests: {contract.success_criteria.get("tests", [])}
+Metrics: {contract.success_criteria.get("metrics", {})}
 
 RELEVANT FILES:
 {chr(10).join(contract.relevant_files[:10])}
@@ -773,9 +792,9 @@ if __name__ == "__main__":
                 print("\n=== EXECUTING ===")
                 result = await executor.execute_contract(contract, dry_run=False)
 
-                print(f"\n{'='*80}")
+                print(f"\n{'=' * 80}")
                 print("EXECUTION RESULT")
-                print(f"{'='*80}")
+                print(f"{'=' * 80}")
                 print(f"Status: {result.status.value}")
                 print(f"Success: {result.success}")
                 print(f"Steps: {result.steps_completed}/{result.steps_total}")
