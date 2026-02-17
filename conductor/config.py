@@ -69,13 +69,13 @@ PROVIDERS: Dict[str, dict] = {
     },
     "minimax": {
         "env_var": "MINIMAX_API_KEY",
-        "base_url": "https://api.minimax.chat/v1",
+        "base_url": "https://api.minimax.io/v1",
         "api_type": "openai_compat",
         "timeout": 120.0,
         "supports_batch": True,
         "models": {
-            "MiniMax-M1-80k": {
-                "display_name": "MiniMax M2.5",
+            "MiniMax-M1": {
+                "display_name": "MiniMax M1",
                 "input_cost": 0.30,
                 "output_cost": 1.20,
                 "max_context": 1_000_000,
@@ -178,19 +178,19 @@ ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
     "architecture": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "interactive_coding": ("anthropic", "claude-sonnet-4-5-20250929", "xai", "grok-code-fast-1"),
     "classification": ("groq", "llama-3.1-8b-instant", "openai", "gpt-5-nano"),
-    "long_context": ("xai", "grok-3-fast", "minimax", "MiniMax-M1-80k"),
+    "long_context": ("xai", "grok-3-fast", "minimax", "MiniMax-M1"),
     "research": ("xai", "grok-3-fast", "deepseek", "deepseek-chat"),
     "quick_qa": ("groq", "openai/gpt-oss-20b", "anthropic", "claude-haiku-4-5-20251001"),
-    "code_review": ("minimax", "MiniMax-M1-80k", "anthropic", "claude-sonnet-4-5-20250929"),
-    "test_generation": ("minimax", "MiniMax-M1-80k", "xai", "grok-code-fast-1"),
+    "code_review": ("minimax", "MiniMax-M1", "anthropic", "claude-sonnet-4-5-20250929"),
+    "test_generation": ("minimax", "MiniMax-M1", "xai", "grok-code-fast-1"),
     "documentation": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
     "security_audit": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "pattern_learning": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
 }
 
 BATCH_ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
-    "code_review": ("minimax", "MiniMax-M1-80k", "anthropic", "claude-sonnet-4-5-20250929"),
-    "test_generation": ("minimax", "MiniMax-M1-80k", "xai", "grok-code-fast-1"),
+    "code_review": ("minimax", "MiniMax-M1", "anthropic", "claude-sonnet-4-5-20250929"),
+    "test_generation": ("minimax", "MiniMax-M1", "xai", "grok-code-fast-1"),
     "documentation": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
     "security_audit": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
 }

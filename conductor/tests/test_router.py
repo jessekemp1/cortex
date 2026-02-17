@@ -272,7 +272,7 @@ class TestConductorRouter:
         decision = router.route(request)
         # Should classify as code_review
         assert decision.provider == "minimax"
-        assert decision.model_id == "MiniMax-M1-80k"
+        assert decision.model_id == "MiniMax-M1"
 
     def test_context_token_override_forces_long_context(self, router):
         """Requests with >200K tokens get routed to long_context provider."""
@@ -447,7 +447,7 @@ class TestSpecificRoutes:
         assert decision.provider == "xai"
         assert decision.model_id == "grok-3-fast"
         assert decision.fallback_provider == "minimax"
-        assert decision.fallback_model_id == "MiniMax-M1-80k"
+        assert decision.fallback_model_id == "MiniMax-M1"
 
     def test_research_routes_to_xai(self, router):
         """Research routes to Grok 4.1 Fast."""
@@ -472,7 +472,7 @@ class TestSpecificRoutes:
         request = RoutingRequest(task_description="test", use_case="code_review")
         decision = router.route(request)
         assert decision.provider == "minimax"
-        assert decision.model_id == "MiniMax-M1-80k"
+        assert decision.model_id == "MiniMax-M1"
         assert decision.fallback_provider == "anthropic"
         assert decision.fallback_model_id == "claude-sonnet-4-5-20250929"
 
@@ -481,7 +481,7 @@ class TestSpecificRoutes:
         request = RoutingRequest(task_description="test", use_case="test_generation")
         decision = router.route(request)
         assert decision.provider == "minimax"
-        assert decision.model_id == "MiniMax-M1-80k"
+        assert decision.model_id == "MiniMax-M1"
 
     def test_documentation_routes_to_deepseek(self, router):
         """Documentation routes to DeepSeek V3.2."""

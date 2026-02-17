@@ -263,7 +263,7 @@ class TestMiniMaxProvider:
         with patch(OPENAI_COMPAT_HTTPX) as MockClient:
             _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
-            result = p.complete(SAMPLE_MESSAGES, model="MiniMax-M1-80k")
+            result = p.complete(SAMPLE_MESSAGES, model="MiniMax-M1")
 
             assert result.content == "Hello from the model."
             assert result.provider == "minimax"
@@ -278,7 +278,7 @@ class TestMiniMaxProvider:
             p.complete(SAMPLE_MESSAGES)
 
             url = mock_client.post.call_args.args[0]
-            assert url == "https://api.minimax.chat/v1/chat/completions"
+            assert url == "https://api.minimax.io/v1/chat/completions"
 
 
 # ---------------------------------------------------------------------------
