@@ -402,8 +402,9 @@ class TestBatchEvaluation:
     def test_batch_evaluate_patterns(self, quality_judge, sample_pattern):
         """Test batch pattern evaluation."""
         quality_judge._conductor_available = False
+        quality_judge._conductor_async_available = False
         quality_judge._anthropic_client = MagicMock()
-        # Mock API response
+        # Mock API response — set directly on mock (patch.object unreliable across asyncio.to_thread)
         mock_response = MagicMock()
         mock_response.content = [
             MagicMock(
@@ -418,23 +419,22 @@ class TestBatchEvaluation:
                 )
             )
         ]
+        quality_judge._anthropic_client.messages.create.return_value = mock_response
 
-        with patch.object(
-            quality_judge._anthropic_client.messages, "create", return_value=mock_response
-        ):
-            patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(3)]
+        patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(3)]
 
-            scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
+        scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
 
-            assert len(scores) == 3
-            assert all(isinstance(s, PatternScore) for s in scores)
-            assert all(s.relevance == 5 for s in scores)
+        assert len(scores) == 3
+        assert all(isinstance(s, PatternScore) for s in scores)
+        assert all(s.relevance == 5 for s in scores)
 
     def test_batch_evaluate_recommendations(
         self, quality_judge, sample_recommendation, sample_context
     ):
         """Test batch recommendation evaluation."""
         quality_judge._conductor_available = False
+        quality_judge._conductor_async_available = False
         quality_judge._anthropic_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [
@@ -450,25 +450,22 @@ class TestBatchEvaluation:
                 )
             )
         ]
+        quality_judge._anthropic_client.messages.create.return_value = mock_response
 
-        with patch.object(
-            quality_judge._anthropic_client.messages, "create", return_value=mock_response
-        ):
-            recs = [{**sample_recommendation, "id": f"r{i}"} for i in range(3)]
+        recs = [{**sample_recommendation, "id": f"r{i}"} for i in range(3)]
 
-            scores = asyncio.run(
-                quality_judge.batch_evaluate(
-                    recs, eval_type="recommendation", context=sample_context
-                )
-            )
+        scores = asyncio.run(
+            quality_judge.batch_evaluate(recs, eval_type="recommendation", context=sample_context)
+        )
 
-            assert len(scores) == 3
-            assert all(isinstance(s, RecommendationScore) for s in scores)
-            assert all(s.clarity == 5 for s in scores)
+        assert len(scores) == 3
+        assert all(isinstance(s, RecommendationScore) for s in scores)
+        assert all(s.clarity == 5 for s in scores)
 
     def test_batch_evaluate_with_failures(self, quality_judge, sample_pattern):
         """Test batch evaluation handles individual failures gracefully."""
         quality_judge._conductor_available = False
+        quality_judge._conductor_async_available = False
         quality_judge._anthropic_client = MagicMock()
 
         def mock_create(*args, **kwargs):
@@ -494,16 +491,15 @@ class TestBatchEvaluation:
             ]
             return mock_response
 
-        with patch.object(
-            quality_judge._anthropic_client.messages, "create", side_effect=mock_create
-        ):
-            patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(10)]
+        quality_judge._anthropic_client.messages.create.side_effect = mock_create
 
-            scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
+        patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(10)]
 
-            # Should return only successful evaluations
-            assert len(scores) <= 10
-            assert all(isinstance(s, PatternScore) for s in scores)
+        scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
+
+        # Should return only successful evaluations
+        assert len(scores) <= 10
+        assert all(isinstance(s, PatternScore) for s in scores)
 
 
 class TestRateLimiting:
@@ -514,6 +510,7 @@ class TestRateLimiting:
         import time
 
         quality_judge._conductor_available = False
+        quality_judge._conductor_async_available = False
         quality_judge._anthropic_client = MagicMock()
         # Set very low limit for testing
         quality_judge.MAX_REQUESTS_PER_MINUTE = 3
@@ -527,13 +524,12 @@ class TestRateLimiting:
             call_times.append(time.time())
             return mock_response
 
+        quality_judge._anthropic_client.messages.create.side_effect = record_time
+
         async def run_test():
-            with patch.object(
-                quality_judge._anthropic_client.messages, "create", side_effect=record_time
-            ):
-                # Make 5 requests (should trigger rate limiting)
-                tasks = [quality_judge._rate_limited_request("test") for _ in range(5)]
-                await asyncio.gather(*tasks)
+            # Make 5 requests (should trigger rate limiting)
+            tasks = [quality_judge._rate_limited_request("test") for _ in range(5)]
+            await asyncio.gather(*tasks)
 
         asyncio.run(run_test())
 
