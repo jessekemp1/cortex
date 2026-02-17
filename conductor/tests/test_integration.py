@@ -870,3 +870,125 @@ class TestAsyncCall:
             )
 
         mock_create.assert_called_with("groq")
+
+
+class TestRetryBackoff:
+    """Tests for retry logic on transient errors."""
+
+    @pytest.fixture
+    def success_response(self):
+        return CompletionResponse(
+            content="OK",
+            model="llama-3.1-8b-instant",
+            provider="groq",
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            latency_ms=50.0,
+            cost_usd=0.0009,
+        )
+
+    def test_sync_retry_on_429(self, tmp_path: Path, success_response):
+        """Sync call retries on 429 rate limit and succeeds."""
+        mock_provider = MagicMock()
+        mock_provider.complete.side_effect = [
+            ProviderError("groq", 429, "Rate limit exceeded"),
+            success_response,
+        ]
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller.time.sleep"),
+        ):
+            response = call("Test", use_case="classification")
+
+        assert response.content == "OK"
+        assert mock_provider.complete.call_count == 2
+
+    def test_sync_no_retry_on_401(self, tmp_path: Path):
+        """Sync call does NOT retry on 401 (not transient)."""
+        mock_provider = MagicMock()
+        mock_provider.complete.side_effect = ProviderError("groq", 401, "Unauthorized")
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
+        ):
+            with pytest.raises(ProviderError, match="Unauthorized"):
+                call("Test", use_case="classification")
+
+        # Called once for primary, once for fallback — no retries on either
+        assert mock_provider.complete.call_count == 2
+
+    def test_sync_retry_exhausted_raises(self, tmp_path: Path):
+        """After max retries, the error propagates to fallback."""
+        mock_provider = MagicMock()
+        mock_provider.complete.side_effect = ProviderError("groq", 429, "Rate limit")
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller.time.sleep"),
+        ):
+            with pytest.raises(ProviderError):
+                call("Test", use_case="classification")
+
+        # 3 attempts on primary + 3 on fallback = 6
+        assert mock_provider.complete.call_count == 6
+
+    @pytest.mark.asyncio
+    async def test_async_retry_on_503(self, tmp_path: Path, success_response):
+        """Async call retries on 503 service unavailable."""
+
+        call_count = 0
+
+        async def _async_complete(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ProviderError("groq", 503, "Service unavailable")
+            return success_response
+
+        mock_provider = MagicMock()
+        mock_provider.async_complete = _async_complete
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            response = await async_call("Test", use_case="classification")
+
+        assert response.content == "OK"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_async_retry_uses_asyncio_sleep(self, tmp_path: Path, success_response):
+        """Async retry uses asyncio.sleep (non-blocking), not time.sleep."""
+
+        call_count = 0
+
+        async def _async_complete(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise ProviderError("groq", 429, "Rate limit")
+            return success_response
+
+        mock_provider = MagicMock()
+        mock_provider.async_complete = _async_complete
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            await async_call("Test", use_case="classification")
+
+        mock_sleep.assert_called_once_with(1.0)

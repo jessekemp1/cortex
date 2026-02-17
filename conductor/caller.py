@@ -5,8 +5,10 @@ Contains route(), call(), provider factory, cost wrappers, and singleton
 management. Extracted from __init__.py to keep the package facade thin.
 """
 
+import asyncio
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 
 try:
@@ -116,6 +118,22 @@ def _create_provider(provider_name: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Retry configuration
+# ---------------------------------------------------------------------------
+
+_RETRYABLE_STATUS_CODES = {429, 502, 503, 408}
+_MAX_RETRIES = 2
+_RETRY_BASE_DELAY = 1.0  # seconds; exponential: 1s, 2s
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Check if an exception is a transient error worth retrying."""
+    if isinstance(exc, ProviderError) and exc.status_code in _RETRYABLE_STATUS_CODES:
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -169,24 +187,45 @@ def _execute_and_record(
     temperature: float,
     tracker: CostTracker,
 ) -> CompletionResponse:
-    """Execute a completion and record the cost. Raises on failure."""
+    """Execute a completion and record the cost. Retries on transient errors."""
     provider_client = _create_provider(provider_name)
-    response = provider_client.complete(
-        messages=messages,
-        model=model_id,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    tracker.record(
-        provider=response.provider,
-        model=response.model,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-        use_case=use_case,
-        latency_ms=response.latency_ms,
-    )
-    return response
+    last_error: Optional[Exception] = None
+
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            response = provider_client.complete(
+                messages=messages,
+                model=model_id,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            tracker.record(
+                provider=response.provider,
+                model=response.model,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                cost_usd=response.cost_usd,
+                use_case=use_case,
+                latency_ms=response.latency_ms,
+            )
+            return response
+        except Exception as e:
+            last_error = e
+            if attempt < _MAX_RETRIES and _is_retryable(e):
+                delay = _RETRY_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    "Retryable error from %s (attempt %d/%d): %s. Retrying in %.1fs.",
+                    provider_name,
+                    attempt + 1,
+                    _MAX_RETRIES + 1,
+                    e,
+                    delay,
+                )
+                time.sleep(delay)
+            else:
+                raise
+
+    raise last_error  # type: ignore[misc]  # unreachable but satisfies type checker
 
 
 async def _async_execute_and_record(
@@ -198,24 +237,45 @@ async def _async_execute_and_record(
     temperature: float,
     tracker: CostTracker,
 ) -> CompletionResponse:
-    """Async execute a completion and record the cost. Raises on failure."""
+    """Async execute a completion and record the cost. Retries on transient errors."""
     provider_client = _create_provider(provider_name)
-    response = await provider_client.async_complete(
-        messages=messages,
-        model=model_id,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    tracker.record(
-        provider=response.provider,
-        model=response.model,
-        input_tokens=response.input_tokens,
-        output_tokens=response.output_tokens,
-        cost_usd=response.cost_usd,
-        use_case=use_case,
-        latency_ms=response.latency_ms,
-    )
-    return response
+    last_error: Optional[Exception] = None
+
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            response = await provider_client.async_complete(
+                messages=messages,
+                model=model_id,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            tracker.record(
+                provider=response.provider,
+                model=response.model,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                cost_usd=response.cost_usd,
+                use_case=use_case,
+                latency_ms=response.latency_ms,
+            )
+            return response
+        except Exception as e:
+            last_error = e
+            if attempt < _MAX_RETRIES and _is_retryable(e):
+                delay = _RETRY_BASE_DELAY * (2**attempt)
+                logger.warning(
+                    "Retryable error from %s (attempt %d/%d): %s. Retrying in %.1fs.",
+                    provider_name,
+                    attempt + 1,
+                    _MAX_RETRIES + 1,
+                    e,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+
+    raise last_error  # type: ignore[misc]  # unreachable but satisfies type checker
 
 
 def call(
