@@ -1,24 +1,26 @@
 """Provider clients for multi-provider AI model conductor."""
 
 from .base import BaseProvider, ChatMessage, CompletionResponse, ProviderError
-from .groq_provider import GroqProvider
-from .xai_provider import XAIProvider
-from .minimax_provider import MiniMaxProvider
+from .openai_compat import OpenAICompatProvider
 from .anthropic_provider import AnthropicProvider
-from .openai_provider import OpenAIProvider
 
-# DeepSeek uses OpenAI-compatible API — instantiate OpenAIProvider with:
-#   OpenAIProvider(api_key=key, base_url="https://api.deepseek.com")
-# and call with model="deepseek-chat"
+# Backward-compat aliases — all OpenAI-compatible providers use the same class.
+# Construct via create_provider() or directly with OpenAICompatProvider().
+GroqProvider = OpenAICompatProvider
+XAIProvider = OpenAICompatProvider
+MiniMaxProvider = OpenAICompatProvider
+OpenAIProvider = OpenAICompatProvider
 
 __all__ = [
     "BaseProvider",
     "ChatMessage",
     "CompletionResponse",
     "ProviderError",
+    "OpenAICompatProvider",
+    "AnthropicProvider",
+    # Backward-compat aliases
     "GroqProvider",
     "XAIProvider",
     "MiniMaxProvider",
-    "AnthropicProvider",
     "OpenAIProvider",
 ]

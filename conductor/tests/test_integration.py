@@ -22,7 +22,6 @@ import pytest
 from cortex.conductor import (
     RoutingDecision,
     _create_provider,
-    _default_route,
     call,
     get_budget_remaining,
     get_costs,
@@ -651,25 +650,28 @@ class TestDelegationFlow:
 
 
 class TestDefaultRouteFallback:
-    """Tests for the _default_route function used when ConductorRouter is unavailable."""
+    """Tests for the fallback routing path when ConductorRouter is unavailable."""
 
-    def test_default_route_returns_routing_decision(self):
-        """_default_route returns a RoutingDecision for any use case."""
-        decision = _default_route("Test task", use_case="classification")
+    def test_fallback_route_returns_routing_decision(self):
+        """Fallback route returns a RoutingDecision for any use case."""
+        with patch("cortex.conductor._get_router", return_value=None):
+            decision = route("Test task", use_case="classification")
         assert isinstance(decision, RoutingDecision)
         assert decision.provider == "groq"
         assert decision.model_id == "llama-3.1-8b-instant"
 
-    def test_default_route_unknown_use_case(self):
-        """Unknown use case falls back to groq/llama."""
-        decision = _default_route("Something unknown", use_case="nonexistent")
+    def test_fallback_route_unknown_use_case(self):
+        """Unknown use case falls back to quick_qa entry."""
+        with patch("cortex.conductor._get_router", return_value=None):
+            decision = route("Something unknown", use_case="nonexistent")
         assert isinstance(decision, RoutingDecision)
+        # Falls back to quick_qa from ROUTING_TABLE
         assert decision.provider == "groq"
-        assert decision.model_id == "llama-3.1-8b-instant"
 
-    def test_default_route_has_fallback(self):
-        """Default route always includes a fallback provider."""
-        decision = _default_route("Test", use_case="research")
+    def test_fallback_route_has_fallback(self):
+        """Fallback route always includes a fallback provider."""
+        with patch("cortex.conductor._get_router", return_value=None):
+            decision = route("Test", use_case="research")
         assert decision.fallback_provider
         assert decision.fallback_model_id
 
