@@ -12,9 +12,9 @@ Exposes Cortex intelligence for:
 Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
+import json
 import sys
 import time
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -76,6 +76,37 @@ class BriefingExecutionRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional execution metadata"
     )
+
+
+class GuardianClaimRequest(BaseModel):
+    """Request to claim a file for exclusive editing."""
+
+    file: str = Field(..., description="Absolute path to file")
+    agent_id: str = Field(..., description="Unique agent session identifier")
+    ttl: int = Field(default=300, description="Claim TTL in seconds (max 1800)")
+
+
+class GuardianReleaseRequest(BaseModel):
+    """Request to release a claimed file."""
+
+    file: str = Field(..., description="Absolute path to file")
+    agent_id: str = Field(..., description="Agent session identifier")
+
+
+class GuardianSnapshotRequest(BaseModel):
+    """Request to create a manual snapshot."""
+
+    files: List[str] = Field(
+        default_factory=list, description="Files to snapshot (empty = all claimed)"
+    )
+    reason: str = Field(default="manual", description="Reason for snapshot")
+
+
+class GuardianRecoverRequest(BaseModel):
+    """Request to restore a file from a snapshot."""
+
+    file: str = Field(..., description="Absolute path to file to restore")
+    snapshot_id: str = Field(..., description="Snapshot ID to restore from")
 
 
 class StatusResponse(BaseModel):
@@ -337,11 +368,13 @@ async def get_anomalies(
                     "title": a.title,
                     "description": a.description,
                     "recommendation": a.remediation,
-                    "detected_at": a.detected_at.isoformat()
-                    if hasattr(a.detected_at, "isoformat")
-                    else str(a.detected_at)
-                    if a.detected_at
-                    else None,
+                    "detected_at": (
+                        a.detected_at.isoformat()
+                        if hasattr(a.detected_at, "isoformat")
+                        else str(a.detected_at)
+                        if a.detected_at
+                        else None
+                    ),
                 }
                 for a in anomalies
             ],
@@ -726,9 +759,11 @@ async def search_v2_graph(
                     "type": n.type.value if hasattr(n.type, "value") else str(n.type),
                     "name": n.name,
                     "data": n.data,
-                    "updated_at": n.updated_at.isoformat()
-                    if hasattr(n.updated_at, "isoformat")
-                    else str(n.updated_at),
+                    "updated_at": (
+                        n.updated_at.isoformat()
+                        if hasattr(n.updated_at, "isoformat")
+                        else str(n.updated_at)
+                    ),
                 }
                 for n in nodes
             ],
@@ -1234,6 +1269,127 @@ async def decompose_task(req: DecomposeRequest) -> Dict[str, Any]:
             "subtasks": [],
             "ai_response": "",
         }
+
+
+# ============================================================================
+# Guardian Endpoints
+# ============================================================================
+
+
+def _get_guardian():
+    """Lazy-import Guardian singleton to avoid startup cost."""
+    from cortex.guardian import get_guardian
+
+    return get_guardian()
+
+
+@app.post("/guardian/claim")
+async def guardian_claim(req: GuardianClaimRequest) -> Dict[str, Any]:
+    """Claim a file for exclusive editing."""
+    ttl = min(req.ttl, 1800)  # cap at 30 minutes
+    guardian = _get_guardian()
+    result = guardian.claim(req.file, req.agent_id, ttl=ttl)
+
+    if result.success:
+        snaps = guardian.list_snapshots(limit=1)
+        snap_id = snaps[0].snapshot_id if snaps else ""
+        project = guardian.router.resolve(req.file).name
+        claim = guardian.claims.get_claim(req.file)
+        return {
+            "claimed": True,
+            "file": req.file,
+            "agent_id": req.agent_id,
+            "expires_in": round(claim.remaining_seconds) if claim else ttl,
+            "project": project,
+            "snapshot_id": snap_id,
+        }
+
+    conflict = result.conflict
+    return {
+        "claimed": False,
+        "file": req.file,
+        "holder": conflict.agent_id if conflict else "unknown",
+        "expires_in": round(conflict.remaining_seconds) if conflict else 0,
+        "message": result.message,
+    }
+
+
+@app.post("/guardian/release")
+async def guardian_release(req: GuardianReleaseRequest) -> Dict[str, Any]:
+    """Release a claimed file."""
+    guardian = _get_guardian()
+    result = guardian.release(req.file, req.agent_id)
+    return {
+        "released": result.released,
+        "file": req.file,
+        "agent_id": req.agent_id,
+        "message": result.message,
+    }
+
+
+@app.get("/guardian/status")
+async def guardian_status() -> Dict[str, Any]:
+    """Get Guardian health and claim status."""
+    guardian = _get_guardian()
+    return guardian.status()
+
+
+@app.post("/guardian/snapshot")
+async def guardian_snapshot(req: GuardianSnapshotRequest) -> Dict[str, Any]:
+    """Create a manual snapshot of specified files."""
+    guardian = _get_guardian()
+    files = req.files
+    if not files:
+        active = guardian.claims.get_all_claims()
+        files = list(active.keys())
+    if not files:
+        raise HTTPException(status_code=400, detail="No files specified and no active claims")
+
+    info = guardian.snapshot(files, reason=req.reason)
+    return {
+        "snapshot_id": info.snapshot_id,
+        "files_snapshotted": len(info.files),
+        "reason": info.reason,
+    }
+
+
+@app.get("/guardian/snapshots")
+async def guardian_list_snapshots(limit: int = Query(default=20)) -> Dict[str, Any]:
+    """List available snapshots."""
+    guardian = _get_guardian()
+    snaps = guardian.list_snapshots(limit=limit)
+    return {
+        "snapshots": [
+            {
+                "snapshot_id": s.snapshot_id,
+                "created_at": s.created_at,
+                "reason": s.reason,
+                "file_count": len(s.files),
+                "files": s.files,
+            }
+            for s in snaps
+        ],
+        "total": len(guardian.snapshots._manifest),
+        "ring_capacity": guardian.snapshots.max_size,
+    }
+
+
+@app.post("/guardian/recover")
+async def guardian_recover(req: GuardianRecoverRequest) -> Dict[str, Any]:
+    """Restore a file from a snapshot."""
+    guardian = _get_guardian()
+    result = guardian.recover(req.file, req.snapshot_id)
+
+    if not result.success:
+        raise HTTPException(status_code=404, detail=result.message)
+
+    return {
+        "recovered": True,
+        "file": result.file_path,
+        "snapshot_id": result.snapshot_id,
+        "bytes_restored": result.bytes_restored,
+        "pre_recovery_snapshot": result.pre_recovery_snapshot_id,
+    }
 
 
 # ============================================================================
