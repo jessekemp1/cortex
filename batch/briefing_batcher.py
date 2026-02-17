@@ -16,7 +16,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .batch_api_client import BatchAPIClient, BatchRequest
-from .model_policy import AnthropicBatchModels
+
+try:
+    from cortex.conductor.batch_models import ConductorBatchModels as BatchModels
+except ImportError:
+    from .model_policy import AnthropicBatchModels as BatchModels  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +154,7 @@ ALTERNATIVE_APPROACHES:
     def _build_recommendation_requests(self, contexts: List[BriefingContext]) -> List[BatchRequest]:
         """Convert briefing contexts to batch requests with session context integration"""
         requests = []
-        models = AnthropicBatchModels()
+        models = BatchModels()
 
         # Get session context if available
         session_context = None

@@ -15,7 +15,11 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from .batch_api_client import BatchAPIClient, BatchRequest
-from .model_policy import AnthropicBatchModels
+
+try:
+    from cortex.conductor.batch_models import ConductorBatchModels as BatchModels
+except ImportError:
+    from .model_policy import AnthropicBatchModels as BatchModels  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +159,7 @@ ADJUSTMENT_SUGGESTIONS:
     def _build_learning_requests(self, contexts: List[LearningContext]) -> List[BatchRequest]:
         """Convert learning contexts to batch requests"""
         requests = []
-        models = AnthropicBatchModels()
+        models = BatchModels()
 
         for context in contexts:
             prompt = f"""Analyze this execution learning context and provide insights:
