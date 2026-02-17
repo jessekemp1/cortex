@@ -1,10 +1,11 @@
 """
-Cortex Orchestration Module
+Cortex Orchestration Module (slimmed)
 
-Core task queue infrastructure for managing long-running agent workflows.
-Routes tasks between realtime and batch execution based on priority and deadline.
+Core anomaly detection and database infrastructure.
+Scheduler, task queue, and CLI moved to cortex/_dead/orchestration/.
 """
 
+from .anomaly_detector import OrchestrationAnomalyManager
 from .database import OrchestrationDatabase
 from .models import (
     ExecutionBackend,
@@ -17,17 +18,13 @@ from .models import (
     create_task_event,
     create_worker_event,
 )
-from .scheduler import TaskScheduler
 from .task import Task, TaskPhase, TaskPriority, TaskStatus
-from .task_queue import TaskQueue
 
 __all__ = [
     "Task",
     "TaskPhase",
     "TaskPriority",
     "TaskStatus",
-    "TaskQueue",
-    "TaskScheduler",
     "ExecutionBackend",
     "WorkerRole",
     "WorkerState",
@@ -35,6 +32,7 @@ __all__ = [
     "TraceEventType",
     "ValidationCriteria",
     "OrchestrationDatabase",
+    "OrchestrationAnomalyManager",
     "create_task_event",
     "create_worker_event",
     "create_decision_event",
