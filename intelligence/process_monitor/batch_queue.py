@@ -17,7 +17,17 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from cortex.state_paths import get_cortex_dir
+try:
+    from cortex.state_paths import get_cortex_dir
+except ImportError:
+    # Fallback for daemon/subprocess contexts where PYTHONPATH may not include /Dev
+    import os
+
+    def get_cortex_dir() -> Path:
+        base = os.getenv("CORTEX_STATE_DIR") or os.getenv("CORTEX_HOME")
+        path = Path(base).expanduser() if base else Path.home() / ".cortex"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
 
 class TaskState(Enum):
@@ -175,7 +185,8 @@ class BatchTaskQueue:
         conn.execute("PRAGMA journal_mode=WAL")
 
         # Create table if not exists
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS batch_tasks (
                 task_id TEXT PRIMARY KEY,
                 task_type TEXT NOT NULL,
@@ -201,7 +212,8 @@ class BatchTaskQueue:
                 wave_id TEXT DEFAULT '',
                 blocks TEXT DEFAULT '[]'
             )
-        """)
+        """
+        )
 
         # Migrate existing database: add new columns if they don't exist
         try:
@@ -226,25 +238,33 @@ class BatchTaskQueue:
             # Column might already exist
             pass
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_state
             ON batch_tasks(state)
-        """)
+        """
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_scheduled_time
             ON batch_tasks(scheduled_time)
-        """)
+        """
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_sprint_id
             ON batch_tasks(sprint_id)
-        """)
+        """
+        )
 
-        conn.execute("""
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_wave_id
             ON batch_tasks(wave_id)
-        """)
+        """
+        )
 
         conn.commit()
         conn.close()
@@ -521,34 +541,40 @@ class BatchTaskQueue:
         stats = {}
 
         # Count by state
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT state, COUNT(*) as count
             FROM batch_tasks
             GROUP BY state
-        """)
+        """
+        )
         for row in cursor:
             stats[f"{row[0]}_count"] = row[1]
 
         # Average duration by task type
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT task_type, AVG(actual_duration_seconds) as avg_duration
             FROM batch_tasks
             WHERE actual_duration_seconds IS NOT NULL
             GROUP BY task_type
-        """)
+        """
+        )
         avg_durations = {}
         for row in cursor:
             avg_durations[row[0]] = row[1]
         stats["avg_duration_by_type"] = avg_durations
 
         # Success rate
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT
                 SUM(CASE WHEN state = 'completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN state = 'failed' THEN 1 ELSE 0 END) as failed
             FROM batch_tasks
             WHERE state IN ('completed', 'failed')
-        """)
+        """
+        )
         row = cursor.fetchone()
         if row[0] or row[1]:
             total = (row[0] or 0) + (row[1] or 0)
