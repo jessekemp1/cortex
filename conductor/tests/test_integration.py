@@ -228,8 +228,8 @@ class TestCostTrackingEndToEnd:
         tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             response = call("Hello", use_case="classification")
 
@@ -252,8 +252,8 @@ class TestCostTrackingEndToEnd:
         tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             call("First call", use_case="classification")
             call("Second call", use_case="classification")
@@ -329,8 +329,8 @@ class TestCostTrackingEndToEnd:
         assert initial_budget == 20.0
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             call("Test call", use_case="classification")
 
@@ -488,8 +488,8 @@ class TestDelegationFlow:
 
         # Then verify call() uses the routing to create a provider and execute
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             response = call("Classify this text", use_case="classification")
 
@@ -519,8 +519,10 @@ class TestDelegationFlow:
                 return mock_fallback_provider
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", side_effect=side_effect_create_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch(
+                "cortex.conductor.caller._create_provider", side_effect=side_effect_create_provider
+            ),
         ):
             response = call("Test prompt", use_case="classification")
 
@@ -548,8 +550,10 @@ class TestDelegationFlow:
                 return mock_fallback_provider
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", side_effect=side_effect_create_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch(
+                "cortex.conductor.caller._create_provider", side_effect=side_effect_create_provider
+            ),
         ):
             response = call("Test prompt", use_case="research")
 
@@ -568,8 +572,8 @@ class TestDelegationFlow:
         tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=failing_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=failing_provider),
         ):
             with pytest.raises(ProviderError) as exc_info:
                 call("Test prompt", use_case="classification")
@@ -582,8 +586,10 @@ class TestDelegationFlow:
         tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider) as mock_create,
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch(
+                "cortex.conductor.caller._create_provider", return_value=mock_provider
+            ) as mock_create,
         ):
             response = call(
                 "Test prompt",
@@ -600,8 +606,8 @@ class TestDelegationFlow:
         tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
 
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             response = call(
                 "Classify this",
@@ -654,7 +660,7 @@ class TestDefaultRouteFallback:
 
     def test_fallback_route_returns_routing_decision(self):
         """Fallback route returns a RoutingDecision for any use case."""
-        with patch("cortex.conductor._get_router", return_value=None):
+        with patch("cortex.conductor.caller._get_router", return_value=None):
             decision = route("Test task", use_case="classification")
         assert isinstance(decision, RoutingDecision)
         assert decision.provider == "groq"
@@ -662,7 +668,7 @@ class TestDefaultRouteFallback:
 
     def test_fallback_route_unknown_use_case(self):
         """Unknown use case falls back to quick_qa entry."""
-        with patch("cortex.conductor._get_router", return_value=None):
+        with patch("cortex.conductor.caller._get_router", return_value=None):
             decision = route("Something unknown", use_case="nonexistent")
         assert isinstance(decision, RoutingDecision)
         # Falls back to quick_qa from ROUTING_TABLE
@@ -670,7 +676,7 @@ class TestDefaultRouteFallback:
 
     def test_fallback_route_has_fallback(self):
         """Fallback route always includes a fallback provider."""
-        with patch("cortex.conductor._get_router", return_value=None):
+        with patch("cortex.conductor.caller._get_router", return_value=None):
             decision = route("Test", use_case="research")
         assert decision.fallback_provider
         assert decision.fallback_model_id
@@ -686,7 +692,7 @@ class TestModuleAPICoherence:
 
     def test_get_costs_returns_dict(self):
         """get_costs() returns a dict even with no data."""
-        with patch("cortex.conductor._get_cost_tracker") as mock_get_tracker:
+        with patch("cortex.conductor.caller._get_cost_tracker") as mock_get_tracker:
             mock_tracker = MagicMock()
             mock_tracker.get_daily_spend.return_value = {"total": 0.0}
             mock_get_tracker.return_value = mock_tracker
@@ -698,7 +704,7 @@ class TestModuleAPICoherence:
 
     def test_get_savings_returns_dict(self):
         """get_savings() returns a dict even with no data."""
-        with patch("cortex.conductor._get_cost_tracker") as mock_get_tracker:
+        with patch("cortex.conductor.caller._get_cost_tracker") as mock_get_tracker:
             mock_tracker = MagicMock()
             mock_tracker.get_savings_report.return_value = {
                 "actual_spend": 0.0,
@@ -718,7 +724,7 @@ class TestModuleAPICoherence:
 
     def test_get_budget_remaining_returns_float(self):
         """get_budget_remaining() returns a float."""
-        with patch("cortex.conductor._get_cost_tracker") as mock_get_tracker:
+        with patch("cortex.conductor.caller._get_cost_tracker") as mock_get_tracker:
             mock_tracker = MagicMock()
             mock_tracker.get_budget_remaining.return_value = 20.0
             mock_get_tracker.return_value = mock_tracker
@@ -738,8 +744,8 @@ class TestModuleAPICoherence:
 
         # 2. Call
         with (
-            patch("cortex.conductor._get_cost_tracker", return_value=tracker),
-            patch("cortex.conductor._create_provider", return_value=mock_provider),
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
             response = call("Classify this ticket", use_case="classification")
 
