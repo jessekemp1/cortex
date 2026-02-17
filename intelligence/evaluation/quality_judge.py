@@ -13,8 +13,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import anthropic
-
 # Import prompt versioning system
 try:
     from prompts import PromptRegistry
@@ -108,7 +106,16 @@ class QualityJudge:
             model: Claude model to use for evaluation (default: Haiku)
             evaluations_file: Path to store evaluations (default: ~/.cortex/evaluations.jsonl)
         """
-        self.client = anthropic.Anthropic()
+        self._conductor_available = False
+        try:
+            from cortex.conductor import call as conductor_call
+
+            self._conductor_call = conductor_call
+            self._conductor_available = True
+        except ImportError:
+            import anthropic
+
+            self._anthropic_client = anthropic.Anthropic()
         self.model = model
 
         # Set up evaluations storage
@@ -408,15 +415,24 @@ Respond with ONLY the JSON, no additional text."""
         # Record this request
         self._request_times.append(now)
 
-        # Make request
-        response = await asyncio.to_thread(
-            self.client.messages.create,
-            model=self.model,
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        return response.content[0].text
+        # Make request — route through conductor for cost optimization
+        if self._conductor_available:
+            response = await asyncio.to_thread(
+                self._conductor_call,
+                prompt,
+                use_case="classification",
+                max_tokens=500,
+                temperature=0.0,
+            )
+            return response.content
+        else:
+            response = await asyncio.to_thread(
+                self._anthropic_client.messages.create,
+                model=self.model,
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.content[0].text
 
     async def evaluate_pattern(self, pattern: Dict, query: str) -> PatternScore:
         """Evaluate a pattern match against a query.

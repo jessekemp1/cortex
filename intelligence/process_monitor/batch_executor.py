@@ -240,44 +240,52 @@ class BatchExecutor:
                 )
                 return False
 
-            # Import anthropic SDK
-            try:
-                import anthropic
-            except ImportError:
-                error_msg = "anthropic SDK not installed. Install with: pip install anthropic"
-                self.logger.error(f"Task {task.task_id}: {error_msg}")
-                self.queue.update_task_state(
-                    task.task_id,
-                    TaskState.FAILED,
-                    started_at=started_at,
-                    completed_at=datetime.now(),
-                    error_message=error_msg,
-                )
-                return False
-
-            # Create client and send request
-            client = anthropic.Anthropic(api_key=api_key)
             prompt = task.command  # The "command" field contains the prompt for AI tasks
 
+            # Map task_type to conductor use_case for optimal routing
+            _TASK_TYPE_TO_USE_CASE = {
+                "research": "research",
+                "learning": "pattern_learning",
+                "code_review": "code_review",
+                "documentation": "documentation",
+                "security": "security_audit",
+                "test": "test_generation",
+            }
+            use_case = _TASK_TYPE_TO_USE_CASE.get(task.task_type, "quick_qa")
+
             self.logger.info(
-                f"Task {task.task_id}: Sending to Anthropic API "
-                f"(type={task.task_type}, prompt_len={len(prompt)})"
+                f"Task {task.task_id}: Routing via conductor "
+                f"(type={task.task_type}, use_case={use_case}, prompt_len={len(prompt)})"
             )
 
-            # Use model from batch config or default
-            model = os.getenv("CORTEX_BATCH_MODEL", "claude-sonnet-4-20250514")
+            # Route through conductor for multi-provider cost optimization.
+            # Falls back to Anthropic if conductor is unavailable.
+            try:
+                from cortex.conductor import call as conductor_call
 
-            message = client.messages.create(
-                model=model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
-            )
+                response = conductor_call(prompt, use_case=use_case, max_tokens=4096)
+                response_text = response.content
+                input_tokens = response.input_tokens
+                output_tokens = response.output_tokens
+                provider_info = f"{response.provider}/{response.model}"
+            except ImportError:
+                # Conductor not available — fall back to direct Anthropic
+                import anthropic
 
-            # Extract response text
-            response_text = ""
-            for block in message.content:
-                if hasattr(block, "text"):
-                    response_text += block.text
+                client = anthropic.Anthropic(api_key=api_key)
+                model = os.getenv("CORTEX_BATCH_MODEL", "claude-sonnet-4-20250514")
+                message = client.messages.create(
+                    model=model,
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                response_text = ""
+                for block in message.content:
+                    if hasattr(block, "text"):
+                        response_text += block.text
+                input_tokens = message.usage.input_tokens
+                output_tokens = message.usage.output_tokens
+                provider_info = f"anthropic/{model}"
 
             completed_at = datetime.now()
 
@@ -293,10 +301,10 @@ class BatchExecutor:
             )
 
             self.logger.info(
-                f"Task {task.task_id} completed via API "
+                f"Task {task.task_id} completed via {provider_info} "
                 f"(response_len={len(response_text)}, "
-                f"input_tokens={message.usage.input_tokens}, "
-                f"output_tokens={message.usage.output_tokens})"
+                f"input_tokens={input_tokens}, "
+                f"output_tokens={output_tokens})"
             )
 
             # Trigger dependent tasks (V2a batch orchestration)
