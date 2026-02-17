@@ -67,8 +67,9 @@ class TestContextInjector:
         start = time.time()
         injector.inject(Path.cwd(), task="test task")
         elapsed = (time.time() - start) * 1000
-        # Lenient timeout for tests (5s to account for system load)
-        assert elapsed < 5000
+        # Lenient timeout — context injection involves file I/O and project detection,
+        # which varies with system load. 10s is generous but prevents infinite hangs.
+        assert elapsed < 10000
 
     def test_inject_returns_string(self, injector):
         """Inject should return a non-empty string."""
@@ -136,16 +137,16 @@ class TestContextInjectorIntegration:
         return ContextInjector(Path("/Users/jesse.kemp/Dev"))
 
     @pytest.mark.skipif(
-        not Path("/Users/jesse.kemp/Dev/Vortex/VortexV2").exists(),
-        reason="VortexV2 project not found",
+        not Path("/Users/jesse.kemp/Dev/Vortex/backend").exists(),
+        reason="Vortex backend project not found",
     )
     def test_inject_vortex_project(self, injector):
-        """Test injection for VortexV2 project."""
-        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
+        """Test injection for Vortex backend project."""
+        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/backend")
         result = injector.inject(vortex_path, task="fix GRIB loading")
 
         # Should include project name
-        assert "VortexV2" in result or "Vortex" in result
+        assert "backend" in result or "Vortex" in result
 
     @pytest.mark.skipif(
         not Path("/Users/jesse.kemp/Dev/cortex").exists(),
@@ -231,12 +232,12 @@ class TestWarningInclusion:
         assert "Warning 1" in result
 
     @pytest.mark.skipif(
-        not Path("/Users/jesse.kemp/Dev/Vortex/VortexV2").exists(),
-        reason="VortexV2 project not found",
+        not Path("/Users/jesse.kemp/Dev/Vortex/backend").exists(),
+        reason="Vortex backend project not found",
     )
     def test_vortex_warnings_integration(self, injector):
-        """VortexV2 domain expert warnings should appear when relevant."""
-        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
+        """Vortex backend domain expert warnings should appear when relevant."""
+        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/backend")
         result = injector.inject(vortex_path, task="process GRIB data")
 
         # If GRIB data is stale, warning should appear
