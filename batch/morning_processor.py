@@ -367,7 +367,9 @@ def print_summary(briefing: Dict[str, Any]):
             icon = (
                 "🔴"
                 if finding["priority"] == "high"
-                else "🟡" if finding["priority"] == "medium" else "🔵"
+                else "🟡"
+                if finding["priority"] == "medium"
+                else "🔵"
             )
             print(f"   {icon} [{finding['type']}] {finding['summary'][:60]}...")
         print()
@@ -383,28 +385,107 @@ def print_summary(briefing: Dict[str, Any]):
     print()
 
 
+def run_pending_watches() -> List[Dict[str, Any]]:
+    """Run any pending Cortex Watch tasks and return results.
+
+    Watch tasks are scheduled verifications created during sessions
+    that need to execute between sessions and report back.
+    """
+    try:
+        from cortex.watches import format_results, list_pending, run_watch
+    except ImportError:
+        try:
+            import sys
+
+            sys.path.insert(0, str(Path.home() / "Dev"))
+            from cortex.watches import format_results, list_pending, run_watch
+        except ImportError:
+            print("  (watches module not available)")
+            return []
+
+    pending = list_pending()
+    if not pending:
+        print("  No pending watch tasks")
+        return []
+
+    print(f"  Found {len(pending)} pending watch tasks")
+    results = []
+
+    watches_dir = Path.home() / ".cortex" / "watches" / "pending"
+    for watch_file in sorted(watches_dir.glob("*.json")):
+        print(f"  Running: {watch_file.stem}...")
+        result = run_watch(watch_file)
+        if result.get("status") == "skipped":
+            print(f"    Skipped: {result.get('reason')}")
+            continue
+        status = result.get("status", "unknown")
+        print(f"    Result: {status.upper()}")
+        results.append(result)
+
+    if results:
+        print()
+        print(format_results(results))
+
+    return results
+
+
 def main():
     """Main entry point for morning processor"""
     print(f"Morning processor starting at {datetime.now().isoformat()}")
 
-    # Get overnight results
+    # Phase 1: Run pending watch tasks (scheduled verifications)
+    print("\n--- Watch Tasks ---")
+    watch_results = run_pending_watches()
+
+    # Phase 2: Get overnight batch results
+    print("\n--- Batch Results ---")
     results = get_overnight_results()
 
-    if not results:
-        print("No overnight batch results found")
-        return
+    # Generate briefing (even if no batch results — watches may have results)
+    briefing = (
+        generate_briefing_summary(results)
+        if results
+        else {
+            "generated_at": datetime.now().isoformat(),
+            "overnight_jobs": {"total": 0, "succeeded": 0, "failed": 0, "success_rate": 0},
+            "categories": {},
+            "key_findings": [],
+            "tokens": {"total_used": 0, "estimated_savings": 0},
+            "alerts": [],
+        }
+    )
 
-    # Generate briefing
-    briefing = generate_briefing_summary(results)
+    # Inject watch results into briefing
+    if watch_results:
+        briefing["watch_results"] = watch_results
+        for wr in watch_results:
+            if wr.get("status") == "fail":
+                briefing["alerts"].append(
+                    {
+                        "level": "warning",
+                        "message": f"Watch FAILED: {wr['name']} — {wr.get('context', '')[:80]}",
+                        "action": "Review watch results in briefing",
+                    }
+                )
+            elif wr.get("status") == "pass":
+                briefing["alerts"].append(
+                    {
+                        "level": "info",
+                        "message": f"Watch PASSED: {wr['name']}",
+                    }
+                )
 
     # Update caches
     update_session_cache(briefing)
     save_briefing_cache(briefing)
 
     # Print summary
-    print_summary(briefing)
+    if results:
+        print_summary(briefing)
+    else:
+        print("  No overnight batch results found")
 
-    print("Morning processing complete!")
+    print("\nMorning processing complete!")
 
 
 if __name__ == "__main__":
