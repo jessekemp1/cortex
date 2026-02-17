@@ -196,6 +196,98 @@ async def health():
     return {"status": "healthy", "service": "cortex-bridge-api"}
 
 
+@app.get("/service-health")
+async def service_health():
+    """
+    Check health of all ecosystem services.
+
+    Returns status of bridge, Vortex backend, Winfield, and EMOS readiness.
+    """
+    import urllib.request
+
+    services = {
+        "bridge": {"status": "healthy", "port": 8765},
+    }
+
+    # Check Vortex Backend (:8000)
+    try:
+        req = urllib.request.Request("http://localhost:8000/api/v2/health")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+            services["vortex_backend"] = {
+                "status": "healthy" if data.get("status") == "healthy" else "degraded",
+                "port": 8000,
+                "scheduler_jobs": data.get("scheduler", {}).get("jobs_count", 0),
+                "version": data.get("version", "unknown"),
+            }
+    except Exception:
+        services["vortex_backend"] = {"status": "offline", "port": 8000}
+
+    # Check Winfield (:8002)
+    try:
+        req = urllib.request.Request("http://localhost:8002/")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+            services["winfield"] = {
+                "status": "healthy" if resp.status == 200 else "degraded",
+                "port": 8002,
+            }
+    except Exception:
+        services["winfield"] = {"status": "offline", "port": 8002}
+
+    # Check Mission Control site (:3001)
+    try:
+        req = urllib.request.Request("http://localhost:3001/")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            services["mission_control"] = {
+                "status": "healthy" if resp.status == 200 else "degraded",
+                "port": 3001,
+            }
+    except Exception:
+        services["mission_control"] = {"status": "offline", "port": 3001}
+
+    # Test metrics from ~/.cortex/metrics/tests.json
+    tests_file = Path.home() / ".cortex" / "metrics" / "tests.json"
+    if tests_file.exists():
+        try:
+            test_data = json.loads(tests_file.read_text())
+            total_failed = sum(
+                v.get("failed", 0) for v in test_data.values() if isinstance(v, dict)
+            )
+            services["tests"] = {
+                "total_failures": total_failed,
+                "projects": {
+                    k: {"passed": v.get("passed", 0), "failed": v.get("failed", 0)}
+                    for k, v in test_data.items()
+                    if isinstance(v, dict)
+                },
+            }
+        except Exception:
+            pass
+
+    # EMOS readiness from ~/.cortex/metrics/emos.json
+    emos_file = Path.home() / ".cortex" / "metrics" / "emos.json"
+    if emos_file.exists():
+        try:
+            emos_data = json.loads(emos_file.read_text())
+            pairs = emos_data.get("pairs", {})
+            threshold = 2000
+            services["emos"] = {
+                "pairs": pairs,
+                "threshold": threshold,
+                "ready_models": [m for m, c in pairs.items() if c >= threshold],
+                "timestamp": emos_data.get("timestamp"),
+            }
+        except Exception:
+            pass
+
+    # Overall status
+    statuses = [s.get("status") for s in services.values() if isinstance(s, dict) and "status" in s]
+    overall = "healthy" if all(s == "healthy" for s in statuses) else "degraded"
+
+    return {"overall": overall, "services": services}
+
+
 @app.get("/status")
 async def status():
     """Get comprehensive Cortex status."""
