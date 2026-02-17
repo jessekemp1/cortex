@@ -218,37 +218,34 @@ class TestConductorRouter:
     def test_routing_table_providers_exist_in_registry(self):
         """All providers referenced in routing table exist in registry."""
         providers = get_all_providers()
-        for use_case, route in ROUTING_TABLE.items():
-            assert route.primary_provider in providers, (
-                f"{use_case}: primary provider '{route.primary_provider}' not in registry"
+        for use_case, (primary_prov, _, fb_prov, _) in ROUTING_TABLE.items():
+            assert primary_prov in providers, (
+                f"{use_case}: primary provider '{primary_prov}' not in registry"
             )
-            assert route.fallback_provider in providers, (
-                f"{use_case}: fallback provider '{route.fallback_provider}' not in registry"
+            assert fb_prov in providers, (
+                f"{use_case}: fallback provider '{fb_prov}' not in registry"
             )
 
     def test_routing_table_models_exist_in_registry(self):
         """All models referenced in routing table exist in their provider."""
-        for use_case, route in ROUTING_TABLE.items():
+        for use_case, (p_prov, p_model, fb_prov, fb_model) in ROUTING_TABLE.items():
             # Primary
-            spec = get_model_spec(route.primary_provider, route.primary_model)
+            spec = get_model_spec(p_prov, p_model)
             assert spec is not None, (
-                f"{use_case}: primary model '{route.primary_model}' "
-                f"not found in '{route.primary_provider}'"
+                f"{use_case}: primary model '{p_model}' not found in '{p_prov}'"
             )
             # Fallback
-            spec = get_model_spec(route.fallback_provider, route.fallback_model)
+            spec = get_model_spec(fb_prov, fb_model)
             assert spec is not None, (
-                f"{use_case}: fallback model '{route.fallback_model}' "
-                f"not found in '{route.fallback_provider}'"
+                f"{use_case}: fallback model '{fb_model}' not found in '{fb_prov}'"
             )
 
     def test_fallback_providers_exist(self):
         """Fallback providers and models are valid for all routes."""
-        for use_case, route in ROUTING_TABLE.items():
-            provider = get_provider(route.fallback_provider)
-            assert route.fallback_model in provider.models, (
-                f"{use_case}: fallback model '{route.fallback_model}' "
-                f"not in fallback provider '{route.fallback_provider}'"
+        for use_case, (_, _, fb_prov, fb_model) in ROUTING_TABLE.items():
+            provider = get_provider(fb_prov)
+            assert fb_model in provider.models, (
+                f"{use_case}: fallback model '{fb_model}' not in fallback provider '{fb_prov}'"
             )
 
     def test_explicit_use_case_routing(self, router):
@@ -259,12 +256,12 @@ class TestConductorRouter:
                 use_case=use_case,
             )
             decision = router.route(request)
-            route = ROUTING_TABLE[use_case]
+            p_prov, p_model, fb_prov, fb_model = ROUTING_TABLE[use_case]
 
-            assert decision.provider == route.primary_provider
-            assert decision.model_id == route.primary_model
-            assert decision.fallback_provider == route.fallback_provider
-            assert decision.fallback_model_id == route.fallback_model
+            assert decision.provider == p_prov
+            assert decision.model_id == p_model
+            assert decision.fallback_provider == fb_prov
+            assert decision.fallback_model_id == fb_model
             assert decision.confidence == 1.0
 
     def test_classified_routing(self, router):

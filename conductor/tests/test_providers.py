@@ -5,17 +5,39 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from cortex.conductor.config import PROVIDERS, get_pricing
 from cortex.conductor.providers.base import (
     BaseProvider,
     ChatMessage,
     CompletionResponse,
     ProviderError,
 )
-from cortex.conductor.providers.groq_provider import GroqProvider
-from cortex.conductor.providers.xai_provider import XAIProvider
-from cortex.conductor.providers.minimax_provider import MiniMaxProvider
-from cortex.conductor.providers.openai_provider import OpenAIProvider
+from cortex.conductor.providers.openai_compat import OpenAICompatProvider
 from cortex.conductor.providers.anthropic_provider import AnthropicProvider
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Single mock target for ALL OpenAI-compatible providers
+OPENAI_COMPAT_HTTPX = "cortex.conductor.providers.openai_compat.httpx.Client"
+ANTHROPIC_HTTPX = "cortex.conductor.providers.anthropic_provider.httpx.Client"
+
+
+def _make_provider(name: str, api_key: str = "test-key", **overrides) -> OpenAICompatProvider:
+    """Build an OpenAICompatProvider from config.py — mirrors production _create_provider()."""
+    info = PROVIDERS[name]
+    kwargs = dict(
+        provider_name=name,
+        api_key=api_key,
+        env_var=info["env_var"],
+        base_url=info["base_url"],
+        pricing=get_pricing(name),
+        timeout=info.get("timeout", 120.0),
+    )
+    kwargs.update(overrides)
+    return OpenAICompatProvider(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -77,15 +99,24 @@ def _mock_error_response(status_code: int, message: str) -> MagicMock:
     return _mock_response(status_code, body)
 
 
+def _setup_mock_client(MockClient: MagicMock, response: MagicMock) -> MagicMock:
+    """Wire up a mock httpx.Client context manager. Returns the inner mock client."""
+    mock_client = MagicMock()
+    MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
+    MockClient.return_value.__exit__ = MagicMock(return_value=False)
+    mock_client.post.return_value = response
+    return mock_client
+
+
 # ---------------------------------------------------------------------------
-# Cost calculation
+# Cost calculation (uses BaseProvider._calculate_cost)
 # ---------------------------------------------------------------------------
 
 
 class TestCostCalculation:
     def test_cost_basic(self):
         """1M input tokens at $1/MTok + 500k output at $2/MTok = $2.00."""
-        provider = GroqProvider(api_key="test-key")
+        provider = _make_provider("groq")
         cost = provider._calculate_cost(
             input_tokens=1_000_000,
             output_tokens=500_000,
@@ -95,13 +126,13 @@ class TestCostCalculation:
         assert cost == pytest.approx(2.0)
 
     def test_cost_zero_tokens(self):
-        provider = GroqProvider(api_key="test-key")
+        provider = _make_provider("groq")
         cost = provider._calculate_cost(0, 0, 1.0, 1.0)
         assert cost == 0.0
 
     def test_cost_realistic_groq(self):
         """25 input + 10 output at Groq llama-3.1-8b pricing."""
-        provider = GroqProvider(api_key="test-key")
+        provider = _make_provider("groq")
         cost = provider._calculate_cost(25, 10, 0.05, 0.08)
         # (25 * 0.05 + 10 * 0.08) / 1_000_000 = (1.25 + 0.8) / 1_000_000
         expected = 2.05 / 1_000_000
@@ -115,31 +146,28 @@ class TestCostCalculation:
 
 class TestGroqProvider:
     def test_name(self):
-        p = GroqProvider(api_key="test-key")
+        p = _make_provider("groq")
         assert p.name() == "groq"
 
     def test_correct_headers(self):
-        p = GroqProvider(api_key="gsk_test123")
-        with patch("cortex.conductor.providers.groq_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("groq", api_key="gsk_test123")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES, model="llama-3.1-8b-instant")
 
-            call_kwargs = mock_client.post.call_args
-            headers = call_kwargs.kwargs["headers"]
+            headers = mock_client.post.call_args.kwargs["headers"]
             assert headers["Authorization"] == "Bearer gsk_test123"
             assert headers["Content-Type"] == "application/json"
 
     def test_parses_response(self):
-        p = GroqProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.groq_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("groq")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             result = p.complete(SAMPLE_MESSAGES, model="llama-3.1-8b-instant")
 
@@ -152,12 +180,11 @@ class TestGroqProvider:
             assert result.cost_usd > 0
 
     def test_correct_url(self):
-        p = GroqProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.groq_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("groq")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -167,7 +194,12 @@ class TestGroqProvider:
     def test_missing_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
             with pytest.raises(ProviderError, match="GROQ_API_KEY not set"):
-                GroqProvider(api_key=None)
+                OpenAICompatProvider(
+                    provider_name="groq",
+                    api_key=None,
+                    env_var="GROQ_API_KEY",
+                    base_url="https://api.groq.com/openai/v1",
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -177,16 +209,15 @@ class TestGroqProvider:
 
 class TestXAIProvider:
     def test_name(self):
-        p = XAIProvider(api_key="test-key")
+        p = _make_provider("xai")
         assert p.name() == "xai"
 
     def test_correct_headers(self):
-        p = XAIProvider(api_key="xai-test456")
-        with patch("cortex.conductor.providers.xai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("xai", api_key="xai-test456")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES, model="grok-3-fast")
 
@@ -194,12 +225,9 @@ class TestXAIProvider:
             assert headers["Authorization"] == "Bearer xai-test456"
 
     def test_parses_response(self):
-        p = XAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.xai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("xai")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
             result = p.complete(SAMPLE_MESSAGES, model="grok-3-fast")
 
@@ -208,12 +236,11 @@ class TestXAIProvider:
             assert result.total_tokens == 35
 
     def test_correct_url(self):
-        p = XAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.xai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("xai")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -228,16 +255,13 @@ class TestXAIProvider:
 
 class TestMiniMaxProvider:
     def test_name(self):
-        p = MiniMaxProvider(api_key="test-key")
+        p = _make_provider("minimax")
         assert p.name() == "minimax"
 
     def test_parses_response(self):
-        p = MiniMaxProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.minimax_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("minimax")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
             result = p.complete(SAMPLE_MESSAGES, model="MiniMax-M1-80k")
 
@@ -245,12 +269,11 @@ class TestMiniMaxProvider:
             assert result.provider == "minimax"
 
     def test_correct_url(self):
-        p = MiniMaxProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.minimax_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("minimax")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -265,22 +288,19 @@ class TestMiniMaxProvider:
 
 class TestOpenAIProvider:
     def test_name_openai(self):
-        p = OpenAIProvider(api_key="test-key")
+        p = _make_provider("openai")
         assert p.name() == "openai"
 
     def test_name_deepseek(self):
-        p = OpenAIProvider(api_key="test-key", base_url="https://api.deepseek.com")
+        p = _make_provider("deepseek")
         assert p.name() == "deepseek"
 
     def test_parses_response(self):
-        p = OpenAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.openai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("openai")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
-            result = p.complete(SAMPLE_MESSAGES, model="gpt-4o-mini")
+            result = p.complete(SAMPLE_MESSAGES, model="gpt-5")
 
             assert result.content == "Hello from the model."
             assert result.provider == "openai"
@@ -288,12 +308,11 @@ class TestOpenAIProvider:
             assert result.output_tokens == 10
 
     def test_correct_url_openai(self):
-        p = OpenAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.openai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("openai")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -301,36 +320,38 @@ class TestOpenAIProvider:
             assert url == "https://api.openai.com/v1/chat/completions"
 
     def test_correct_url_deepseek(self):
-        p = OpenAIProvider(api_key="test-key", base_url="https://api.deepseek.com")
-        with patch("cortex.conductor.providers.openai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("deepseek")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES, model="deepseek-chat")
 
             url = mock_client.post.call_args.args[0]
             assert url == "https://api.deepseek.com/chat/completions"
 
-    def test_cost_gpt4o_mini(self):
-        """Verify gpt-4o-mini cost at known pricing."""
-        p = OpenAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.openai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+    def test_cost_from_pricing_dict(self):
+        """Verify cost uses the pricing dict passed at construction."""
+        pricing = {"gpt-5-nano": (0.10, 0.80)}
+        p = OpenAICompatProvider(
+            provider_name="openai",
+            api_key="test-key",
+            base_url="https://api.openai.com/v1",
+            pricing=pricing,
+        )
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
-            result = p.complete(SAMPLE_MESSAGES, model="gpt-4o-mini")
+            result = p.complete(SAMPLE_MESSAGES, model="gpt-5-nano")
 
-            # 25 input * $0.15/MTok + 10 output * $0.60/MTok = (3.75 + 6.0) / 1M
-            expected_cost = (25 * 0.15 + 10 * 0.60) / 1_000_000
+            # 25 input * $0.10/MTok + 10 output * $0.80/MTok
+            expected_cost = (25 * 0.10 + 10 * 0.80) / 1_000_000
             assert result.cost_usd == pytest.approx(expected_cost)
 
 
 # ---------------------------------------------------------------------------
-# Anthropic provider
+# Anthropic provider (unchanged — AnthropicProvider is still its own class)
 # ---------------------------------------------------------------------------
 
 
@@ -342,11 +363,8 @@ class TestAnthropicProvider:
     def test_correct_headers_not_bearer(self):
         """Anthropic uses x-api-key, NOT Authorization: Bearer."""
         p = AnthropicProvider(api_key="sk-ant-test789")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -358,11 +376,8 @@ class TestAnthropicProvider:
     def test_system_message_extraction(self):
         """System messages should be a top-level param, not in messages array."""
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -377,11 +392,8 @@ class TestAnthropicProvider:
     def test_parses_content_blocks(self):
         """Anthropic returns content as an array of typed blocks."""
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             result = p.complete(SAMPLE_MESSAGES)
 
@@ -401,11 +413,8 @@ class TestAnthropicProvider:
             ],
         }
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, multi_block_response)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            _setup_mock_client(MockClient, _mock_response(200, multi_block_response))
 
             result = p.complete(SAMPLE_MESSAGES)
             assert result.content == "Part 1.\nPart 2."
@@ -413,11 +422,8 @@ class TestAnthropicProvider:
     def test_correct_url(self):
         """Anthropic uses /messages, not /chat/completions."""
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -428,11 +434,8 @@ class TestAnthropicProvider:
         """When no system message, payload should not include system key."""
         p = AnthropicProvider(api_key="test-key")
         messages_no_sys = [ChatMessage(role="user", content="Hi")]
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(messages_no_sys)
 
@@ -446,36 +449,30 @@ class TestAnthropicProvider:
 
 
 class TestErrorHandling:
-    """Test error handling across all providers."""
+    """Test error handling across all OpenAI-compat and Anthropic providers."""
 
     @pytest.fixture(
         params=[
-            ("groq", GroqProvider, "cortex.conductor.providers.groq_provider.httpx.Client"),
-            ("xai", XAIProvider, "cortex.conductor.providers.xai_provider.httpx.Client"),
-            (
-                "minimax",
-                MiniMaxProvider,
-                "cortex.conductor.providers.minimax_provider.httpx.Client",
-            ),
-            ("openai", OpenAIProvider, "cortex.conductor.providers.openai_provider.httpx.Client"),
-            (
-                "anthropic",
-                AnthropicProvider,
-                "cortex.conductor.providers.anthropic_provider.httpx.Client",
-            ),
+            ("groq", OPENAI_COMPAT_HTTPX),
+            ("xai", OPENAI_COMPAT_HTTPX),
+            ("minimax", OPENAI_COMPAT_HTTPX),
+            ("openai", OPENAI_COMPAT_HTTPX),
+            ("deepseek", OPENAI_COMPAT_HTTPX),
+            ("anthropic", ANTHROPIC_HTTPX),
         ]
     )
     def provider_setup(self, request):
-        name, cls, patch_target = request.param
-        return cls(api_key="test-key"), patch_target, name
+        name, patch_target = request.param
+        if name == "anthropic":
+            provider = AnthropicProvider(api_key="test-key")
+        else:
+            provider = _make_provider(name)
+        return provider, patch_target, name
 
     def test_401_unauthorized(self, provider_setup):
         provider, patch_target, name = provider_setup
         with patch(patch_target) as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_error_response(401, "Invalid API key")
+            _setup_mock_client(MockClient, _mock_error_response(401, "Invalid API key"))
 
             with pytest.raises(ProviderError) as exc_info:
                 provider.complete(SAMPLE_MESSAGES)
@@ -487,10 +484,7 @@ class TestErrorHandling:
     def test_429_rate_limit(self, provider_setup):
         provider, patch_target, name = provider_setup
         with patch(patch_target) as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_error_response(429, "Rate limit exceeded")
+            _setup_mock_client(MockClient, _mock_error_response(429, "Rate limit exceeded"))
 
             with pytest.raises(ProviderError) as exc_info:
                 provider.complete(SAMPLE_MESSAGES)
@@ -500,10 +494,7 @@ class TestErrorHandling:
     def test_500_server_error(self, provider_setup):
         provider, patch_target, name = provider_setup
         with patch(patch_target) as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_error_response(500, "Internal server error")
+            _setup_mock_client(MockClient, _mock_error_response(500, "Internal server error"))
 
             with pytest.raises(ProviderError) as exc_info:
                 provider.complete(SAMPLE_MESSAGES)
@@ -540,12 +531,11 @@ class TestProviderError:
 class TestMessageConstruction:
     def test_openai_compat_message_format(self):
         """OpenAI-compatible providers send messages as list of dicts."""
-        p = GroqProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.groq_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("groq")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -558,11 +548,8 @@ class TestMessageConstruction:
     def test_anthropic_message_format(self):
         """Anthropic filters system messages out of messages array."""
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(SAMPLE_MESSAGES)
 
@@ -582,27 +569,23 @@ class TestMessageConstruction:
 
 class TestParameterPassthrough:
     def test_temperature_and_max_tokens(self):
-        p = OpenAIProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.openai_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, OPENAI_COMPAT_RESPONSE)
+        p = _make_provider("openai")
+        with patch(OPENAI_COMPAT_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(
+                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
+            )
 
-            p.complete(SAMPLE_MESSAGES, model="gpt-4o", max_tokens=8192, temperature=0.7)
+            p.complete(SAMPLE_MESSAGES, model="gpt-5", max_tokens=8192, temperature=0.7)
 
             payload = mock_client.post.call_args.kwargs["json"]
             assert payload["max_tokens"] == 8192
             assert payload["temperature"] == 0.7
-            assert payload["model"] == "gpt-4o"
+            assert payload["model"] == "gpt-5"
 
     def test_anthropic_temperature_and_max_tokens(self):
         p = AnthropicProvider(api_key="test-key")
-        with patch("cortex.conductor.providers.anthropic_provider.httpx.Client") as MockClient:
-            mock_client = MagicMock()
-            MockClient.return_value.__enter__ = MagicMock(return_value=mock_client)
-            MockClient.return_value.__exit__ = MagicMock(return_value=False)
-            mock_client.post.return_value = _mock_response(200, ANTHROPIC_RESPONSE)
+        with patch(ANTHROPIC_HTTPX) as MockClient:
+            mock_client = _setup_mock_client(MockClient, _mock_response(200, ANTHROPIC_RESPONSE))
 
             p.complete(
                 SAMPLE_MESSAGES,
@@ -624,9 +607,74 @@ class TestParameterPassthrough:
 
 class TestBaseURLNormalization:
     def test_trailing_slash_stripped(self):
-        p = GroqProvider(api_key="test-key", base_url="https://api.groq.com/openai/v1/")
+        p = OpenAICompatProvider(
+            provider_name="groq",
+            api_key="test-key",
+            base_url="https://api.groq.com/openai/v1/",
+        )
         assert p.base_url == "https://api.groq.com/openai/v1"
 
     def test_no_trailing_slash(self):
-        p = XAIProvider(api_key="test-key", base_url="https://api.x.ai/v1")
+        p = OpenAICompatProvider(
+            provider_name="xai",
+            api_key="test-key",
+            base_url="https://api.x.ai/v1",
+        )
         assert p.base_url == "https://api.x.ai/v1"
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility aliases
+# ---------------------------------------------------------------------------
+
+
+class TestBackwardCompatAliases:
+    """Verify that old import paths still resolve correctly."""
+
+    def test_groq_alias(self):
+        from cortex.conductor.providers import GroqProvider
+
+        assert GroqProvider is OpenAICompatProvider
+
+    def test_xai_alias(self):
+        from cortex.conductor.providers import XAIProvider
+
+        assert XAIProvider is OpenAICompatProvider
+
+    def test_minimax_alias(self):
+        from cortex.conductor.providers import MiniMaxProvider
+
+        assert MiniMaxProvider is OpenAICompatProvider
+
+    def test_openai_alias(self):
+        from cortex.conductor.providers import OpenAIProvider
+
+        assert OpenAIProvider is OpenAICompatProvider
+
+
+# ---------------------------------------------------------------------------
+# Config integration
+# ---------------------------------------------------------------------------
+
+
+class TestConfigIntegration:
+    """Verify config.py and provider construction work together."""
+
+    def test_all_providers_in_config(self):
+        """Every provider in config.py can be instantiated."""
+        for name, info in PROVIDERS.items():
+            if info["api_type"] == "anthropic":
+                p = AnthropicProvider(api_key="test-key")
+                assert p.name() == "anthropic"
+            else:
+                p = _make_provider(name)
+                assert p.name() == name
+
+    def test_pricing_dict_non_empty(self):
+        """Every provider has at least one model with pricing."""
+        for name in PROVIDERS:
+            pricing = get_pricing(name)
+            assert len(pricing) > 0, f"Provider '{name}' has no models with pricing"
+            for model_id, (inp, out) in pricing.items():
+                assert inp >= 0, f"{name}/{model_id} input_cost negative"
+                assert out >= 0, f"{name}/{model_id} output_cost negative"
