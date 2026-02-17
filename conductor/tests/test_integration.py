@@ -12,16 +12,18 @@ Covers:
 - Cost tracking on fallback path
 """
 
+import asyncio
 import json
 import re
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cortex.conductor import (
     RoutingDecision,
     _create_provider,
+    async_call,
     call,
     get_budget_remaining,
     get_costs,
@@ -767,3 +769,104 @@ class TestModuleAPICoherence:
         # 5. Budget should have decreased
         remaining = tracker.get_budget_remaining()
         assert remaining < 20.0
+
+
+class TestAsyncCall:
+    """Tests for the async_call() API."""
+
+    @pytest.fixture
+    def mock_async_provider(self):
+        """Provider mock with async_complete returning a CompletionResponse."""
+        provider = MagicMock()
+
+        async def _async_complete(**kwargs):
+            return CompletionResponse(
+                content="Async test response",
+                model="llama-3.1-8b-instant",
+                provider="groq",
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+                latency_ms=50.0,
+                cost_usd=0.0009,
+            )
+
+        provider.async_complete = _async_complete
+        return provider
+
+    @pytest.mark.asyncio
+    async def test_async_call_basic(self, tmp_path: Path, mock_async_provider):
+        """async_call() routes and executes without blocking."""
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_async_provider),
+        ):
+            response = await async_call("Classify this", use_case="classification")
+
+        assert response.content == "Async test response"
+        assert response.provider == "groq"
+        assert tracker.get_daily_spend()["total"] > 0
+
+    @pytest.mark.asyncio
+    async def test_async_call_fallback_on_failure(self, tmp_path: Path, mock_async_provider):
+        """async_call() falls back when primary provider raises."""
+
+        async def _failing_async(**kwargs):
+            raise ProviderError("groq", 500, "Service unavailable")
+
+        failing_provider = MagicMock()
+        failing_provider.async_complete = _failing_async
+
+        call_count = 0
+
+        def side_effect_create(name):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return failing_provider
+            return mock_async_provider
+
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", side_effect=side_effect_create),
+        ):
+            response = await async_call("Classify this", use_case="classification")
+
+        assert response.content == "Async test response"
+
+    @pytest.mark.asyncio
+    async def test_async_call_records_costs(self, tmp_path: Path, mock_async_provider):
+        """async_call() records cost to the tracker like sync call()."""
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch("cortex.conductor.caller._create_provider", return_value=mock_async_provider),
+        ):
+            response = await async_call("Test", use_case="quick_qa")
+
+        spend = tracker.get_daily_spend()
+        assert spend["total"] == pytest.approx(0.0009, abs=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_async_call_with_overrides(self, tmp_path: Path, mock_async_provider):
+        """async_call() respects provider and model overrides."""
+        tracker = CostTracker(state_dir=tmp_path, daily_budget=20.0)
+
+        with (
+            patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
+            patch(
+                "cortex.conductor.caller._create_provider", return_value=mock_async_provider
+            ) as mock_create,
+        ):
+            await async_call(
+                "Test",
+                provider_override="groq",
+                model_override="llama-3.1-8b-instant",
+            )
+
+        mock_create.assert_called_with("groq")

@@ -107,15 +107,25 @@ class QualityJudge:
             evaluations_file: Path to store evaluations (default: ~/.cortex/evaluations.jsonl)
         """
         self._conductor_available = False
+        self._conductor_async_available = False
         try:
+            from cortex.conductor import async_call as conductor_async_call
             from cortex.conductor import call as conductor_call
 
             self._conductor_call = conductor_call
+            self._conductor_async_call = conductor_async_call
             self._conductor_available = True
+            self._conductor_async_available = True
         except ImportError:
-            import anthropic
+            try:
+                from cortex.conductor import call as conductor_call
 
-            self._anthropic_client = anthropic.Anthropic()
+                self._conductor_call = conductor_call
+                self._conductor_available = True
+            except ImportError:
+                import anthropic
+
+                self._anthropic_client = anthropic.Anthropic()
         self.model = model
 
         # Set up evaluations storage
@@ -416,7 +426,15 @@ Respond with ONLY the JSON, no additional text."""
         self._request_times.append(now)
 
         # Make request — route through conductor for cost optimization
-        if self._conductor_available:
+        if self._conductor_async_available:
+            response = await self._conductor_async_call(
+                prompt,
+                use_case="classification",
+                max_tokens=500,
+                temperature=0.0,
+            )
+            return response.content
+        elif self._conductor_available:
             response = await asyncio.to_thread(
                 self._conductor_call,
                 prompt,

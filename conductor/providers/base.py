@@ -1,5 +1,6 @@
 """Base provider interface and shared data structures."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -54,6 +55,24 @@ class BaseProvider(ABC):
         **kwargs: Any,
     ) -> CompletionResponse:
         """Send chat completion request and return standardized response."""
+
+    async def async_complete(
+        self,
+        messages: List[ChatMessage],
+        model: str,
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> CompletionResponse:
+        """Async chat completion. Default wraps sync; subclasses override with native async."""
+        return await asyncio.to_thread(
+            self.complete,
+            messages,
+            model,
+            max_tokens,
+            temperature,
+            **kwargs,
+        )
 
     @abstractmethod
     def name(self) -> str:

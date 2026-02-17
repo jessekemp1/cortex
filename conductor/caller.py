@@ -189,6 +189,35 @@ def _execute_and_record(
     return response
 
 
+async def _async_execute_and_record(
+    provider_name: str,
+    model_id: str,
+    messages: list,
+    use_case: str,
+    max_tokens: int,
+    temperature: float,
+    tracker: CostTracker,
+) -> CompletionResponse:
+    """Async execute a completion and record the cost. Raises on failure."""
+    provider_client = _create_provider(provider_name)
+    response = await provider_client.async_complete(
+        messages=messages,
+        model=model_id,
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    tracker.record(
+        provider=response.provider,
+        model=response.model,
+        input_tokens=response.input_tokens,
+        output_tokens=response.output_tokens,
+        cost_usd=response.cost_usd,
+        use_case=use_case,
+        latency_ms=response.latency_ms,
+    )
+    return response
+
+
 def call(
     prompt: str,
     use_case: str = "",
@@ -256,6 +285,85 @@ def call(
     # Try fallback provider
     try:
         return _execute_and_record(
+            decision.fallback_provider,
+            decision.fallback_model_id,
+            messages,
+            use_case,
+            max_tokens,
+            temperature,
+            tracker,
+        )
+    except Exception as fallback_error:
+        logger.error(
+            "Fallback provider %s also failed: %s",
+            decision.fallback_provider,
+            fallback_error,
+        )
+        raise ProviderError(
+            decision.provider,
+            0,
+            f"Primary ({decision.provider}): {primary_error}; "
+            f"Fallback ({decision.fallback_provider}): {fallback_error}",
+        ) from primary_error
+
+
+async def async_call(
+    prompt: str,
+    use_case: str = "",
+    system: str = "",
+    model_override: Optional[str] = None,
+    provider_override: Optional[str] = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.0,
+) -> CompletionResponse:
+    """Async version of call(). Routes and executes without blocking the event loop."""
+    tracker = _get_cost_tracker()
+
+    if provider_override and model_override:
+        decision = RoutingDecision(
+            provider=provider_override,
+            model_id=model_override,
+            display_name=model_override,
+            reasoning="Manual override",
+            estimated_cost=0.0,
+            fallback_provider="anthropic",
+            fallback_model_id="claude-sonnet-4-5-20250929",
+            confidence=1.0,
+        )
+    else:
+        decision = route(prompt, use_case=use_case)
+        if provider_override:
+            decision.provider = provider_override
+        if model_override:
+            decision.model_id = model_override
+
+    messages = []
+    if system:
+        messages.append(ChatMessage(role="system", content=system))
+    messages.append(ChatMessage(role="user", content=prompt))
+
+    primary_error: Optional[Exception] = None
+    try:
+        return await _async_execute_and_record(
+            decision.provider,
+            decision.model_id,
+            messages,
+            use_case,
+            max_tokens,
+            temperature,
+            tracker,
+        )
+    except (ProviderError, ImportError, Exception) as e:
+        primary_error = e
+        logger.warning(
+            "Primary provider %s failed: %s. Trying fallback %s.",
+            decision.provider,
+            e,
+            decision.fallback_provider,
+        )
+
+    try:
+        return await _async_execute_and_record(
             decision.fallback_provider,
             decision.fallback_model_id,
             messages,
