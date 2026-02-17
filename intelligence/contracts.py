@@ -102,20 +102,30 @@ class ContractGenerator:
         self.cache_dir = Path.home() / ".cortex" / "contracts"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize AI client — prefer conductor for cost optimization
+        # Initialize AI client — prefer conductor async for non-blocking calls
         self._conductor_available = False
+        self._conductor_async_available = False
         try:
+            from cortex.conductor import async_call as conductor_async_call
             from cortex.conductor import call as conductor_call
 
             self._conductor_call = conductor_call
+            self._conductor_async_call = conductor_async_call
             self._conductor_available = True
+            self._conductor_async_available = True
         except ImportError:
-            from anthropic import Anthropic
+            try:
+                from cortex.conductor import call as conductor_call
 
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY environment variable not set")
-            self._anthropic_client = Anthropic(api_key=api_key)
+                self._conductor_call = conductor_call
+                self._conductor_available = True
+            except ImportError:
+                from anthropic import Anthropic
+
+                api_key = os.getenv("ANTHROPIC_API_KEY")
+                if not api_key:
+                    raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+                self._anthropic_client = Anthropic(api_key=api_key)
 
     async def generate_contract(
         self, signal: Signal, user_answers: Optional[Dict[str, str]] = None
@@ -154,16 +164,29 @@ class ContractGenerator:
         )
 
         try:
-            # Route through conductor for cost optimization
-            if self._conductor_available:
-                result = self._conductor_call(
+            # Route through conductor — prefer async to avoid blocking event loop
+            if self._conductor_async_available:
+                result = await self._conductor_async_call(
+                    prompt,
+                    use_case="architecture",
+                    max_tokens=8000,
+                )
+                response_text = result.content
+            elif self._conductor_available:
+                import asyncio
+
+                result = await asyncio.to_thread(
+                    self._conductor_call,
                     prompt,
                     use_case="architecture",
                     max_tokens=8000,
                 )
                 response_text = result.content
             else:
-                response = self._anthropic_client.messages.create(
+                import asyncio
+
+                response = await asyncio.to_thread(
+                    self._anthropic_client.messages.create,
                     model="claude-opus-4-6",
                     max_tokens=8000,
                     messages=[{"role": "user", "content": prompt}],
