@@ -96,6 +96,60 @@ class OpenAICompatProvider(BaseProvider):
             cost_usd=cost,
         )
 
+    async def async_complete(
+        self,
+        messages: List[ChatMessage],
+        model: str = "",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> CompletionResponse:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        payload: Dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        payload.update(kwargs)
+
+        t0 = time.monotonic()
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+        latency_ms = (time.monotonic() - t0) * 1000
+
+        if resp.status_code != 200:
+            self._raise_error(resp)
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", 0)
+        output_tokens = usage.get("completion_tokens", 0)
+
+        default_pricing = (1.0, 3.0)
+        pricing = self._pricing.get(model, default_pricing)
+        cost = self._calculate_cost(input_tokens, output_tokens, pricing[0], pricing[1])
+
+        return CompletionResponse(
+            content=content,
+            model=data.get("model", model),
+            provider=self.name(),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            latency_ms=latency_ms,
+            cost_usd=cost,
+        )
+
     def _raise_error(self, resp: httpx.Response) -> None:
         try:
             body = resp.json()

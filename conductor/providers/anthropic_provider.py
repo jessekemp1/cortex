@@ -122,6 +122,80 @@ class AnthropicProvider(BaseProvider):
             cost_usd=cost,
         )
 
+    async def async_complete(
+        self,
+        messages: List[ChatMessage],
+        model: str = "claude-sonnet-4-20250514",
+        max_tokens: int = 4096,
+        temperature: float = 0.0,
+        **kwargs: Any,
+    ) -> CompletionResponse:
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+
+        system_text = None
+        api_messages = []
+        for m in messages:
+            if m.role == "system":
+                system_text = m.content
+            else:
+                api_messages.append({"role": m.role, "content": m.content})
+
+        payload: Dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": api_messages,
+            "temperature": temperature,
+        }
+        if system_text is not None:
+            payload["system"] = system_text
+
+        for k, v in kwargs.items():
+            if k not in payload:
+                payload[k] = v
+
+        t0 = time.monotonic()
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/messages",
+                headers=headers,
+                json=payload,
+            )
+        latency_ms = (time.monotonic() - t0) * 1000
+
+        if resp.status_code != 200:
+            self._raise_error(resp)
+
+        data = resp.json()
+
+        content_blocks = data.get("content", [])
+        text_parts = []
+        for block in content_blocks:
+            if block.get("type") == "text":
+                text_parts.append(block["text"])
+        content = "\n".join(text_parts) if text_parts else ""
+
+        usage = data.get("usage", {})
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+
+        pricing = PRICING.get(model, (3.00, 15.00))
+        cost = self._calculate_cost(input_tokens, output_tokens, pricing[0], pricing[1])
+
+        return CompletionResponse(
+            content=content,
+            model=data.get("model", model),
+            provider=self.name(),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            latency_ms=latency_ms,
+            cost_usd=cost,
+        )
+
     def _raise_error(self, resp: httpx.Response) -> None:
         try:
             body = resp.json()
