@@ -445,7 +445,9 @@ def cmd_status(args):
             print("💡 NEXT ACTION")
             print("────────────────")
             print("  Reduce workspace noise to restore recommendation trust.")
-            print("  Suggested: git add/commit or git stash push, then rerun `scripts/audit-start.sh`.")
+            print(
+                "  Suggested: git add/commit or git stash push, then rerun `scripts/audit-start.sh`."
+            )
             print()
         elif next_action:
             print("💡 NEXT ACTION")
@@ -648,6 +650,25 @@ def cmd_briefing(args):
     """Generate and display daily briefing."""
     try:
         root = Path(args.root)
+
+        # Run pending watch tasks (scheduled verifications) before briefing
+        watch_output = ""
+        try:
+            from watches import list_pending, run_watch, format_results as format_watch_results
+
+            pending = list_pending()
+            if pending:
+                watches_dir = Path.home() / ".cortex" / "watches" / "pending"
+                watch_results = []
+                for watch_file in sorted(watches_dir.glob("*.json")):
+                    result = run_watch(watch_file)
+                    if result.get("status") != "skipped":
+                        watch_results.append(result)
+                if watch_results:
+                    watch_output = format_watch_results(watch_results)
+        except Exception:
+            pass  # Watch system is optional
+
         # Generate briefing
         briefing = generate_daily_briefing(root_dir=root)
         signal = get_briefing_signal_quality(briefing)
@@ -735,6 +756,11 @@ def cmd_briefing(args):
 
         print(output)
 
+        # Append watch results if any watches ran
+        if watch_output:
+            print("\n--- Watch Tasks ---")
+            print(watch_output)
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -804,9 +830,7 @@ def cmd_statusline(args):
         # Best-effort cache write; never fail command for cache issues.
         try:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
-            cache_path.write_text(
-                json.dumps({"ts": time.time(), "line": line, "payload": payload})
-            )
+            cache_path.write_text(json.dumps({"ts": time.time(), "line": line, "payload": payload}))
         except Exception:
             pass
 
@@ -1192,11 +1216,12 @@ def cmd_schedule(args):
 
 def cmd_execute(args):
     """Execute a recommendation immediately."""
+    from orchestrator import CortexOrchestrator
+
     from cortex.execution.adapter import RecommendationToAgentAdapter
 
     # Import internal orchestrator components
     from cortex.execution.engine import Orchestrator as ExecutionEngine
-    from orchestrator import CortexOrchestrator
 
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
     feedback_logger = FeedbackLogger()
@@ -1488,7 +1513,8 @@ def cmd_interactions(args):
         print("Add the following to your Claude Code settings.json:")
         print("(Usually at ~/.claude/settings.json)")
         print("")
-        print("""
+        print(
+            """
 {
   "hooks": {
     "UserPromptSubmit": [{
@@ -1518,7 +1544,8 @@ def cmd_interactions(args):
     }]
   }
 }
-""")
+"""
+        )
         print("After adding hooks, restart Claude Code to activate.")
         return
 
@@ -1739,9 +1766,8 @@ def cmd_dashboard(args):
     # Assuming local-orchestrator is in path from main setup
     try:
         from batch_system import BatchManager
-        from history import ExecutionHistory
-
         from config import STORAGE_PATH
+        from history import ExecutionHistory
     except ImportError:
         # Fallback: try adding local-orchestrator explicitly if not in path
         import sys
@@ -1831,7 +1857,7 @@ def cmd_dashboard(args):
     else:
         # Simple table
         print(f"{'AGENT':<25} {'STATUS':<10} {'TIME':<20} {'MESSAGE'}")
-        print(f"{'-'*25} {'-'*10} {'-'*20} {'-'*15}")
+        print(f"{'-' * 25} {'-' * 10} {'-' * 20} {'-' * 15}")
 
         for run in recent:
             agent_id = run.get("agent_id", "unknown")
@@ -1967,7 +1993,7 @@ def cmd_bandwidth(args):
                     filled = int(cal.calibrated_confidence * 10)
                     bar = "█" * filled + "░" * (10 - filled)
                     print(
-                        f"{domain:15s}: {bar} {cal.calibrated_confidence*100:.0f}% ({cal.total} outcomes)"
+                        f"{domain:15s}: {bar} {cal.calibrated_confidence * 100:.0f}% ({cal.total} outcomes)"
                     )
 
         elif action == "capture":
@@ -1999,7 +2025,9 @@ def cmd_bandwidth(args):
             from intelligence.bandwidth.baseline_report import generate_baseline_report
 
             output_dir = Path.home() / ".cortex" / "research" / "bandwidth" / "reports"
-            report = generate_baseline_report(output_dir=output_dir, project=args.project, days=args.days)
+            report = generate_baseline_report(
+                output_dir=output_dir, project=args.project, days=args.days
+            )
             if args.json:
                 print(json.dumps(report, indent=2))
             else:
@@ -2146,13 +2174,13 @@ def cmd_config(args):
                 f"  - Pattern matching: {'semantic' if DEEP_MODE.pattern_semantic else 'keyword'}"
             )
             print(f"  - Model: {DEEP_MODE.model}")
-            print(f"  - Expected latency: ~{DEEP_MODE.expected_latency_ms/1000:.1f}s")
+            print(f"  - Expected latency: ~{DEEP_MODE.expected_latency_ms / 1000:.1f}s")
 
             print("\nFast Mode Config:")
             print(f"  - Git days: {FAST_MODE.git_days}")
             print("  - Spec search: disabled")
             print(f"  - Model: {FAST_MODE.model}")
-            print(f"  - Expected latency: ~{FAST_MODE.expected_latency_ms/1000:.1f}s")
+            print(f"  - Expected latency: ~{FAST_MODE.expected_latency_ms / 1000:.1f}s")
             print()
 
         elif args.set_default:
@@ -2611,7 +2639,9 @@ Deep Mode (Phase 1):
     briefing_style_parser.add_argument(
         "--validate", action="store_true", help="Validate style file and exit with status"
     )
-    briefing_style_parser.add_argument("--show", action="store_true", help="Print effective style JSON")
+    briefing_style_parser.add_argument(
+        "--show", action="store_true", help="Print effective style JSON"
+    )
     briefing_style_parser.set_defaults(func=cmd_briefing_style)
 
     # Statusline command
@@ -3070,9 +3100,9 @@ Deep Mode (Phase 1):
         api_jobs = [j for j in jobs if j.backend == JobBackend.API]
 
         if local_jobs:
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print("LOCAL EXECUTION QUEUE (ProcessMonitor)")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
             for job in local_jobs:
                 print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
                 print(f"   ID: {job.id} | State: {job.state.value}")
@@ -3081,9 +3111,9 @@ Deep Mode (Phase 1):
                 print()
 
         if api_jobs:
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print("API BATCH QUEUE (Anthropic)")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
             for job in api_jobs:
                 print(f"{job.status_icon} [{job.priority.upper():8}] {job.description}")
                 print(f"   ID: {job.id} | State: {job.state.value}")
@@ -3109,9 +3139,9 @@ Deep Mode (Phase 1):
 
         stats = monitor.batch_queue.get_queue_stats()
 
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print("BATCH QUEUE STATUS")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print()
 
         # Task counts by state
@@ -3235,9 +3265,9 @@ Deep Mode (Phase 1):
             print(f"Task {args.task_id} not found")
             sys.exit(1)
 
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"TASK: {task.description}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print()
 
         print(f"Task ID:     {task.task_id}")
