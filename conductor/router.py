@@ -41,7 +41,7 @@ ROUTING_TABLE: Dict[str, _Route] = {
     "quick_qa": _Route("groq", "openai/gpt-oss-20b", "anthropic", "claude-haiku-4-5-20251001"),
     "code_review": _Route("minimax", "MiniMax-M1-80k", "anthropic", "claude-sonnet-4-5-20250929"),
     "test_generation": _Route("minimax", "MiniMax-M1-80k", "xai", "grok-code-fast-1"),
-    "documentation": _Route("deepseek", "deepseek-chat", "deepseek", "deepseek-chat"),
+    "documentation": _Route("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
     "security_audit": _Route("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "pattern_learning": _Route("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
 }
@@ -50,7 +50,7 @@ ROUTING_TABLE: Dict[str, _Route] = {
 BATCH_ROUTING_TABLE: Dict[str, _Route] = {
     "code_review": _Route("minimax", "MiniMax-M1-80k", "anthropic", "claude-sonnet-4-5-20250929"),
     "test_generation": _Route("minimax", "MiniMax-M1-80k", "xai", "grok-code-fast-1"),
-    "documentation": _Route("deepseek", "deepseek-chat", "deepseek", "deepseek-chat"),
+    "documentation": _Route("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
     "security_audit": _Route("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
 }
 
