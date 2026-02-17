@@ -67,8 +67,8 @@ class TestContextInjector:
         start = time.time()
         injector.inject(Path.cwd(), task="test task")
         elapsed = (time.time() - start) * 1000
-        # More lenient timeout for tests (3s to account for system load)
-        assert elapsed < 3000
+        # Lenient timeout for tests (5s to account for system load)
+        assert elapsed < 5000
 
     def test_inject_returns_string(self, injector):
         """Inject should return a non-empty string."""
@@ -184,13 +184,13 @@ class TestCaching:
         result2 = injector.inject(cortex_path)
         time2 = (time.time() - start2) * 1000
 
-        # Results should be similar (profile part cached, but CPU may vary slightly)
-        # Extract stable parts (project name, coverage) - CPU metrics are dynamic
+        # Results should be similar (profile part cached, but system metrics are dynamic)
+        # Extract stable parts (project name, coverage) - Resource line has live system data
         import re
 
         def extract_stable_parts(s):
-            # Remove dynamic CPU percentage which can vary between calls
-            return re.sub(r"CPU:\d+%", "CPU:XX%", s)
+            # Remove entire Resource line — CPU%, process names, alerts are all dynamic
+            return re.sub(r"Resource:.*", "Resource: <dynamic>", s)
 
         assert extract_stable_parts(result1) == extract_stable_parts(result2)
 

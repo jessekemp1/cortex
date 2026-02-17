@@ -401,6 +401,8 @@ class TestBatchEvaluation:
 
     def test_batch_evaluate_patterns(self, quality_judge, sample_pattern):
         """Test batch pattern evaluation."""
+        quality_judge._conductor_available = False
+        quality_judge._anthropic_client = MagicMock()
         # Mock API response
         mock_response = MagicMock()
         mock_response.content = [
@@ -417,7 +419,9 @@ class TestBatchEvaluation:
             )
         ]
 
-        with patch.object(quality_judge.client.messages, "create", return_value=mock_response):
+        with patch.object(
+            quality_judge._anthropic_client.messages, "create", return_value=mock_response
+        ):
             patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(3)]
 
             scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
@@ -430,6 +434,8 @@ class TestBatchEvaluation:
         self, quality_judge, sample_recommendation, sample_context
     ):
         """Test batch recommendation evaluation."""
+        quality_judge._conductor_available = False
+        quality_judge._anthropic_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = [
             MagicMock(
@@ -445,7 +451,9 @@ class TestBatchEvaluation:
             )
         ]
 
-        with patch.object(quality_judge.client.messages, "create", return_value=mock_response):
+        with patch.object(
+            quality_judge._anthropic_client.messages, "create", return_value=mock_response
+        ):
             recs = [{**sample_recommendation, "id": f"r{i}"} for i in range(3)]
 
             scores = asyncio.run(
@@ -460,6 +468,8 @@ class TestBatchEvaluation:
 
     def test_batch_evaluate_with_failures(self, quality_judge, sample_pattern):
         """Test batch evaluation handles individual failures gracefully."""
+        quality_judge._conductor_available = False
+        quality_judge._anthropic_client = MagicMock()
 
         def mock_create(*args, **kwargs):
             # Simulate intermittent failures
@@ -484,7 +494,9 @@ class TestBatchEvaluation:
             ]
             return mock_response
 
-        with patch.object(quality_judge.client.messages, "create", side_effect=mock_create):
+        with patch.object(
+            quality_judge._anthropic_client.messages, "create", side_effect=mock_create
+        ):
             patterns = [{**sample_pattern, "id": f"p{i}", "query": f"query {i}"} for i in range(10)]
 
             scores = asyncio.run(quality_judge.batch_evaluate(patterns, eval_type="pattern"))
@@ -501,6 +513,8 @@ class TestRateLimiting:
         """Test that rate limiting prevents excessive requests."""
         import time
 
+        quality_judge._conductor_available = False
+        quality_judge._anthropic_client = MagicMock()
         # Set very low limit for testing
         quality_judge.MAX_REQUESTS_PER_MINUTE = 3
 
@@ -514,7 +528,9 @@ class TestRateLimiting:
             return mock_response
 
         async def run_test():
-            with patch.object(quality_judge.client.messages, "create", side_effect=record_time):
+            with patch.object(
+                quality_judge._anthropic_client.messages, "create", side_effect=record_time
+            ):
                 # Make 5 requests (should trigger rate limiting)
                 tasks = [quality_judge._rate_limited_request("test") for _ in range(5)]
                 await asyncio.gather(*tasks)
