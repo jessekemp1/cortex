@@ -33,11 +33,31 @@ def _sample_briefing() -> BriefingData:
         patterns=["VortexV2 momentum: 30 commits this week"],
         waiting_on=[],
         project_snapshot=[
-            {"project": "VortexV2", "commits_7d": 30, "uncommitted": 2, "status": "active", "trend": "hot"},
-            {"project": "cortex", "commits_7d": 18, "uncommitted": 1, "status": "active", "trend": "active"},
-            {"project": "alpha_arena", "commits_7d": 7, "uncommitted": 0, "status": "active", "trend": "active"},
+            {
+                "project": "VortexV2",
+                "commits_7d": 30,
+                "uncommitted": 2,
+                "status": "active",
+                "trend": "hot",
+            },
+            {
+                "project": "cortex",
+                "commits_7d": 18,
+                "uncommitted": 1,
+                "status": "active",
+                "trend": "active",
+            },
+            {
+                "project": "alpha_arena",
+                "commits_7d": 7,
+                "uncommitted": 0,
+                "status": "active",
+                "trend": "active",
+            },
         ],
-        git_status={"summary": {"current_branch": "main", "uncommitted_changes": 3, "untracked_files": 1}},
+        git_status={
+            "summary": {"current_branch": "main", "uncommitted_changes": 3, "untracked_files": 1}
+        },
         work_progress={"items_24h": 4, "orphaned_24h": 1, "drifts_total": 2},
         batch_insights={"total_completed_24h": 6},
         temporal_context={"day_of_week": "Friday", "time_of_day": "Morning"},

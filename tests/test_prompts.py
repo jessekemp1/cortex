@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from cortex.prompts.ab_testing import ABTestManager, simple_ab_test
 from cortex.prompts.base import PromptTemplate
 from cortex.prompts.registry import PromptRegistry
@@ -239,24 +240,28 @@ variables:
         # Create v1
         v1_dir = tmp_path / "versions" / "v1"
         v1_dir.mkdir(parents=True)
-        (v1_dir / "test.yaml").write_text("""
+        (v1_dir / "test.yaml").write_text(
+            """
 name: test_prompt
 version: "1.0.0"
 template: "V1 {var}"
 variables:
   - var
-""")
+"""
+        )
 
         # Create v2
         v2_dir = tmp_path / "versions" / "v2"
         v2_dir.mkdir(parents=True)
-        (v2_dir / "test.yaml").write_text("""
+        (v2_dir / "test.yaml").write_text(
+            """
 name: test_prompt
 version: "2.0.0"
 template: "V2 {var}"
 variables:
   - var
-""")
+"""
+        )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
 
@@ -272,13 +277,15 @@ variables:
         for v in ["v1", "v2", "v3"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(f"""
+            (v_dir / "test.yaml").write_text(
+                f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "{v} {{var}}"
 variables:
   - var
-""")
+"""
+            )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         template = registry.get_prompt("test_prompt")  # No version specified
@@ -291,13 +298,15 @@ variables:
         v1_dir.mkdir(parents=True)
 
         for name in ["prompt1", "prompt2"]:
-            (v1_dir / f"{name}.yaml").write_text(f"""
+            (v1_dir / f"{name}.yaml").write_text(
+                f"""
 name: {name}
 version: "1.0.0"
 description: "Test {name}"
 template: "Test"
 variables: []
-""")
+"""
+            )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         prompts = registry.list_prompts()
@@ -313,23 +322,27 @@ variables: []
         v1_dir.mkdir(parents=True)
 
         # Create initial template
-        (v1_dir / "test.yaml").write_text("""
+        (v1_dir / "test.yaml").write_text(
+            """
 name: test_prompt
 version: "1.0.0"
 template: "Original"
 variables: []
-""")
+"""
+        )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         assert registry.get_prompt("test_prompt").template == "Original"
 
         # Modify template on disk
-        (v1_dir / "test.yaml").write_text("""
+        (v1_dir / "test.yaml").write_text(
+            """
 name: test_prompt
 version: "1.0.0"
 template: "Modified"
 variables: []
-""")
+"""
+        )
 
         registry.reload()
         assert registry.get_prompt("test_prompt").template == "Modified"
@@ -356,12 +369,14 @@ variables: []
         for v in ["v1", "v2", "v3"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(f"""
+            (v_dir / "test.yaml").write_text(
+                f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "Test"
 variables: []
-""")
+"""
+            )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         versions = registry.get_versions("test_prompt")
@@ -491,13 +506,15 @@ class TestEndToEndIntegration:
         for v in ["v1", "v2"]:
             v_dir = tmp_path / "versions" / v
             v_dir.mkdir(parents=True)
-            (v_dir / "test.yaml").write_text(f"""
+            (v_dir / "test.yaml").write_text(
+                f"""
 name: test_prompt
 version: "{v[1:]}.0.0"
 template: "{v} template {{var}}"
 variables:
   - var
-""")
+"""
+            )
 
         registry = PromptRegistry(prompts_dir=tmp_path)
         manager = ABTestManager()

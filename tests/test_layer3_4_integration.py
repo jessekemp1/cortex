@@ -8,11 +8,12 @@ to recommendations, ensuring all layers work together correctly.
 from datetime import datetime
 
 import pytest
-from cortex.tests.conftest import create_metric_series
 from intelligence.monitoring.alert_generator import AlertSeverity, AlertType
 from intelligence.monitoring.metric_tracker import MetricType
 from intelligence.recommendations.alert_adapter import AdaptedAlert, adapt_alerts
 from recommendation_engine import Goal, Task
+
+from cortex.tests.conftest import create_metric_series
 
 
 class TestLayer3Pipeline:

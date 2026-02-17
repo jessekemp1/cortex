@@ -51,7 +51,10 @@ class TestSessionHandoff:
 
     def test_session_handoff_to_dict(self):
         """Test serialization to dictionary."""
-        from intelligence.bandwidth.handoff_capture import SessionHandoff, WorkstreamType
+        from intelligence.bandwidth.handoff_capture import (
+            SessionHandoff,
+            WorkstreamType,
+        )
 
         handoff = SessionHandoff(
             timestamp=datetime.now(),
@@ -71,7 +74,10 @@ class TestSessionHandoff:
 
     def test_session_handoff_from_dict(self):
         """Test deserialization from dictionary."""
-        from intelligence.bandwidth.handoff_capture import SessionHandoff, WorkstreamType
+        from intelligence.bandwidth.handoff_capture import (
+            SessionHandoff,
+            WorkstreamType,
+        )
 
         data = {
             "timestamp": "2026-01-16T10:30:00",
@@ -359,13 +365,9 @@ class TestIntegration:
 
     def test_full_workflow(self):
         """Test complete workflow: capture -> measure -> predict -> outcome."""
-        from intelligence.bandwidth.handoff_capture import (
-            WorkstreamType,
-        )
+        from intelligence.bandwidth.handoff_capture import WorkstreamType
         from intelligence.bandwidth.meter import BandwidthMeter
-        from intelligence.bandwidth.predictions import (
-            PredictionTracker,
-        )
+        from intelligence.bandwidth.predictions import PredictionTracker
 
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_dir = Path(tmpdir)

@@ -230,10 +230,7 @@ class TestIntelligenceResult:
 
     def test_intelligence_result_creation(self):
         """IntelligenceResult should be creatable with required fields."""
-        from cortex.intelligence.models import (
-            IntelligenceQueryType,
-            IntelligenceResult,
-        )
+        from cortex.intelligence.models import IntelligenceQueryType, IntelligenceResult
 
         result = IntelligenceResult(
             query_timestamp="2025-01-27T10:00:00",
