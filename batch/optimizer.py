@@ -98,6 +98,13 @@ class DynamicWorkGenerator:
 
                 # Large refactor detection
                 if files_changed > 5 or (insertions + deletions) > 500:
+                    # Fetch actual diff content for substantive analysis
+                    diff_content = self._get_commit_diff(commit["hash"])
+
+                    # Dynamic token estimation based on actual diff size
+                    diff_tokens = len(diff_content) // 4 + 2000
+                    estimated_input = max(15_000, diff_tokens)
+
                     work_items.append(
                         BatchWorkItem(
                             id=f"commit-analysis-{commit['hash'][:8]}",
@@ -110,16 +117,20 @@ Subject: {commit['subject']}
 Author: {commit['author']}
 Files: {files_changed}, Lines: +{insertions}/-{deletions}
 
-Review for:
-1. Edge cases not covered by existing tests
+--- ACTUAL DIFF ---
+{diff_content}
+--- END DIFF ---
+
+Review the actual code changes above for:
+1. Edge cases not covered by existing tests — cite specific lines
 2. Performance implications (new loops, DB queries, API calls)
 3. Breaking changes to public APIs
 4. Security concerns (auth, validation, sanitization)
 5. Code quality issues (complexity, duplication)
 
-Provide actionable recommendations for follow-up work.""",
+Provide actionable recommendations with file paths and line references.""",
                             priority="high",
-                            estimated_input_tokens=15_000 + (files_changed * 500),
+                            estimated_input_tokens=estimated_input,
                             estimated_output_tokens=3_000,
                             source="commit",
                             deadline_hours=12,
@@ -145,6 +156,10 @@ Provide actionable recommendations for follow-up work.""",
                 ]
 
                 if security_files:
+                    # Fetch diff for security-sensitive files only
+                    sec_diff = self._get_commit_diff(commit["hash"], security_files)
+                    sec_tokens = len(sec_diff) // 4 + 2000
+
                     work_items.append(
                         BatchWorkItem(
                             id=f"security-commit-{commit['hash'][:8]}",
@@ -156,7 +171,11 @@ Commit: {commit['hash']}
 Subject: {commit['subject']}
 Security-sensitive files: {', '.join(security_files)}
 
-Analyze for:
+--- ACTUAL DIFF (security-sensitive files) ---
+{sec_diff}
+--- END DIFF ---
+
+Analyze the actual code changes above for:
 1. Authentication/authorization bypasses
 2. Input validation gaps
 3. SQL injection vectors
@@ -165,9 +184,9 @@ Analyze for:
 6. Insecure cryptographic practices
 7. API security issues
 
-Flag any high-risk changes and recommend mitigations.""",
+Flag any high-risk changes with specific line references and recommend mitigations.""",
                             priority="immediate",
-                            estimated_input_tokens=12_000,
+                            estimated_input_tokens=max(12_000, sec_tokens),
                             estimated_output_tokens=4_000,
                             source="security",
                             deadline_hours=8,
@@ -406,7 +425,7 @@ Prioritize by impact and provide actionable recommendations.""",
                         )
 
             # Also check for projects with pytest markers
-            for project_dir in ["Vortex/VortexV2", "alpha_arena", "cortex"]:
+            for project_dir in ["Vortex/backend", "alpha_arena", "cortex"]:
                 full_path = self.root_dir / project_dir
                 if not full_path.exists():
                     continue
