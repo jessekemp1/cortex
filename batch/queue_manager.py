@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class BatchQueueManager:
-    """Manages batch job queue with automatic submission"""
+    """Manages batch job queue with automatic submission and circuit breaker"""
 
     def __init__(
         self,
@@ -42,6 +42,12 @@ class BatchQueueManager:
         )
         self.max_concurrent = max_concurrent_batches
         self.check_interval = check_interval
+
+        # Circuit breaker state
+        self._consecutive_failures = 0
+        self._max_consecutive_failures = 3
+        self._circuit_open_until: Optional[datetime] = None
+        self._circuit_cooldown_minutes = 60
 
     def load_queue(self) -> Dict:
         """Load queue from JSON file with corruption recovery.
@@ -114,6 +120,62 @@ class BatchQueueManager:
             raise
         logger.debug(f"Queue saved to {self.queue_file}")
 
+    def _check_circuit_breaker(self) -> bool:
+        """Check if circuit breaker is open (blocking submissions).
+
+        Returns:
+            True if circuit is OPEN (submissions blocked), False if closed (OK to submit)
+        """
+        if self._circuit_open_until is None:
+            return False
+
+        if datetime.now() >= self._circuit_open_until:
+            # Cooldown expired, half-open the circuit
+            logger.info("Circuit breaker cooldown expired, attempting half-open")
+            self._circuit_open_until = None
+            self._consecutive_failures = 0
+            return False
+
+        remaining = (self._circuit_open_until - datetime.now()).total_seconds() / 60
+        logger.warning(
+            f"Circuit breaker OPEN — {remaining:.0f} min remaining. "
+            f"Skipping submissions after {self._max_consecutive_failures} consecutive failures."
+        )
+        return True
+
+    def _trip_circuit_breaker(self):
+        """Trip the circuit breaker after max consecutive failures."""
+        from datetime import timedelta
+
+        self._circuit_open_until = datetime.now() + timedelta(minutes=self._circuit_cooldown_minutes)
+        logger.error(
+            f"Circuit breaker TRIPPED after {self._consecutive_failures} consecutive failures. "
+            f"Pausing submissions for {self._circuit_cooldown_minutes} min until "
+            f"{self._circuit_open_until.strftime('%H:%M')}"
+        )
+
+    def _check_api_budget(self) -> bool:
+        """Check if API budget allows submissions.
+
+        Returns:
+            True if budget is exhausted (block submissions), False if OK
+        """
+        try:
+            from cortex.batch.budget_enforcer import BudgetEnforcer
+
+            enforcer = BudgetEnforcer()
+            status = enforcer.check_budget()
+            if status.over_budget:
+                logger.warning(
+                    f"API budget exhausted ({status.usage_pct:.0f}% used). "
+                    f"Blocking batch submissions."
+                )
+                return True
+            return False
+        except Exception as e:
+            logger.debug(f"Budget check skipped (not critical): {e}")
+            return False
+
     def get_active_batch_count(self) -> int:
         """Get count of currently in-progress batches"""
         batches = self.client.list_batches(limit=50)
@@ -170,7 +232,11 @@ Please provide a comprehensive implementation plan and any code changes needed."
 
     def submit_job(self, job: Dict) -> Optional[str]:
         """
-        Submit a job from the queue as a batch
+        Submit a job from the queue as a batch.
+
+        Tracks consecutive failures for circuit breaker logic.
+        On success, resets failure counter. On API budget/limit errors,
+        increments counter and trips breaker at threshold.
 
         Returns:
             batch_id if successful, None otherwise
@@ -187,15 +253,31 @@ Please provide a comprehensive implementation plan and any code changes needed."
             logger.info(
                 f"✅ Job {job['id']} submitted as batch {batch_id} ({len(requests)} requests)"
             )
+
+            # Success — reset circuit breaker counter
+            self._consecutive_failures = 0
             return batch_id
 
         except Exception as e:
+            error_str = str(e).lower()
             logger.error(f"❌ Failed to submit job {job['id']}: {e}")
+
+            # Check for budget/rate limit errors that indicate systemic issues
+            if any(kw in error_str for kw in ["usage limit", "rate limit", "budget", "429", "400"]):
+                self._consecutive_failures += 1
+                logger.warning(
+                    f"API limit error ({self._consecutive_failures}/{self._max_consecutive_failures})"
+                )
+                if self._consecutive_failures >= self._max_consecutive_failures:
+                    self._trip_circuit_breaker()
+
             return None
 
     def process_queue(self) -> Dict[str, any]:
         """
-        Process the queue: submit jobs when capacity is available
+        Process the queue: submit jobs when capacity is available.
+
+        Checks circuit breaker and budget before attempting submissions.
 
         Returns:
             dict with processing stats
@@ -205,7 +287,19 @@ Please provide a comprehensive implementation plan and any code changes needed."
             "jobs_submitted": 0,
             "jobs_pending": 0,
             "capacity_available": 0,
+            "circuit_breaker_open": False,
+            "budget_exhausted": False,
         }
+
+        # Circuit breaker check — blocks all submissions if tripped
+        if self._check_circuit_breaker():
+            stats["circuit_breaker_open"] = True
+            return stats
+
+        # Budget check — blocks submissions if API budget exhausted
+        if self._check_api_budget():
+            stats["budget_exhausted"] = True
+            return stats
 
         # Load current queue
         queue_data = self.load_queue()
@@ -274,8 +368,89 @@ Please provide a comprehensive implementation plan and any code changes needed."
 
         return stats
 
+    def cleanup_queue(self, max_age_days: int = 7, max_total_jobs: int = 200) -> Dict:
+        """
+        Remove stale jobs from the queue to prevent unbounded growth.
+
+        Removes completed/synced/expired/failed jobs older than max_age_days.
+        Hard caps total jobs at max_total_jobs, keeping active jobs and trimming
+        oldest inactive ones.
+
+        Args:
+            max_age_days: Remove inactive jobs older than this
+            max_total_jobs: Hard cap on total jobs in queue
+
+        Returns:
+            Dict with cleanup stats
+        """
+        queue_data = self.load_queue()
+        jobs = queue_data.get("priority_jobs", [])
+        original_count = len(jobs)
+
+        if original_count == 0:
+            return {"original": 0, "removed": 0, "remaining": 0}
+
+        cutoff = datetime.now() - __import__("datetime").timedelta(days=max_age_days)
+        cutoff_str = cutoff.isoformat()
+
+        # Terminal statuses that are safe to clean up
+        terminal_statuses = {"completed", "synced", "expired", "failed", "cancelled"}
+
+        # Phase 1: Remove old terminal jobs
+        kept_jobs = []
+        removed_age = 0
+        for job in jobs:
+            status = job.get("status", "unknown")
+            created = job.get("created_at", job.get("submitted_at", ""))
+
+            if status in terminal_statuses and created and created < cutoff_str:
+                removed_age += 1
+            else:
+                kept_jobs.append(job)
+
+        # Phase 2: Hard cap — if still over limit, remove oldest terminal jobs
+        removed_cap = 0
+        if len(kept_jobs) > max_total_jobs:
+            # Separate active from inactive
+            active = [j for j in kept_jobs if j.get("status") in ("queued", "submitted")]
+            inactive = [j for j in kept_jobs if j.get("status") not in ("queued", "submitted")]
+
+            # Sort inactive by age (oldest first) and trim
+            inactive.sort(key=lambda j: j.get("created_at", j.get("submitted_at", "")))
+            trim_count = len(kept_jobs) - max_total_jobs
+            if trim_count > 0 and len(inactive) >= trim_count:
+                inactive = inactive[trim_count:]
+                removed_cap = trim_count
+            elif trim_count > 0:
+                removed_cap = len(inactive)
+                inactive = []
+
+            kept_jobs = active + inactive
+
+        total_removed = removed_age + removed_cap
+        if total_removed > 0:
+            queue_data["priority_jobs"] = kept_jobs
+            self.save_queue(queue_data)
+            logger.info(
+                f"Queue cleanup: {original_count} → {len(kept_jobs)} jobs "
+                f"({removed_age} expired, {removed_cap} capped)"
+            )
+
+        return {
+            "original": original_count,
+            "removed": total_removed,
+            "removed_by_age": removed_age,
+            "removed_by_cap": removed_cap,
+            "remaining": len(kept_jobs),
+        }
+
     def monitor_and_update_status(self):
-        """Check status of submitted jobs and update queue, write results for morning processor"""
+        """Check status of submitted jobs, retrieve full results, and update queue.
+
+        When a batch completes, retrieves the actual Claude response text
+        (not just API metadata) and persists it to the results directory
+        for the morning processor.
+        """
         queue_data = self.load_queue()
         updated = False
 
@@ -298,7 +473,7 @@ Please provide a comprehensive implementation plan and any code changes needed."
                         updated = True
                         logger.info(f"✅ Job {job['id']} completed (batch {batch_id})")
 
-                        # Write result file for morning processor to find
+                        # Retrieve actual Claude response content
                         result_data = {
                             "job_id": job["id"],
                             "batch_id": batch_id,
@@ -307,12 +482,38 @@ Please provide a comprehensive implementation plan and any code changes needed."
                             "completed_at": job["completed_at"],
                             "source": job.get("source", "other"),
                             "type": job.get("source", "other"),
-                            "output": json.dumps(status),
                             "tokens_used": job.get("estimated_total_tokens", 0),
                             "request_counts": status.get("request_counts", {}),
                         }
+
+                        try:
+                            batch_results = self.client._retrieve_batch_results(batch_id)
+                            result_data["results"] = []
+                            for r in batch_results:
+                                entry = {
+                                    "custom_id": r.custom_id,
+                                    "status": r.status,
+                                }
+                                # Extract full response content
+                                if hasattr(r.result, "model_dump"):
+                                    entry["result"] = r.result.model_dump()
+                                elif isinstance(r.result, dict):
+                                    entry["result"] = r.result
+                                else:
+                                    entry["result"] = str(r.result)
+                                result_data["results"].append(entry)
+                            logger.info(
+                                f"   Retrieved {len(batch_results)} result(s) with full response text"
+                            )
+                        except Exception as retrieval_err:
+                            logger.warning(
+                                f"   Could not retrieve full results for {batch_id}: {retrieval_err}"
+                            )
+                            result_data["retrieval_error"] = str(retrieval_err)
+                            result_data["output"] = json.dumps(status)
+
                         result_file = results_dir / f"{job['id']}_{batch_id}.json"
-                        result_file.write_text(json.dumps(result_data, indent=2))
+                        result_file.write_text(json.dumps(result_data, indent=2, default=str))
                         logger.info(f"   Result written to: {result_file}")
 
                 except Exception as e:
@@ -323,7 +524,10 @@ Please provide a comprehensive implementation plan and any code changes needed."
 
     def run_continuous(self, duration_hours: Optional[float] = None):
         """
-        Run queue manager continuously
+        Run queue manager continuously with adaptive sleep.
+
+        Uses longer sleep interval (1 hour) when circuit breaker is open
+        to avoid pointless polling. Runs queue cleanup on startup.
 
         Args:
             duration_hours: How long to run (None = forever)
@@ -331,6 +535,11 @@ Please provide a comprehensive implementation plan and any code changes needed."
         logger.info(f"Starting batch queue manager (interval: {self.check_interval}s)")
         logger.info(f"Queue file: {self.queue_file}")
         logger.info(f"Max concurrent batches: {self.max_concurrent}")
+
+        # Run queue cleanup on startup
+        cleanup_stats = self.cleanup_queue()
+        if cleanup_stats["removed"] > 0:
+            logger.info(f"Startup cleanup: removed {cleanup_stats['removed']} stale jobs")
 
         start_time = time.time()
         iteration = 0
@@ -357,9 +566,15 @@ Please provide a comprehensive implementation plan and any code changes needed."
                         logger.info(f"Duration limit reached ({duration_hours}h), stopping")
                         break
 
-                # Sleep until next check
-                logger.info(f"Sleeping {self.check_interval}s until next check...")
-                time.sleep(self.check_interval)
+                # Adaptive sleep: longer when circuit breaker is open
+                if stats.get("circuit_breaker_open") or stats.get("budget_exhausted"):
+                    sleep_seconds = 3600  # 1 hour when blocked
+                    logger.info(f"Circuit/budget blocked — sleeping {sleep_seconds}s (1 hour)")
+                else:
+                    sleep_seconds = self.check_interval
+                    logger.info(f"Sleeping {sleep_seconds}s until next check...")
+
+                time.sleep(sleep_seconds)
 
         except KeyboardInterrupt:
             logger.info("\n⚠️  Queue manager stopped by user")

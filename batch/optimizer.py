@@ -198,6 +198,44 @@ Flag any high-risk changes with specific line references and recommend mitigatio
 
         return work_items
 
+    def _get_commit_diff(self, commit_hash: str, files: Optional[List[str]] = None, max_chars: int = 30_000) -> str:
+        """
+        Fetch actual git diff content for a commit.
+
+        Args:
+            commit_hash: Git commit hash
+            files: Optional list of specific files to diff (None = all)
+            max_chars: Maximum characters to include (truncates large diffs)
+
+        Returns:
+            Diff content string, truncated if necessary
+        """
+        try:
+            cmd = ["git", "diff", f"{commit_hash}^..{commit_hash}"]
+            if files:
+                cmd.append("--")
+                cmd.extend(files)
+
+            result = subprocess.run(
+                cmd,
+                cwd=self.root_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                return f"[diff unavailable: git returned {result.returncode}]"
+
+            diff = result.stdout
+            if len(diff) > max_chars:
+                diff = diff[:max_chars] + f"\n\n[... truncated at {max_chars:,} chars, full diff is {len(result.stdout):,} chars ...]"
+
+            return diff if diff.strip() else "[empty diff]"
+
+        except Exception as e:
+            return f"[diff unavailable: {e}]"
+
     def _parse_git_log(self, log_output: str) -> List[Dict[str, Any]]:
         """Parse git log output into structured commits"""
         commits = []
