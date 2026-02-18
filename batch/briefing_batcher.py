@@ -407,7 +407,7 @@ Provide learning insights, decision points, and confidence assessment for future
             request = BatchRequest(
                 custom_id=f"{context.context_id}_insights",
                 params={
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": "claude-sonnet-4-20250514",
                     "max_tokens": 1500,
                     "messages": [{"role": "user", "content": prompt}],
                     "system": self.system_prompt,

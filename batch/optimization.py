@@ -14,7 +14,7 @@ logger = structlog.get_logger()
 class TokenEstimator:
     """Estimates token counts for text strings."""
 
-    def __init__(self, model: str = "claude-3-5-sonnet-20241022"):
+    def __init__(self, model: str = "claude-sonnet-4-20250514"):
         self.model = model
         self._encoding = None
         self._setup_encoding()

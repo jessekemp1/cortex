@@ -70,7 +70,7 @@ class AnthropicBatchClient:
                     {
                         "custom_id": item["custom_id"],
                         "params": {
-                            "model": "claude-3-5-sonnet-20241022",
+                            "model": "claude-sonnet-4-20250514",
                             "max_tokens": 1024,
                             "messages": [{"role": "user", "content": item["prompt"]}],
                         },
