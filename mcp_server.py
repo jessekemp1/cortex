@@ -1,374 +1,217 @@
 #!/usr/bin/env python3
 """
-Cortex MCP Server
-Universal Model Context Protocol server for Cortex.
-Bridging Antigravity, Cursor, and Claude Code.
+Cortex MCP Server — Official MCP SDK over stdio.
 
-Protocol: JSON-RPC 2.0 over Stdio
-Capabilities:
-- Resources: cortex://context?query=...
-- Tools: inject_recommendation, trigger_action
+Exposes Cortex Bridge intelligence as MCP tools for Claude Code.
+Connects to bridge at :8765 via HTTP (no heavy imports).
+
+Tools:
+  - cortex_service_health: Ecosystem health (all services, tests, EMOS)
+  - cortex_intelligence: Natural language query → insights
+  - cortex_recommendations: Next actions and risk alerts
+  - cortex_anomalies: Detected anomalies across projects
+  - cortex_projects: Project status overview
+  - cortex_sessions: Active/recent Claude sessions
+  - cortex_taskboard: Task board items (list/create/update)
+  - cortex_emos_status: EMOS pair counts and readiness
+
+Resources:
+  - cortex://goals: Current GOALS.md content
+  - cortex://metrics/tests: Test results by project
+  - cortex://metrics/emos: EMOS pair counts
 """
 
 import json
-import logging
-import sys
-import traceback
+import urllib.request
+import urllib.error
 from pathlib import Path
-from typing import Any, Dict, Optional
 
-# Ensure we can import cortex modules
-ROOT_DIR = Path(__file__).parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+from mcp.server.fastmcp import FastMCP
 
-from cortex.bridge import CortexBridge
+BRIDGE_URL = "http://127.0.0.1:8765"
+METRICS_DIR = Path.home() / ".cortex" / "metrics"
+GOALS_FILE = Path.home() / "Dev" / "GOALS.md"
 
-# Configure logging to stderr (stdout is for Protocol)
-logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="[CortexMCP] %(message)s")
-logger = logging.getLogger("cortex-mcp")
+mcp = FastMCP("cortex")
 
 
-class MCPServer:
-    def __init__(self):
-        self.bridge = CortexBridge(ROOT_DIR)
-        self.tools = {
-            # V1 Tools
-            "inject_recommendation": self._tool_inject,
-            "trigger_action": self._tool_trigger,
-            # V2 Prime Tools
-            "v2_status": self._tool_v2_status,
-            "graph_query": self._tool_graph_query,
-            "graph_add_node": self._tool_graph_add_node,
-            "graph_related": self._tool_graph_related,
-            "interventions_list": self._tool_interventions_list,
-            "interventions_ack": self._tool_interventions_ack,
-            "iap_message": self._tool_iap_message,
-        }
-
-    def run(self):
-        """Main loop: Read line -> Process JSON-RPC -> Write line"""
-        logger.info("Starting Cortex MCP Server...")
-
-        while True:
-            try:
-                line = sys.stdin.readline()
-                if not line:
-                    break
-
-                request = json.loads(line)
-                response = self._handle_request(request)
-
-                if response:
-                    print(json.dumps(response), flush=True)
-
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON received")
-            except Exception as e:
-                logger.error(f"Server Error: {e}")
-                traceback.print_exc(file=sys.stderr)
-
-    def _handle_request(self, request: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Handle JSON-RPC request."""
-        req_id = request.get("id")
-        method = request.get("method")
-        params = request.get("params", {})
-
-        if not method:
-            return None
-
-        try:
-            result = None
-            if method == "initialize":
-                result = {
-                    "protocolVersion": "0.1.0",
-                    "serverInfo": {"name": "cortex-mcp", "version": "1.0.0"},
-                    "capabilities": {"resources": {}, "tools": {}},
-                }
-            elif method == "notifications/initialized":
-                # client acknowledging
-                return None
-            elif method == "resources/list":
-                result = {"resources": []}  # We use templates mostly, but could list recent?
-            elif method == "resources/templates/list":
-                result = {
-                    "resourceTemplates": [
-                        {
-                            "uriTemplate": "cortex://context/{query}",
-                            "name": "Cortex Context",
-                            "description": "Get context from Cortex Brain (Knowledge Base + Project History)",
-                            "mimeType": "application/json",
-                        }
-                    ]
-                }
-            elif method == "resources/read":
-                uri = params.get("uri", "")
-                result = self._handle_resource_read(uri)
-            elif method == "tools/list":
-                result = {
-                    "tools": [
-                        # V1 Tools
-                        {
-                            "name": "inject_recommendation",
-                            "description": "Inject a strategic recommendation into Cortex.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "title": {"type": "string"},
-                                    "rationale": {"type": "string"},
-                                    "priority": {
-                                        "type": "string",
-                                        "enum": ["high", "medium", "low"],
-                                    },
-                                    "related_project": {"type": "string"},
-                                },
-                                "required": ["title", "rationale"],
-                            },
-                        },
-                        {
-                            "name": "trigger_action",
-                            "description": "Trigger an automated agent.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "agent_id": {"type": "string"},
-                                    "payload": {"type": "object"},
-                                },
-                                "required": ["agent_id"],
-                            },
-                        },
-                        # V2 Prime Tools
-                        {
-                            "name": "v2_status",
-                            "description": "Get Cortex V2 Prime system status including engines, graph stats, and interventions.",
-                            "inputSchema": {"type": "object", "properties": {}},
-                        },
-                        {
-                            "name": "graph_query",
-                            "description": "Query the context graph by node type (project, pattern, lesson, goal, error).",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "node_type": {
-                                        "type": "string",
-                                        "description": "Type of nodes to query",
-                                        "enum": [
-                                            "project",
-                                            "pattern",
-                                            "lesson",
-                                            "goal",
-                                            "error",
-                                            "file",
-                                            "work_item",
-                                        ],
-                                    },
-                                },
-                            },
-                        },
-                        {
-                            "name": "graph_add_node",
-                            "description": "Add a node to the context graph.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "node_type": {
-                                        "type": "string",
-                                        "description": "Type of node",
-                                    },
-                                    "name": {
-                                        "type": "string",
-                                        "description": "Node name",
-                                    },
-                                    "data": {
-                                        "type": "object",
-                                        "description": "Node data",
-                                    },
-                                },
-                                "required": ["node_type", "name"],
-                            },
-                        },
-                        {
-                            "name": "graph_related",
-                            "description": "Get nodes related to a given node.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "node_id": {
-                                        "type": "string",
-                                        "description": "Node ID to find relations for",
-                                    },
-                                    "edge_type": {
-                                        "type": "string",
-                                        "description": "Optional edge type filter",
-                                        "enum": [
-                                            "relates_to",
-                                            "implements",
-                                            "blocks",
-                                            "causes",
-                                            "contains",
-                                            "used_in",
-                                        ],
-                                    },
-                                },
-                                "required": ["node_id"],
-                            },
-                        },
-                        {
-                            "name": "interventions_list",
-                            "description": "List pending interventions from the Action Broker.",
-                            "inputSchema": {"type": "object", "properties": {}},
-                        },
-                        {
-                            "name": "interventions_ack",
-                            "description": "Acknowledge an intervention.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "intervention_id": {
-                                        "type": "string",
-                                        "description": "ID of intervention to acknowledge",
-                                    },
-                                },
-                                "required": ["intervention_id"],
-                            },
-                        },
-                        {
-                            "name": "iap_message",
-                            "description": "Send an Inter-Agent Protocol message to Cortex.",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "message_type": {
-                                        "type": "string",
-                                        "enum": ["query", "handoff", "ack"],
-                                        "description": "Type of IAP message",
-                                    },
-                                    "payload": {
-                                        "type": "object",
-                                        "description": "Message payload",
-                                    },
-                                    "context": {
-                                        "type": "object",
-                                        "description": "Optional context snapshot",
-                                    },
-                                },
-                                "required": ["message_type", "payload"],
-                            },
-                        },
-                    ]
-                }
-            elif method == "tools/call":
-                name = params.get("name")
-                args = params.get("arguments", {})
-                if name in self.tools:
-                    tool_result = self.tools[name](args)
-                    result = {
-                        "content": [{"type": "text", "text": json.dumps(tool_result, indent=2)}]
-                    }
-                else:
-                    raise ValueError(f"Unknown tool: {name}")
-            else:
-                # Ignore unknown methods or ping
-                return None
-
-            return {"jsonrpc": "2.0", "id": req_id, "result": result}
-
-        except Exception as e:
-            logger.error(f"Request failed: {e}")
-            return {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "error": {"code": -32000, "message": str(e)},
-            }
-
-    def _handle_resource_read(self, uri: str) -> Dict[str, Any]:
-        """Handle cortex://context/{query}"""
-        if not uri.startswith("cortex://context/"):
-            raise ValueError("Unsupported URI scheme")
-
-        query = uri.replace("cortex://context/", "")
-        query = query.replace("%20", " ")  # Basic decoding
-
-        items = self.bridge.get_context(query)
-
-        return {
-            "contents": [
-                {
-                    "uri": uri,
-                    "mimeType": "application/json",
-                    "text": json.dumps(items, indent=2),
-                }
-            ]
-        }
-
-    def _tool_inject(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        success = self.bridge.inject_recommendation(
-            title=args["title"],
-            rationale=args["rationale"],
-            priority=args.get("priority", "medium"),
-            related_project=args.get("related_project", ""),
+def _bridge_get(path: str, timeout: float = 3.0) -> dict:
+    """GET from bridge API. Returns parsed JSON or error dict."""
+    try:
+        req = urllib.request.Request(
+            f"{BRIDGE_URL}{path}",
+            headers={"Accept": "application/json"},
         )
-        return {"success": success}
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.URLError as e:
+        return {"error": f"Bridge unavailable: {e.reason}"}
+    except Exception as e:
+        return {"error": str(e)}
 
-    def _tool_trigger(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        return self.bridge.trigger_action(
-            agent_id=args["agent_id"], payload=args.get("payload", {})
+
+def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
+    """POST to bridge API. Returns parsed JSON or error dict."""
+    try:
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            f"{BRIDGE_URL}{path}",
+            data=data,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method="POST",
         )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+    except urllib.error.URLError as e:
+        return {"error": f"Bridge unavailable: {e.reason}"}
+    except Exception as e:
+        return {"error": str(e)}
 
-    # V2 Prime Tool Implementations
 
-    def _tool_v2_status(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Get V2 Prime system status."""
-        return self.bridge.get_v2_status()
+# ── Tools ──
 
-    def _tool_graph_query(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Query context graph by node type."""
-        node_type = args.get("node_type")
-        if node_type:
-            return {"nodes": self.bridge.query_graph(node_type)}
-        else:
-            return {"stats": self.bridge.get_graph_stats()}
 
-    def _tool_graph_add_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Add a node to the context graph."""
-        return self.bridge.add_graph_node(
-            node_type=args["node_type"],
-            name=args["name"],
-            data=args.get("data", {}),
+@mcp.tool()
+def cortex_service_health() -> str:
+    """Get ecosystem health: bridge, Vortex, Winfield, Mission Control, test results, and EMOS pair counts."""
+    result = _bridge_get("/service-health")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_intelligence(query: str, query_type: str = "research") -> str:
+    """Query Cortex intelligence engine with natural language.
+
+    Args:
+        query: Natural language question about the codebase or projects.
+        query_type: One of 'spec', 'architecture', 'implementation', 'research'.
+    """
+    valid_types = {"spec", "architecture", "implementation", "research"}
+    if query_type not in valid_types:
+        query_type = "research"
+    result = _bridge_post(
+        "/intelligence/query",
+        {"request": query, "project": "cortex", "query_type": query_type},
+    )
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_recommendations() -> str:
+    """Get strategic recommendations: next action, risk alerts, and priority projects."""
+    result = _bridge_get("/intelligence/recommendations")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_anomalies() -> str:
+    """Get detected anomalies across all projects with severity and recommendations."""
+    result = _bridge_get("/anomalies")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_projects() -> str:
+    """Get status overview of all active projects (health, test counts, recent activity)."""
+    result = _bridge_get("/projects")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_sessions(active_only: bool = False) -> str:
+    """Get Claude Code sessions (active or recent). Shows session IDs, duration, and projects touched."""
+    param = "?active_only=true" if active_only else ""
+    result = _bridge_get(f"/sessions{param}")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_taskboard(status: str = "", project: str = "") -> str:
+    """Get task board items, optionally filtered by status (pending/in_progress/done) or project name."""
+    params = []
+    if status:
+        params.append(f"status={status}")
+    if project:
+        params.append(f"project={project}")
+    qs = "?" + "&".join(params) if params else ""
+    result = _bridge_get(f"/taskboard{qs}")
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_create_task(
+    title: str, description: str = "", priority: str = "medium", project: str = ""
+) -> str:
+    """Create a new task on the Cortex task board."""
+    payload = {"title": title}
+    if description:
+        payload["description"] = description
+    if priority:
+        payload["priority"] = priority
+    if project:
+        payload["project"] = project
+    result = _bridge_post("/taskboard", payload)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_emos_status() -> str:
+    """Get EMOS calibration pair counts per model and readiness status (threshold: 2000 pairs)."""
+    try:
+        emos_file = METRICS_DIR / "emos.json"
+        if not emos_file.exists():
+            return json.dumps({"error": "No EMOS metrics file found"})
+
+        data = json.loads(emos_file.read_text())
+        pairs = data.get("pairs", {})
+        threshold = 2000
+        ready = {k: v for k, v in pairs.items() if v >= threshold}
+        not_ready = {k: v for k, v in pairs.items() if v < threshold}
+
+        return json.dumps(
+            {
+                "pairs": pairs,
+                "threshold": threshold,
+                "ready_models": list(ready.keys()),
+                "not_ready": {
+                    k: f"{v}/{threshold} ({v / threshold * 100:.0f}%)" for k, v in not_ready.items()
+                },
+                "timestamp": data.get("timestamp", "unknown"),
+            },
+            indent=2,
         )
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
-    def _tool_graph_related(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Get nodes related to a given node."""
-        return {
-            "related": self.bridge.get_related_nodes(
-                node_id=args["node_id"],
-                edge_type=args.get("edge_type"),
-            )
-        }
 
-    def _tool_interventions_list(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """List pending interventions."""
-        return {"interventions": self.bridge.get_pending_interventions()}
+# ── Resources ──
 
-    def _tool_interventions_ack(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Acknowledge an intervention."""
-        return self.bridge.acknowledge_intervention(args["intervention_id"])
 
-    def _tool_iap_message(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle Inter-Agent Protocol message."""
-        message = {
-            "message_type": args["message_type"],
-            "payload": args["payload"],
-        }
-        if args.get("context"):
-            message["context_snapshot"] = args["context"]
-        return self.bridge.handle_iap_message(message)
+@mcp.resource("cortex://goals")
+def goals_resource() -> str:
+    """Current strategic goals from GOALS.md."""
+    if GOALS_FILE.exists():
+        return GOALS_FILE.read_text()
+    return "GOALS.md not found"
+
+
+@mcp.resource("cortex://metrics/tests")
+def test_metrics_resource() -> str:
+    """Test results by project (passed/failed counts)."""
+    tests_file = METRICS_DIR / "tests.json"
+    if tests_file.exists():
+        return tests_file.read_text()
+    return json.dumps({"error": "No test metrics found"})
+
+
+@mcp.resource("cortex://metrics/emos")
+def emos_metrics_resource() -> str:
+    """EMOS calibration pair counts per model."""
+    emos_file = METRICS_DIR / "emos.json"
+    if emos_file.exists():
+        return emos_file.read_text()
+    return json.dumps({"error": "No EMOS metrics found"})
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "inspector":
-        print("MCP Inspector mode not implemented yet.")
-        sys.exit(0)
-
-    server = MCPServer()
-    server.run()
+    mcp.run()
