@@ -143,7 +143,7 @@ class IntelligentBatchOrchestrator:
         state = self.analyze_cortex_state()
 
         # 1. Security & Vulnerability Scans (Critical)
-        active_projects = state.get("active_projects", 0)
+        active_projects = state.get("active_projects", 0) or 4
         if active_projects > 0:
             work_items.append(
                 BatchWorkItem(

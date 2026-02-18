@@ -106,8 +106,8 @@ class BatchAPIClient:
                 batch_request = {
                     "custom_id": req.custom_id,
                     "params": {
-                        "model": "claude-opus-4-5-20251101",
-                        "max_tokens": 2048,
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 8192,
                         **req.params,  # Merge user params (messages, system, etc.)
                     },
                 }

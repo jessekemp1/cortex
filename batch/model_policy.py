@@ -19,7 +19,7 @@ class AnthropicBatchModels:
     fast: str = "claude-haiku-3-20240307"
 
     # High-quality model for complex analysis
-    premium: str = "claude-opus-4-5-20251101"
+    premium: str = "claude-opus-4-6"
 
     def get_model(self, task_type: str = "default") -> str:
         """Get appropriate model for task type."""
