@@ -94,8 +94,9 @@ def sync_json_to_sqlite(queue_path: Path = JSON_QUEUE) -> int:
         source = job.get("source", "general")
         task_type = SOURCE_TO_TASK_TYPE.get(source, "ai_inference")
 
-        # Normalize priority: JSON uses uppercase, SQLite uses lowercase
-        priority = job.get("priority", "NORMAL").lower()
+        # Normalize priority: JSON uses uppercase, SQLite uses lowercase.
+        # Guard against non-string values (e.g. emos_accel jobs use int priority).
+        priority = str(job.get("priority", "NORMAL")).lower()
 
         # Build the command from the job's tasks (prompts) or fall back to description.
         tasks = job.get("tasks", [])
