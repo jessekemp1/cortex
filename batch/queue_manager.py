@@ -177,8 +177,12 @@ class BatchQueueManager:
             return False
 
     def get_active_batch_count(self) -> int:
-        """Get count of currently in-progress batches"""
-        batches = self.client.list_batches(limit=50)
+        """Get count of currently in-progress batches.
+
+        Only checks the 20 most recent batches — active ones are always recent.
+        This avoids paginating through 1,700+ historical batches.
+        """
+        batches = self.client.list_batches(limit=20)
         active_count = sum(1 for b in batches if b["status"] in ["in_progress", "validating"])
         return active_count
 
@@ -494,13 +498,25 @@ Please provide a comprehensive implementation plan and any code changes needed."
                                     "custom_id": r.custom_id,
                                     "status": r.status,
                                 }
-                                # Extract full response content
-                                if hasattr(r.result, "model_dump"):
-                                    entry["result"] = r.result.model_dump()
-                                elif isinstance(r.result, dict):
-                                    entry["result"] = r.result
+                                # Extract full response text from result dict
+                                # (results are now dicts from direct HTTP fetch)
+                                result_obj = r.result
+                                if isinstance(result_obj, dict):
+                                    entry["result"] = result_obj
+                                    # Also extract text for easy access
+                                    if result_obj.get("type") == "succeeded":
+                                        msg = result_obj.get("message", {})
+                                        content = msg.get("content", [])
+                                        text = "".join(
+                                            b.get("text", "")
+                                            for b in content
+                                            if b.get("type") == "text"
+                                        )
+                                        entry["response_text"] = text
+                                elif hasattr(result_obj, "model_dump"):
+                                    entry["result"] = result_obj.model_dump()
                                 else:
-                                    entry["result"] = str(r.result)
+                                    entry["result"] = str(result_obj)
                                 result_data["results"].append(entry)
                             logger.info(
                                 f"   Retrieved {len(batch_results)} result(s) with full response text"

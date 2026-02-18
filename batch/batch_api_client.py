@@ -290,20 +290,51 @@ class BatchAPIClient:
         """
         Retrieve completed batch results from API.
 
+        Uses direct HTTP GET to the results_url (JSONL endpoint) instead of
+        the SDK iterator, which hangs in anthropic SDK v0.75.0.
+
         Returns:
             List of BatchResult objects
         """
         results = []
 
         try:
-            for result in self.client.beta.messages.batches.results(batch_id):
-                # Get status from result.result.type
-                status = result.result.type if hasattr(result.result, "type") else "unknown"
+            # Get the results URL from the batch object
+            batch = self.client.beta.messages.batches.retrieve(batch_id)
+            results_url = getattr(batch, "results_url", None)
+
+            if not results_url:
+                raise BatchResultError(f"No results_url for batch {batch_id}")
+
+            # Direct HTTP fetch (SDK iterator hangs in v0.75.0)
+            import httpx
+            import os
+
+            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            resp = httpx.get(
+                results_url,
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-beta": "message-batches-2024-09-24",
+                },
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+
+            # Parse JSONL response (one JSON object per line)
+            for line in resp.text.strip().split("\n"):
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                custom_id = data.get("custom_id", "unknown")
+                result_data = data.get("result", {})
+                status = result_data.get("type", "unknown")
 
                 batch_result = BatchResult(
-                    custom_id=result.custom_id,
-                    result=result.result,
-                    status=status,  # "succeeded", "errored", etc.
+                    custom_id=custom_id,
+                    result=result_data,
+                    status=status,
                 )
                 results.append(batch_result)
 
@@ -313,10 +344,17 @@ class BatchAPIClient:
         except anthropic.APIError as e:
             logger.error(f"Error retrieving batch results: {e}")
             raise BatchResultError(f"Failed to retrieve batch results: {e}") from e
+        except Exception as e:
+            logger.error(f"Error retrieving batch results via HTTP: {e}")
+            raise BatchResultError(f"Failed to retrieve batch results: {e}") from e
 
     def list_batches(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
         List recent batch jobs from the API.
+
+        Note: The SDK paginator fetches ALL pages if unchecked.
+        We break after collecting `limit` items to avoid paginating
+        through thousands of historical batches.
 
         Args:
             limit: Maximum number of batches to retrieve
@@ -340,6 +378,8 @@ class BatchAPIClient:
                         },
                     }
                 )
+                if len(batches) >= limit:
+                    break
             return batches
         except anthropic.APIError as e:
             logger.error(f"Error listing batches: {e}")

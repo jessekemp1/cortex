@@ -184,8 +184,14 @@ def extract_key_findings(results: List[Dict]) -> List[Dict]:
     findings = []
 
     for result in results:
-        # Check for security issues
+        # Extract text from either legacy 'output' or new 'results[].response_text'
         output = result.get("output", "")
+        if not output and "results" in result:
+            # New format: extract response_text from results array
+            for r in result.get("results", []):
+                if r.get("response_text"):
+                    output = r["response_text"]
+                    break
         if isinstance(output, str):
             # Look for severity indicators
             if any(
@@ -429,9 +435,37 @@ def run_pending_watches() -> List[Dict[str, Any]]:
     return results
 
 
+def retrieve_completed_batches():
+    """
+    Retrieve actual LLM responses for any submitted-but-not-retrieved batches.
+
+    Runs before get_overnight_results() so that fresh content is available
+    for the morning briefing. Uses BatchQueueManager.monitor_and_update_status().
+    """
+    try:
+        from cortex.batch.queue_manager import BatchQueueManager
+    except ImportError:
+        try:
+            from batch.queue_manager import BatchQueueManager
+        except ImportError:
+            print("  (queue_manager not available, skipping retrieval)")
+            return
+
+    try:
+        manager = BatchQueueManager()
+        manager.monitor_and_update_status()
+        print("  Checked submitted batches for completed results")
+    except Exception as e:
+        print(f"  Error retrieving batch results: {e}")
+
+
 def main():
     """Main entry point for morning processor"""
     print(f"Morning processor starting at {datetime.now().isoformat()}")
+
+    # Phase 0: Retrieve LLM responses for completed API batches
+    print("\n--- Batch Retrieval ---")
+    retrieve_completed_batches()
 
     # Phase 1: Run pending watch tasks (scheduled verifications)
     print("\n--- Watch Tasks ---")
