@@ -330,9 +330,11 @@ class BatchOrchestrator:
         """
         Submit job to API batch queue (remediation_queue.json).
 
-        Deduplicates by job ID: if a job with the same ID already exists
-        in 'queued' status, it is replaced rather than appended.
-        Completed/submitted jobs are preserved.
+        Deduplicates by job ID across ALL statuses:
+        - queued: replaced with new definition (updated prompt/priority)
+        - submitted: skipped (already in-flight)
+        - completed/synced within 7 days: skipped (already done recently)
+        - completed/synced older than 7 days: allowed (re-run stale analysis)
 
         Args:
             job_data: Job definition
@@ -374,17 +376,46 @@ class BatchOrchestrator:
         if "project" in job_data:
             job_definition["project"] = job_data["project"]
 
-        # Deduplicate: replace existing queued job with same ID, preserve completed/submitted
-        {(i, job["id"], job.get("status")) for i, job in enumerate(queue_data["priority_jobs"])}
+        # Deduplicate: skip if same job ID exists in ANY active state,
+        # or was completed within the last 7 days.
+        from datetime import timedelta
+
+        cutoff = (datetime.now() - timedelta(days=7)).isoformat()
+        duplicate_found = False
         replaced = False
+
         for idx, existing_job in enumerate(queue_data["priority_jobs"]):
-            if existing_job["id"] == job_id and existing_job.get("status") == "queued":
+            if existing_job["id"] != job_id:
+                continue
+
+            existing_status = existing_job.get("status", "unknown")
+
+            # Replace if still queued (update prompt/priority)
+            if existing_status == "queued":
                 queue_data["priority_jobs"][idx] = job_definition
                 replaced = True
                 logger.debug(f"Replaced existing queued job: {job_id}")
                 break
 
-        if not replaced:
+            # Skip if currently submitted (in-flight)
+            if existing_status == "submitted":
+                logger.debug(f"Skipping {job_id}: already submitted (in-flight)")
+                duplicate_found = True
+                break
+
+            # Skip if completed recently (within 7 days)
+            if existing_status in ("completed", "synced"):
+                completed_at = existing_job.get(
+                    "completed_at", existing_job.get("queued_at", "")
+                )
+                if completed_at and completed_at > cutoff:
+                    logger.debug(
+                        f"Skipping {job_id}: completed recently ({completed_at[:10]})"
+                    )
+                    duplicate_found = True
+                    break
+
+        if not replaced and not duplicate_found:
             queue_data["priority_jobs"].append(job_definition)
 
         # Update metadata
