@@ -8,12 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import psutil
 
-from .models import (
-    ProcessCategory,
-    ProcessSnapshot,
-    ProcessStatus,
-    ResourceMetric,
-)
+from .models import ProcessCategory, ProcessSnapshot, ProcessStatus, ResourceMetric
 
 
 class ProcessCollector:

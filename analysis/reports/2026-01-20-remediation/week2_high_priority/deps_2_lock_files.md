@@ -35,7 +35,7 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 # Detect Python command
 detect_python() {
     local py_cmd=""
-    
+
     # Try specific version first
     if command -v "python${PYTHON_VERSION}" &> /dev/null; then
         py_cmd="python${PYTHON_VERSION}"
@@ -47,7 +47,7 @@ detect_python() {
         log_error "Python not found"
         exit 1
     fi
-    
+
     echo "$py_cmd"
 }
 
@@ -60,28 +60,28 @@ generate_lock_file() {
     local lock_file="${full_path}/requirements-lock.txt"
     local venv_dir=$(mktemp -d)
     local python_cmd=$(detect_python)
-    
+
     log_info "Processing project: ${project_name}"
-    
+
     # Check if requirements.txt exists
     if [[ ! -f "$requirements_file" ]]; then
         log_warn "No requirements.txt found in ${project_path}, skipping..."
         return 0
     fi
-    
+
     log_info "Creating virtual environment in ${venv_dir}"
-    
+
     # Create clean virtual environment
     "$python_cmd" -m venv "${venv_dir}"
-    
+
     # Activate venv
     source "${venv_dir}/bin/activate"
-    
+
     # Upgrade pip
     pip install --upgrade pip wheel setuptools > /dev/null 2>&1
-    
+
     log_info "Installing dependencies from ${requirements_file}"
-    
+
     # Install requirements
     if ! pip install -r "$requirements_file" 2>&1 | tee /tmp/pip_install_${project_name}.log; then
         log_error "Failed to install requirements for ${project_name}"
@@ -90,10 +90,10 @@ generate_lock_file() {
         rm -rf "$venv_dir"
         return 1
     fi
-    
+
     # Generate lock file with header
     log_info "Generating lock file: ${lock_file}"
-    
+
     {
         echo "# =============================================="
         echo "# Requirements Lock File - DO NOT EDIT MANUALLY"
@@ -115,11 +115,11 @@ generate_lock_file() {
         echo ""
         pip freeze
     } > "$lock_file"
-    
+
     # Deactivate and cleanup
     deactivate
     rm -rf "$venv_dir"
-    
+
     log_info "Lock file generated successfully: ${lock_file}"
     return 0
 }
@@ -130,18 +130,18 @@ verify_lock_file() {
     local lock_file="${ROOT_DIR}/${project_path}/requirements-lock.txt"
     local venv_dir=$(mktemp -d)
     local python_cmd=$(detect_python)
-    
+
     if [[ ! -f "$lock_file" ]]; then
         log_error "Lock file not found: ${lock_file}"
         return 1
     fi
-    
+
     log_info "Verifying lock file: ${lock_file}"
-    
+
     "$python_cmd" -m venv "${venv_dir}"
     source "${venv_dir}/bin/activate"
     pip install --upgrade pip > /dev/null 2>&1
-    
+
     if pip install -r "$lock_file" > /dev/null 2>&1; then
         log_info "Lock file verified successfully"
         deactivate
@@ -189,7 +189,7 @@ main() {
     local dry_run=false
     local process_all=false
     local projects_to_process=()
-    
+
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -224,26 +224,26 @@ main() {
                 ;;
         esac
     done
-    
+
     # Determine which projects to process
     if [[ "$process_all" == true ]]; then
         projects_to_process=("${PROJECTS[@]}")
     fi
-    
+
     if [[ ${#projects_to_process[@]} -eq 0 ]]; then
         log_error "No projects specified. Use --all or specify project paths."
         show_help
         exit 1
     fi
-    
+
     log_info "Using Python version: ${PYTHON_VERSION}"
     log_info "Projects to process: ${projects_to_process[*]}"
-    
+
     if [[ "$dry_run" == true ]]; then
         log_info "Dry run mode - no changes will be made"
         exit 0
     fi
-    
+
     # Process each project
     local failed=0
     for project in "${projects_to_process[@]}"; do
@@ -254,7 +254,7 @@ main() {
             generate_lock_file "$project" || ((failed++))
         fi
     done
-    
+
     echo ""
     if [[ $failed -gt 0 ]]; then
         log_error "${failed} project(s) failed"

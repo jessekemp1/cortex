@@ -172,7 +172,8 @@ def demo_briefing_integration():
     print("=" * 60)
 
     print("\nIntegration code example:")
-    print("""
+    print(
+        """
     # In briefing.py, before generating prompt:
 
     from cortex.intelligence.context_optimizer import optimize_prompt_context
@@ -217,7 +218,8 @@ def demo_briefing_integration():
     # Use optimized context in prompt
     prompt = f"{optimized_context}\\n\\nGenerate the daily briefing."
     response = llm.generate(prompt)
-    """)
+    """
+    )
 
     print("✓ High-value context at START and END")
     print("✓ Automatic token management")
@@ -231,7 +233,8 @@ def demo_bridge_integration():
     print("=" * 60)
 
     print("\nIntegration code example:")
-    print("""
+    print(
+        """
     # In bridge.py get_context() method:
 
     from cortex.intelligence.context_optimizer import (
@@ -279,7 +282,8 @@ def demo_bridge_integration():
             }
             for item in optimized[:limit]
         ]
-    """)
+    """
+    )
 
     print("✓ Highest confidence patterns at START")
     print("✓ Query context preserved")

@@ -140,7 +140,7 @@ A strategy never used has confidence: 0.5 (unknown)
 | AI Gateway | Mosaic AI Gateway logs | Agent responses, user feedback |
 | Manual SDK | `cortex.log_outcome()` | Explicit user reports |
 
-**Processing Model**: 
+**Processing Model**:
 - Batch: Databricks Job runs every 15 minutes, scans new events
 - Stream: Optional DLT pipeline for sub-minute latency
 

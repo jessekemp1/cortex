@@ -81,10 +81,10 @@ from datetime import datetime
 def daily_report():
     bridge = CortexBridge()
     tracker = MetricsTracker()
-    
+
     # Get metrics
     dashboard = tracker.get_dashboard(days=1)
-    
+
     # Generate report
     report = f"""
 Daily Metrics Report
@@ -102,9 +102,9 @@ ROI:
   Ratio: {dashboard.get('roi', {}).get('ratio', 0):.2f}x
   Net Benefit: {dashboard.get('roi', {}).get('net_minutes', 0):.0f} minutes
 """
-    
+
     print(report)
-    
+
     # Optionally email or save to file
     # with open('daily_report.txt', 'w') as f:
     #     f.write(report)
@@ -287,4 +287,3 @@ def safe_get_stats():
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

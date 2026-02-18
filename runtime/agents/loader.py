@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import structlog
+
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.config import get_config
 from cortex.runtime.models import AgentResult

@@ -139,7 +139,7 @@ sequenceDiagram
     participant SpecKB
     participant Portfolio
     participant Session
-    
+
     User->>Bridge: query_intelligence()
     Bridge->>Unified: query()
     Unified->>SpecKB: find_similar()
@@ -179,4 +179,3 @@ See [Extension Points Guide](extension_points.md) for details.
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

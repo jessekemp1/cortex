@@ -198,10 +198,10 @@ from cortex.portfolio_memory import PortfolioMemory
 def get_portfolio_stats(include_health: bool = True) -> Dict[str, Any]:
     """
     Get portfolio statistics.
-    
+
     Args:
         include_health: Include health summary (default: True)
-    
+
     Returns:
         Dict with stats about projects, patterns, lessons, and health
     """
@@ -322,4 +322,3 @@ breakpoint()
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

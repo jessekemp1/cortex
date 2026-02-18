@@ -81,7 +81,8 @@ class PluginCLI:
 
     def _show_help(self) -> None:
         """Show help message."""
-        print("""Plugin Management CLI
+        print(
+            """Plugin Management CLI
 
 Usage:
   /plugin list [--all]              List all plugins
@@ -97,7 +98,8 @@ Examples:
   /plugin info status               # Show status plugin details
   /plugin disable briefing          # Disable briefing plugin
   /plugin enable briefing           # Re-enable briefing plugin
-""")
+"""
+        )
 
     def _list_plugins(self, args: list[str]) -> int:
         """

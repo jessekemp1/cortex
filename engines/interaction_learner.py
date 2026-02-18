@@ -27,7 +27,10 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 try:
-    from intelligence.bandwidth.contracts import ContractMetricsStore, ContractSessionMetrics
+    from intelligence.bandwidth.contracts import (
+        ContractMetricsStore,
+        ContractSessionMetrics,
+    )
 except Exception:
     ContractMetricsStore = None
     ContractSessionMetrics = None
@@ -226,7 +229,9 @@ class InteractionLearner:
             if any(k in str(p.get("prompt", "")).lower() for k in brainstorm_keywords)
         )
         novelty_signal_count = sum(
-            1 for p in prompts if any(k in str(p.get("prompt", "")).lower() for k in novelty_keywords)
+            1
+            for p in prompts
+            if any(k in str(p.get("prompt", "")).lower() for k in novelty_keywords)
         )
 
         prompt_count = len(prompts)

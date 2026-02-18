@@ -405,9 +405,7 @@ if __name__ == "__main__":
                 icon = (
                     "🔴"
                     if alert["severity"] == "HIGH"
-                    else "🟡"
-                    if alert["severity"] == "MEDIUM"
-                    else "🟢"
+                    else "🟡" if alert["severity"] == "MEDIUM" else "🟢"
                 )
                 print(f"   {icon} [{alert['severity']}] {alert['message']}")
                 print(f"      → {alert['recommendation']}")

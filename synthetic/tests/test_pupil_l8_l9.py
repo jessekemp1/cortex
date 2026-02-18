@@ -12,13 +12,8 @@ from synthetic.pupil.behavioral_fidelity import (
     BehavioralFidelityValidator,
     FidelityReport,
 )
-from synthetic.pupil.market_env import (
-    build_timeline,
-)
-from synthetic.pupil.simulation import (
-    SimulationEngine,
-    SimulationResult,
-)
+from synthetic.pupil.market_env import build_timeline
+from synthetic.pupil.simulation import SimulationEngine, SimulationResult
 from synthetic.pupil.temporal_coherence import (
     CoherenceReport,
     TemporalCoherenceValidator,

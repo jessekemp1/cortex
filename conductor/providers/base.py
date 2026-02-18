@@ -31,10 +31,17 @@ class CompletionResponse:
 class ProviderError(Exception):
     """Raised when a provider API call fails."""
 
-    def __init__(self, provider: str, status_code: int, message: str):
+    def __init__(
+        self,
+        provider: str,
+        status_code: int,
+        message: str,
+        retry_after: Optional[float] = None,
+    ):
         self.provider = provider
         self.status_code = status_code
         self.message = message
+        self.retry_after = retry_after  # seconds, from Retry-After header
         super().__init__(f"[{provider}] HTTP {status_code}: {message}")
 
 

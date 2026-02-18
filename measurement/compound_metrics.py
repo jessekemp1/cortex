@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 CLAUDE_V2_DIR = Path.home() / ".claude" / "v2"
 CORTEX_DIR = Path.home() / ".cortex"
 

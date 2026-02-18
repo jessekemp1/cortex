@@ -83,7 +83,8 @@ class BudgetEnforcer:
     def _init_database(self):
         """Initialize SQLite database for usage tracking"""
         with sqlite3.connect(self.config.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS daily_usage (
                     date TEXT PRIMARY KEY,
                     tokens_used INTEGER DEFAULT 0,
@@ -92,9 +93,11 @@ class BudgetEnforcer:
                     created_at TEXT,
                     updated_at TEXT
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS session_usage (
                     session_id TEXT PRIMARY KEY,
                     date TEXT,
@@ -105,12 +108,15 @@ class BudgetEnforcer:
 
                     FOREIGN KEY (date) REFERENCES daily_usage(date)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_session_date
                 ON session_usage(date)
-            """)
+            """
+            )
 
             conn.commit()
 

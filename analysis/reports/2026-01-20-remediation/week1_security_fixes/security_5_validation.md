@@ -60,7 +60,7 @@ class SecurityFinding:
     code_snippet: Optional[str] = None
     recommendation: Optional[str] = None
     cwe_id: Optional[str] = None
-    
+
     def to_dict(self) -> dict:
         return {
             "tool": self.tool,
@@ -82,10 +82,10 @@ class SecurityReport:
     project_path: str = ""
     findings: list[SecurityFinding] = field(default_factory=list)
     summary: dict = field(default_factory=dict)
-    
+
     def add_finding(self, finding: SecurityFinding):
         self.findings.append(finding)
-    
+
     def generate_summary(self):
         self.summary = {
             "total_findings": len(self.findings),
@@ -103,7 +103,7 @@ class SecurityReport:
             if tool not in self.summary["by_tool"]:
                 self.summary["by_tool"][tool] = 0
             self.summary["by_tool"][tool] += 1
-    
+
     def to_dict(self) -> dict:
         self.generate_summary()
         return {
@@ -116,7 +116,7 @@ class SecurityReport:
 
 class SecurityScanner:
     """Main security scanning orchestrator."""
-    
+
     # SQL Injection patterns to detect
     SQL_INJECTION_PATTERNS = [
         # String formatting in SQL queries
@@ -124,47 +124,47 @@ class SecurityScanner:
         (r'execute\s*\(\s*f["\']', "F-string in SQL execute"),
         (r'execute\s*\(\s*["\'].*\+', "String concatenation in SQL execute"),
         (r'cursor\.execute\s*\(\s*["\'].*\.format\s*\(', "str.format() in SQL execute"),
-        
+
         # Raw SQL with user input
         (r'raw\s*\(\s*["\'].*%', "String formatting in raw SQL"),
         (r'raw\s*\(\s*f["\']', "F-string in raw SQL"),
         (r'RawSQL\s*\(\s*["\'].*\+', "String concatenation in RawSQL"),
-        
+
         # ORM filter with raw input
         (r'\.extra\s*\(\s*where\s*=.*%', "String formatting in extra() where clause"),
         (r'\.extra\s*\(\s*select\s*=.*%', "String formatting in extra() select clause"),
-        
+
         # Direct query execution
         (r'connection\.cursor\(\).*execute.*\+', "Direct cursor execution with concatenation"),
     ]
-    
+
     # Input sanitization patterns to validate
     INPUT_SANITIZATION_PATTERNS = [
         # Forms without validation
         (r'request\.(GET|POST|data)\[', "Direct request data access without validation"),
         (r'request\.(GET|POST)\.get\([^,\)]+\)[^.]', "Request data without default or validation"),
-        
+
         # Unsafe file operations
         (r'open\s*\(\s*request\.', "File open with unsanitized request data"),
         (r'Path\s*\(\s*request\.', "Path construction with unsanitized request data"),
-        
+
         # Command injection risks
         (r'subprocess\.(run|call|Popen)\s*\(.*request\.', "Subprocess with request data"),
         (r'os\.system\s*\(.*request\.', "os.system with request data"),
         (r'eval\s*\(.*request\.', "eval with request data"),
         (r'exec\s*\(.*request\.', "exec with request data"),
-        
+
         # Template injection
         (r'Template\s*\(\s*request\.', "Template instantiation with request data"),
         (r'render_template_string\s*\(.*request\.', "render_template_string with request data"),
     ]
-    
+
     def __init__(self, project_path: str, output_dir: str = "security_reports"):
         self.project_path = Path(project_path).resolve()
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.report = SecurityReport(project_path=str(self.project_path))
-    
+
     def run_all_scans(self) -> SecurityReport:
         """Run all security scans."""
         print("=" * 60)
@@ -173,22 +173,22 @@ class SecurityScanner:
         print(f"Project Path: {self.project_path}")
         print(f"Timestamp: {self.report.scan_timestamp}")
         print("=" * 60)
-        
+
         self._run_safety_check()
         self._run_bandit_scan()
         self._check_sql_injection_patterns()
         self._validate_input_sanitization()
         self._check_hardcoded_secrets()
-        
+
         self.report.generate_summary()
         self._generate_reports()
-        
+
         return self.report
-    
+
     def _run_safety_check(self):
         """Run safety check on all requirements files."""
         print("\n📦 Running Safety Check (Dependency Vulnerabilities)...")
-        
+
         # Find all requirements files
         req_patterns = [
             "requirements*.txt",
@@ -197,18 +197,18 @@ class SecurityScanner:
             "pyproject.toml",
             "Pipfile.lock"
         ]
-        
+
         req_files = []
         for pattern in req_patterns:
             req_files.extend(self.project_path.glob(pattern))
-        
+
         if not req_files:
             print("  ⚠️  No requirements files found")
             return
-        
+
         for req_file in req_files:
             print(f"  Scanning: {req_file.relative_to(self.project_path)}")
-            
+
             try:
                 # Run safety check
                 if req_file.suffix == '.txt':
@@ -217,14 +217,14 @@ class SecurityScanner:
                     cmd = ["safety", "check", "--file", str(req_file), "--json"]
                 else:
                     continue
-                
+
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
                     text=True,
                     cwd=self.project_path
                 )
-                
+
                 if result.returncode != 0 and result.stdout:
                     try:
                         vulnerabilities = json.loads(result.stdout)
@@ -237,9 +237,9 @@ class SecurityScanner:
                                 vuln_desc = vuln.get("vulnerability_description", "")
                                 vuln_id = vuln.get("vulnerability_id", "")
                                 installed_version = vuln.get("analyzed_version", "")
-                            
+
                             severity = self._classify_safety_severity(vuln_desc)
-                            
+
                             self.report.add_finding(SecurityFinding(
                                 tool="safety",
                                 severity=severity,
@@ -260,7 +260,7 @@ class SecurityScanner:
                                 file_path=str(req_file.relative_to(self.project_path)),
                                 recommendation="Review safety output and update vulnerable packages"
                             ))
-                            
+
             except FileNotFoundError:
                 print("  ⚠️  Safety not installed. Install with: pip install safety")
                 self.report.add_finding(SecurityFinding(
@@ -273,11 +273,11 @@ class SecurityScanner:
                 break
             except Exception as e:
                 print(f"  ❌ Error scanning {req_file}: {e}")
-    
+
     def _run_bandit_scan(self):
         """Run bandit security scanner on Python code."""
         print("\n🔍 Running Bandit Security Scanner...")
-        
+
         try:
             cmd = [
                 "bandit",
@@ -286,20 +286,20 @@ class SecurityScanner:
                 "-ll",  # Report medium and higher severity
                 "--exclude", ".venv,venv,env,.env,node_modules,__pycache__,.git"
             ]
-            
+
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True
             )
-            
+
             if result.stdout:
                 try:
                     bandit_results = json.loads(result.stdout)
-                    
+
                     for issue in bandit_results.get("results", []):
                         severity = self._map_bandit_severity(issue.get("issue_severity", "MEDIUM"))
-                        
+
                         self.report.add_finding(SecurityFinding(
                             tool="bandit",
                             severity=severity,
@@ -311,12 +311,12 @@ class SecurityScanner:
                             recommendation=issue.get("more_info", ""),
                             cwe_id=f"CWE-{issue.get('issue_cwe', {}).get('id', '')}" if issue.get('issue_cwe') else None
                         ))
-                    
+
                     print(f"  Found {len(bandit_results.get('results', []))} issues")
-                    
+
                 except json.JSONDecodeError:
                     print(f"  ⚠️  Could not parse bandit output")
-                    
+
         except FileNotFoundError:
             print("  ⚠️  Bandit not installed. Install with: pip install bandit")
             self.report.add_finding(SecurityFinding(
@@ -328,21 +328,21 @@ class SecurityScanner:
             ))
         except Exception as e:
             print(f"  ❌ Error running bandit: {e}")
-    
+
     def _check_sql_injection_patterns(self):
         """Check for SQL injection vulnerabilities."""
         print("\n💉 Checking for SQL Injection Patterns...")
-        
+
         python_files = list(self.project_path.rglob("*.py"))
         python_files = [f for f in python_files if not self._should_skip_file(f)]
-        
+
         findings_count = 0
-        
+
         for py_file in python_files:
             try:
                 content = py_file.read_text(encoding='utf-8', errors='ignore')
                 lines = content.split('\n')
-                
+
                 for line_num, line in enumerate(lines, 1):
                     for pattern, description in self.SQL_INJECTION_PATTERNS:
                         if re.search(pattern, line, re.IGNORECASE):
@@ -358,21 +358,21 @@ class SecurityScanner:
                                 cwe_id="CWE-89"
                             ))
                             findings_count += 1
-                            
+
             except Exception as e:
                 print(f"  ⚠️  Error scanning {py_file}: {e}")
-        
+
         print(f"  Found {findings_count} potential SQL injection issues")
-    
+
     def _validate_input_sanitization(self):
         """Validate input handling has proper sanitization."""
         print("\n🧹 Validating Input Sanitization...")
-        
+
         python_files = list(self.project_path.rglob("*.py"))
         python_files = [f for f in python_files if not self._should_skip_file(f)]
-        
+
         findings_count = 0
-        
+
         for py_file in python_files:
             try:
                 content = py_file.read_text(encoding='utf-8', errors='ignore')

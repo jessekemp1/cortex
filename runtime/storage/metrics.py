@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import structlog
+
 from cortex.runtime.storage.history import ExecutionHistory
 
 logger = structlog.get_logger()

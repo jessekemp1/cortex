@@ -76,13 +76,13 @@ def event_loop():
 async def test_database():
     """Create a fresh test database for each test."""
     from alpha_arena.infrastructure.database import Database
-    
+
     db = Database(connection_string="sqlite:///:memory:")
     await db.initialize()
     await db.create_tables()
-    
+
     yield db
-    
+
     await db.cleanup()
 
 
@@ -90,7 +90,7 @@ async def test_database():
 async def position_repository(test_database):
     """Create position repository with test database."""
     from alpha_arena.infrastructure.repositories import PositionRepository
-    
+
     repo = PositionRepository(database=test_database)
     yield repo
 
@@ -99,7 +99,7 @@ async def position_repository(test_database):
 async def order_repository(test_database):
     """Create order repository with test database."""
     from alpha_arena.infrastructure.repositories import OrderRepository
-    
+
     repo = OrderRepository(database=test_database)
     yield repo
 
@@ -112,7 +112,7 @@ async def order_repository(test_database):
 def mock_broker():
     """Create mock broker for testing."""
     from tests.integration.mocks.mock_broker import MockBroker
-    
+
     broker = MockBroker()
     yield broker
     broker.reset()
@@ -122,7 +122,7 @@ def mock_broker():
 def mock_market_data():
     """Create mock market data service."""
     from tests.integration.mocks.mock_market_data import MockMarketDataService
-    
+
     service = MockMarketDataService()
     yield service
     service.reset()
@@ -132,7 +132,7 @@ def mock_market_data():
 def mock_weather_service():
     """Create mock weather service."""
     from tests.integration.mocks.mock_weather_service import MockWeatherService
-    
+
     service = MockWeatherService()
     yield service
     service.reset()
@@ -189,7 +189,7 @@ def multiple_strategy_configs():
 def sample_market_data():
     """Return sample market data for testing."""
     from tests.integration.fixtures.market_data import generate_sample_market_data
-    
+
     return generate_sample_market_data(
         symbols=["AAPL", "GOOGL", "MSFT", "AMZN"],
         days=30,
@@ -201,7 +201,7 @@ def sample_market_data():
 def realtime_price_feed(mock_market_data):
     """Create a simulated realtime price feed."""
     from tests.integration.generators.price_generator import RealtimePriceGenerator
-    
+
     generator = RealtimePriceGenerator(
         base_service=mock_market_data,
         update_interval=0.1,  # 100ms for fast tests
@@ -227,23 +227,23 @@ async def trading_pipeline(
     from alpha_arena.core.strategies import StrategyFactory
     from alpha_arena.core.position_tracking import PositionTracker
     from alpha_arena.core.risk import RiskManager
-    
+
     # Create strategy
     strategy = StrategyFactory.create(sample_strategy_config)
-    
+
     # Create position tracker
     position_tracker = PositionTracker(
         repository=position_repository,
         broker=mock_broker,
     )
-    
+
     # Create risk manager
     risk_manager = RiskManager(
         max_position_size=Decimal("100000"),
         max_daily_loss=Decimal("5000"),
         max_drawdown=Decimal("0.10"),
     )
-    
+
     # Create pipeline
     pipeline = TradingPipeline(
         strategy=strategy,
@@ -253,11 +253,11 @@ async def trading_pipeline(
         risk_manager=risk_manager,
         order_repository=order_repository,
     )
-    
+
     await pipeline.initialize()
-    
+
     yield pipeline
-    
+
     await pipeline.shutdown()
 
 
@@ -271,12 +271,12 @@ async def multi_strategy_pipeline(
     """Create pipeline with multiple competing strategies."""
     from alpha_arena.core.trading import MultiStrategyPipeline
     from alpha_arena.core.strategies import StrategyFactory
-    
+
     strategies = [
         StrategyFactory.create(config)
         for config in multiple_strategy_configs
     ]
-    
+
     pipeline = MultiStrategyPipeline(
         strategies=strategies,
         broker=mock_broker,
@@ -284,11 +284,11 @@ async def multi_strategy_pipeline(
         database=test_database,
         fairness_mode="round_robin",
     )
-    
+
     await pipeline.initialize()
-    
+
     yield pipeline
-    
+
     await pipeline.shutdown()
 
 
@@ -303,14 +303,14 @@ def weather_enhanced_pipeline(
 ):
     """Create trading pipeline with weather intelligence integration."""
     from alpha_arena.features.weather import WeatherIntelligenceModule
-    
+
     weather_module = WeatherIntelligenceModule(
         weather_service=mock_weather_service,
         affected_sectors=["energy", "agriculture", "retail"],
     )
-    
+
     trading_pipeline.add_intelligence_module(weather_module)
-    
+
     return trading_pipeline
 
 
@@ -333,7 +333,7 @@ def assert_eventually():
                 return True
             await asyncio.sleep(interval)
         raise AssertionError(message)
-    
+
     return _assert_eventually
 
 
@@ -344,27 +344,27 @@ def capture_events():
         def __init__(self):
             self.events = []
             self._handlers = {}
-        
+
         def handler(self, event_type: str):
             def decorator(func):
                 self._handlers[event_type] = func
                 return func
             return decorator
-        
+
         async def capture(self, event):
             self.events.append(event)
             handler = self._handlers.get(type(event).__name__)
             if handler:
                 await handler(event) if asyncio.iscoroutinefunction(handler) else handler(event)
-        
+
         def get_events(self, event_type: str = None):
             if event_type:
                 return [e for e in self.events if type(e).__name__ == event_type]
             return self.events
-        
+
         def clear(self):
             self.events.clear()
-    
+
     return EventCapture()
 ```
 
@@ -454,7 +454,7 @@ class Position:
 class MockBroker:
     """
     Mock broker that simulates realistic order execution behavior.
-    
+
     Features:
     - Configurable fill latency
     - Partial fills
@@ -463,7 +463,7 @@ class MockBroker:
     - Order rejection scenarios
     - Position tracking
     """
-    
+
     def __init__(
         self,
         fill_latency_ms: float = 50,
@@ -477,30 +477,30 @@ class MockBroker:
         self.commission_per_share = commission_per_share
         self.partial_fill_probability = partial_fill_probability
         self.rejection_probability = rejection_probability
-        
+
         # State
         self._orders: Dict[str, Order] = {}
         self._positions: Dict[str, Position] = {}
         self._current_prices: Dict[str, Decimal] = {}
         self._cash_balance: Decimal = Decimal("1000000")
-        
+
         # Event handlers
         self._on_fill: List[Callable] = []
         self._on_order_update: List[Callable] = []
-        
+
         # Control
         self._running = False
         self._execution_task: Optional[asyncio.Task] = None
-        
+
         # Test controls
         self._force_rejection = False
         self._force_partial_fill = False
         self._execution_delay_override: Optional[float] = None
-        
+
     # =========================================================================
     # Public API
     # =========================================================================
-    
+
     async def connect(self) -> bool:
         """Connect to the broker (simulated)."""
         logger.info("MockBroker: Connecting...")
@@ -509,7 +509,7 @@ class MockBroker:
         self._execution_task = asyncio.create_task(self._execution_loop())
         logger.info("MockBroker: Connected")
         return True
-    
+
     async def disconnect(self) -> None:
         """Disconnect from the broker."""
         logger.info("MockBroker: Disconnecting...")
@@ -521,7 +521,7 @@ class MockBroker:
             except asyncio.CancelledError:
                 pass
         logger.info("MockBroker: Disconnected")
-    
+
     async def submit_order(
         self,
         strategy_id: str,

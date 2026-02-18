@@ -91,7 +91,10 @@ def validate_dataclasses():
     print("\n✓ Testing dataclasses...")
 
     try:
-        from intelligence.evaluation.quality_judge import PatternScore, RecommendationScore
+        from intelligence.evaluation.quality_judge import (
+            PatternScore,
+            RecommendationScore,
+        )
 
         # Test PatternScore
         ps = PatternScore(

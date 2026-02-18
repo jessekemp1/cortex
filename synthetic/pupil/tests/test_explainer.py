@@ -1,6 +1,7 @@
 """Standalone tests for DecisionExplainer."""
 
 from helpers import make_profile
+
 from pupil.explainer import DecisionExplainer, Explanation, Factor
 from pupil.market_env import build_timeline
 from pupil.persona import Action, ActionType, PersonaAgent

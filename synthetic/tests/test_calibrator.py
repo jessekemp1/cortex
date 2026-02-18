@@ -27,9 +27,7 @@ from synthetic.pupil.calibrator import (
     PARAMETER_BOUNDS,
     SegmentCalibrator,
 )
-from synthetic.pupil.segment_models import (
-    SEGMENT_MODELS,
-)
+from synthetic.pupil.segment_models import SEGMENT_MODELS
 
 # ============================================================================
 # Fixtures

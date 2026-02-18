@@ -29,13 +29,13 @@ import shlex
 
 class ValidationError(Exception):
     """Raised when input validation fails."""
-    
+
     def __init__(self, message: str, field: str = None, value: Any = None):
         self.message = message
         self.field = field
         self.value = value
         super().__init__(self.format_message())
-    
+
     def format_message(self) -> str:
         """Format error message with context."""
         parts = []
@@ -72,7 +72,7 @@ class ValidationResult:
     value: Any  # The validated/sanitized value
     error: Optional[str] = None
     warnings: List[str] = None
-    
+
     def __post_init__(self):
         if self.warnings is None:
             self.warnings = []
@@ -81,19 +81,19 @@ class ValidationResult:
 class InputValidator:
     """
     Comprehensive input validator for CLI arguments.
-    
+
     Usage:
         validator = InputValidator()
-        
+
         # Validate a project name
         result = validator.validate_project_name("my-project")
         if not result.is_valid:
             raise ValidationError(result.error)
-        
+
         # Validate a file path
         result = validator.validate_file_path("/path/to/file.py")
     """
-    
+
     # Pattern constants
     PROJECT_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]{0,63}$')
     IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]{0,127}$')
@@ -107,7 +107,7 @@ class InputValidator:
         r'(?:/?|[/?]\S+)$',
         re.IGNORECASE
     )
-    
+
     # Dangerous patterns for path traversal
     PATH_TRAVERSAL_PATTERNS = [
         r'\.\.',           # Parent directory
@@ -119,7 +119,7 @@ class InputValidator:
         r'\x00',           # Null bytes
         r'[\r\n]',         # Newlines (could be used for log injection)
     ]
-    
+
     # Shell injection patterns
     SHELL_INJECTION_PATTERNS = [
         r'[;&|]',          # Command chaining
@@ -130,22 +130,22 @@ class InputValidator:
         r'>',              # Output redirection
         r'\x00',           # Null bytes
     ]
-    
+
     # Reserved names (Windows and common)
     RESERVED_NAMES = {
         'con', 'prn', 'aux', 'nul',
         'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
         'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
     }
-    
-    def __init__(self, 
+
+    def __init__(self,
                  max_path_length: int = 4096,
                  max_name_length: int = 64,
                  allowed_extensions: Optional[List[str]] = None,
                  base_directory: Optional[Path] = None):
         """
         Initialize validator with configuration.
-        
+
         Args:
             max_path_length: Maximum allowed path length
             max_name_length: Maximum allowed name length
@@ -156,26 +156,26 @@ class InputValidator:
         self.max_name_length = max_name_length
         self.allowed_extensions = allowed_extensions
         self.base_directory = Path(base_directory).resolve() if base_directory else None
-    
+
     def validate_project_name(self, name: str, field: str = "project_name") -> ValidationResult:
         """
         Validate a project name.
-        
+
         Rules:
         - Must start with a letter
         - Can contain letters, numbers, underscores, and hyphens
         - Length: 1-64 characters
         - Cannot be a reserved name
-        
+
         Args:
             name: The project name to validate
             field: Field name for error messages
-            
+
         Returns:
             ValidationResult with validated name or error
         """
         warnings = []
-        
+
         # Check for None or empty
         if not name:
             return ValidationResult(
@@ -183,7 +183,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} cannot be empty"
             )
-        
+
         # Type check
         if not isinstance(name, str):
             return ValidationResult(
@@ -191,7 +191,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} must be a string, got {type(name).__name__}"
             )
-        
+
         # Strip whitespace and check
         name = name.strip()
         if not name:
@@ -200,7 +200,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} cannot be empty or whitespace only"
             )
-        
+
         # Length check
         if len(name) > self.max_name_length:
             return ValidationResult(
@@ -208,7 +208,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} exceeds maximum length of {self.max_name_length} characters"
             )
-        
+
         # Pattern check
         if not self.PROJECT_NAME_PATTERN.match(name):
             return ValidationResult(
@@ -217,7 +217,7 @@ class InputValidator:
                 error=f"{field} must start with a letter and contain only letters, "
                       f"numbers, underscores, and hyphens"
             )
-        
+
         # Reserved name check
         if name.lower() in self.RESERVED_NAMES:
             return ValidationResult(
@@ -225,48 +225,48 @@ class InputValidator:
                 value=None,
                 error=f"{field} '{name}' is a reserved name"
             )
-        
+
         # Check for potential issues (warnings, not errors)
         if name.startswith('_'):
             warnings.append(f"Project names starting with underscore may be hidden in some systems")
-        
+
         if name.lower() != name:
             warnings.append(f"Consider using lowercase for better cross-platform compatibility")
-        
+
         return ValidationResult(
             is_valid=True,
             value=name,
             warnings=warnings
         )
-    
-    def validate_file_path(self, 
-                          path: str, 
+
+    def validate_file_path(self,
+                          path: str,
                           field: str = "file_path",
                           must_exist: bool = False,
                           allow_absolute: bool = True,
                           check_extension: bool = True) -> ValidationResult:
         """
         Validate a file path for security issues.
-        
+
         Checks for:
         - Path traversal attacks (../)
         - Null bytes
         - Command injection
         - Length limits
         - Extension restrictions (if configured)
-        
+
         Args:
             path: The path to validate
             field: Field name for error messages
             must_exist: If True, verify the path exists
             allow_absolute: If True, allow absolute paths
             check_extension: If True, check against allowed_extensions
-            
+
         Returns:
             ValidationResult with resolved path or error
         """
         warnings = []
-        
+
         # Check for None or empty
         if not path:
             return ValidationResult(
@@ -274,7 +274,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} cannot be empty"
             )
-        
+
         # Type check
         if not isinstance(path, str):
             return ValidationResult(
@@ -282,7 +282,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} must be a string, got {type(name).__name__}"
             )
-        
+
         # Length check
         if len(path) > self.max_path_length:
             return ValidationResult(
@@ -290,7 +290,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} exceeds maximum length of {self.max_path_length} characters"
             )
-        
+
         # Check for null bytes (critical security issue)
         if '\x00' in path:
             return ValidationResult(
@@ -298,7 +298,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} contains null bytes (potential injection attack)"
             )
-        
+
         # Check for newlines (log injection)
         if '\n' in path or '\r' in path:
             return ValidationResult(
@@ -306,7 +306,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} contains newline characters"
             )
-        
+
         # Check for command substitution attempts
         dangerous_patterns = [r'\$\(', r'`', r'\$\{']
         for pattern in dangerous_patterns:
@@ -316,7 +316,7 @@ class InputValidator:
                     value=None,
                     error=f"{field} contains potentially dangerous characters"
                 )
-        
+
         # Convert to Path object for safer handling
         try:
             path_obj = Path(path)
@@ -326,7 +326,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} is not a valid path: {e}"
             )
-        
+
         # Check for absolute path if not allowed
         if not allow_absolute and path_obj.is_absolute():
             return ValidationResult(
@@ -334,7 +334,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} must be a relative path"
             )
-        
+
         # Check for path traversal
         if '..' in path_obj.parts:
             return ValidationResult(
@@ -342,11 +342,11 @@ class InputValidator:
                 value=None,
                 error=f"{field} contains path traversal sequence (..)"
             )
-        
+
         # Resolve the path and check it stays within base directory
         try:
             resolved = path_obj.resolve()
-            
+
             if self.base_directory:
                 try:
                     resolved.relative_to(self.base_directory)
@@ -362,7 +362,7 @@ class InputValidator:
                 value=None,
                 error=f"{field} cannot be resolved: {e}"
             )
-        
+
         # Check extension if configured
         if check_extension and self.allowed_extensions:
             if path_obj.suffix.lower() not in [ext.lower() for ext in self.allowed_extensions]:
@@ -371,7 +371,7 @@ class InputValidator:
                     value=None,
                     error=f"{field} has invalid extension. Allowed: {', '.join(self.allowed_extensions)}"
                 )
-        
+
         # Check existence if required
         if must_exist and not resolved.exists():
             return ValidationResult(
@@ -379,19 +379,19 @@ class InputValidator:
                 value=None,
                 error=f"{field} does not exist: {path}"
             )
-        
+
         # Check for reserved names in path components (Windows compatibility)
         for part in path_obj.parts:
             name_without_ext = Path(part).stem.lower()
             if name_without_ext in self.RESERVED_NAMES:
                 warnings.append(f"Path contains Windows reserved name: {part}")
-        
+
         return ValidationResult(
             is_valid=True,
             value=str(resolved),
             warnings=warnings
         )
-    
+
     def validate_directory_path(self,
                                path: str,
                                field: str = "directory_path",
@@ -400,31 +400,31 @@ class InputValidator:
                                allow_absolute: bool = True) -> ValidationResult:
         """
         Validate a directory path.
-        
+
         Args:
             path: The directory path to validate
             field: Field name for error messages
             must_exist: If True, directory must exist
             allow_creation: If True, allow paths that could be created
             allow_absolute: If True, allow absolute paths
-            
+
         Returns:
             ValidationResult with resolved path or error
         """
         # First, validate as a generic path
         result = self.validate_file_path(
-            path, 
-            field=field, 
+            path,
+            field=field,
             must_exist=False,
             allow_absolute=allow_absolute,
             check_extension=False
         )
-        
+
         if not result.is_valid:
             return result
-        
+
         resolved = Path(result.value)
-        
+
         # Check if exists and is a directory
         if resolved.exists():
             if not resolved.is_dir():
@@ -445,18 +445,18 @@ class InputValidator:
                 value=None,
                 error=f"{field} directory does not exist and creation is not allowed"
             )
-        
+
         return ValidationResult(
             is_valid=True,
             value=str(resolved),
             warnings=result.warnings
         )
-    
-    def validate_identifier(self, 
-                           name: str, 
+
+    def validate_identifier(self,
+                           name: str,
                            field: str = "identifier") -> ValidationResult:
         """
         Validate a Python-style identifier.
-        
+
         Rules:
         - Must start with a letter

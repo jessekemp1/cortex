@@ -41,7 +41,7 @@ Look for signals marked:
    ```bash
    # Generate improvement plan
    ./cortex_mvp generate <signal_id>
-   
+
    # Execute improvement
    ./cortex_mvp execute <contract_id> --auto
    ```

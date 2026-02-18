@@ -248,15 +248,15 @@ def load_project_data(project_name):
     # Whitelist validation
     if not project_name.replace('_', '').replace('-', '').isalnum():
         raise ValueError("Invalid project name")
-    
+
     # Construct and validate path
     base_dir = Path("/Users/jesse.kemp/Dev").resolve()
     project_path = (base_dir / project_name / "data.json").resolve()
-    
+
     # Ensure path is within base directory
     if not project_path.is_relative_to(base_dir):
         raise ValueError("Path traversal detected")
-    
+
     with open(project_path) as f:
         return json.load(f)
 ```
@@ -369,7 +369,7 @@ security_logger.addHandler(handler)
 
 def log_security_event(event_type, details):
     security_logger.warning(f"{event_type}: {details}")
-    
+
 # Log all authentication, file access, command execution
 log_security_event('AUTH_ATTEMPT', f'User: {username}, IP: {ip}')
 log_security_event('FILE_ACCESS', f'Path: {path}, User: {user}')
@@ -435,14 +435,14 @@ def rate_limit(max_calls=10, period=60):
         def wrapper(*args, **kwargs):
             now = time.time()
             key = func.__name__
-            
+
             # Remove old calls
-            call_times[key] = [t for t in call_times[key] 
+            call_times[key] = [t for t in call_times[key]
                                if now - t < period]
-            
+
             if len(call_times[key]) >= max_calls:
                 raise Exception(f"Rate limit exceeded: {max_calls}/{period}s")
-            
+
             call_times[key].append(now)
             return func(*args, **kwargs)
         return wrapper

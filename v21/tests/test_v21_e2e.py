@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from cortex.v21.bridge import CortexV2_1Bridge
 
 

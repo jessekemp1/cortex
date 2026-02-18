@@ -17,13 +17,7 @@ from .detectors.base import SignalDetector
 from .detectors.batch_detector import BatchResultDetector
 from .detectors.doc_detector import CompletionDocDetector
 from .detectors.git_detector import GitSignalDetector
-from .models import (
-    AbsorptionReport,
-    PlanDrift,
-    WorkItem,
-    WorkSignal,
-    WorkStatus,
-)
+from .models import AbsorptionReport, PlanDrift, WorkItem, WorkSignal, WorkStatus
 from .storage import WorkAbsorberStorage
 
 logger = logging.getLogger(__name__)

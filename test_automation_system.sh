@@ -18,7 +18,7 @@ FAIL=0
 test_item() {
     local name="$1"
     local command="$2"
-    
+
     if eval "$command" > /dev/null 2>&1; then
         echo "✅ $name"
         PASS=$((PASS + 1))

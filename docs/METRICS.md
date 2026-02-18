@@ -419,4 +419,3 @@ print(f"Total savings: {dashboard['summary']['total_savings']} minutes")
 - Metrics Tracker source: `cortex/metrics_tracker.py`
 - [Architecture Documentation](ARCHITECTURE.md)
 - [API Documentation](API.md)
-

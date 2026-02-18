@@ -105,11 +105,11 @@ class Strategy:
 Confidence is Bayesian, not asserted:
 
 ```python
-def update_confidence(prior_alpha: float, prior_beta: float, 
+def update_confidence(prior_alpha: float, prior_beta: float,
                       successes: int, failures: int) -> float:
     """
     Beta-Binomial model for confidence calibration.
-    
+
     Returns: P(success) = (alpha + successes) / (alpha + beta + successes + failures)
     """
     posterior_alpha = prior_alpha + successes
@@ -201,8 +201,8 @@ class CortexEngine:
         """Ingest raw signal, extract context."""
         context = self.extract_context(signal)
         self.store_signal(signal, context)
-    
-    def record_outcome(self, context_hash: str, strategy_id: str, 
+
+    def record_outcome(self, context_hash: str, strategy_id: str,
                        result: str, evidence: Dict) -> None:
         """Record outcome and update calibration."""
         outcome = Outcome(
@@ -215,23 +215,23 @@ class CortexEngine:
         )
         self.store_outcome(outcome)
         self.update_calibration(context_hash, strategy_id, result)
-    
+
     def recommend(self, context: Dict) -> List[Recommendation]:
         """Get recommendations for current context."""
         context_hash = self.fingerprint(context)
         similar_contexts = self.find_similar(context_hash)
         strategies = self.get_strategies_for_contexts(similar_contexts)
         return self.rank_by_confidence(strategies)
-    
+
     def intervene(self, context: Dict) -> Optional[Intervention]:
         """Decide whether/how to intervene."""
         recommendations = self.recommend(context)
-        
+
         if not recommendations:
             return None  # No data, stay silent
-        
+
         top = recommendations[0]
-        
+
         if top.confidence < 0.3:
             return Warning(f"High failure risk: {top.strategy}")
         elif top.confidence > 0.8:

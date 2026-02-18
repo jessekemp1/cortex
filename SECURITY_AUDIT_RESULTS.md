@@ -48,12 +48,12 @@ def next_action(project_name):
     allowed_projects = ['vortexv2', 'alpha_arena', 'cortex']
     if project_name not in allowed_projects:
         raise ValueError("Invalid project name")
-    
+
     # Use subprocess with array (no shell)
     project_path = Path("/Users/jesse.kemp/Dev") / project_name
     if not project_path.is_dir():
         raise ValueError("Project directory not found")
-    
+
     subprocess.run(
         ["git", "status"],
         cwd=project_path,
@@ -100,19 +100,19 @@ import os
 def load_project_config(project_name):
     # Define safe base directory
     base_dir = Path("/Users/jesse.kemp/Dev").resolve()
-    
+
     # Resolve and validate path
     project_path = (base_dir / project_name).resolve()
-    
+
     # Critical: Ensure path is within base directory
     if not str(project_path).startswith(str(base_dir)):
         raise ValueError("Path traversal attempt detected")
-    
+
     config_path = project_path / "config.yaml"
-    
+
     if not config_path.is_file():
         raise FileNotFoundError("Config file not found")
-    
+
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 ```
@@ -158,13 +158,13 @@ class BinanceProvider:
         # Use environment variables
         self.api_key = os.getenv('BINANCE_API_KEY')
         self.api_secret = os.getenv('BINANCE_API_SECRET')
-        
+
         if not self.api_key or not self.api_secret:
             # Fallback to secure credential store
             creds = self._load_from_keychain()
             self.api_key = creds['api_key']
             self.api_secret = creds['api_secret']
-    
+
     def _load_from_keychain(self):
         """Load from OS keychain (macOS Keychain, Windows Credential Manager)"""
         import keyring
@@ -201,8 +201,8 @@ config/credentials.json
 def get_project_patterns(project_name, pattern_type):
     # VULNERABLE: String concatenation in SQL
     query = f"""
-        SELECT * FROM patterns 
-        WHERE project = '{project_name}' 
+        SELECT * FROM patterns
+        WHERE project = '{project_name}'
         AND type = '{pattern_type}'
     """
     cursor.execute(query)
@@ -225,8 +225,8 @@ pattern = "'; DROP TABLE patterns; --"
 def get_project_patterns(project_name, pattern_type):
     # Use parameterized queries
     query = """
-        SELECT * FROM patterns 
-        WHERE project = ? 
+        SELECT * FROM patterns
+        WHERE project = ?
         AND type = ?
     """
     cursor.execute(query, (project_name, pattern_type))
@@ -360,11 +360,11 @@ schema = {
 def load_config():
     with open('~/.cortex/config.yaml') as f:
         config = yaml.safe_load(f)
-    
+
     validator = Validator(schema)
     if not validator.validate(config):
         raise ValueError(f"Invalid config: {validator.errors}")
-    
+
     return validator.document
 ```
 
@@ -420,13 +420,13 @@ def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         api_key = request.headers.get('X-API-Key')
-        
+
         if not api_key:
             return jsonify({'error': 'API key required'}), 401
-        
+
         if api_key not in API_KEYS.values():
             return jsonify({'error': 'Invalid API key'}), 403
-        
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -441,13 +441,13 @@ def execute_trade():
     # Additional rate limiting
     from flask_limiter import Limiter
     # limit: 10 trades per minute
-    
+
     data = request.json
-    
+
     # Input validation
     if not all(k in data for k in ['symbol', 'quantity', 'action']):
         return jsonify({'error': 'Missing required fields'}), 400
-    
+
     return execute_order(data['symbol'], data['quantity'], data['action'])
 
 # Better: Use OAuth2 or JWT tokens
@@ -493,12 +493,12 @@ lock_manager = threading.Lock()
 @contextmanager
 def position_lock(strategy_name, symbol):
     key = f"{strategy_name}:{symbol}"
-    
+
     with lock_manager:
         if key not in position_locks:
             position_locks[key] = threading.Lock()
         lock = position_locks[key]
-    
+
     lock.acquire()
     try:
         yield

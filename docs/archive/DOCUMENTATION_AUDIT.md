@@ -29,7 +29,7 @@
     ### Installation Issues
     - "cortex: command not found" → Add to PATH or use `python -m cortex`
     - Import errors → Verify installation with `pip show cortex`
-    
+
     ### Common Errors
     - Config file issues → Check ~/.cortex/config.yaml format
     - Permission errors → Ensure ~/.cortex directory is writable
@@ -71,7 +71,7 @@
     ## Example Output
     ```bash
     $ cortex next
-    
+
     Next Action: Review vortexv2 API endpoint performance
     Context: Recent sessions show 200ms latency spike
     Priority: High
@@ -103,31 +103,31 @@
   - **Suggested outline**:
     ```markdown
     # Cortex Architecture
-    
+
     ## System Overview
     [High-level component diagram]
-    
+
     ## Core Components
     ### 1. Portfolio Memory
     - Storage: ~/.cortex/portfolio.db
     - Purpose: Cross-project pattern recognition
     - Data model: [schema]
-    
+
     ### 2. Session Intelligence
     - How sessions are tracked
     - Session lifecycle
-    
+
     ### 3. Spec Knowledge Base
     - Spec storage format
     - Indexing strategy
-    
+
     ### 4. Metrics Tracking
     - What metrics are collected
     - Storage and retrieval
-    
+
     ## Data Flow
     [Diagram: User command → Core engine → Intelligence modules → Response]
-    
+
     ## Design Decisions
     - Why depth-first over speed
     - Storage choices (SQLite vs alternatives)
@@ -140,16 +140,16 @@
   - **Suggested outline**:
     ```markdown
     # Data Model
-    
+
     ## Database Schema
     ### Projects Table
     ### Sessions Table
     ### Specs Table
     ### Metrics Table
-    
+
     ## Relationships
     [ER diagram]
-    
+
     ## Data Lifecycle
     - When data is created
     - Update triggers
@@ -189,14 +189,14 @@
     # Clone repository
     git clone [repo-url]
     cd alpha_arena
-    
+
     # Create virtual environment
     python -m venv venv
     source venv/bin/activate
-    
+
     # Install dependencies
     pip install -r requirements.txt
-    
+
     # Configure API keys
     cp .env.example .env
     # Edit .env with your API keys
@@ -212,7 +212,7 @@
     ```bash
     # Run test suite
     pytest tests/
-    
+
     # Should see: 7/7 E2E tests passing
     ```
     ```
@@ -223,20 +223,20 @@
   - **Suggested outline**:
     ```markdown
     ## Usage Examples
-    
+
     ### Running a Competition
     ```bash
     # Start equal_weight vs vol_sizing competition
     python run_competition.py --strategies equal_weight,vol_sizing --duration 7d
     ```
-    
+
     ### Viewing Results
     ```bash
     # Launch dashboard
     ./run_dashboard.sh
     # Open http://localhost:8050
     ```
-    
+
     ### Paper Trading
     ```bash
     # Start live paper trading
@@ -255,11 +255,11 @@
   - **Suggested outline**:
     ```markdown
     ## Troubleshooting
-    
+
     ### API Connection Issues
     - Binance 401 errors → Check API keys in .env
     - Rate limiting → Reduce polling frequency
-    
+
     ### Dashboard Not Loading
     - Port 8050 in use → Kill process or change port
     - Missing data → Verify run_competition.py completed
@@ -271,19 +271,19 @@
   - **Suggested outline**:
     ```markdown
     ## Configuration
-    
+
     ### Environment Variables (.env)
     - `BINANCE_API_KEY`: Your Binance API key
     - `BINANCE_SECRET_KEY`: Your Binance secret key
     - `VORTEX_API_URL`: VortexV2 endpoint URL
-    
+
     ### Strategy Configuration
     Edit `config/strategies.yaml`:
     ```yaml
     equal_weight:
       allocation: equal
       rebalance_frequency: daily
-    
+
     vol_sizing:
       allocation: inverse_volatility
       lookback_period: 30d
@@ -296,12 +296,12 @@
   - **Suggested outline**:
     ```markdown
     ## Automation
-    
+
     LaunchAgents configured for:
     - Daily competition runs at 9:00 AM EST
     - Paper trading sync every 15 minutes
     - Dashboard auto-restart on failure
-    
+
     To modify schedule: Edit `.launchd/*.plist`
     ```
 
@@ -315,12 +315,12 @@
   - **Suggested outline**:
     ```markdown
     # API Documentation
-    
+
     ## Endpoints
-    
+
     ### GET /api/competitions
     Returns list of active competitions
-    
+
     **Response**:
     ```json
     {
@@ -334,10 +334,10 @@
       ]
     }
     ```
-    
+
     ### GET /api/positions
     Returns current positions for all strategies
-    
+
     ### POST /api/trade
     Submit paper trade order
     ```
@@ -357,7 +357,7 @@
   - **Suggested outline**:
     ```markdown
     # Alpha Arena Architecture
-    
+
     ## System Overview
     ```
     ┌─────────────┐
@@ -380,31 +380,31 @@
     │ - Weather      │  - Yahoo Finance    │
     └────────────────┴─────────────────────┘
     ```
-    
+
     ## Component Details
-    
+
     ### Intelligence Layer
     - **Multi-factor Strategy Engine**: How factors are combined
     - **Weather Integration**: VortexV2 signal processing
     - **Underrated Plays**: Pattern recognition logic
-    
+
     ### Data Layer
     - **Market Data Pipeline**: Real-time vs historical
     - **Caching Strategy**: Redis/local cache
     - **Data Normalization**: How different sources are unified
-    
+
     ### Competition Logic
     - **Strategy Execution**: Order routing
     - **Position Management**: Risk limits, rebalancing
     - **Performance Tracking**: Metrics calculation
-    
+
     ## Design Decisions
-    
+
     ### Why Paper Trading First?
     - Risk-free validation
     - Strategy comparison without capital
     - Easy A/B testing
-    
+
     ### VortexV2 Integration
     - Weather as market sentiment indicator
     - Integration points: [list]
@@ -417,22 +417,22 @@
   - **Suggested outline**:
     ```markdown
     # Trading Strategies
-    
+
     ## equal_weight
     - **Logic**: Equal allocation across all assets
     - **Rebalancing**: Daily at market close
     - **Risk Management**: Position size limits
-    
+
     ## vol_sizing
     - **Logic**: Inverse volatility weighting
     - **Parameters**: 30-day lookback, min 2% max 20% per asset
     - **Rebalancing**: Weekly or on 10% drift
-    
+
     ## Creating Custom Strategies
-    
+
     ```python
     from src.intelligence.base_strategy import BaseStrategy
-    
+
     class MyStrategy(BaseStrategy):
         def generate_signals(self, market_data):
             # Your logic here

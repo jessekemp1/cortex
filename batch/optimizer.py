@@ -658,7 +658,8 @@ class BatchPerformanceTracker:
     def _init_database(self):
         """Initialize SQLite database schema"""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS batch_tasks (
                     task_id TEXT PRIMARY KEY,
                     job_id TEXT,
@@ -682,17 +683,22 @@ class BatchPerformanceTracker:
 
                     UNIQUE(task_id)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_submitted_at
                 ON batch_tasks(submitted_at)
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_source
                 ON batch_tasks(source)
-            """)
+            """
+            )
 
             conn.commit()
 

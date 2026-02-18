@@ -2,6 +2,7 @@
 
 import pytest
 from helpers import make_mixed_profiles
+
 from pupil.behavioral_fidelity import BehavioralFidelityValidator, FidelityReport
 from pupil.market_env import build_timeline
 from pupil.simulation import SimulationEngine, SimulationResult

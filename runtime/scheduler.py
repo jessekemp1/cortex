@@ -11,6 +11,7 @@ import structlog
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+
 from cortex.runtime.config import get_config
 
 if TYPE_CHECKING:

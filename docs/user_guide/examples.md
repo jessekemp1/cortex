@@ -396,21 +396,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.11'
-      
+
       - name: Install Cortex
         run: |
           cd cortex
           pip install -e .
-      
+
       - name: Track metrics
         run: |
           python bridge.py track --project ${{ github.repository }}
-      
+
       - name: Check health
         run: |
           python bridge.py health
@@ -432,29 +432,29 @@ from metrics_tracker import MetricsTracker
 def morning_briefing():
     bridge = CortexBridge()
     tracker = MetricsTracker()
-    
+
     print("=" * 60)
     print("MORNING BRIEFING")
     print("=" * 60)
-    
+
     # Session context
     context = bridge.get_session_context()
     print(f"\nCurrent Project: {context['project']['name']}")
     print(f"Branch: {context.get('git', {}).get('branch', 'unknown')}")
     print(f"Focus: {context.get('focus', 'unknown')}")
-    
+
     # Portfolio stats
     stats = bridge.get_portfolio_stats()
     print(f"\nPortfolio: {stats['total_projects']} projects")
     print(f"Active: {stats.get('active_projects', 0)} projects")
-    
+
     # Metrics
     dashboard = tracker.get_dashboard(days=7)
     print(f"\nMetrics (Last 7 Days):")
     print(f"  Velocity Improvement: {dashboard.get('velocity', {}).get('improvement_pct', 0):.1f}%")
     print(f"  Mistake Prevention: {dashboard.get('mistakes', {}).get('prevention_rate', 0):.1f}%")
     print(f"  ROI: {dashboard.get('roi', {}).get('ratio', 0):.2f}x")
-    
+
     # Health check
     health = bridge.get_portfolio_health_summary(days=7)
     healthy = health.get('aggregate', {}).get('healthy_projects', 0)
@@ -462,7 +462,7 @@ def morning_briefing():
     print(f"\nProject Health:")
     print(f"  Healthy: {healthy}")
     print(f"  At Risk: {at_risk}")
-    
+
     print("\n" + "=" * 60)
 
 if __name__ == "__main__":
@@ -514,4 +514,3 @@ else:
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

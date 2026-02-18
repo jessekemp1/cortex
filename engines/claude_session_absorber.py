@@ -136,7 +136,8 @@ class ClaudeSessionSource(SignalSource):
         cursor = conn.cursor()
 
         # Interactions table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS interactions (
                 id TEXT PRIMARY KEY,
                 timestamp TEXT NOT NULL,
@@ -149,10 +150,12 @@ class ClaudeSessionSource(SignalSource):
                 tool_success INTEGER,
                 processed INTEGER DEFAULT 0
             )
-        """)
+        """
+        )
 
         # Patterns table
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS patterns (
                 pattern_id TEXT PRIMARY KEY,
                 pattern_type TEXT NOT NULL,
@@ -163,10 +166,12 @@ class ClaudeSessionSource(SignalSource):
                 examples TEXT,
                 projects TEXT
             )
-        """)
+        """
+        )
 
         # Session summaries for cross-session learning
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS session_summaries (
                 session_id TEXT PRIMARY KEY,
                 project TEXT,
@@ -178,7 +183,8 @@ class ClaudeSessionSource(SignalSource):
                 key_topics TEXT,
                 lessons TEXT
             )
-        """)
+        """
+        )
 
         # Create indexes
         cursor.execute(

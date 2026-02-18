@@ -82,10 +82,10 @@ class CortexBridge:
     def your_new_method(self, param: str) -> Dict[str, Any]:
         """
         Your new method.
-        
+
         Args:
             param: Parameter description
-        
+
         Returns:
             Result dictionary
         """
@@ -189,4 +189,3 @@ def your_method(self, param: str) -> Dict[str, Any]:
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

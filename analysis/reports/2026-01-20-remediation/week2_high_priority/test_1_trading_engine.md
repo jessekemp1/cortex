@@ -56,7 +56,7 @@ class MockPosition:
     current_price: float
     unrealized_pnl: float = 0.0
     realized_pnl: float = 0.0
-    
+
     def __post_init__(self):
         self.unrealized_pnl = (self.current_price - self.entry_price) * self.quantity
 
@@ -82,7 +82,7 @@ class MockPortfolio:
     cash: float
     positions: Dict[str, MockPosition] = field(default_factory=dict)
     total_value: float = 0.0
-    
+
     def __post_init__(self):
         positions_value = sum(p.quantity * p.current_price for p in self.positions.values())
         self.total_value = self.cash + positions_value
@@ -97,12 +97,12 @@ def sample_ohlcv_data() -> pd.DataFrame:
     """Generate sample OHLCV data for testing."""
     np.random.seed(42)
     dates = pd.date_range(start='2024-01-01', periods=100, freq='D')
-    
+
     # Generate realistic price movement
     initial_price = 100.0
     returns = np.random.normal(0.001, 0.02, 100)
     prices = initial_price * np.cumprod(1 + returns)
-    
+
     df = pd.DataFrame({
         'timestamp': dates,
         'open': prices * (1 + np.random.uniform(-0.01, 0.01, 100)),
@@ -120,12 +120,12 @@ def multi_asset_data() -> Dict[str, pd.DataFrame]:
     """Generate OHLCV data for multiple assets."""
     np.random.seed(42)
     dates = pd.date_range(start='2024-01-01', periods=100, freq='D')
-    
+
     assets = {}
     for symbol, initial_price in [('AAPL', 150), ('GOOGL', 140), ('MSFT', 380), ('TSLA', 250)]:
         returns = np.random.normal(0.001, 0.025, 100)
         prices = initial_price * np.cumprod(1 + returns)
-        
+
         assets[symbol] = pd.DataFrame({
             'timestamp': dates,
             'open': prices * (1 + np.random.uniform(-0.01, 0.01, 100)),
@@ -134,7 +134,7 @@ def multi_asset_data() -> Dict[str, pd.DataFrame]:
             'close': prices,
             'volume': np.random.uniform(1000000, 10000000, 100)
         }).set_index('timestamp')
-    
+
     return assets
 
 
@@ -161,7 +161,7 @@ def extreme_volatility_data() -> pd.DataFrame:
     """Data with extreme price movements for edge case testing."""
     np.random.seed(42)
     dates = pd.date_range(start='2024-01-01', periods=50, freq='D')
-    
+
     # Create data with extreme moves
     prices = [100]
     for i in range(49):
@@ -171,9 +171,9 @@ def extreme_volatility_data() -> pd.DataFrame:
         else:
             change = np.random.normal(0, 0.05)
         prices.append(prices[-1] * (1 + change))
-    
+
     prices = np.array(prices)
-    
+
     return pd.DataFrame({
         'timestamp': dates,
         'open': prices * 0.99,
@@ -193,7 +193,7 @@ def sample_factors() -> Dict[str, pd.Series]:
     """Generate sample factor values for testing."""
     np.random.seed(42)
     dates = pd.date_range(start='2024-01-01', periods=100, freq='D')
-    
+
     return {
         'momentum': pd.Series(np.random.uniform(-1, 1, 100), index=dates),
         'value': pd.Series(np.random.uniform(-1, 1, 100), index=dates),
@@ -207,7 +207,7 @@ def conflicting_factors() -> Dict[str, pd.Series]:
     """Factors that give conflicting signals."""
     np.random.seed(42)
     dates = pd.date_range(start='2024-01-01', periods=100, freq='D')
-    
+
     return {
         'momentum': pd.Series([0.8] * 100, index=dates),      # Strong buy
         'value': pd.Series([-0.9] * 100, index=dates),        # Strong sell
@@ -220,7 +220,7 @@ def conflicting_factors() -> Dict[str, pd.Series]:
 def extreme_factor_values() -> Dict[str, pd.Series]:
     """Edge case factor values."""
     dates = pd.date_range(start='2024-01-01', periods=10, freq='D')
-    
+
     return {
         'zero_factor': pd.Series([0.0] * 10, index=dates),
         'max_factor': pd.Series([1.0] * 10, index=dates),
@@ -314,11 +314,11 @@ def conservative_risk_params() -> Dict[str, Any]:
 def mock_broker():
     """Create a mock broker for testing trade execution."""
     broker = MagicMock()
-    
+
     # Track orders
     broker.orders = []
     broker.order_counter = 0
-    
+
     def submit_order(symbol, side, quantity, order_type='market', price=None):
         broker.order_counter += 1
         order = MockOrder(
@@ -334,30 +334,30 @@ def mock_broker():
         )
         broker.orders.append(order)
         return order
-    
+
     def cancel_order(order_id):
         for order in broker.orders:
             if order.order_id == order_id and order.status == 'pending':
                 order.status = 'cancelled'
                 return True
         return False
-    
+
     def get_position(symbol):
         return MockPosition(symbol, 0, 0, 0)
-    
+
     def get_account_value():
         return 100000.0
-    
+
     def get_buying_power():
         return 50000.0
-    
+
     broker.submit_order = MagicMock(side_effect=submit_order)
     broker.cancel_order = MagicMock(side_effect=cancel_order)
     broker.get_position = MagicMock(side_effect=get_position)
     broker.get_account_value = MagicMock(side_effect=get_account_value)
     broker.get_buying_power = MagicMock(side_effect=get_buying_power)
     broker.is_market_open = MagicMock(return_value=True)
-    
+
     return broker
 
 

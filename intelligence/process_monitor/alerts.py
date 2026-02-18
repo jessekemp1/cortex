@@ -13,10 +13,7 @@ from .tracker import ProcessTracker
 
 # Import from existing monitoring system
 try:
-    from ..monitoring.alert_generator import (
-        Alert,
-        AlertSeverity,
-    )
+    from ..monitoring.alert_generator import Alert, AlertSeverity
     from ..monitoring.alert_generator import AlertType as BaseAlertType
 except ImportError:
     # Fallback if imports don't work

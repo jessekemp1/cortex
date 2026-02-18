@@ -10,6 +10,7 @@ Provides a full morning briefing integrating:
 from typing import Any, Dict
 
 import structlog
+
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.models import AgentResult
 

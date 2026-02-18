@@ -73,7 +73,8 @@ class ProcessTracker:
         """Initialize database schema."""
         with self._transaction() as cursor:
             # Resource snapshots table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS resource_snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -88,10 +89,12 @@ class ProcessTracker:
                     docker_cpu REAL DEFAULT 0.0,
                     docker_memory_mb REAL DEFAULT 0.0
                 )
-            """)
+            """
+            )
 
             # Process history table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS process_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -107,10 +110,12 @@ class ProcessTracker:
                     username TEXT,
                     num_threads INTEGER DEFAULT 1
                 )
-            """)
+            """
+            )
 
             # Anomalies table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS anomalies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -121,10 +126,12 @@ class ProcessTracker:
                     description TEXT NOT NULL,
                     metadata TEXT
                 )
-            """)
+            """
+            )
 
             # Patterns table
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS patterns (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     pattern_type TEXT NOT NULL,
@@ -133,28 +140,37 @@ class ProcessTracker:
                     last_seen TEXT NOT NULL,
                     metadata TEXT
                 )
-            """)
+            """
+            )
 
             # Create indexes
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_resource_snapshots_timestamp
                 ON resource_snapshots(timestamp)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_process_history_timestamp
                 ON process_history(timestamp)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_process_history_category
                 ON process_history(category)
-            """)
+            """
+            )
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_anomalies_timestamp
                 ON anomalies(timestamp)
-            """)
+            """
+            )
 
     def record_snapshot(self, resource_metric: ResourceMetric, processes: List[ProcessSnapshot]):
         """
@@ -473,10 +489,12 @@ class ProcessTracker:
             cursor.execute("SELECT COUNT(*) as count FROM anomalies")
             anomaly_count = cursor.fetchone()["count"]
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT MIN(timestamp) as oldest, MAX(timestamp) as newest
                 FROM resource_snapshots
-            """)
+            """
+            )
             time_range = cursor.fetchone()
 
         return {

@@ -9,17 +9,9 @@ import json
 
 try:
     from .orchestrator import SystemHealth  # noqa: F401
-    from .orchestrator import (
-        ContextPrediction,
-        Recommendation,
-        StrategistResponse,
-    )
+    from .orchestrator import ContextPrediction, Recommendation, StrategistResponse
 except ImportError:
-    from orchestrator import (
-        ContextPrediction,
-        Recommendation,
-        StrategistResponse,
-    )
+    from orchestrator import ContextPrediction, Recommendation, StrategistResponse
 
 
 class ConverxFormatter:

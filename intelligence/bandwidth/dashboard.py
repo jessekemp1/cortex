@@ -12,10 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from intelligence.bandwidth.contracts import ContractMetricsStore
 from intelligence.bandwidth.handoff_capture import HandoffStorage
 from intelligence.bandwidth.meter import BandwidthMeter
 from intelligence.bandwidth.predictions import PredictionTracker
-from intelligence.bandwidth.contracts import ContractMetricsStore
 
 
 def render_dashboard(
@@ -220,8 +220,12 @@ def _render_contract_metrics(project: Optional[str], days: int) -> list:
         return lines
 
     lines.append(f"│  Sessions: {metrics['sessions']:<45}│")
-    lines.append(f"│  override_rate: {metrics['override_rate']*100:>5.1f}%                           │")
-    lines.append(f"│  autonomy_level: {metrics['autonomy_level']*100:>5.1f}%                          │")
+    lines.append(
+        f"│  override_rate: {metrics['override_rate']*100:>5.1f}%                           │"
+    )
+    lines.append(
+        f"│  autonomy_level: {metrics['autonomy_level']*100:>5.1f}%                          │"
+    )
     lines.append(f"│  novelty_score:  {metrics['novelty_score']:>5.2f}/10                        │")
     return lines
 

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List
 
 import pytest
+
 from cortex.plugins.base import BasePlugin, PluginMetadata
 from cortex.plugins.loader import PluginLoader
 from cortex.plugins.registry import PluginRegistry
@@ -274,14 +275,16 @@ enabled: false
 # Disabled Plugin
 """
         (plugin_dir / "PLUGIN.md").write_text(disabled_md)
-        (plugin_dir / "plugin.py").write_text("""
+        (plugin_dir / "plugin.py").write_text(
+            """
 from typing import List
 from cortex.plugins.base import BasePlugin
 
 class DisabledPlugin(BasePlugin):
     def execute(self, args: List[str], **kwargs) -> int:
         return 0
-""")
+"""
+        )
 
         loader = PluginLoader(temp_plugin_dir)
         plugins = loader.load_all_plugins(skip_disabled=True)

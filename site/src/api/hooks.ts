@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   healthApi,
+  serviceHealthApi,
   batchApi,
   queueApi,
   metricsApi,
@@ -21,6 +22,7 @@ import type { Task } from '@/types/task'
 
 export const queryKeys = {
   health: ['health'] as const,
+  serviceHealth: ['serviceHealth'] as const,
   batches: ['batches'] as const,
   batch: (id: string) => ['batch', id] as const,
   queue: ['queue'] as const,
@@ -42,6 +44,18 @@ export function useHealthQuery() {
     queryFn: healthApi.getHealth,
     staleTime: 1000 * 60,
     refetchInterval: 1000 * 60,
+    retry: 1,
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ── Cortex: Service Health ──
+export function useServiceHealthQuery() {
+  return useQuery({
+    queryKey: queryKeys.serviceHealth,
+    queryFn: serviceHealthApi.getServiceHealth,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
     retry: 1,
     refetchOnWindowFocus: true,
   })

@@ -141,19 +141,19 @@ class MetricTracker:
     """
 
     _CREATE_INDEX_SQL = """
-        CREATE INDEX IF NOT EXISTS idx_project_type_time 
+        CREATE INDEX IF NOT EXISTS idx_project_type_time
         ON metrics(project, metric_type, timestamp)
     """
 
     _CREATE_PROJECT_INDEX_SQL = """
-        CREATE INDEX IF NOT EXISTS idx_project 
+        CREATE INDEX IF NOT EXISTS idx_project
         ON metrics(project)
     """
 
     _INSERT_SQL = """
         INSERT INTO metrics (project, metric_type, metric_value, timestamp, metadata)
         VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(project, metric_type, timestamp) 
+        ON CONFLICT(project, metric_type, timestamp)
         DO UPDATE SET metric_value = excluded.metric_value,
                       metadata = excluded.metadata
     """

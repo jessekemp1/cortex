@@ -18,10 +18,7 @@ from typing import List, Optional
 # Add cortex to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from intelligence.memory.pattern_indexer import (
-    PatternIndexer,
-    PatternSearcher,
-)
+from intelligence.memory.pattern_indexer import PatternIndexer, PatternSearcher
 
 try:
     from intelligence.embeddings_client import EmbeddingsClient

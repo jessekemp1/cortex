@@ -36,7 +36,7 @@
 - **Risk Level:** HIGH
 - **Issue:** No version pinning creates reproducibility issues for financial calculations
 - **Breaking Changes:** pandas 2.0+ has significant API changes
-- **Action Required:** 
+- **Action Required:**
   - If using <2.0: Pin to `pandas>=1.5.3,<2.0` (security patches)
   - If compatible with 2.0: Pin to `pandas>=2.1.4` (latest stable)
 - **Impact:** Position sizing calculations may differ across environments
@@ -58,7 +58,7 @@
 #### 6. **yfinance (Yahoo Finance)**
 - **Risk Level:** MEDIUM-HIGH
 - **Issue:** Unofficial API wrapper, frequently breaks with Yahoo changes
-- **Recommended:** `yfinance>=0.2.36` 
+- **Recommended:** `yfinance>=0.2.36`
 - **Action Required:** Implement error handling for API failures
 
 ---
@@ -69,7 +69,7 @@
 - **Risk Level:** HIGH
 - **CVE:** CVE-2020-14343 (if using <5.4)
 - **Issue:** Arbitrary code execution via unsafe loading
-- **Action Required:** 
+- **Action Required:**
   - Ensure `PyYAML>=6.0.1`
   - Verify using `yaml.safe_load()` not `yaml.load()`
 - **Found In:** Config file parsing (`~/.cortex/config.yaml`)
@@ -102,7 +102,7 @@
   ```bash
   # Generate lock file
   pip freeze > requirements-lock.txt
-  
+
   # Or use pip-tools
   pip-compile requirements.txt
   ```

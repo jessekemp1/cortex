@@ -52,9 +52,9 @@ export class TestOrchestrator {
   private container: Container;
   private dataSource: DataSource;
   private activeTransactions: Map<string, QueryRunner> = new Map();
-  
+
   private constructor() {}
-  
+
   static getInstance(): TestOrchestrator {
     if (!TestOrchestrator.instance) {
       TestOrchestrator.instance = new TestOrchestrator();
@@ -65,20 +65,20 @@ export class TestOrchestrator {
   async initialize(): Promise<void> {
     // Initialize test container with all mocks
     this.container = await this.buildTestContainer();
-    
+
     // Initialize test database
     this.dataSource = await this.initializeTestDatabase();
-    
+
     // Warm up connection pool
     await this.warmupConnections();
-    
+
     // Initialize test utilities
     await this.initializeTestUtilities();
   }
 
   private async buildTestContainer(): Promise<Container> {
     const container = new Container({ defaultScope: 'Singleton' });
-    
+
     // Core services with test implementations
     container.bind<IAuthService>('AuthService')
       .to(MockableAuthService);
@@ -90,7 +90,7 @@ export class TestOrchestrator {
       .to(InMemoryCache);
     container.bind<IEventBus>('EventBus')
       .to(SynchronousEventBus);
-    
+
     return container;
   }
 
@@ -124,9 +124,9 @@ export class TestOrchestrator {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-    
+
     this.activeTransactions.set(testId, queryRunner);
-    
+
     return new TestContext(
       testId,
       queryRunner,
@@ -151,7 +151,7 @@ export class TestOrchestrator {
       await queryRunner.release();
     }
     this.activeTransactions.clear();
-    
+
     // Close database connection
     if (this.dataSource?.isInitialized) {
       await this.dataSource.destroy();
@@ -199,7 +199,7 @@ import { v4 as uuidv4 } from 'uuid';
 export abstract class BaseIntegrationTest {
   protected ctx: TestContext;
   protected testId: string;
-  
+
   private static orchestrator: TestOrchestrator;
 
   static async globalSetup(): Promise<void> {
@@ -290,7 +290,7 @@ export abstract class BaseSecurityTest extends BaseIntegrationTest {
     for (let i = 0; i < limit; i++) {
       await action();
     }
-    
+
     // Next should be rate limited
     await expect(action()).rejects.toMatchObject({
       code: 'RATE_LIMITED',
@@ -324,12 +324,12 @@ export class TransactionTestHarness {
   ): Promise<void> {
     // Setup test data
     await setup(this.ctx.manager);
-    
+
     // Create nested transaction for the action
     const nestedRunner = this.ctx.manager.connection.createQueryRunner();
     await nestedRunner.connect();
     await nestedRunner.startTransaction();
-    
+
     try {
       // Execute action that should fail
       await action(nestedRunner.manager);
@@ -340,7 +340,7 @@ export class TransactionTestHarness {
     } finally {
       await nestedRunner.release();
     }
-    
+
     // Verify rollback occurred correctly
     await verify(this.ctx.manager);
   }
@@ -354,7 +354,7 @@ export class TransactionTestHarness {
     expectedBehavior: 'all-succeed' | 'one-succeeds' | 'optimistic-lock-error'
   ): Promise<void> {
     const entity = await setup(this.ctx.manager);
-    
+
     const runners = await Promise.all(
       concurrentActions.map(async () => {
         const runner = this.ctx.manager.connection.createQueryRunner();
@@ -366,7 +366,7 @@ export class TransactionTestHarness {
 
     try {
       const results = await Promise.allSettled(
-        runners.map((runner, idx) => 
+        runners.map((runner, idx) =>
           concurrentActions[idx](entity, runner.manager)
         )
       );
@@ -405,7 +405,7 @@ export class TransactionTestHarness {
 
     const runner1 = this.ctx.manager.connection.createQueryRunner();
     const runner2 = this.ctx.manager.connection.createQueryRunner();
-    
+
     await runner1.connect();
     await runner2.connect();
     await runner1.startTransaction();
@@ -415,35 +415,35 @@ export class TransactionTestHarness {
       // Transaction 1: Lock A, then try to lock B
       // Transaction 2: Lock B, then try to lock A
       const promise1 = (async () => {
-        await runner1.manager.findOne(TestEntity, { 
-          where: { id: entityA.id }, 
-          lock: { mode: 'pessimistic_write' } 
+        await runner1.manager.findOne(TestEntity, {
+          where: { id: entityA.id },
+          lock: { mode: 'pessimistic_write' }
         });
         await new Promise(r => setTimeout(r, 100));
-        await runner1.manager.findOne(TestEntity, { 
-          where: { id: entityB.id }, 
-          lock: { mode: 'pessimistic_write' } 
+        await runner1.manager.findOne(TestEntity, {
+          where: { id: entityB.id },
+          lock: { mode: 'pessimistic_write' }
         });
       })();
 
       const promise2 = (async () => {
-        await runner2.manager.findOne(TestEntity, { 
-          where: { id: entityB.id }, 
-          lock: { mode: 'pessimistic_write' } 
+        await runner2.manager.findOne(TestEntity, {
+          where: { id: entityB.id },
+          lock: { mode: 'pessimistic_write' }
         });
         await new Promise(r => setTimeout(r, 100));
-        await runner2.manager.findOne(TestEntity, { 
-          where: { id: entityA.id }, 
-          lock: { mode: 'pessimistic_write' } 
+        await runner2.manager.findOne(TestEntity, {
+          where: { id: entityA.id },
+          lock: { mode: 'pessimistic_write' }
         });
       })();
 
       const results = await Promise.allSettled([promise1, promise2]);
-      
+
       // At least one should fail with deadlock
       const failures = results.filter(r => r.status === 'rejected');
       expect(failures.length).toBeGreaterThan(0);
-      
+
     } finally {
       await runner1.rollbackTransaction();
       await runner2.rollbackTransaction();
@@ -469,4 +469,4 @@ import { faker } from '@faker-js/faker';
 /**
  * Type-safe fixture factory with builder pattern
  */
-export abstract class 
+export abstract class

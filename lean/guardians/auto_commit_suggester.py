@@ -171,7 +171,9 @@ def log_competition_event(groups: dict, lines: int, latency_ms: float) -> str | 
     Returns event_id for response tracking.
     """
     try:
-        from cortex.intelligence.git.automation_metrics import log_event as metrics_log_event
+        from cortex.intelligence.git.automation_metrics import (
+            log_event as metrics_log_event,
+        )
         from cortex.intelligence.git.automation_metrics import write_pending_event
 
         suggestion_groups = []

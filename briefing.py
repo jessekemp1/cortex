@@ -9,9 +9,9 @@ Synthesizes:
 - Waiting on (decisions needed)
 """
 
-import sys
 import inspect
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -333,7 +333,9 @@ class BriefingGenerator:
                 elif "goals" in params or "context" in params:
                     recommendations = generate_fn(
                         goals=goals if goals else None,
-                        context={"project_activity": project_activity} if project_activity else None,
+                        context=(
+                            {"project_activity": project_activity} if project_activity else None
+                        ),
                         limit=5,
                     )
                 elif "tasks" in params:
@@ -1361,7 +1363,8 @@ class BriefingGenerator:
 
             conn = sqlite3.connect(str(db_path))
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT
                     json_extract(metadata, '$.json_job_id') as job_id,
                     json_extract(metadata, '$.source') as source,
@@ -1378,7 +1381,8 @@ class BriefingGenerator:
                     AND length(stdout) > 50
                 ORDER BY completed_at DESC
                 LIMIT 20
-            """)
+            """
+            )
             rows = cursor.fetchall()
             conn.close()
 
@@ -1554,11 +1558,17 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         modified = int(signal["modified"])
         untracked = int(signal["untracked"])
         if signal_quality == "LOW":
-            lines.append(f"{RED}[SIGNAL QUALITY: LOW] {modified + untracked} local changes distort recommendations{RESET}")
-            lines.append(f"{RED}Action: commit/stash or reduce working tree noise before trusting priorities{RESET}")
+            lines.append(
+                f"{RED}[SIGNAL QUALITY: LOW] {modified + untracked} local changes distort recommendations{RESET}"
+            )
+            lines.append(
+                f"{RED}Action: commit/stash or reduce working tree noise before trusting priorities{RESET}"
+            )
             lines.append("")
         elif signal_quality == "MED":
-            lines.append(f"{YELLOW}[SIGNAL QUALITY: MED] moderate working tree noise detected ({modified + untracked} files){RESET}")
+            lines.append(
+                f"{YELLOW}[SIGNAL QUALITY: MED] moderate working tree noise detected ({modified + untracked} files){RESET}"
+            )
             lines.append("")
 
     # ==================== TL;DR SECTION ====================
@@ -1858,7 +1868,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     exec_points = []
     if briefing.priority_actions:
         top = briefing.priority_actions[0]
-        exec_points.append(f"Top move: [{top.get('priority', 'MEDIUM')}] {top.get('title', 'Action')}")
+        exec_points.append(
+            f"Top move: [{top.get('priority', 'MEDIUM')}] {top.get('title', 'Action')}"
+        )
     if briefing.blockers:
         blocker_names = ", ".join(b["project"] for b in briefing.blockers[:2])
         exec_points.append(f"Blockers concentrated in: {blocker_names}")
@@ -1904,12 +1916,12 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         commit_pct = int(
             min(
                 100,
-                round(
-                    (briefing.recent_commits_24h / max(1, briefing.total_commits_7d)) * 100
-                ),
+                round((briefing.recent_commits_24h / max(1, briefing.total_commits_7d)) * 100),
             )
         )
-        lines.append(f"  Commit pulse meter: {_build_progress_bar(commit_pct, style)} {commit_pct}%")
+        lines.append(
+            f"  Commit pulse meter: {_build_progress_bar(commit_pct, style)} {commit_pct}%"
+        )
 
     if briefing.blockers:
         lines.append(f"  {RED}Blockers: {len(briefing.blockers)}{RESET}")
@@ -2194,7 +2206,8 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         categories = bi.get("categories", {})
         if isinstance(categories, dict):
             for cat, info in sorted(
-                categories.items(), key=lambda x: -(x[1].get("count", 0) if isinstance(x[1], dict) else 0)
+                categories.items(),
+                key=lambda x: -(x[1].get("count", 0) if isinstance(x[1], dict) else 0),
             ):
                 label = category_labels.get(cat, cat.replace("-", " ").title())
                 if isinstance(info, dict):
@@ -2318,9 +2331,11 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                     if isinstance(step, str):
                         step_text = step
                     else:
-                        step_text = getattr(step, "description", None) or getattr(
-                            step, "title", None
-                        ) or str(step)
+                        step_text = (
+                            getattr(step, "description", None)
+                            or getattr(step, "title", None)
+                            or str(step)
+                        )
                     step_text = step_text[:70] + "..." if len(step_text) > 70 else step_text
                     lines.append(f"       → {step_text}")
 
@@ -2481,7 +2496,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             novelty_score = float(bcm.get("novelty_score", 0))
 
             override_color = GREEN if override_rate < 10 else YELLOW if override_rate < 20 else RED
-            autonomy_color = GREEN if autonomy_level >= 70 else YELLOW if autonomy_level >= 50 else RED
+            autonomy_color = (
+                GREEN if autonomy_level >= 70 else YELLOW if autonomy_level >= 50 else RED
+            )
             novelty_color = GREEN if novelty_score >= 5 else YELLOW if novelty_score >= 3 else RED
 
             lines.append(
@@ -2591,9 +2608,7 @@ def format_briefing_json(briefing: BriefingData) -> str:
     return json.dumps(data, indent=2, default=str)
 
 
-def format_statusline(
-    briefing: BriefingData, use_color: bool = False, max_width: int = 140
-) -> str:
+def format_statusline(briefing: BriefingData, use_color: bool = False, max_width: int = 140) -> str:
     """Format a compact, single-line status summary for Claude statusLine hooks."""
     style = _load_briefing_style()
 
@@ -2606,7 +2621,7 @@ def format_statusline(
 
     signal_quality = "HIGH"
     tokens = [
-        f"[CORTEX]",
+        "[CORTEX]",
         f"P:{active}",
         f"C7:{commits_7d}",
         f"B:{blockers}",

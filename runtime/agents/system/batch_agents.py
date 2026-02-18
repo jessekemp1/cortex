@@ -7,6 +7,7 @@ and handle results from completed batches.
 from typing import TYPE_CHECKING, Any, Dict
 
 import structlog
+
 from cortex.runtime.agents.base import AgentMetadata, BaseAgent
 from cortex.runtime.batch.client import AnthropicBatchClient
 from cortex.runtime.models import AgentResult

@@ -195,7 +195,8 @@ class WorkingMemory:
     def _init_db(self):
         """Initialize SQLite database schema."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS memory_items (
                     id TEXT PRIMARY KEY,
                     content_json TEXT NOT NULL,
@@ -205,11 +206,14 @@ class WorkingMemory:
                     outcome TEXT,
                     quality_score REAL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
                 ON memory_items(last_accessed)
-            """)
+            """
+            )
             conn.commit()
         logger.debug("Initialized working memory database schema")
 

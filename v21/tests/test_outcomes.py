@@ -4,11 +4,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from cortex.v2.learning.outcomes import (
-    OutcomeDetector,
-    OutcomeSource,
-    OutcomeType,
-)
+
+from cortex.v2.learning.outcomes import OutcomeDetector, OutcomeSource, OutcomeType
 
 
 @pytest.fixture

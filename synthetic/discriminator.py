@@ -177,7 +177,12 @@ class Discriminator:
             DiscriminatorReport with AUC, accuracy, and SHAP feedback
         """
         xgb = _get_xgboost()
-        from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
+        from sklearn.metrics import (
+            accuracy_score,
+            precision_score,
+            recall_score,
+            roc_auc_score,
+        )
         from sklearn.model_selection import StratifiedKFold
 
         # Generate reference data if not provided
