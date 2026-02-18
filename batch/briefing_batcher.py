@@ -42,6 +42,7 @@ class RecommendationBatcher:
     def __init__(self, root_dir: Optional[Path] = None):
         """Initialize recommendation batcher with optional session manager integration"""
         self.client = BatchAPIClient()
+        self.model_policy = BatchModels()
         self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
 
         # Try to initialize session manager for context
@@ -407,7 +408,7 @@ Provide learning insights, decision points, and confidence assessment for future
             request = BatchRequest(
                 custom_id=f"{context.context_id}_insights",
                 params={
-                    "model": "claude-sonnet-4-20250514",
+                    "model": self.model_policy.for_briefing(),
                     "max_tokens": 1500,
                     "messages": [{"role": "user", "content": prompt}],
                     "system": self.system_prompt,

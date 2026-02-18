@@ -31,6 +31,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from batch.batch_api_client import BatchAPIClient, BatchRequest
 
+try:
+    from cortex.conductor.batch_models import ConductorBatchModels
+except ImportError:
+    from batch.model_policy import AnthropicBatchModels as ConductorBatchModels  # type: ignore[assignment]
+
 
 @dataclass
 class BatchCapacity:
@@ -115,6 +120,7 @@ class IntelligentBatchOrchestratorAnthropic:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not set in environment")
         self.batch_client = BatchAPIClient(api_key=api_key)
+        self.model_policy = ConductorBatchModels()
 
     def analyze_cortex_state(self) -> Dict[str, Any]:
         """Get current Cortex state (goals, projects, blockers)"""
@@ -507,10 +513,11 @@ Context: {codebase_context[:3000]}""",
         if not dry_run:
             batch_requests = []
             for job in queue:
+                model = self.model_policy.get_model(job.source)
                 request = BatchRequest(
                     custom_id=job.id,
                     params={
-                        "model": "claude-sonnet-4-5-20250929",
+                        "model": model,
                         "max_tokens": job.estimated_output_tokens,
                         "system": job.system_prompt,
                         "messages": [{"role": "user", "content": job.user_prompt}],
@@ -524,6 +531,7 @@ Context: {codebase_context[:3000]}""",
                         "priority": job.priority,
                         "tokens": job.total_tokens,
                         "source": job.source,
+                        "model": model,
                     }
                 )
 

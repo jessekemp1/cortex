@@ -49,8 +49,12 @@ _USE_CASE_TO_TIER: Dict[str, str] = {
     "analysis": "default",
     "recommendation": "default",
     "security_audit": "premium",
+    "security": "premium",
     "architecture": "premium",
     "complex": "premium",
+    "docs": "fast",
+    "goal": "default",
+    "pattern": "default",
 }
 
 
