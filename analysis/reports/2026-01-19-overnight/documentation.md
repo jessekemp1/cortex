@@ -8,7 +8,7 @@
 **File**: `cortex/README.md`  
 **Location**: Installation section  
 **Priority**: **Critical**  
-**What's Missing**: 
+**What's Missing**:
 - Prerequisites (Python version, OS requirements)
 - Dependencies installation details
 - Environment variable setup
@@ -103,7 +103,7 @@ cortex next vortexv2 --with-context
 
 #### ⚠️ Cannot Assess - No Code Provided
 **Priority**: **Critical** (if FastAPI routes exist)  
-**Required Files**: 
+**Required Files**:
 - `cortex/api/*.py` or `cortex/main.py`
 - Any files with `@app.get`, `@app.post` decorators
 
@@ -121,10 +121,10 @@ def get_projects(
 ) -> List[ProjectSchema]:
     """
     Retrieve active projects from portfolio.
-    
+
     Returns:
         List of projects with status, last_modified, priority
-        
+
     Errors:
         404: No projects found
         500: Database connection failed
@@ -159,17 +159,17 @@ def next_action(project, with_context):
 def next_action(project: str, with_context: bool = False) -> ActionResponse:
     """
     Determine next actionable task for a project.
-    
+
     Args:
         project: Project name (must exist in portfolio)
         with_context: Include file changes and recent commits
-        
+
     Returns:
         ActionResponse with task description, affected files, priority
-        
+
     Raises:
         ProjectNotFoundError: Project doesn't exist
-        
+
     Example:
         >>> next_action("vortexv2", with_context=True)
         ActionResponse(task="Implement weather API", files=["weather.py"])
@@ -469,17 +469,17 @@ Market Data → Strategies → Execution Engine → Portfolio → Metrics
 
 class StrategyInterface:
     """Base interface for all trading strategies."""
-    
+
     def generate_signals(self, market_data: pd.DataFrame) -> Signals:
         """
         Generate buy/sell signals from market data.
-        
+
         Args:
             market_data: OHLCV data with columns [open, high, low, close, volume]
-            
+
         Returns:
             Signals object with buy/sell recommendations and confidence scores
-            
+
         Example:
             >>> strategy = EqualWeight()
             >>> signals = strategy.generate_signals(btc_data)
@@ -510,7 +510,7 @@ Paper trading competition system for algorithmic strategy evaluation
 #### 1. Strategy Engine (src/intelligence/)
 - **Responsibility**: Generate trading signals
 - **Interface**: StrategyInterface
-- **Strategies**: 
+- **Strategies**:
   - EqualWeight: Allocate equally across assets
   - VolSizing: Size positions by volatility
   - Weather: VortexV2 weather-based signals
@@ -558,7 +558,7 @@ Paper trading competition system for algorithmic strategy evaluation
 
 ### Real-Time Trading Flow
 ```
-Market Data (Binance) 
+Market Data (Binance)
     ↓ (every 5s)
 Data Provider Cache
     ↓

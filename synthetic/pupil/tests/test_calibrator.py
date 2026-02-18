@@ -1,6 +1,7 @@
 """Standalone tests for SegmentCalibrator."""
 
 import pytest
+
 from pupil.calibrator import MAX_CORRECTION, SegmentCalibrator
 from pupil.segment_models import SEGMENT_MODELS
 

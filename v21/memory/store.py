@@ -6,14 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 from .decay import TemporalDecay
-from .types import (
-    Decision,
-    Incident,
-    Pattern,
-    Skill,
-    TypedMemory,
-    memory_from_dict,
-)
+from .types import Decision, Incident, Pattern, Skill, TypedMemory, memory_from_dict
 
 
 class TypedMemoryStore:

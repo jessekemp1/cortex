@@ -58,6 +58,14 @@ export const healthApi = {
   },
 }
 
+// ── Cortex: Service Health (ecosystem-wide) ──
+export const serviceHealthApi = {
+  getServiceHealth: async () => {
+    const response = await cortexApi.get('/service-health')
+    return response.data
+  },
+}
+
 // ── Cortex: Batches ──
 export const batchApi = {
   listBatches: async (limit = 20): Promise<BatchStatus[]> => {
@@ -298,6 +306,7 @@ export const taskBoardApi = {
 
 export default {
   health: healthApi,
+  serviceHealth: serviceHealthApi,
   batch: batchApi,
   queue: queueApi,
   metrics: metricsApi,

@@ -16,11 +16,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from batch_api_client import (
-    BatchAPIClient,
-    BatchRequest,
-    BatchResult,
-)
+from batch_api_client import BatchAPIClient, BatchRequest, BatchResult
 from batch_config import BatchConfig
 from batch_fallback import BatchFallback
 

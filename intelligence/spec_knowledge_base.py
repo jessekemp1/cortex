@@ -52,7 +52,8 @@ class SpecKnowledgeBase:
         """Initialize SQLite database for spec metadata."""
         conn = sqlite3.connect(self.metadata_db)
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS specs (
                 spec_id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -65,7 +66,8 @@ class SpecKnowledgeBase:
                 word_count INTEGER NOT NULL,
                 key_concepts TEXT
             )
-        """)
+        """
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_project ON specs(project)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_domain ON specs(domain)")
         conn.commit()

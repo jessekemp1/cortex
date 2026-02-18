@@ -57,21 +57,21 @@ from cortex.portfolio_memory import PortfolioMemory
 
 class TestPortfolioMemory:
     """Test suite for PortfolioMemory."""
-    
+
     def test_get_stats(self):
         """Test get_stats method."""
         pm = PortfolioMemory()
         stats = pm.get_stats()
-        
+
         assert "total_projects" in stats
         assert isinstance(stats["total_projects"], int)
         assert stats["total_projects"] >= 0
-    
+
     def test_get_stats_with_health(self):
         """Test get_stats with health included."""
         pm = PortfolioMemory()
         stats = pm.get_stats(include_health=True)
-        
+
         assert "health" in stats
         assert "healthy_count" in stats["health"]
 ```
@@ -181,4 +181,3 @@ jobs:
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

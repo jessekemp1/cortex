@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from cortex.v2.memory.store import TypedMemoryStore
 from cortex.v2.memory.types import Decision, Incident, Pattern, Skill
 

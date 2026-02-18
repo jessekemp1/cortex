@@ -339,7 +339,7 @@ The following are explicitly NOT in scope for CortexDBx:
 - Python SDK with `log_outcome()` and `recommend()`
 - Unit tests for confidence math
 
-**Exit Criteria**: 
+**Exit Criteria**:
 - 1000+ outcomes logged in test environment
 - Confidence scores correlate with actual success rates (r > 0.7)
 

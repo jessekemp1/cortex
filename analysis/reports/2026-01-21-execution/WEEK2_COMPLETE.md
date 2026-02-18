@@ -187,10 +187,10 @@
 def test_trading_strategy(sample_portfolio, sample_ohlcv_data, mock_broker):
     strategy = TradingStrategy()
     orders = strategy.generate_signals(sample_ohlcv_data)
-    
+
     for order in orders:
         mock_broker.submit_order(order)
-    
+
     assert mock_broker.get_account_value() > initial_value
 ```
 

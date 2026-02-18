@@ -9,6 +9,15 @@ This module implements instrumentation and measurement for human-AI bandwidth re
 Storage: ~/.cortex/research/bandwidth/
 """
 
+from intelligence.bandwidth.baseline_report import generate_baseline_report
+from intelligence.bandwidth.contracts import (
+    ContractMetricsStore,
+    ContractSessionMetrics,
+)
+from intelligence.bandwidth.event_adapter import (
+    normalize_claude_event,
+    normalize_codex_event,
+)
 from intelligence.bandwidth.handoff_capture import (
     SessionHandoff,
     WorkstreamType,
@@ -20,22 +29,13 @@ from intelligence.bandwidth.meter import (
     BandwidthMetrics,
     get_session_metrics,
 )
-from intelligence.bandwidth.event_adapter import (
-    normalize_claude_event,
-    normalize_codex_event,
-)
-from intelligence.bandwidth.contracts import (
-    ContractMetricsStore,
-    ContractSessionMetrics,
-)
-from intelligence.bandwidth.queue_slo import check_queue_slo
-from intelligence.bandwidth.baseline_report import generate_baseline_report
 from intelligence.bandwidth.predictions import (
     DomainCalibration,
     PredictionTracker,
     record_outcome,
     record_prediction,
 )
+from intelligence.bandwidth.queue_slo import check_queue_slo
 
 __all__ = [
     # Handoff Capture

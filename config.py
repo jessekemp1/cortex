@@ -2,7 +2,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from security import check_and_warn_permissions, secure_create_directory, secure_create_file
+from security import (
+    check_and_warn_permissions,
+    secure_create_directory,
+    secure_create_file,
+)
 
 
 @dataclass

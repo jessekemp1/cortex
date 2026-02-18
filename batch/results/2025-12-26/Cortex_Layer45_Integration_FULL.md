@@ -64,7 +64,7 @@ gap_analysis:
       - Message queue backpressure during peak loads
       - Type conversion errors in edge cases
     root_cause: "Historical independent development of layers"
-    
+
   gap_b_schema_evolution:
     severity: MEDIUM
     description: "Semantic ontology versions not synchronized with cognitive models"
@@ -73,7 +73,7 @@ gap_analysis:
       - Version negotiation failures (0.3% of requests)
       - Rollback complexity during deployments
     root_cause: "Lack of centralized schema registry"
-    
+
   gap_c_feedback_latency:
     severity: HIGH
     description: "Cognitive insights not propagating back to semantic layer efficiently"
@@ -82,7 +82,7 @@ gap_analysis:
       - Redundant semantic recomputation
       - Memory pressure from context duplication
     root_cause: "Unidirectional data flow assumption in original design"
-    
+
   gap_d_resource_contention:
     severity: MEDIUM
     description: "Shared memory pools causing cross-layer interference"
@@ -127,11 +127,11 @@ class PerformanceMetric:
     category: BottleneckCategory
     samples: List[float] = field(default_factory=list)
     threshold_p99_ms: float = 100.0
-    
+
     @property
     def p50(self) -> float:
         return statistics.median(self.samples) if self.samples else 0
-    
+
     @property
     def p99(self) -> float:
         if not self.samples:
@@ -139,22 +139,22 @@ class PerformanceMetric:
         sorted_samples = sorted(self.samples)
         idx = int(len(sorted_samples) * 0.99)
         return sorted_samples[min(idx, len(sorted_samples) - 1)]
-    
+
     @property
     def is_bottleneck(self) -> bool:
         return self.p99 > self.threshold_p99_ms
 
 class LayerIntegrationProfiler:
     """Comprehensive profiler for Layer 4-5 integration points"""
-    
+
     def __init__(self):
         self._metrics: Dict[str, PerformanceMetric] = {}
         self._lock = threading.Lock()
         self._trace_stack = threading.local()
-        
+
     def define_metric(
-        self, 
-        name: str, 
+        self,
+        name: str,
         category: BottleneckCategory,
         threshold_p99_ms: float = 100.0
     ) -> None:
@@ -164,7 +164,7 @@ class LayerIntegrationProfiler:
                 category=category,
                 threshold_p99_ms=threshold_p99_ms
             )
-    
+
     @contextmanager
     def measure(self, metric_name: str):
         """Context manager for measuring operation duration"""
@@ -176,7 +176,7 @@ class LayerIntegrationProfiler:
             with self._lock:
                 if metric_name in self._metrics:
                     self._metrics[metric_name].samples.append(duration_ms)
-    
+
     def get_bottleneck_report(self) -> Dict:
         """Generate comprehensive bottleneck analysis"""
         with self._lock:
@@ -191,25 +191,25 @@ class LayerIntegrationProfiler:
                         "threshold_ms": metric.threshold_p99_ms,
                         "severity": self._calculate_severity(metric)
                     })
-            
+
             return {
                 "total_metrics": len(self._metrics),
                 "bottleneck_count": len(bottlenecks),
                 "bottlenecks": sorted(
-                    bottlenecks, 
-                    key=lambda x: x["severity"], 
+                    bottlenecks,
+                    key=lambda x: x["severity"],
                     reverse=True
                 ),
                 "category_distribution": self._get_category_distribution()
             }
-    
+
     def _calculate_severity(self, metric: PerformanceMetric) -> float:
         """Calculate severity score (0-10) based on threshold violation"""
         if metric.p99 <= metric.threshold_p99_ms:
             return 0.0
         ratio = metric.p99 / metric.threshold_p99_ms
         return min(10.0, ratio * 2)
-    
+
     def _get_category_distribution(self) -> Dict[str, int]:
         distribution = defaultdict(int)
         for metric in self._metrics.values():
@@ -324,7 +324,7 @@ class SemanticUnit:
     confidence: float
     context_window_id: str
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    
+
     def to_tensor_format(self) -> 'TensorPayload':
         """Convert to Layer 5 compatible format"""
         return TensorPayload(
@@ -354,7 +354,7 @@ class CognitiveFeedback:
     attention_weights: tuple
     salience_score: float
     refinement_hints: dict
-    
+
 @dataclass
 class IntegrationEnvelope:
     """Universal message envelope for cross-layer communication"""
@@ -375,11 +375,11 @@ class IntegrationEnvelope:
 
 class IntegrationChannel(ABC, Generic[T, U]):
     """Abstract bidirectional integration channel"""
-    
+
     @abstractmethod
     async def send_forward(self, data: T) -> None:
         """Send data from Layer 4 → Layer 5"""
         pass
-    
+
     @abstractmethod
     async def send_backward(self, data: U) ->

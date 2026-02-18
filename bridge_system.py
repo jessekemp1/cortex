@@ -372,6 +372,7 @@ class SystemMixin:
                 ),
             },
         }
+
     def get_portfolio_stats(self, include_health: bool = True) -> Dict[str, Any]:
         """
         Get portfolio statistics.
@@ -705,6 +706,7 @@ class SystemMixin:
             return analyzer.analyze_portfolio_dependencies(project_filter=project_filter)
         except Exception as e:
             return {"error": str(e)}
+
     # --- Batch API Methods ---
 
     def submit_research_batch(self, research_items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1223,6 +1225,7 @@ class SystemMixin:
             return {"error": "Work absorber not available"}
         except Exception as e:
             return {"error": str(e)}
+
     # --- 7. Layer 1: Project Analysis Bridge ---
 
     def get_warnings(
@@ -1595,4 +1598,3 @@ class SystemMixin:
 
         except Exception as e:
             return {"error": str(e)}
-

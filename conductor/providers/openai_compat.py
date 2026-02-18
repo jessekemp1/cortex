@@ -150,10 +150,26 @@ class OpenAICompatProvider(BaseProvider):
             cost_usd=cost,
         )
 
+    @staticmethod
+    def _parse_retry_after(resp: httpx.Response) -> float | None:
+        """Extract Retry-After header as seconds, or None."""
+        val = resp.headers.get("retry-after")
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except ValueError:
+            return None
+
     def _raise_error(self, resp: httpx.Response) -> None:
         try:
             body = resp.json()
             msg = body.get("error", {}).get("message", resp.text)
         except Exception:
             msg = resp.text
-        raise ProviderError(self.name(), resp.status_code, msg)
+        raise ProviderError(
+            self.name(),
+            resp.status_code,
+            msg,
+            retry_after=self._parse_retry_after(resp),
+        )

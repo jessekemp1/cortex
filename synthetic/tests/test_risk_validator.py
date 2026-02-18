@@ -9,10 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from synthetic.generator import SyntheticGenerator
-from synthetic.risk_validator import (
-    AdversarialResult,
-    RiskValidator,
-)
+from synthetic.risk_validator import AdversarialResult, RiskValidator
 from synthetic.schemas import Transaction
 
 

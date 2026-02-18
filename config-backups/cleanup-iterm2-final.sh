@@ -34,7 +34,7 @@ PROFILES_TO_REMOVE=("Opus" "Sonnet" "Cortex" "VortexV2" "AlphaArena")
 
 for i in $(seq $((PROFILE_COUNT - 1)) -1 0); do
     PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :New\ Bookmarks:$i:Name" ~/Library/Preferences/com.googlecode.iterm2.plist 2>/dev/null || echo "")
-    
+
     if [[ " ${PROFILES_TO_REMOVE[@]} " =~ " ${PROFILE_NAME} " ]]; then
         echo "   Removing: $PROFILE_NAME (index $i)"
         /usr/libexec/PlistBuddy -c "Delete :New\ Bookmarks:$i" ~/Library/Preferences/com.googlecode.iterm2.plist 2>/dev/null || true

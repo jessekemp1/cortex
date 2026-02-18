@@ -8,17 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.pupil.market_env import (
-    CompetitionEvent,
-    EventType,
-    build_timeline,
-)
+from synthetic.pupil.market_env import CompetitionEvent, EventType, build_timeline
 from synthetic.pupil.persona import PersonaAgent
-from synthetic.pupil.simulation import (
-    SimulationEngine,
-    SimulationResult,
-    StepResult,
-)
+from synthetic.pupil.simulation import SimulationEngine, SimulationResult, StepResult
 from synthetic.schemas import CustomerProfile
 
 # ============================================================================

@@ -229,7 +229,11 @@ class OutcomeDetector:
         )
         if failure_matches > success_matches and failure_matches >= partial_matches:
             return OutcomeType.FAILURE, min(0.9, 0.5 + failure_matches * 0.15)
-        if (has_failure_override or has_failure_tie_signal) and failure_matches > 0 and failure_matches >= success_matches:
+        if (
+            (has_failure_override or has_failure_tie_signal)
+            and failure_matches > 0
+            and failure_matches >= success_matches
+        ):
             return OutcomeType.FAILURE, min(0.9, 0.5 + failure_matches * 0.15)
 
         if partial_matches > success_matches and partial_matches > failure_matches:

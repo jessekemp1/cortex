@@ -2,6 +2,7 @@
 
 import pytest
 from helpers import make_profiles
+
 from pupil.market_env import build_timeline
 from pupil.simulation import SimulationEngine, SimulationResult
 

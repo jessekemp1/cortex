@@ -2,10 +2,8 @@
 
 import pytest
 from helpers import make_profile
-from pupil.market_env import (
-    MarketEnvironment,
-    build_timeline,
-)
+
+from pupil.market_env import MarketEnvironment, build_timeline
 from pupil.persona import Action, ActionType, LifecycleState, PersonaAgent
 from pupil.segment_models import SEGMENT_MODELS, get_behavior
 

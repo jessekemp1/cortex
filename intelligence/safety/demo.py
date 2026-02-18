@@ -182,7 +182,8 @@ def demo_full_pipeline():
 
 def main():
     """Run all demonstrations."""
-    print("""
+    print(
+        """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                                                                      ║
 ║          Cortex Defensive Prompting System - Demonstration          ║
@@ -191,7 +192,8 @@ def main():
 ║  Cortex from prompt injection and other security risks.             ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
-    """)
+    """
+    )
 
     demo_injection_detection()
     demo_input_validation()

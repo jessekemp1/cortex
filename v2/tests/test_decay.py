@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
 from cortex.v2.memory.decay import DecayResult, TemporalDecay
 from cortex.v2.memory.types import Pattern
 

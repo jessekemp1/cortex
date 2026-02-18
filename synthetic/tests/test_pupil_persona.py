@@ -14,16 +14,8 @@ from synthetic.pupil.market_env import (
     MarketEnvironment,
     build_timeline,
 )
-from synthetic.pupil.persona import (
-    Action,
-    ActionType,
-    LifecycleState,
-    PersonaAgent,
-)
-from synthetic.pupil.segment_models import (
-    SEGMENT_MODELS,
-    get_behavior,
-)
+from synthetic.pupil.persona import Action, ActionType, LifecycleState, PersonaAgent
+from synthetic.pupil.segment_models import SEGMENT_MODELS, get_behavior
 from synthetic.schemas import CustomerProfile
 
 # ============================================================================

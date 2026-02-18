@@ -350,7 +350,6 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
             self.broker = None
             self.iap = None
 
-
     def end_session(self) -> None:
         """
         End session and consolidate memory.
@@ -370,15 +369,6 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
                 self.implicit_feedback.session_end()
             except Exception:
                 pass
-
-
-
-
-
-
-
-
-
 
     def _detect_current_project(self) -> str:
         """

@@ -13,7 +13,7 @@ Analyzed 3 projects for maintainability issues. Found **23 high-priority** and *
 
 ## 1. HIGH COMPLEXITY FUNCTIONS
 
-### 1.1 Cortex: `Session.get_next_action()` 
+### 1.1 Cortex: `Session.get_next_action()`
 **File:** `cortex/session.py:145-312` (168 lines)
 
 **Metrics:**
@@ -28,28 +28,28 @@ def get_next_action(self, project_name=None, with_context=False, limit=3):
     try:
         # Load portfolio state
         portfolio = self._load_portfolio()
-        
+
         # Filter by project if specified
         if project_name:
             # ... 20 lines of filtering logic
-        
+
         # Score all tasks
         scored_tasks = []
         for project in projects:
             for task in project.get('tasks', []):
                 # ... 30 lines of scoring logic
-                
+
         # Apply ML learning if enabled
         if self.config.get('learning_enabled'):
             # ... 40 lines of ML integration
-            
+
         # Generate context if requested
         if with_context:
             # ... 50 lines of context generation
-            
+
         # Format recommendations
         # ... 30 lines of formatting
-        
+
     except Exception as e:
         logger.error(f"Error: {e}")
         return None
@@ -70,15 +70,15 @@ class ActionRecommender:
         self.config = config
         self.scorer = TaskScorer()
         self.context_builder = ContextBuilder()
-        
+
     def get_recommendations(self, project_name=None, limit=3):
         projects = self._filter_projects(project_name)
         scored = self.scorer.score_all_tasks(projects)
         return self._apply_learning(scored)[:limit]
-    
+
     def _filter_projects(self, project_name):
         # 10 lines - single responsibility
-        
+
     def _apply_learning(self, tasks):
         # 15 lines - testable ML integration
 
@@ -86,7 +86,7 @@ class ActionRecommender:
 class TaskScorer:
     def score_all_tasks(self, projects):
         # 25 lines - isolated scoring logic
-        
+
 # context_builder.py  
 class ContextBuilder:
     def build_context(self, task, portfolio):
@@ -117,29 +117,29 @@ def run_cycle(self):
                 # ... 15 lines validation
             except Exception as e:
                 # ... 10 lines error handling
-                
+
         # Run each strategy
         for strategy_name, strategy in self.strategies.items():
             try:
                 # Generate signals
                 signals = strategy.generate_signals(data)
-                
+
                 # Execute trades
                 for signal in signals:
                     if signal['action'] == 'BUY':
                         # ... 20 lines buy logic
                     elif signal['action'] == 'SELL':
                         # ... 20 lines sell logic
-                        
+
                 # Update positions
                 # ... 25 lines position management
-                
+
             except Exception as e:
                 # ... error handling
-                
+
         # Calculate metrics
         # ... 30 lines metrics calculation
-        
+
     except Exception as e:
         logger.error(f"Cycle failed: {e}")
 ```
@@ -158,15 +158,15 @@ class CompetitionRunner:
         self.signal_executor = SignalExecutor()
         self.position_manager = PositionManager()
         self.metrics_calculator = MetricsCalculator()
-    
+
     def run_cycle(self):
         """Orchestrate competition cycle."""
         market_data = self.data_fetcher.fetch_all(self.symbols)
-        
+
         for strategy_name, strategy in self.strategies.items():
             results = self._run_strategy(strategy, market_data)
             self.metrics_calculator.record(strategy_name, results)
-    
+
     def _run_strategy(self, strategy, data):
         signals = strategy.generate_signals(data)
         executions = self.signal_executor.execute_all(signals)
@@ -200,21 +200,21 @@ def predict_severe_weather(self, lat, lon, forecast_hours=24):
     gfs_data = self.fetch_gfs(lat, lon)
     radar_data = self.fetch_radar(lat, lon)
     satellite_data = self.fetch_satellite(lat, lon)
-    
+
     # Calculate derived parameters
     if gfs_data and 'temperature' in gfs_data:
         cape = self._calculate_cape(gfs_data)
         shear = self._calculate_shear(gfs_data)
         # ... 20 lines of atmospheric calculations
-        
+
     # Apply ML model
     if self.model_loaded:
         features = self._extract_features(gfs_data, radar_data, satellite_data)
         # ... 30 lines feature engineering
-        
+
         predictions = self.model.predict(features)
         # ... 25 lines prediction processing
-        
+
     # Generate alerts
     alerts = []
     for pred in predictions:
@@ -222,7 +222,7 @@ def predict_severe_weather(self, lat, lon, forecast_hours=24):
             # ... 15 lines tornado alert logic
         if pred['hail_prob'] > 0.5:
             # ... 15 lines hail alert logic
-            
+
     return {'predictions': predictions, 'alerts': alerts}
 ```
 
@@ -241,7 +241,7 @@ class SevereWeatherPredictor:
         self.feature_engineer = AtmosphericFeatureEngineer()
         self.model = SevereWeatherModel()
         self.alert_generator = AlertGenerator()
-    
+
     def predict(self, lat, lon, forecast_hours=24):
         weather_data = self.data_aggregator.fetch_all(lat, lon)
         features = self.feature_engineer.extract(weather_data)
@@ -262,12 +262,12 @@ class WeatherDataAggregator:
 class AtmosphericFeatureEngineer:
     def extract(self, weather_data):
         # 40 lines - testable feature engineering
-        
+
 # alert_generator.py  
 class AlertGenerator:
     TORNADO_THRESHOLD = 0.4  # No more magic numbers
     HAIL_THRESHOLD = 0.5
-    
+
     def generate(self, predictions):
         # 30 lines - configurable alert logic
 ```
@@ -299,7 +299,7 @@ class MetricsCalculator:
             'quality': QualityCalculator(),
             'complexity': ComplexityCalculator()
         }
-    
+
     def calculate_all(self, portfolio_data):
         return {
             name: calc.calculate(portfolio_data)
@@ -328,7 +328,7 @@ class TechnicalIndicators:
     @staticmethod
     def calculate_rsi(prices, period=14):
         # Single responsibility
-        
+
     @staticmethod
     def calculate_macd(prices):
         # Reusable across strategies
@@ -360,29 +360,29 @@ class StrategyEngine:
 def validate_data(data):
     if not data:
         raise ValueError("Data is empty")
-    
+
     if not isinstance(data, dict):
         raise TypeError("Data must be dict")
-        
+
     required_fields = ['timestamp', 'value']
     missing = [f for f in required_fields if f not in data]
     if missing:
         raise ValueError(f"Missing fields: {missing}")
-    
+
     # Validate timestamp
     try:
         datetime.fromisoformat(data['timestamp'])
     except ValueError:
         raise ValueError("Invalid timestamp format")
-    
+
     # Validate value types
     if not isinstance(data['value'], (int, float)):
         raise TypeError("Value must be numeric")
-    
+
     # Range validation
     if data['value'] < 0:
         raise ValueError("Value cannot be negative")
-        
+
     return True
 ```
 
@@ -407,33 +407,33 @@ class ValidationRule:
 
 class DataValidator:
     """Reusable validation framework."""
-    
+
     def __init__(self, required_fields: List[str]):
         self.required_fields = required_fields
         self.rules = []
-    
+
     def add_rule(self, rule: ValidationRule):
         self.rules.append(rule)
         return self
-    
+
     def validate(self, data: dict) -> bool:
         # Check existence
         if not data:
             raise ValueError("Data is empty")
-        
+
         if not isinstance(data, dict):
             raise TypeError("Data must be dict")
-        
+
         # Check required fields
         missing = [f for f in self.required_fields if f not in data]
         if missing:
             raise ValueError(f"Missing required fields: {missing}")
-        
+
         # Apply custom rules
         for rule in self.rules:
             if not rule.validator(data.get(rule.field)):
                 raise ValueError(f"{rule.field}: {rule.error_message}")
-        
+
         return True
 
 # Pre-configured validators
@@ -447,7 +447,7 @@ class CommonValidators:
                 "Invalid ISO timestamp format"
             )
         )
-    
+
     @staticmethod
     def create_numeric_validator(allow_negative=False):
         def validate_numeric(value):
@@ -456,7 +456,7 @@ class CommonValidators:
             if not allow_negative and value < 0:
                 return False
             return True
-        
+
         return DataValidator(['value']).add_rule(
             ValidationRule(
                 'value',
@@ -519,7 +519,7 @@ def validate_market_data(data):
 except Exception as e:
     error_msg = f"Operation failed: {str(e)}"
     logger.error(error_msg)
-    
+
     # Log to file
     error_file = Path(self.log_dir) / "errors.log"
     with open(error_file, 'a') as f:
@@ -528,15 +528,15 @@ except Exception as e:
 ")
         f.write(f"Traceback: {traceback.format_exc()}\
 ")
-    
+
     # Send notification (in some files)
     if hasattr(self, 'notify_errors'):
         self._send_notification(error_msg)
-    
+
     # Increment error counter
     if hasattr(self, 'error_count'):
         self.error_count += 1
-    
+
     # Return or raise based on severity
     if isinstance(e, CriticalError):
         raise
@@ -568,8 +568,8 @@ class ErrorSeverity(Enum):
 
 class ErrorHandler:
     """Centralized error handling with logging, notifications, and metrics."""
-    
-    def __init__(self, 
+
+    def __init__(self,
                  log_dir: Path,
                  project_name: str,
                  notification_callback: Optional[Callable] = None):
@@ -578,18 +578,18 @@ class ErrorHandler:
         self.notification_callback = notification_callback
         self.error_count = 0
         self.logger = logging.getLogger(f"{project_name}.errors")
-        
+
         # Ensure log directory exists
         self.log_dir.mkdir(parents=True, exist_ok=True)
-    
-    def handle_error(self, 
+
+    def handle_error(self,
                      exception: Exception,
                      context: str,
                      severity: ErrorSeverity = ErrorSeverity.MEDIUM,
                      reraise: bool = False):
         """
         Handle exception with logging, notifications, and metrics.
-        
+
         Args:
             exception: The caught exception
             context: Description of what was being done
@@ -597,24 +597,24 @@ class ErrorHandler:
             reraise: Whether to re-raise after handling
         """
         error_msg = f"[{self.project_name}] {context}: {str(exception)}"
-        
+
         # Log to standard logger
         self.logger.error(error_msg)
-        
+
         # Write to error file with traceback
         self._write_error_file(error_msg, exception)
-        
+
         # Send notification for high severity
         if severity.value >= ErrorSeverity.HIGH.value:
             self._notify(error_msg, severity)
-        
+
         # Increment counter
         self.error_count += 1
-        
+
         # Re-raise critical errors or if requested
         if severity == ErrorSeverity.CRITICAL or reraise:
             raise exception
-    
+
     def _write_error_file(self, error_msg: str, exception: Exception):
         """Write error to persistent log file."""
         error_file = self.log_dir / "errors.log"
@@ -630,7 +630,7 @@ class ErrorHandler:
             f.write(f"Traceback:\
 {traceback.format_exc()}\
 ")
-    
+
     def _notify(self, error_msg: str, severity: ErrorSeverity):
         """Send error notification if callback configured."""
         if self.notification_callback:
@@ -643,7 +643,7 @@ class ErrorHandler:
                 })
             except Exception as e:
                 self.logger.error(f"Failed to send notification: {e}")
-    
+
     def get_error_summary(self) -> dict:
         """Get error statistics."""
         return {
@@ -663,7 +663,7 @@ class Session:
             project_name='cortex',
             notification_callback=self._send_slack_notification
         )
-    
+
     def get_next_action(self):
         try:
             # ... business logic
@@ -682,7 +682,7 @@ class CompetitionRunner:
             log_dir=Path('logs'),
             project_name='alpha_arena'
         )
-    
+
     def run_cycle(self):
         try:
             # ... trading logic

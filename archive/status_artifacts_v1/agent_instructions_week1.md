@@ -49,4 +49,3 @@
 - Can index existing 73 specs
 - Search returns relevant results
 - <5s for full project indexing
-

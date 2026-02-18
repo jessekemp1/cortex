@@ -202,7 +202,7 @@ class SyntheticConfig:
     num_outcomes: int
     success_rate_range: tuple  # (min, max) for strategy success rates
     time_span_days: int
-    
+
 @dataclass
 class DomainConfig:
     """Domain-specific configuration for realistic data generation."""
@@ -224,7 +224,7 @@ DOMAIN_CONFIGS = {
         ],
         outcome_weights={"SUCCESS": 0.70, "FAILURE": 0.20, "PARTIAL": 0.10}
     ),
-    
+
     "clinical_trial": DomainConfig(
         context_factors=[
             "trial_phase", "therapeutic_area", "inclusion_criteria_count",
@@ -237,7 +237,7 @@ DOMAIN_CONFIGS = {
         ],
         outcome_weights={"SUCCESS": 0.55, "FAILURE": 0.30, "PARTIAL": 0.15}
     ),
-    
+
     "maintenance": DomainConfig(
         context_factors=[
             "equipment_type", "sensor_reading_pattern", "operating_hours",
@@ -250,7 +250,7 @@ DOMAIN_CONFIGS = {
         ],
         outcome_weights={"SUCCESS": 0.65, "FAILURE": 0.25, "PARTIAL": 0.10}
     ),
-    
+
     "marketing_campaign": DomainConfig(
         context_factors=[
             "audience_segment", "channel", "creative_type", "offer_type",
@@ -262,7 +262,7 @@ DOMAIN_CONFIGS = {
         ],
         outcome_weights={"SUCCESS": 0.45, "FAILURE": 0.35, "PARTIAL": 0.20}
     ),
-    
+
     "security_incident": DomainConfig(
         context_factors=[
             "alert_severity", "attack_vector", "affected_systems",
@@ -275,7 +275,7 @@ DOMAIN_CONFIGS = {
         ],
         outcome_weights={"SUCCESS": 0.60, "FAILURE": 0.25, "PARTIAL": 0.15}
     ),
-    
+
     "supply_chain": DomainConfig(
         context_factors=[
             "product_category", "origin_region", "destination_region",
@@ -292,15 +292,15 @@ DOMAIN_CONFIGS = {
 
 class SyntheticDataGenerator:
     """Generate realistic synthetic data for CortexDBx MVP."""
-    
+
     def __init__(self, domain: str, seed: int = 42):
         self.domain = domain
         self.config = DOMAIN_CONFIGS[domain]
         random.seed(seed)
-        
+
         # Pre-generate strategies with fixed success rates
         self.strategies = self._generate_strategies()
-        
+
     def _generate_strategies(self) -> Dict[str, Dict]:
         """Generate strategies with inherent success rates."""
         strategies = {}
@@ -315,7 +315,7 @@ class SyntheticDataGenerator:
                 "category": random.choice(["primary", "fallback", "experimental"])
             }
         return strategies
-    
+
     def _generate_context(self) -> Dict:
         """Generate a random context."""
         factors = []
@@ -331,30 +331,30 @@ class SyntheticDataGenerator:
                 value = str(random.randint(1, 365))
             else:
                 value = f"value_{random.randint(1, 10)}"
-            
+
             factors.append({"key": factor_name, "value": value})
-        
+
         # Create deterministic hash
         factors_str = json.dumps(sorted(factors, key=lambda x: x["key"]))
         context_hash = hashlib.sha256(factors_str.encode()).hexdigest()[:16]
-        
+
         return {
             "context_id": f"ctx_{context_hash}",
             "context_hash": context_hash,
             "domain": self.domain,
             "factors": factors
         }
-    
-    def _generate_outcome(self, context: Dict, strategy: Dict, 
+
+    def _generate_outcome(self, context: Dict, strategy: Dict,
                           timestamp: datetime) -> Dict:
         """Generate an outcome based on strategy's inherent success rate."""
         # Outcome is probabilistic based on strategy's inherent rate
         inherent_rate = strategy["inherent_success_rate"]
-        
+
         # Add some noise for realism
         effective_rate = inherent_rate + random.gauss(0, 0.1)
         effective_rate = max(0.05, min(0.95, effective_rate))
-        
+
         roll = random.random()
         if roll < effective_rate:
             result = "SUCCESS"
@@ -362,7 +362,7 @@ class SyntheticDataGenerator:
             result = "PARTIAL"
         else:
             result = "FAILURE"
-        
+
         return {
             "outcome_id": str(uuid.uuid4()),
             "context_id": context["context_id"],
@@ -376,40 +376,40 @@ class SyntheticDataGenerator:
             "actor": f"synthetic_user_{random.randint(1, 10)}",
             "created_at": timestamp.isoformat()
         }
-    
-    def generate_dataset(self, num_outcomes: int, 
+
+    def generate_dataset(self, num_outcomes: int,
                          days_span: int = 90) -> Generator[Dict, None, None]:
         """Generate a complete synthetic dataset."""
-        
+
         # Generate pool of contexts
         num_contexts = min(num_outcomes // 10, 500)  # ~10 outcomes per context
         contexts = [self._generate_context() for _ in range(num_contexts)]
-        
+
         # Generate outcomes over time span
         start_date = datetime.now() - timedelta(days=days_span)
-        
+
         for i in range(num_outcomes):
             # Random timestamp within span
             random_days = random.uniform(0, days_span)
             timestamp = start_date + timedelta(days=random_days)
-            
+
             # Select context and strategy
             context = random.choice(contexts)
             strategy = random.choice(list(self.strategies.values()))
-            
+
             # Generate outcome
             outcome = self._generate_outcome(context, strategy, timestamp)
-            
+
             yield {
                 "context": context,
                 "strategy": strategy,
                 "outcome": outcome
             }
-    
+
     def get_ground_truth(self) -> Dict[str, float]:
         """Return ground truth success rates for validation."""
         return {
-            s["strategy_id"]: s["inherent_success_rate"] 
+            s["strategy_id"]: s["inherent_success_rate"]
             for s in self.strategies.values()
         }
 
@@ -417,18 +417,18 @@ class SyntheticDataGenerator:
 def generate_all_domains(outcomes_per_domain: int = 10000) -> Dict[str, List]:
     """Generate synthetic data for all 6 use cases."""
     all_data = {}
-    
+
     for domain in DOMAIN_CONFIGS.keys():
         print(f"Generating {outcomes_per_domain} outcomes for {domain}...")
         generator = SyntheticDataGenerator(domain)
-        
+
         data = list(generator.generate_dataset(outcomes_per_domain))
         all_data[domain] = {
             "outcomes": data,
             "ground_truth": generator.get_ground_truth(),
             "strategies": generator.strategies
         }
-    
+
     return all_data
 ```
 
@@ -468,7 +468,7 @@ outcomes_data = []
 
 for domain, config in DOMAIN_CONFIGS.items():
     generator = SyntheticDataGenerator(domain)
-    
+
     for record in generator.generate_dataset(OUTCOMES_PER_DOMAIN):
         contexts_data.append(record["context"])
         strategies_data.append(record["strategy"])
@@ -510,16 +510,16 @@ class CalibrationState:
     success_count: int
     failure_count: int
     partial_count: int
-    
+
     @property
     def confidence(self) -> float:
         """Current P(success) estimate."""
         return self.alpha / (self.alpha + self.beta)
-    
+
     @property
     def evidence_count(self) -> int:
         return self.success_count + self.failure_count + self.partial_count
-    
+
     @property
     def uncertainty(self) -> float:
         """Variance of Beta distribution - higher = more uncertain."""
@@ -530,21 +530,21 @@ class CalibrationState:
 class CalibrationEngine:
     """
     Bayesian calibration using Beta-Binomial model.
-    
+
     Updates confidence per (context, strategy) pair based on outcomes.
     """
-    
+
     def __init__(self, prior_alpha: float = 1.0, prior_beta: float = 1.0):
         """
         Initialize with prior beliefs.
-        
+
         Default: Uniform prior (alpha=1, beta=1) = no prior knowledge
         Informative prior: alpha=2, beta=2 = slight belief in 50% success
         """
         self.prior_alpha = prior_alpha
         self.prior_beta = prior_beta
         self.states: Dict[Tuple[str, str], CalibrationState] = {}
-    
+
     def get_state(self, context_id: str, strategy_id: str) -> CalibrationState:
         """Get or create calibration state for (context, strategy)."""
         key = (context_id, strategy_id)
@@ -557,15 +557,15 @@ class CalibrationEngine:
                 partial_count=0
             )
         return self.states[key]
-    
+
     def update(self, context_id: str, strategy_id: str, result: str) -> CalibrationState:
         """
         Update calibration based on new outcome.
-        
+
         result: 'SUCCESS' (counts as 1), 'PARTIAL' (counts as 0.5), 'FAILURE' (counts as 0)
         """
         state = self.get_state(context_id, strategy_id)
-        
+
         if result == "SUCCESS":
             state.alpha += 1.0
             state.success_count += 1
@@ -576,59 +576,59 @@ class CalibrationEngine:
         else:  # FAILURE
             state.beta += 1.0
             state.failure_count += 1
-        
+
         return state
-    
+
     def get_confidence(self, context_id: str, strategy_id: str) -> Tuple[float, str]:
         """
         Get current confidence with explanation.
-        
+
         Returns: (confidence, explanation)
         """
         state = self.get_state(context_id, strategy_id)
-        
+
         if state.evidence_count == 0:
             return 0.5, "No historical data"
-        
+
         confidence = state.confidence
         explanation = (
             f"{confidence:.0%} confidence based on {state.evidence_count} outcomes "
             f"({state.success_count} success, {state.failure_count} failure, "
             f"{state.partial_count} partial)"
         )
-        
+
         return confidence, explanation
-    
+
     def evaluate_calibration(self, ground_truth: Dict[str, float]) -> Dict[str, float]:
         """
         Evaluate calibration quality against ground truth.
-        
+
         Returns metrics including Brier score and precision at high confidence.
         """
         predictions = []
         actuals = []
-        
+
         for (ctx, strat), state in self.states.items():
             if strat in ground_truth and state.evidence_count >= 5:
                 predictions.append(state.confidence)
                 actuals.append(ground_truth[strat])
-        
+
         if not predictions:
             return {"error": "Insufficient data for evaluation"}
-        
+
         # Brier score: mean squared error of probability estimates
         brier = sum((p - a) ** 2 for p, a in zip(predictions, actuals)) / len(predictions)
-        
+
         # Mean absolute error
         mae = sum(abs(p - a) for p, a in zip(predictions, actuals)) / len(predictions)
-        
+
         # Precision at high confidence (>0.8)
         high_conf = [(p, a) for p, a in zip(predictions, actuals) if p > 0.8]
         precision_high = (
             sum(1 for p, a in high_conf if a > 0.6) / len(high_conf)
             if high_conf else None
         )
-        
+
         return {
             "brier_score": brier,
             "mean_absolute_error": mae,
@@ -668,7 +668,7 @@ edges_df = aggregated.withColumn(
     "alpha",
     F.lit(PRIOR_ALPHA) + F.col("success_count") + 0.5 * F.col("partial_count")
 ).withColumn(
-    "beta", 
+    "beta",
     F.lit(PRIOR_BETA) + F.col("failure_count") + 0.5 * F.col("partial_count")
 ).withColumn(
     "confidence",
@@ -683,7 +683,7 @@ edges_df.write.mode("overwrite").saveAsTable("context_strategy_edges")
 # Verify calibration
 display(
     spark.sql("""
-        SELECT 
+        SELECT
             s.domain,
             s.name as strategy_name,
             e.confidence,
@@ -770,7 +770,7 @@ Available domain agents: {agents}
 """,
         tools=["spawn_agent", "wait_for_agents", "aggregate_results"]
     ),
-    
+
     "fraud_domain": AgentConfig(
         role=AgentRole.DOMAIN_EXPERT,
         domain="fraud_investigation",
@@ -793,7 +793,7 @@ Task: {task}
 """,
         tools=["query_outcomes", "update_calibration", "generate_recommendation"]
     ),
-    
+
     "healthcare_domain": AgentConfig(
         role=AgentRole.DOMAIN_EXPERT,
         domain="clinical_trial",
@@ -816,7 +816,7 @@ Task: {task}
 """,
         tools=["query_outcomes", "update_calibration", "generate_recommendation"]
     ),
-    
+
     # Additional domain agents follow same pattern...
 }
 ```
@@ -837,17 +837,17 @@ class AgentOrchestrator:
     """
     Coordinates domain agents for parallel processing.
     """
-    
+
     def __init__(self, max_workers: int = 6):
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.domain_agents: Dict[str, DomainAgent] = {}
-    
+
     def register_domain_agent(self, domain: str, agent: 'DomainAgent') -> None:
         """Register a domain-specific agent."""
         self.domain_agents[domain] = agent
         logger.info(f"Registered agent for domain: {domain}")
-    
+
     async def process_batch(self, signals: List[Dict]) -> Dict[str, Any]:
         """
         Process a batch of signals across domain agents in parallel.
@@ -859,7 +859,7 @@ class AgentOrchestrator:
             if domain not in by_domain:
                 by_domain[domain] = []
             by_domain[domain].append(signal)
-        
+
         # Process each domain in parallel
         tasks = []
         for domain, domain_signals in by_domain.items():
@@ -870,59 +870,59 @@ class AgentOrchestrator:
                 tasks.append(task)
             else:
                 logger.warning(f"No agent registered for domain: {domain}")
-        
+
         # Wait for all domains to complete
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Aggregate results
         aggregated = {
             "total_processed": sum(r.get("processed", 0) for r in results if isinstance(r, dict)),
             "total_outcomes": sum(r.get("outcomes", 0) for r in results if isinstance(r, dict)),
             "errors": [str(r) for r in results if isinstance(r, Exception)],
             "by_domain": {
-                domain: results[i] 
+                domain: results[i]
                 for i, domain in enumerate(by_domain.keys())
                 if isinstance(results[i], dict)
             }
         }
-        
+
         return aggregated
-    
+
     async def _process_domain(self, domain: str, signals: List[Dict]) -> Dict:
         """Process signals for a single domain."""
         agent = self.domain_agents[domain]
-        
+
         outcomes_created = 0
         recommendations_generated = 0
-        
+
         for signal in signals:
             try:
                 # Agent processes signal and creates outcome
                 outcome = await agent.process_signal(signal)
                 if outcome:
                     outcomes_created += 1
-                
+
                 # Agent checks if recommendation is warranted
                 recommendation = await agent.check_recommendation(signal)
                 if recommendation:
                     recommendations_generated += 1
-                    
+
             except Exception as e:
                 logger.error(f"Error processing signal in {domain}: {e}")
-        
+
         return {
             "domain": domain,
             "processed": len(signals),
             "outcomes": outcomes_created,
             "recommendations": recommendations_generated
         }
-    
+
     def run_calibration_sweep(self) -> Dict[str, Any]:
         """
         Run calibration update across all domains.
         """
         results = {}
-        
+
         for domain, agent in self.domain_agents.items():
             try:
                 calibration_result = agent.run_calibration()
@@ -930,25 +930,25 @@ class AgentOrchestrator:
             except Exception as e:
                 logger.error(f"Calibration failed for {domain}: {e}")
                 results[domain] = {"error": str(e)}
-        
+
         return results
-    
+
     def generate_recommendations(self, min_confidence: float = 0.7) -> List[Dict]:
         """
         Generate recommendations across all domains.
         """
         all_recommendations = []
-        
+
         for domain, agent in self.domain_agents.items():
             try:
                 domain_recs = agent.generate_recommendations(min_confidence)
                 all_recommendations.extend(domain_recs)
             except Exception as e:
                 logger.error(f"Recommendation generation failed for {domain}: {e}")
-        
+
         # Sort by confidence descending
         all_recommendations.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-        
+
         return all_recommendations
 
 
@@ -956,26 +956,26 @@ class DomainAgent:
     """
     Base class for domain-specific agents.
     """
-    
+
     def __init__(self, domain: str, spark_session, catalog: str, schema: str):
         self.domain = domain
         self.spark = spark_session
         self.catalog = catalog
         self.schema = schema
         self.table_prefix = f"{catalog}.{schema}"
-    
+
     async def process_signal(self, signal: Dict) -> Dict:
         """Process a single signal and create outcome."""
         raise NotImplementedError
-    
+
     async def check_recommendation(self, context: Dict) -> Dict:
         """Check if recommendation is warranted for context."""
         raise NotImplementedError
-    
+
     def run_calibration(self) -> Dict:
         """Run calibration update for this domain."""
         raise NotImplementedError
-    
+
     def generate_recommendations(self, min_confidence: float) -> List[Dict]:
         """Generate recommendations above confidence threshold."""
         raise NotImplementedError
@@ -991,7 +991,7 @@ class DomainAgent:
 orchestrator = AgentOrchestrator(max_workers=6)
 
 # Register domain agents
-for domain in ["fraud_investigation", "clinical_trial", "maintenance", 
+for domain in ["fraud_investigation", "clinical_trial", "maintenance",
                "marketing_campaign", "security_incident", "supply_chain"]:
     agent = DomainAgent(
         domain=domain,
@@ -1114,7 +1114,7 @@ with col4:
 st.subheader("Strategy Confidence by Domain")
 
 confidence_df = spark.sql(f"""
-    SELECT 
+    SELECT
         s.domain,
         s.name as strategy_name,
         e.confidence,
@@ -1129,13 +1129,13 @@ confidence_df = spark.sql(f"""
 
 if not confidence_df.empty:
     fig = px.bar(
-        confidence_df, 
-        x="strategy_name", 
+        confidence_df,
+        x="strategy_name",
         y="confidence",
         color="domain",
         title="Strategy Confidence Rankings"
     )
-    fig.add_hline(y=0.8, line_dash="dash", line_color="green", 
+    fig.add_hline(y=0.8, line_dash="dash", line_color="green",
                   annotation_text="High Confidence Threshold")
     fig.add_hline(y=0.3, line_dash="dash", line_color="red",
                   annotation_text="Warning Threshold")
@@ -1145,7 +1145,7 @@ if not confidence_df.empty:
 st.subheader("Top Recommendations")
 
 recs_df = spark.sql(f"""
-    SELECT 
+    SELECT
         r.recommendation_id,
         s.domain,
         s.name as strategy_name,
@@ -1181,8 +1181,8 @@ col1, col2 = st.columns(2)
 with col1:
     # Confidence distribution
     dist_df = spark.sql(f"""
-        SELECT 
-            CASE 
+        SELECT
+            CASE
                 WHEN confidence >= 0.8 THEN 'High (80%+)'
                 WHEN confidence >= 0.5 THEN 'Medium (50-80%)'
                 ELSE 'Low (<50%)'
@@ -1191,7 +1191,7 @@ with col1:
         FROM {CATALOG}.{SCHEMA}.context_strategy_edges
         GROUP BY 1
     """).toPandas()
-    
+
     if not dist_df.empty:
         fig = px.pie(dist_df, values="count", names="bucket",
                      title="Confidence Distribution")
@@ -1200,7 +1200,7 @@ with col1:
 with col2:
     # Outcomes over time
     time_df = spark.sql(f"""
-        SELECT 
+        SELECT
             DATE(created_at) as date,
             result,
             COUNT(*) as count
@@ -1209,7 +1209,7 @@ with col2:
         GROUP BY 1, 2
         ORDER BY 1
     """).toPandas()
-    
+
     if not time_df.empty:
         fig = px.area(time_df, x="date", y="count", color="result",
                       title="Outcomes Over Time (30 Days)")
@@ -1219,7 +1219,7 @@ with col2:
 st.subheader("Domain Analysis")
 
 domain_stats = spark.sql(f"""
-    SELECT 
+    SELECT
         s.domain,
         COUNT(DISTINCT e.context_id) as unique_contexts,
         COUNT(DISTINCT e.strategy_id) as strategies_used,
@@ -1233,7 +1233,7 @@ domain_stats = spark.sql(f"""
 
 if not domain_stats.empty:
     domain_stats["success_rate"] = (
-        domain_stats["total_successes"] / 
+        domain_stats["total_successes"] /
         (domain_stats["total_successes"] + domain_stats["total_failures"])
     )
     st.dataframe(
@@ -1270,16 +1270,16 @@ import uuid
 class CortexDBxConfig:
     catalog: str = "cortex_catalog"
     schema: str = "cortex_mvp"
-    
+
 class CortexDBxClient:
     """
     Python SDK for CortexDBx.
-    
+
     Usage:
         from cortexdbx import CortexDBxClient
-        
+
         cortex = CortexDBxClient()
-        
+
         # Log an outcome
         cortex.log_outcome(
             context={"alert_type": "fraud", "amount": "high"},
@@ -1287,28 +1287,28 @@ class CortexDBxClient:
             result="SUCCESS",
             evidence={"alert_id": "ALT-12345"}
         )
-        
+
         # Get recommendations
         recs = cortex.recommend(
             context={"alert_type": "fraud", "amount": "medium"}
         )
     """
-    
+
     def __init__(self, config: CortexDBxConfig = None, spark_session=None):
         self.config = config or CortexDBxConfig()
         self.spark = spark_session or self._get_spark()
         self.table_prefix = f"{self.config.catalog}.{self.config.schema}"
-    
+
     def _get_spark(self):
         """Get or create Spark session."""
         from pyspark.sql import SparkSession
         return SparkSession.builder.getOrCreate()
-    
+
     def _fingerprint_context(self, context: Dict) -> str:
         """Create deterministic fingerprint for context."""
         normalized = json.dumps(sorted(context.items()))
         return hashlib.sha256(normalized.encode()).hexdigest()[:16]
-    
+
     def log_outcome(
         self,
         context: Dict[str, Any],
@@ -1319,26 +1319,26 @@ class CortexDBxClient:
     ) -> str:
         """
         Log an outcome to CortexDBx.
-        
+
         Args:
             context: Dictionary of context factors
             strategy: Name or ID of strategy used
             result: 'SUCCESS', 'FAILURE', or 'PARTIAL'
             evidence: Optional evidence linking to source data
             notes: Optional human notes
-            
+
         Returns:
             outcome_id: ID of created outcome
         """
         context_hash = self._fingerprint_context(context)
         outcome_id = str(uuid.uuid4())
-        
+
         # Ensure context exists
         context_id = self._ensure_context(context, context_hash)
-        
+
         # Ensure strategy exists
         strategy_id = self._ensure_strategy(strategy)
-        
+
         # Insert outcome
         outcome_data = {
             "outcome_id": outcome_id,
@@ -1350,12 +1350,12 @@ class CortexDBxClient:
             "actor": self._get_current_user(),
             "created_at": datetime.now().isoformat()
         }
-        
+
         df = self.spark.createDataFrame([outcome_data])
         df.write.mode("append").saveAsTable(f"{self.table_prefix}.outcomes")
-        
+
         return outcome_id
-    
+
     def recommend(
         self,
         context: Dict[str, Any],
@@ -1364,20 +1364,20 @@ class CortexDBxClient:
     ) -> List[Dict]:
         """
         Get recommendations for a context.
-        
+
         Args:
             context: Dictionary of context factors
             min_confidence: Minimum confidence threshold
             limit: Maximum recommendations to return
-            
+
         Returns:
             List of recommendations with confidence and evidence
         """
         context_hash = self._fingerprint_context(context)
-        
+
         # Find similar contexts and their best strategies
         query = f"""
-            SELECT 
+            SELECT
                 s.strategy_id,
                 s.name as strategy_name,
                 s.description,
@@ -1392,9 +1392,9 @@ class CortexDBxClient:
             ORDER BY e.confidence DESC
             LIMIT {limit}
         """
-        
+
         results = self.spark.sql(query).collect()
-        
+
         recommendations = []
         for row in results:
             recommendations.append({
@@ -1408,9 +1408,9 @@ class CortexDBxClient:
                     f"{row['success_count']} successes and {row['failure_count']} failures"
                 )
             })
-        
+
         return recommendations
-    
+
     def get_confidence(
         self,
         context: Dict[str, Any],
@@ -1418,14 +1418,14 @@ class CortexDBxClient:
     ) -> tuple:
         """
         Get confidence for a specific strategy in a context.
-        
+
         Returns:
             (confidence, explanation)
         """
         context_hash = self._fingerprint_context(context)
-        
+
         query = f"""
-            SELECT 
+            SELECT
                 e.confidence,
                 e.success_count,
                 e.failure_count
@@ -1435,18 +1435,18 @@ class CortexDBxClient:
             WHERE c.context_hash = '{context_hash}'
               AND s.name = '{strategy}'
         """
-        
+
         results = self.spark.sql(query).collect()
-        
+
         if not results:
             return 0.5, "No historical data for this context/strategy"
-        
+
         row = results[0]
         return row["confidence"], (
             f"{row['confidence']:.0%} confidence based on "
             f"{row['success_count']} successes and {row['failure_count']} failures"
         )
-    
+
     def _ensure_context(self, context: Dict, context_hash: str) -> str:
         """Ensure context exists, create if not."""
         # Check if exists
@@ -1454,10 +1454,10 @@ class CortexDBxClient:
             SELECT context_id FROM {self.table_prefix}.contexts
             WHERE context_hash = '{context_hash}'
         """).collect()
-        
+
         if existing:
             return existing[0]["context_id"]
-        
+
         # Create new
         context_id = f"ctx_{context_hash}"
         context_data = {
@@ -1468,12 +1468,12 @@ class CortexDBxClient:
             "first_seen": datetime.now().isoformat(),
             "last_seen": datetime.now().isoformat()
         }
-        
+
         df = self.spark.createDataFrame([context_data])
         df.write.mode("append").saveAsTable(f"{self.table_prefix}.contexts")
-        
+
         return context_id
-    
+
     def _ensure_strategy(self, strategy: str) -> str:
         """Ensure strategy exists, create if not."""
         # Check if exists (by name or ID)
@@ -1481,10 +1481,10 @@ class CortexDBxClient:
             SELECT strategy_id FROM {self.table_prefix}.strategies
             WHERE name = '{strategy}' OR strategy_id = '{strategy}'
         """).collect()
-        
+
         if existing:
             return existing[0]["strategy_id"]
-        
+
         # Create new
         strategy_id = f"strat_{hashlib.sha256(strategy.encode()).hexdigest()[:8]}"
         strategy_data = {
@@ -1495,12 +1495,12 @@ class CortexDBxClient:
             "category": "user_defined",
             "created_at": datetime.now().isoformat()
         }
-        
+
         df = self.spark.createDataFrame([strategy_data])
         df.write.mode("append").saveAsTable(f"{self.table_prefix}.strategies")
-        
+
         return strategy_id
-    
+
     def _get_current_user(self) -> str:
         """Get current user identity."""
         try:

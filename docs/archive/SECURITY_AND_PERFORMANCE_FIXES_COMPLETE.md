@@ -131,7 +131,7 @@ class MarketDataClient:
             age = (datetime.utcnow() - cached_time).total_seconds()
             if age < self.cache_ttl_seconds:
                 return cached_data  # ← Cache hit: 500ms → 0.1ms (5000x faster)
-        
+
         # Fetch from API and cache result
         result = self.exchange.fetch_ticker(symbol)
         self._ticker_cache[symbol] = (result, datetime.utcnow())

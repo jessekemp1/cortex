@@ -45,7 +45,7 @@ def test_position_size_extreme_volatility():
     ]
     for case in test_cases:
         result = engine.calculate_position_size(
-            capital=10000, 
+            capital=10000,
             volatility=case['vol']
         )
         # Assert sizing constraints respected
@@ -62,9 +62,9 @@ def test_execute_trades_integration():
     with mock.patch('broker.place_order') as mock_order:
         competition = Competition()
         signals = {'BTC': 'BUY', 'ETH': 'SELL'}
-        
+
         competition.execute_trades(signals)
-        
+
         # Verify order placement
         assert mock_order.call_count == 2
         # Verify order validation
@@ -85,14 +85,14 @@ def test_save_market_data_corruption_recovery():
     """Test data save with partial write failure"""
     provider = BinanceProvider()
     data = generate_test_ohlcv(1000)  # Large dataset
-    
+
     with mock.patch('builtins.open', side_effect=[
         mock.mock_open()(),  # First write succeeds
         IOError("Disk full")  # Second write fails
     ]):
         with pytest.raises(IOError):
             provider.save_market_data(data)
-    
+
     # Verify: No partial/corrupted file left behind
     assert not os.path.exists(provider.temp_file)
     # Verify: Original data still intact
@@ -114,12 +114,12 @@ def test_learn_from_session_pattern_extraction():
         actions=['refactor auth', 'add tests', 'fix bug'],
         outcomes={'tests_added': 15, 'coverage': '+12%'}
     )
-    
+
     memory.learn_from_session(session)
-    
+
     patterns = memory.get_patterns('testing')
     # Verify pattern recognition
-    assert any('refactor' in p.context and 'tests' in p.action 
+    assert any('refactor' in p.context and 'tests' in p.action
                for p in patterns)
     # Verify pattern strength increases with repetition
     memory.learn_from_session(session)  # Learn again
@@ -137,11 +137,11 @@ def test_portfolio_memory_persistence_across_versions():
     memory_v1 = PortfolioMemory()
     memory_v1.learn_pattern('old_format_pattern')
     memory_v1.save_state('v1_state.json')
-    
+
     # Simulate version upgrade
     memory_v2 = PortfolioMemory(version='2.0')
     memory_v2.load_state('v1_state.json')
-    
+
     # Verify migration succeeded
     assert memory_v2.get_patterns() == memory_v1.get_patterns()
     # Verify new fields have defaults
@@ -162,10 +162,10 @@ def test_next_action_command_integration(tmp_path):
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     (project_dir / "README.md").write_text("# Test")
-    
+
     runner = CliRunner()
     result = runner.invoke(cli, ['next', str(project_dir)])
-    
+
     # Verify successful execution
     assert result.exit_code == 0
     # Verify output format
@@ -190,15 +190,15 @@ def test_forecast_engine_extreme_weather():
         'wind_speed': 150,   # Hurricane force
         'pressure': 870      # Record low
     }
-    
+
     forecast = engine.generate_forecast(extreme_conditions)
-    
+
     # Verify bounds checking
     assert forecast['confidence'] <= 1.0
     # Verify handles extremes gracefully
     assert forecast['alerts']['extreme_weather'] == True
     # Verify doesn't return NaN/Inf
-    assert all(math.isfinite(v) for v in forecast.values() 
+    assert all(math.isfinite(v) for v in forecast.values()
                if isinstance(v, float))
 ```
 
@@ -216,7 +216,7 @@ def test_generate_signals_empty_market_data():
     """Test signal generation with no market data available"""
     engine = StrategyEngine()
     signals = engine.generate_signals(market_data=[])
-    
+
     # Should return safe default, not crash
     assert signals['action'] == 'HOLD'
     assert signals['confidence'] == 0.0
@@ -228,11 +228,11 @@ def test_generate_signals_empty_market_data():
 def test_calculate_position_size_none_inputs():
     """Test position sizing with missing data"""
     engine = StrategyEngine()
-    
+
     # Risk: None volatility crashes calculation
     size = engine.calculate_position_size(capital=10000, volatility=None)
     assert size == 0  # Safe default
-    
+
     # Risk: None capital
     with pytest.raises(ValueError, match="Capital required"):
         engine.calculate_position_size(capital=None, volatility=0.5)
@@ -245,7 +245,7 @@ def test_calculate_position_size_none_inputs():
 def test_fetch_ohlcv_rate_limit_backoff():
     """Test exponential backoff on rate limits"""
     provider = BinanceProvider()
-    
+
     with mock.patch('requests.get') as mock_get:
         # Simulate rate limit responses
         mock_get.side_effect = [
@@ -253,11 +253,11 @@ def test_fetch_ohlcv_rate_limit_backoff():
             MockResponse(429, {'Retry-After': '60'}),
             MockResponse(200, {'data': 'success'})
         ]
-        
+
         start = time.time()
         result = provider.fetch_ohlcv('BTC/USDT')
         elapsed = time.time() - start
-        
+
         # Verify backoff occurred
         assert elapsed >= 120  # 2 retries
         assert result == 'success'
@@ -270,7 +270,7 @@ def test_fetch_ohlcv_rate_limit_backoff():
 def test_fetch_ohlcv_partial_data():
     """Test handling of incomplete OHLCV data"""
     provider = BinanceProvider()
-    
+
     incomplete_data = {
         'timestamp': [1, 2, 3],
         'open': [100, 101, None],  # Missing value
@@ -278,10 +278,10 @@ def test_fetch_ohlcv_partial_data():
         'low': [99, 100],  # Wrong length
         # 'close' missing entirely
     }
-    
+
     with mock.patch('requests.get', return_value=MockResponse(200, incomplete_data)):
         result = provider.fetch_ohlcv('BTC/USDT')
-        
+
         # Verify data validation
         assert len(result) == 2  # Only complete rows
         assert all('close' in row for row in result)  # Required fields
@@ -296,13 +296,13 @@ def test_fetch_ohlcv_partial_data():
 def test_portfolio_memory_max_patterns_limit():
     """Test behavior when pattern storage limit reached"""
     memory = PortfolioMemory(max_patterns=1000)
-    
+
     # Add patterns beyond limit
     for i in range(1500):
         memory.learn_pattern(f'pattern_{i}')
-    
+
     patterns = memory.get_patterns()
-    
+
     # Verify enforces limit
     assert len(patterns) == 1000
     # Verify keeps most relevant (not just newest)
@@ -316,18 +316,18 @@ def test_portfolio_memory_max_patterns_limit():
 def test_portfolio_memory_concurrent_writes():
     """Test thread-safety of learning mechanism"""
     memory = PortfolioMemory()
-    
+
     def learn_worker(worker_id):
         for i in range(100):
             memory.learn_pattern(f'worker_{worker_id}_pattern_{i}')
-    
-    threads = [threading.Thread(target=learn_worker, args=(i,)) 
+
+    threads = [threading.Thread(target=learn_worker, args=(i,))
                for i in range(10)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    
+
     # Verify no data corruption
     patterns = memory.get_patterns()
     assert len(patterns) == 1000  # All patterns saved
@@ -343,7 +343,7 @@ def test_next_action_invalid_project():
     """Test handling of non-existent project path"""
     runner = CliRunner()
     result = runner.invoke(cli, ['next', '/nonexistent/path'])
-    
+
     # Verify graceful failure
     assert result.exit_code == 1
     assert 'Project not found' in result.output
@@ -357,10 +357,10 @@ def test_next_action_permission_denied(tmp_path):
     """Test handling of permission errors"""
     protected_dir = tmp_path / "protected"
     protected_dir.mkdir(mode=0o000)  # No permissions
-    
+
     runner = CliRunner()
     result = runner.invoke(cli, ['next', str(protected_dir)])
-    
+
     # Verify error message helpful
     assert result.exit_code == 1
     assert 'Permission denied' in result.output
@@ -385,13 +385,13 @@ def test_full_trading_pipeline_integration():
     strategy = StrategyEngine()
     broker = MockBroker()
     tracker = PositionTracker()
-    
+
     # Execute pipeline
     signals = strategy.generate_signals(market_data)
     orders = strategy.create_orders(signals)
     fills = broker.execute_orders(orders)
     tracker.update_positions(fills)
-    
+
     # Verify integration points
     assert len(tracker.positions) == len(fills)
     assert tracker.total_exposure() <= strategy.max_risk
@@ -409,7 +409,7 @@ def test_weather_to_trade_integration():
     vortex = VortexV2Client()
     processor = WeatherSignalProcessor()
     strategy = StrategyEngine()
-    
+
     # Simulate extreme weather event
     forecast = vortex.get_forecast('hurricane_region')
     weather_signal = processor.convert_to_trading_signal(forecast)
@@ -417,7 +417,7 @@ def test_weather_to_trade_integration():
         market_data=current_data,
         weather_signals=weather_signal
     )
-    
+
     # Verify weather influenced decision
     assert weather_signal['severity'] == 'HIGH'
     assert final_signals['energy_sector']['action'] == 'BUY'
@@ -438,13 +438,13 @@ def test_competition_fair_comparison():
         strategies=['equal_weight', 'vol_sizing'],
         initial_capital=10000
     )
-    
+
     # Run for test period
     for day in range(30):
         competition.run_daily_cycle()
-    
+
     results = competition.get_results()
-    
+
     # Verify fair comparison
     assert results['equal_weight']['starting_capital'] == \
            results['vol_sizing']['starting_capital']
@@ -466,20 +466,20 @@ def test_competition_fair_comparison():
 def test_cross_project_learning_integration():
     """Test lessons learned in project A help project B"""
     memory = PortfolioMemory()
-    
+
     # Project A learns pattern
     session_a = Session(project='alpha_arena')
     session_a.add_action('add_error_handling', outcome='success')
     memory.learn_from_session(session_a)
-    
+
     # Project B gets recommendation
     recommendations = memory.get_recommendations(
         project='cortex',
         context='adding_new_feature'
     )
-    
+
     # Verify cross-project pattern transfer
-    assert any('error_handling' in r.suggestion 
+    assert any('error_handling' in r.suggestion
                for r in recommendations)
     # Verify adapted to new context
     assert recommendations[0].project_context == 'cortex'
@@ -500,12 +500,12 @@ root_dir: /custom/root
 learning_enabled: false
 default_limit: 5
     """)
-    
+
     runner = CliRunner(env={'CORTEX_CONFIG': str(config_file)})
-    
+
     # Test config affects behavior
     result = runner.invoke(cli, ['next'])
-    
+
     # Verify custom root_dir used
     assert '/custom/root' in result.output
     # Verify learning disabled

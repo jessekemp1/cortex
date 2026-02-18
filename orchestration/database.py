@@ -69,7 +69,8 @@ class OrchestrationDatabase:
         conn.execute("PRAGMA foreign_keys=ON")
 
         # Tasks table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -101,10 +102,12 @@ class OrchestrationDatabase:
                 source TEXT,
                 project TEXT
             )
-        """)
+        """
+        )
 
         # Validation criteria table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS validation_criteria (
                 task_id TEXT PRIMARY KEY,
                 requires_unit_tests INTEGER DEFAULT 0,
@@ -119,10 +122,12 @@ class OrchestrationDatabase:
                 custom_validator TEXT,
                 FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
         # Worker state table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS worker_states (
                 worker_id TEXT PRIMARY KEY,
                 role TEXT NOT NULL,
@@ -140,10 +145,12 @@ class OrchestrationDatabase:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-        """)
+        """
+        )
 
         # Trace events table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS trace_events (
                 event_id TEXT PRIMARY KEY,
                 event_type TEXT NOT NULL,
@@ -157,10 +164,12 @@ class OrchestrationDatabase:
                 FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE,
                 FOREIGN KEY(worker_id) REFERENCES worker_states(worker_id) ON DELETE SET NULL
             )
-        """)
+        """
+        )
 
         # Retry configs table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS retry_configs (
                 task_id TEXT PRIMARY KEY,
                 max_retries INTEGER DEFAULT 3,
@@ -177,10 +186,12 @@ class OrchestrationDatabase:
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
             )
-        """)
+        """
+        )
 
         # Anti-pattern alerts table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS anti_pattern_alerts (
                 id TEXT PRIMARY KEY,
                 pattern_type TEXT NOT NULL,
@@ -201,10 +212,12 @@ class OrchestrationDatabase:
                 resolved_at TEXT,
                 resolution_notes TEXT
             )
-        """)
+        """
+        )
 
         # Anomalies table
-        conn.execute("""
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS anomalies (
                 anomaly_id TEXT PRIMARY KEY,
                 anomaly_type TEXT NOT NULL,
@@ -222,7 +235,8 @@ class OrchestrationDatabase:
                 first_seen TEXT,
                 occurrence_count INTEGER DEFAULT 1
             )
-        """)
+        """
+        )
 
         # Create indexes for performance
         indexes = [
@@ -490,11 +504,13 @@ class OrchestrationDatabase:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
 
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT * FROM tasks
             WHERE status IN ('pending', 'blocked')
             AND phase NOT IN ('completed', 'failed')
-        """)
+        """
+        )
 
         tasks = [self._row_to_task(dict(row)) for row in cursor.fetchall()]
         conn.close()
@@ -680,11 +696,13 @@ class OrchestrationDatabase:
                 (role.value,),
             )
         else:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT * FROM worker_states
                 WHERE is_available = 1
                 ORDER BY current_task_count ASC
-            """)
+            """
+            )
 
         workers = [self._row_to_worker(dict(row)) for row in cursor.fetchall()]
         conn.close()
@@ -991,19 +1009,23 @@ class OrchestrationDatabase:
         stats = {}
 
         # Task counts by status
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT status, COUNT(*) as count
             FROM tasks
             GROUP BY status
-        """)
+        """
+        )
         stats["tasks_by_status"] = {row[0]: row[1] for row in cursor.fetchall()}
 
         # Task counts by phase
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT phase, COUNT(*) as count
             FROM tasks
             GROUP BY phase
-        """)
+        """
+        )
         stats["tasks_by_phase"] = {row[0]: row[1] for row in cursor.fetchall()}
 
         # Worker counts
@@ -1073,7 +1095,9 @@ class OrchestrationDatabase:
         Returns:
             RetryConfig if exists, None otherwise
         """
-        from .retry_handler import RetryConfig  # Import here to avoid circular dependency
+        from .retry_handler import (
+            RetryConfig,  # Import here to avoid circular dependency
+        )
 
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -1142,12 +1166,14 @@ class OrchestrationDatabase:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
 
-        cursor = conn.execute("""
+        cursor = conn.execute(
+            """
             SELECT t.* FROM tasks t
             JOIN retry_configs rc ON t.id = rc.task_id
             WHERE rc.escalated = 1
             ORDER BY rc.updated_at DESC
-        """)
+        """
+        )
 
         tasks = []
         for row in cursor.fetchall():

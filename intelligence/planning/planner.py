@@ -6,12 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 
-from intelligence.planning.models import (
-    Plan,
-    PlanPriority,
-    PlanStatus,
-    PlanStep,
-)
+from intelligence.planning.models import Plan, PlanPriority, PlanStatus, PlanStep
 
 
 class Planner:

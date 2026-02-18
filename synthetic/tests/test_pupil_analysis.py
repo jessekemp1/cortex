@@ -8,15 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from synthetic.pupil.analysis import (
-    AnalysisReport,
-    MarketAnalyzer,
-)
-from synthetic.pupil.market_env import (
-    CompetitionEvent,
-    EventType,
-    build_timeline,
-)
+from synthetic.pupil.analysis import AnalysisReport, MarketAnalyzer
+from synthetic.pupil.market_env import CompetitionEvent, EventType, build_timeline
 from synthetic.pupil.simulation import SimulationEngine
 from synthetic.schemas import CustomerProfile
 
@@ -361,11 +354,7 @@ class TestModuleImports:
     """Verify the __init__.py exports work correctly."""
 
     def test_import_all_from_pupil(self):
-        from synthetic.pupil import (
-            MarketAnalyzer,
-            PersonaAgent,
-            SimulationEngine,
-        )
+        from synthetic.pupil import MarketAnalyzer, PersonaAgent, SimulationEngine
 
         assert SimulationEngine is not None
         assert MarketAnalyzer is not None

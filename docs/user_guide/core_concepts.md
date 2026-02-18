@@ -347,13 +347,13 @@ flowchart LR
     A[Git Repositories] -->|Scan| B[Project Detection]
     B -->|Extract| C[Project Metadata]
     C -->|Store| D[Portfolio Memory]
-    
+
     E[Markdown Specs] -->|Index| F[Spec Knowledge Base]
     F -->|Search| G[Semantic Results]
-    
+
     H[Git History] -->|Analyze| I[Session Context]
     I -->|Extract| J[Goals & Focus]
-    
+
     D -->|Query| K[Bridge API]
     G -->|Query| K
     J -->|Query| K
@@ -389,4 +389,3 @@ flowchart LR
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

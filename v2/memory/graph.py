@@ -47,7 +47,8 @@ class GraphMemory:
     def _init_schema(self):
         """Initialize database schema."""
         with self._connect() as conn:
-            conn.executescript("""
+            conn.executescript(
+                """
                 -- Nodes table
                 CREATE TABLE IF NOT EXISTS nodes (
                     id TEXT PRIMARY KEY,
@@ -94,7 +95,8 @@ class GraphMemory:
                     INSERT INTO nodes_fts(nodes_fts, id, name) VALUES('delete', old.id, old.name);
                     INSERT INTO nodes_fts(id, name) VALUES (new.id, new.name);
                 END;
-            """)
+            """
+            )
 
     # === Node Operations ===
 

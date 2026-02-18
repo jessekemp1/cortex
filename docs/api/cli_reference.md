@@ -886,4 +886,3 @@ Error messages are printed to stderr.
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-

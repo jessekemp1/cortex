@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
 from cortex.v2.memory.graph import GraphMemory
 from cortex.v2.memory.models import MemoryType, RelationType
 

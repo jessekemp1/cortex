@@ -60,7 +60,9 @@ class ContractMetricsStore:
         with open(self.metrics_file, "a") as f:
             f.write(json.dumps(metrics.to_dict()) + "\n")
 
-    def load_metrics(self, days: int = 7, project: Optional[str] = None) -> List[ContractSessionMetrics]:
+    def load_metrics(
+        self, days: int = 7, project: Optional[str] = None
+    ) -> List[ContractSessionMetrics]:
         if not self.metrics_file.exists():
             return []
 

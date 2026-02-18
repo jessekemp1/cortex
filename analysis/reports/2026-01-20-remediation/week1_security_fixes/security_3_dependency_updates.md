@@ -31,7 +31,7 @@ This document provides a comprehensive plan to address critical CVEs in three pr
 ```txt
 # cortex/requirements.txt
 # Updated: 2024 - Critical Security Fixes (Week 1)
-# 
+#
 # SECURITY UPDATES:
 # - requests: CVE-2023-32681 (Proxy-Authorization header leak)
 # - urllib3: CVE-2023-45803 (Cookie leak on cross-origin redirects)
@@ -283,31 +283,31 @@ class URLLib3CompatibilityWrapper:
     Wrapper to handle urllib3 1.x to 2.x migration gracefully.
     Use during transition period.
     """
-    
+
     def __init__(self):
         self.http = urllib3.PoolManager(
             num_pools=10,
             maxsize=10,
             retries=urllib3.Retry(total=3, backoff_factor=0.1)
         )
-    
+
     def request(self, method: str, url: str, **kwargs) -> dict:
         """
         Make HTTP request with consistent return type.
-        
+
         Returns:
             dict with 'status', 'headers', 'data' (always str)
         """
         # Remove deprecated parameters
         kwargs.pop('strict', None)
-        
+
         response = self.http.request(method, url, **kwargs)
-        
+
         # Ensure data is always string
         data = response.data
         if isinstance(data, bytes):
             data = data.decode('utf-8', errors='replace')
-        
+
         return {
             'status': response.status,
             'headers': dict(response.headers),
@@ -359,11 +359,11 @@ def secure_proxied_request(url: str, proxy_url: str, proxy_auth: tuple) -> reque
         'http': proxy_url,
         'https': proxy_url
     }
-    
+
     # Let requests handle proxy auth properly
     session = requests.Session()
     session.proxies = proxies
-    
+
     if proxy_auth:
         # Modern way: embed in proxy URL
         from urllib.parse import urlparse, urlunparse
@@ -377,7 +377,7 @@ def secure_proxied_request(url: str, proxy_url: str, proxy_auth: tuple) -> reque
             parsed.fragment
         ))
         session.proxies = {'http': authed_proxy, 'https': authed_proxy}
-    
+
     return session.get(url)
 
 
@@ -467,11 +467,11 @@ def safe_yaml_dump(data: Any, filepath: str = None) -> str:
         allow_unicode=True,
         sort_keys=False
     )
-    
+
     if filepath:
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(yaml_string)
-    
+
     return yaml_string
 
 

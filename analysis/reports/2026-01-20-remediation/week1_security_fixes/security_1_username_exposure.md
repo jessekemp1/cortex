@@ -226,44 +226,44 @@ declare -a FILES=(
 # Function to process a single file
 process_file() {
     local file="$1"
-    
+
     if [[ ! -f "$file" ]]; then
         echo "WARNING: File not found: $file"
         return 1
     fi
-    
+
     echo "Processing: $file"
-    
+
     # Create backup
     local backup_path="$backup_dir/$(basename "$file").bak"
     cp "$file" "$backup_path"
     echo "  Backup created: $backup_path"
-    
+
     # Count changes before
     local before_count=$(grep -c "jesse.kemp\|/Users/[a-zA-Z]" "$file" 2>/dev/null || echo "0")
-    
+
     # Perform replacements
     # 1. Replace /Users/jesse.kemp/Dev with ~/Dev
     sed -i.tmp 's|/Users/jesse\.kemp/Dev|~/Dev|g' "$file"
-    
+
     # 2. Replace /Users/jesse.kemp with ${HOME}
     sed -i.tmp 's|/Users/jesse\.kemp|${HOME}|g' "$file"
-    
+
     # 3. Replace /home/jesse.kemp/Dev with ~/Dev
     sed -i.tmp 's|/home/jesse\.kemp/Dev|~/Dev|g' "$file"
-    
+
     # 4. Replace /home/jesse.kemp with ${HOME}
     sed -i.tmp 's|/home/jesse\.kemp|${HOME}|g' "$file"
-    
+
     # 5. Replace standalone username references
     sed -i.tmp 's|jesse\.kemp|<username>|g' "$file"
-    
+
     # Clean up temp files
     rm -f "${file}.tmp"
-    
+
     # Count changes after
     local after_count=$(grep -c "<username>\|jesse.kemp\|/Users/[a-zA-Z]" "$file" 2>/dev/null || echo "0")
-    
+
     echo "  Replacements made: $((before_count - after_count + $(grep -c '~/Dev\|${HOME}' "$file" 2>/dev/null || echo "0")))"
     echo ""
 }
@@ -299,23 +299,23 @@ index abc1234..def5678 100644
 --- a/cortex/README.md
 +++ b/cortex/README.md
 @@ -18,7 +18,7 @@ A powerful AI orchestration framework.
- 
+
  Clone the repository to your local machine:
  ```bash
 -git clone https://github.com/org/cortex.git /Users/jesse.kemp/Dev/cortex
 +git clone https://github.com/org/cortex.git ~/Dev/cortex
  ```
- 
+
  ### Prerequisites
 @@ -38,11 +38,11 @@ git clone https://github.com/org/cortex.git /Users/jesse.kemp/Dev/cortex
- 
+
  Set up your development environment:
  ```bash
 -cd /Users/jesse.kemp/Dev/cortex
 +cd ~/Dev/cortex
  python -m venv venv
  ```
- 
+
 -project_root: /Users/jesse.kemp/Dev/cortex
 +project_root: ${HOME}/Dev/cortex
  ```
@@ -325,7 +325,7 @@ index 123abcd..456efgh 100644
 --- a/alpha_arena/README.md
 +++ b/alpha_arena/README.md
 @@ -10,15 +10,18 @@ Trading algorithm testing arena.
- 
+
  1. Clone the repository:
  ```bash
 -git clone https://github.com/org/alpha_arena.git /Users/jesse.kemp/Dev/alpha_arena
@@ -333,9 +333,9 @@ index 123abcd..456efgh 100644
 +git clone https://github.com/org/alpha_arena.git ~/Dev/alpha_arena
 +cd ~/Dev/alpha_arena
  ```
- 
+
  ## Configuration
- 
+
 +Update the config file with your paths:
  ```json
  {
@@ -353,17 +353,17 @@ index 789ijkl..012mnop 100644
 --- a/Vortex/VortexV2/README.md
 +++ b/Vortex/VortexV2/README.md
 @@ -8,7 +8,7 @@ Vortex V2 - Next generation processing engine.
- 
+
  ```bash
  # Navigate to project directory
 -cd /Users/jesse.kemp/Dev/Vortex/VortexV2
 +cd ~/Dev/Vortex/VortexV2
- 
+
  # Run the setup script
  ./setup.sh
 @@ -17,8 +17,8 @@ cd /Users/jesse.kemp/Dev/Vortex/VortexV2
  ## Environment Variables
- 
+
  ```bash
 -export VORTEX_HOME=/Users/jesse.kemp/Dev/Vortex/VortexV2
 -export VORTEX_DATA=/Users/jesse.kemp/Dev/Vortex/VortexV2/data

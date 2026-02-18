@@ -184,26 +184,41 @@ def build_fast_session_context() -> Dict:
         "insights": {},
     }
 
-    # Detect project from current directory
+    # Detect project from recent git activity (most recently changed files)
     try:
-        cwd = Path.cwd()
-        if "VortexV2" in str(cwd) or (cwd / "Vortex" / "VortexV2").exists():
-            context["project"] = "VortexV2"
-        elif "alpha_arena" in str(cwd) or (cwd / "alpha_arena").exists():
-            context["project"] = "Alpha Arena"
-        elif "cortex" in str(cwd) or (cwd / "cortex").exists():
-            context["project"] = "Cortex"
-        elif "kempion-research-site" in str(cwd):
-            context["project"] = "Kempion Research"
-        elif "DJ-CoPilot" in str(cwd):
-            context["project"] = "DJ-CoPilot"
-        else:
-            # Fallback - check workspace root
-            workspace = Path.home() / "Dev"
-            if workspace.exists():
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD~3", "HEAD"],
+            cwd=Path.home() / "Dev",
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            files = result.stdout.strip().split("\n")
+            # Count files per project prefix
+            project_map = {
+                "Vortex/backend/": "Vortex Backend",
+                "Vortex/frontend/": "Vortex Frontend",
+                "Vortex/Winfield/": "Winfield",
+                "alpha_arena/": "Alpha Arena",
+                "cortex/": "Cortex",
+                "DJ-CoPilot/": "DJ-CoPilot",
+                "kempion-research-site/": "Kempion Research",
+            }
+            counts = {}
+            for f in files:
+                for prefix, name in project_map.items():
+                    if f.startswith(prefix):
+                        counts[name] = counts.get(name, 0) + 1
+                        break
+            if counts:
+                context["project"] = max(counts, key=counts.get)
+            else:
                 context["project"] = "Dev Workspace"
+        else:
+            context["project"] = "Dev Workspace"
     except Exception:
-        pass
+        context["project"] = "Unknown"
 
     # Infer focus from recent commits
     try:
@@ -266,6 +281,32 @@ def build_fast_session_context() -> Dict:
                             goals.append(title)
 
             context["goals"] = goals[:5]  # Top 5 goals
+    except Exception:
+        pass
+
+    # Read test failures from metrics (fast - JSON read)
+    try:
+        tests_file = Path.home() / ".cortex" / "metrics" / "tests.json"
+        if tests_file.exists():
+            test_data = json.loads(tests_file.read_text())
+            total_failed = sum(
+                v.get("failed", 0) for v in test_data.values() if isinstance(v, dict)
+            )
+            context["tests"] = {
+                "total_passed": sum(
+                    v.get("passed", 0) for v in test_data.values() if isinstance(v, dict)
+                ),
+                "total_failed": total_failed,
+            }
+            # Surface failure details when there are failures
+            if total_failed > 0:
+                failing_projects = []
+                for key, val in test_data.items():
+                    if isinstance(val, dict) and val.get("failed", 0) > 0:
+                        failing_projects.append(
+                            f"{key}: {val['failed']} failed ({val.get('summary', '')})"
+                        )
+                context["test_failures"] = failing_projects
     except Exception:
         pass
 

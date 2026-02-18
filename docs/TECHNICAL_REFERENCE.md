@@ -127,7 +127,7 @@ graph TB
     subgraph "Bridge Layer"
         Bridge[CortexBridge<br/>Unified API]
     end
-    
+
     subgraph "Intelligence Layer"
         Portfolio[PortfolioMemory<br/>Cross-project Patterns]
         Session[SessionManager<br/>Git Context]
@@ -135,23 +135,23 @@ graph TB
         Metrics[MetricsTracker<br/>ROI Analytics]
         Unified[UnifiedIntelligence<br/>Multi-source Queries]
     end
-    
+
     subgraph "Data Layer"
         PortfolioData[(Portfolio Data<br/>JSON Files)]
         SpecData[(Spec Index<br/>ChromaDB + SQLite)]
         MetricsData[(Metrics DB<br/>SQLite)]
     end
-    
+
     Bridge --> Portfolio
     Bridge --> Session
     Bridge --> SpecKB
     Bridge --> Metrics
     Bridge --> Unified
-    
+
     Unified --> Portfolio
     Unified --> Session
     Unified --> SpecKB
-    
+
     Portfolio --> PortfolioData
     Session --> PortfolioData
     SpecKB --> SpecData
@@ -168,7 +168,7 @@ sequenceDiagram
     participant Session
     participant SpecKB
     participant Unified
-    
+
     User->>Bridge: query_intelligence("implement API rate limiting", "cortex")
     Bridge->>Unified: query(request, project, query_type)
     Unified->>SpecKB: find_similar("API rate limiting", k=5)
@@ -695,7 +695,7 @@ stats = kb.get_stats()
 - Project filtering support
 - Hash-based fallback (trigram Jaccard similarity)
 
-**Storage**: 
+**Storage**:
 - ChromaDB collection for embeddings
 - SQLite metadata database at `~/.claude/specs/`
 

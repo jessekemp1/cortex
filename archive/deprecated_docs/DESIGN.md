@@ -59,7 +59,7 @@ graph TB
     subgraph "Bridge Layer"
         Bridge[CortexBridge<br/>Unified API]
     end
-    
+
     subgraph "Intelligence Layer"
         Portfolio[PortfolioMemory<br/>Cross-project Patterns]
         Session[SessionManager<br/>Git Context]
@@ -67,23 +67,23 @@ graph TB
         Metrics[MetricsTracker<br/>ROI Analytics]
         Unified[UnifiedIntelligence<br/>Multi-source Queries]
     end
-    
+
     subgraph "Data Layer"
         PortfolioData[(Portfolio Data<br/>JSON Files)]
         SpecData[(Spec Index<br/>JSON/ChromaDB)]
         MetricsData[(Metrics DB<br/>SQLite)]
     end
-    
+
     Bridge --> Portfolio
     Bridge --> Session
     Bridge --> SpecKB
     Bridge --> Metrics
     Bridge --> Unified
-    
+
     Unified --> Portfolio
     Unified --> Session
     Unified --> SpecKB
-    
+
     Portfolio --> PortfolioData
     Session --> PortfolioData
     SpecKB --> SpecData
@@ -100,7 +100,7 @@ sequenceDiagram
     participant Session
     participant SpecKB
     participant Unified
-    
+
     User->>Bridge: query_intelligence("implement API rate limiting", "cortex")
     Bridge->>Unified: query(request, project, query_type)
     Unified->>SpecKB: find_similar("API rate limiting", k=5)
@@ -122,13 +122,13 @@ flowchart LR
     A[Git Repositories] -->|Scan| B[Project Detection]
     B -->|Extract| C[Project Metadata]
     C -->|Store| D[Portfolio Memory]
-    
+
     E[Markdown Specs] -->|Index| F[Spec Knowledge Base]
     F -->|Search| G[Semantic Results]
-    
+
     H[Git History] -->|Analyze| I[Session Context]
     I -->|Extract| J[Goals & Focus]
-    
+
     D -->|Query| K[Bridge API]
     G -->|Query| K
     J -->|Query| K
@@ -265,7 +265,7 @@ class SpecKnowledgeBase:
     def get_stats() -> Dict
 ```
 
-**Storage**: 
+**Storage**:
 - ChromaDB collection for embeddings
 - SQLite metadata database
 - Location: `~/.claude/specs/`
@@ -622,7 +622,7 @@ def get_dependency_analysis(project: str) -> Dict[str, Any]:
         return {"error": "Invalid project name"}
     if len(project) > 255:
         return {"error": "Project name too long"}
-    
+
     # Sanitize path
     project_path = Path(project).resolve()
     if not project_path.exists():
@@ -853,4 +853,3 @@ python3 bridge.py session-context 2>/dev/null
 **Version**: 1.0  
 **Last Updated**: 2025-12-24  
 **Status**: Production - Enterprise-Grade
-

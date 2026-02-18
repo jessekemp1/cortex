@@ -33,7 +33,10 @@ def run_context_compression(results_dir: str) -> Dict[str, Any]:
         "method": "observed_handoff_payloads",
         "sample_size": len(sizes),
         "metrics": {"avg_handoff_payload_bytes": round(avg, 1), "p90_handoff_payload_bytes": p90},
-        "summary": {"best_format": "hybrid_observed" if sizes else "insufficient_data", "avg_token_savings": None},
+        "summary": {
+            "best_format": "hybrid_observed" if sizes else "insufficient_data",
+            "avg_token_savings": None,
+        },
     }
     (out / "context_compression_results.json").write_text(json.dumps(result, indent=2))
     return result
@@ -51,8 +54,16 @@ def run_trust_calibration(results_dir: str) -> Dict[str, Any]:
         "method": "observed_prediction_tracker",
         "domains": domains,
         "summary": {
-            "highest_trust": max(populated.items(), key=lambda x: x[1]["calibrated_confidence"])[0] if populated else None,
-            "lowest_trust": min(populated.items(), key=lambda x: x[1]["calibrated_confidence"])[0] if populated else None,
+            "highest_trust": (
+                max(populated.items(), key=lambda x: x[1]["calibrated_confidence"])[0]
+                if populated
+                else None
+            ),
+            "lowest_trust": (
+                min(populated.items(), key=lambda x: x[1]["calibrated_confidence"])[0]
+                if populated
+                else None
+            ),
             "populated_domains": len(populated),
         },
     }
@@ -96,8 +107,18 @@ def run_idea_augmentation(results_dir: str) -> Dict[str, Any]:
         "timestamp": datetime.now().isoformat(),
         "experiment": "idea_augmentation",
         "method": "observed_contract_novelty",
-        "protocols": [{"name": "observed", "novelty_score": agg.get("novelty_score", 0), "sessions": agg.get("sessions", 0)}],
-        "summary": {"best_protocol": "observed", "novelty_improvement": None, "implementation_rate": None},
+        "protocols": [
+            {
+                "name": "observed",
+                "novelty_score": agg.get("novelty_score", 0),
+                "sessions": agg.get("sessions", 0),
+            }
+        ],
+        "summary": {
+            "best_protocol": "observed",
+            "novelty_improvement": None,
+            "implementation_rate": None,
+        },
     }
     (out / "idea_augmentation_results.json").write_text(json.dumps(result, indent=2))
     return result

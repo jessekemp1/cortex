@@ -298,4 +298,3 @@ python3 -c "import chromadb; print('ChromaDB available')" 2>/dev/null || echo "C
 
 **Version**: 1.0  
 **Last Updated**: 2025-12-24
-
