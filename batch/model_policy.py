@@ -16,7 +16,7 @@ class AnthropicBatchModels:
     default: str = "claude-sonnet-4-20250514"
 
     # Fast model for simple classification tasks
-    fast: str = "claude-haiku-3-20240307"
+    fast: str = "claude-haiku-4-5-20251001"
 
     # High-quality model for complex analysis
     premium: str = "claude-opus-4-6"

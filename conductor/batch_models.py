@@ -23,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Anthropic batch-eligible model IDs
-_ANTHROPIC_FAST = "claude-haiku-3-20240307"
+_ANTHROPIC_FAST = "claude-haiku-4-5-20251001"
 _ANTHROPIC_DEFAULT = "claude-sonnet-4-20250514"
 _ANTHROPIC_PREMIUM = "claude-opus-4-5-20251101"
 
