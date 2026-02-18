@@ -73,7 +73,7 @@ def emos_monitoring_job() -> LocalJob:
     """Check EMOS pair counts — persists to ~/.cortex/metrics/emos.json."""
     return LocalJob(
         description="EMOS pair count check (HRRR/GFS/ECMWF)",
-        command="python3 -m cortex.metrics.snapshot emos",
+        command="PYTHONPATH=/Users/jesse.kemp/Dev /Users/jesse.kemp/Dev/Vortex/backend/.venv/bin/python /Users/jesse.kemp/Dev/cortex/metrics/snapshot.py emos",
         task_type="monitoring",
         working_dir=WORKSPACE,
         priority="normal",
