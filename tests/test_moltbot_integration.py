@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
 import requests
 
 # Colors for output
@@ -96,111 +97,74 @@ def stop_api():
 def test_health():
     """Test health endpoint."""
     print_test("Testing /health endpoint...")
-    try:
-        resp = requests.get(f"{API_BASE}/health", timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("status") == "healthy":
-                print_success(f"Health check passed: {data}")
-                return True
-        print_error(f"Health check failed: {resp.status_code}")
-        return False
-    except Exception as e:
-        print_error(f"Health check error: {e}")
-        return False
+    resp = requests.get(f"{API_BASE}/health", timeout=5)
+    assert resp.status_code == 200, f"Health check failed: {resp.status_code}"
+    data = resp.json()
+    assert data.get("status") == "healthy", f"Unexpected status: {data.get('status')}"
+    print_success(f"Health check passed: {data}")
 
 
 def test_status():
     """Test status endpoint."""
     print_test("Testing /status endpoint...")
-    try:
-        resp = requests.get(f"{API_BASE}/status", timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            print_success(f"Status: {json.dumps(data, indent=2)}")
-            return True
-        print_error(f"Status check failed: {resp.status_code}")
-        return False
-    except Exception as e:
-        print_error(f"Status check error: {e}")
-        return False
+    resp = requests.get(f"{API_BASE}/status", timeout=5)
+    assert resp.status_code == 200, f"Status check failed: {resp.status_code}"
+    data = resp.json()
+    print_success(f"Status: {json.dumps(data, indent=2)}")
 
 
 def test_intelligence_query():
     """Test intelligence query endpoint."""
     print_test("Testing /intelligence/query endpoint...")
-    try:
-        payload = {
-            "request": "test query for integration",
-            "project": "cortex",
-            "query_type": "spec",
-            "use_cache": False,
-        }
-        resp = requests.post(
-            f"{API_BASE}/intelligence/query",
-            json=payload,
-            timeout=30,
-        )
-
-        if resp.status_code == 200:
-            data = resp.json()
-            print_success("Intelligence query succeeded")
-            print(f"  Response keys: {list(data.keys())}")
-            if "error" in data:
-                print_warning(f"  Query returned error: {data['error']}")
-                return False
-            return True
-        print_error(f"Intelligence query failed: {resp.status_code}")
-        return False
-    except Exception as e:
-        print_error(f"Intelligence query error: {e}")
-        return False
+    payload = {
+        "request": "test query for integration",
+        "project": "cortex",
+        "query_type": "spec",
+        "use_cache": False,
+    }
+    resp = requests.post(
+        f"{API_BASE}/intelligence/query",
+        json=payload,
+        timeout=30,
+    )
+    assert resp.status_code == 200, f"Intelligence query failed: {resp.status_code}"
+    data = resp.json()
+    print_success("Intelligence query succeeded")
+    print(f"  Response keys: {list(data.keys())}")
+    assert "error" not in data, f"Query returned error: {data['error']}"
 
 
 def test_anomalies():
     """Test anomaly detection endpoint."""
     print_test("Testing /anomalies endpoint...")
-    try:
-        resp = requests.get(f"{API_BASE}/anomalies", timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            count = data.get("count", 0)
-            print_success(f"Anomaly detection works - found {count} anomalies")
-            if count > 0:
-                print("  Sample anomaly:")
-                sample = data["anomalies"][0]
-                print(f"    Type: {sample.get('type')}")
-                print(f"    Severity: {sample.get('severity')}")
-                print(f"    Title: {sample.get('title')}")
-            return True
-        print_error(f"Anomaly check failed: {resp.status_code}")
-        return False
-    except Exception as e:
-        print_error(f"Anomaly check error: {e}")
-        return False
+    resp = requests.get(f"{API_BASE}/anomalies", timeout=5)
+    assert resp.status_code == 200, f"Anomaly check failed: {resp.status_code}"
+    data = resp.json()
+    count = data.get("count", 0)
+    print_success(f"Anomaly detection works - found {count} anomalies")
+    if count > 0:
+        print("  Sample anomaly:")
+        sample = data["anomalies"][0]
+        print(f"    Type: {sample.get('type')}")
+        print(f"    Severity: {sample.get('severity')}")
+        print(f"    Title: {sample.get('title')}")
 
 
 def test_recommendations():
     """Test recommendations endpoint."""
     print_test("Testing /intelligence/recommendations endpoint...")
-    try:
-        resp = requests.get(
-            f"{API_BASE}/intelligence/recommendations",
-            params={"limit": 3},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            print_success("Recommendations endpoint works")
-            print(f"  Response keys: {list(data.keys())}")
-            return True
-        print_error(f"Recommendations failed: {resp.status_code}")
-        return False
-    except Exception as e:
-        print_error(f"Recommendations error: {e}")
-        return False
+    resp = requests.get(
+        f"{API_BASE}/intelligence/recommendations",
+        params={"limit": 3},
+        timeout=10,
+    )
+    assert resp.status_code == 200, f"Recommendations failed: {resp.status_code}"
+    data = resp.json()
+    print_success("Recommendations endpoint works")
+    print(f"  Response keys: {list(data.keys())}")
 
 
+@pytest.mark.xfail(reason="Legacy ~/clawd/skills/ directory no longer exists")
 def test_moltbot_skills():
     """Test Moltbot skills."""
     print_test("Checking Moltbot skills...")
@@ -209,43 +173,28 @@ def test_moltbot_skills():
 
     # Check cortex-query skill
     cortex_query = skills_dir / "cortex-query" / "SKILL.md"
-    if cortex_query.exists():
-        print_success(f"cortex-query skill exists: {cortex_query}")
-    else:
-        print_error(f"cortex-query skill not found: {cortex_query}")
-        return False
+    assert cortex_query.exists(), f"cortex-query skill not found: {cortex_query}"
+    print_success(f"cortex-query skill exists: {cortex_query}")
 
     # Check cortex-notify skill
     cortex_notify = skills_dir / "cortex-notify" / "SKILL.md"
-    if cortex_notify.exists():
-        print_success(f"cortex-notify skill exists: {cortex_notify}")
-    else:
-        print_error(f"cortex-notify skill not found: {cortex_notify}")
-        return False
-
-    return True
+    assert cortex_notify.exists(), f"cortex-notify skill not found: {cortex_notify}"
+    print_success(f"cortex-notify skill exists: {cortex_notify}")
 
 
 def test_skill_command():
     """Test a sample skill command (curl from skill)."""
     print_test("Testing skill command (curl health check)...")
-    try:
-        result = subprocess.run(
-            ["curl", "-s", f"{API_BASE}/health"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if data.get("status") == "healthy":
-                print_success("Skill command works - curl successfully queried API")
-                return True
-        print_error("Skill command failed")
-        return False
-    except Exception as e:
-        print_error(f"Skill command error: {e}")
-        return False
+    result = subprocess.run(
+        ["curl", "-s", f"{API_BASE}/health"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    assert result.returncode == 0, "curl command failed"
+    data = json.loads(result.stdout)
+    assert data.get("status") == "healthy", f"Unexpected status: {data.get('status')}"
+    print_success("Skill command works - curl successfully queried API")
 
 
 def main():
@@ -265,26 +214,22 @@ def main():
         time.sleep(2)  # Give API time to initialize
 
         # Run tests
-        results["health"] = test_health()
-        print()
-
-        results["status"] = test_status()
-        print()
-
-        results["intelligence"] = test_intelligence_query()
-        print()
-
-        results["anomalies"] = test_anomalies()
-        print()
-
-        results["recommendations"] = test_recommendations()
-        print()
-
-        results["skills"] = test_moltbot_skills()
-        print()
-
-        results["skill_command"] = test_skill_command()
-        print()
+        for name, func in [
+            ("health", test_health),
+            ("status", test_status),
+            ("intelligence", test_intelligence_query),
+            ("anomalies", test_anomalies),
+            ("recommendations", test_recommendations),
+            ("skills", test_moltbot_skills),
+            ("skill_command", test_skill_command),
+        ]:
+            try:
+                func()
+                results[name] = True
+            except Exception as e:
+                print_error(f"{name} failed: {e}")
+                results[name] = False
+            print()
 
     finally:
         # Always stop API

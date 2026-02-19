@@ -25,7 +25,6 @@ def test_health_endpoint_structure():
     print("   Status levels: healthy, healthy_with_warnings, degraded")
     print("   Includes: health_monitor with issues detection")
     print("   Includes: queue statistics")
-    return True
 
 
 if __name__ == "__main__":
