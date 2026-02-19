@@ -45,7 +45,6 @@ def test_briefing_generation():
     print(f"  ✓ Generated briefing with {len(briefing.active_projects)} active projects")
     print(f"  ✓ {briefing.total_commits_7d} commits in last 7 days")
     print(f"  ✓ {len(briefing.priority_actions)} priority actions")
-    return True
 
 
 def test_text_formatting():
@@ -68,7 +67,6 @@ def test_text_formatting():
 
     print("  ✓ Text formatting works with colors")
     print("  ✓ Text formatting works without colors")
-    return True
 
 
 def test_json_formatting():
@@ -96,7 +94,6 @@ def test_json_formatting():
 
     print("  ✓ JSON formatting works")
     print("  ✓ JSON structure is valid")
-    return True
 
 
 def test_briefing_generator():
@@ -109,7 +106,6 @@ def test_briefing_generator():
     assert briefing is not None
 
     print("  ✓ BriefingGenerator class works")
-    return True
 
 
 def test_pattern_detection():
@@ -124,8 +120,6 @@ def test_pattern_detection():
         print(f"  ✓ Detected {len(briefing.patterns)} patterns")
     else:
         print("  ℹ No activity to detect patterns from")
-
-    return True
 
 
 def test_priority_actions():
@@ -147,7 +141,6 @@ def test_priority_actions():
         assert action["source"] in ["recommendation", "goal"]
 
     print(f"  ✓ Generated {len(briefing.priority_actions)} priority actions")
-    return True
 
 
 def test_blockers():
@@ -164,7 +157,6 @@ def test_blockers():
         assert blocker["source"] in ["project", "goal"]
 
     print(f"  ✓ Detected {len(briefing.blockers)} blockers")
-    return True
 
 
 def run_all_tests():
@@ -188,8 +180,8 @@ def run_all_tests():
 
     for test in tests:
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
         except Exception as e:
             print(f"  ✗ FAILED: {e}")
             failed += 1
