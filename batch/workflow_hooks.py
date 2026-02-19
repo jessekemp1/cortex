@@ -68,7 +68,7 @@ class WorkflowBatchHooks:
         Hook: After feature merged → queue docs generation
 
         Usage:
-            hooks.on_feature_merged(project="VortexV2", files=["app/api.py", "models/ensemble.py"])
+            hooks.on_feature_merged(project="vortex-backend", files=["app/api.py", "models/ensemble.py"])
         """
         file_list = ", ".join(files) if files else "project files"
         description = f"Generate/update documentation for {project}: {file_list}"
@@ -121,7 +121,7 @@ class WorkflowBatchHooks:
         Suggest batch jobs based on what files changed
 
         Usage in git hooks:
-            hooks.suggest_batch_for_files(["VortexV2/tests/test_api.py", "VortexV2/app/api.py"])
+            hooks.suggest_batch_for_files(["Vortex/backend/tests/test_api.py", "Vortex/backend/app/api.py"])
         """
         suggestions = []
 

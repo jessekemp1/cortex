@@ -43,7 +43,7 @@ COMPRESSION_SCENARIOS = [
         "id": "vortex_debug",
         "task": "Debug why wind_speed forecast is 10% worse than expected",
         "context": {
-            "project": "VortexV2",
+            "project": "vortex-backend",
             "recent_changes": ["Updated GRIB loader", "Modified ensemble weights"],
             "error_logs": "MAE increased from 2.1 to 2.4 after last deploy",
         },

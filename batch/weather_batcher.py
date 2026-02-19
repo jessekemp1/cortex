@@ -1,13 +1,13 @@
 """
 Weather Backfill Batcher for Cortex
 
-Integrates VortexV2 weather backfill with Cortex batch infrastructure.
+Integrates Vortex backend weather backfill with Cortex batch infrastructure.
 Follows same patterns as briefing_batcher.py and research_batcher.py.
 
 Provides batch processing for historical weather forecast generation:
 - Downloads ECMWF data via Herbie from Azure archive
 - Generates forecasts in parallel using ProcessPoolExecutor
-- Stores forecasts in VortexV2 database
+- Stores forecasts in Vortex backend database
 - Creates validation pairs for model competition analysis
 
 Cost: Enables historical validation without manual GRIB management
@@ -47,12 +47,12 @@ class WeatherBackfillContext:
 
 class WeatherBackfillBatcher:
     """
-    Batch processor for VortexV2 weather backfill.
+    Batch processor for Vortex backend weather backfill.
 
     Integrates with Cortex batch infrastructure while using:
     - Herbie for historical ECMWF data download
     - ProcessPoolExecutor for parallel forecast generation
-    - VortexV2 database for forecast storage
+    - Vortex backend database for forecast storage
     - Optional Claude batch API for analysis summaries
 
     This follows the same architectural patterns as briefing_batcher.py
@@ -72,17 +72,17 @@ class WeatherBackfillBatcher:
         self.checkpoint_dir = Path.home() / ".cortex" / "weather_backfill"
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        # Import VortexV2 modules (lazy import to avoid circular dependencies)
+        # Import Vortex backend modules (lazy import to avoid circular dependencies)
         self._vortex_imports = None
 
     def _ensure_vortex_imports(self):
-        """Lazy import VortexV2 modules"""
+        """Lazy import Vortex backend modules"""
         if self._vortex_imports is not None:
             return
 
         try:
-            # Add VortexV2 to path if not already there
-            vortex_path = Path.home() / "Dev" / "Vortex" / "VortexV2"
+            # Add Vortex backend to path if not already there
+            vortex_path = Path.home() / "Dev" / "Vortex" / "backend"
             if str(vortex_path) not in sys.path:
                 sys.path.insert(0, str(vortex_path))
 
@@ -99,13 +99,13 @@ class WeatherBackfillBatcher:
                 "get_station_coordinates": get_station_coordinates,
             }
 
-            logger.info("VortexV2 imports loaded successfully")
+            logger.info("Vortex backend imports loaded successfully")
 
         except ImportError as e:
-            logger.error(f"Failed to import VortexV2 modules: {e}")
+            logger.error(f"Failed to import Vortex backend modules: {e}")
             raise ImportError(
-                "VortexV2 modules not available. Ensure VortexV2 is installed "
-                "at ~/Dev/Vortex/VortexV2"
+                "Vortex backend modules not available. Ensure Vortex backend is installed "
+                "at ~/Dev/Vortex/backend"
             ) from e
 
     def process_batch(self, contexts: List[WeatherBackfillContext]) -> Dict[str, Any]:
@@ -135,7 +135,7 @@ class WeatherBackfillBatcher:
 
         logger.info(f"Processing {len(contexts)} weather backfill contexts")
 
-        # Ensure VortexV2 imports are available
+        # Ensure Vortex backend imports are available
         self._ensure_vortex_imports()
 
         results = {}
@@ -274,7 +274,7 @@ class WeatherBackfillBatcher:
             Dict mapping (run_time, forecast_hour) -> forecast data
         """
         try:
-            vortex_path = Path.home() / "Dev" / "Vortex" / "VortexV2"
+            vortex_path = Path.home() / "Dev" / "Vortex" / "backend"
             if str(vortex_path) not in sys.path:
                 sys.path.insert(0, str(vortex_path))
 
@@ -306,7 +306,7 @@ class WeatherBackfillBatcher:
         self, station_id: str, start_date: datetime, end_date: datetime
     ) -> List[datetime]:
         """
-        Query observation timestamps from VortexV2 database.
+        Query observation timestamps from Vortex backend database.
 
         Returns:
             List of observation timestamps

@@ -43,15 +43,15 @@ class StrategicBatchOrchestrator:
         """Generate strategic planning and research batch jobs"""
         jobs = []
 
-        # 1. VortexV2: Next Phase Planning (Priority A completed, what's next?)
+        # 1. Vortex Backend: Next Phase Planning (Priority A completed, what's next?)
         jobs.append(
             StrategicBatchJob(
-                id="vortexv2-next-phase",
-                title="VortexV2: Next Phase Strategic Planning",
+                id="vortex-backend-next-phase",
+                title="Vortex Backend: Next Phase Strategic Planning",
                 description="Plan next development phase after successful V2 launch: revenue model, enterprise features, API v3 roadmap",
-                prompt="""VortexV2 has successfully shipped production API with 552 passing tests and validated ensemble weights.
+                prompt="""Vortex backend has successfully shipped production API with 552 passing tests and validated ensemble weights.
 
-Analyze and plan the NEXT PHASE for VortexV2:
+Analyze and plan the NEXT PHASE for Vortex Backend:
 
 1. **Revenue Model Design**:
    - API pricing tiers (free/pro/enterprise)
@@ -89,7 +89,7 @@ Provide:
                 priority="high",
                 category="planning",
                 estimated_tokens=60000,
-                projects=["VortexV2"],
+                projects=["vortex-backend"],
                 deadline_hours=48,
             )
         )
@@ -216,31 +216,31 @@ Provide:
             StrategicBatchJob(
                 id="cross-project-integration",
                 title="Cross-Project Integration & Synergy Analysis",
-                description="Identify high-value integration opportunities across VortexV2, Alpha Arena, and Cortex",
+                description="Identify high-value integration opportunities across Vortex Backend, Alpha Arena, and Cortex",
                 prompt="""Analyze integration opportunities across the portfolio to create force multiplier effects:
 
 **Current State:**
-- VortexV2: Weather forecasting API (production-ready)
+- Vortex Backend: Weather forecasting API (production-ready)
 - Alpha Arena: Trading system with signal generation
 - Cortex: Development intelligence and orchestration
 
 **Integration Scenarios to Analyze:**
 
-1. **VortexV2 → Alpha Arena Integration**:
+1. **Vortex Backend → Alpha Arena Integration**:
    - Weather data as alternative trading signal (commodities, energy, agriculture)
    - Extreme weather event impact on supply chains (oil, gas, crops)
    - Weather derivatives trading strategies
    - Seasonal pattern detection for retail/consumer goods
    - Hurricane/disaster impact on regional stocks
 
-2. **Cortex → VortexV2/Alpha Arena**:
+2. **Cortex → Vortex Backend/Alpha Arena**:
    - Automated monitoring and alerting for both systems
    - Performance optimization recommendations
    - Cost optimization across both production systems
    - Unified dashboard and observability
    - Shared ML infrastructure and model serving
 
-3. **Alpha Arena + VortexV2 → New Product**:
+3. **Alpha Arena + Vortex Backend → New Product**:
    - Weather-aware algorithmic trading platform (unique offering)
    - Climate risk assessment for portfolios
    - Agricultural commodities forecasting (corn, wheat, soybeans)
@@ -248,7 +248,7 @@ Provide:
    - Insurance and reinsurance modeling
 
 4. **Cortex as Platform**:
-   - VortexV2 and Alpha Arena as first customers
+   - Vortex Backend and Alpha Arena as first customers
    - Demonstrated ROI for productivity gains
    - Case studies for commercial Cortex offering
    - Multi-project portfolio management
@@ -262,7 +262,7 @@ Provide:
                 priority="high",
                 category="integration",
                 estimated_tokens=55000,
-                projects=["VortexV2", "alpha_arena", "cortex"],
+                projects=["vortex-backend", "alpha_arena", "cortex"],
                 deadline_hours=48,
             )
         )
@@ -335,7 +335,7 @@ Provide:
                 prompt="""Conduct comprehensive COMMERCIAL VALUE ANALYSIS across the portfolio:
 
 **Projects to Analyze:**
-1. VortexV2 (weather API - production ready)
+1. Vortex Backend (weather API - production ready)
 2. Alpha Arena (trading system - validated)
 3. Cortex (dev intelligence - operational)
 4. Mobile/Vital (health app - in development)
@@ -391,7 +391,7 @@ Provide:
                 priority="high",
                 category="commercial",
                 estimated_tokens=65000,
-                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot", "Aio"],
+                projects=["vortex-backend", "alpha_arena", "cortex", "mobile", "DJ-CoPilot", "Aio"],
                 deadline_hours=72,
             )
         )
@@ -466,7 +466,7 @@ Provide:
                 priority="high",
                 category="planning",
                 estimated_tokens=70000,
-                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "Aio"],
+                projects=["vortex-backend", "alpha_arena", "cortex", "mobile", "Aio"],
                 deadline_hours=72,
             )
         )
@@ -481,7 +481,7 @@ Provide:
 
 **Per-Project AI/ML Enhancements:**
 
-1. **VortexV2 (Weather API)**:
+1. **Vortex Backend (Weather API)**:
    - Neural weather models vs traditional physics models
    - Hyperlocal forecasting using computer vision (satellite imagery, webcams)
    - Weather impact prediction (flight delays, traffic, events)
@@ -548,7 +548,7 @@ Provide:
                 priority="normal",
                 category="research",
                 estimated_tokens=68000,
-                projects=["VortexV2", "alpha_arena", "cortex", "mobile", "DJ-CoPilot"],
+                projects=["vortex-backend", "alpha_arena", "cortex", "mobile", "DJ-CoPilot"],
                 deadline_hours=96,
             )
         )
