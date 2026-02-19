@@ -7,7 +7,7 @@ Goal: Make batch API usage as easy as possible to increase adoption.
 
 Usage:
     python quick_batch.py review path/to/file.py
-    python quick_batch.py docs VortexV2/
+    python quick_batch.py docs Vortex/backend/
     python quick_batch.py research "Should we use Redis?"
     python quick_batch.py security
     python quick_batch.py patterns

@@ -145,7 +145,7 @@ class IntelligentBatchOrchestratorAnthropic:
             print(f"Warning: Failed to get Cortex state: {e}", file=sys.stderr)
             # Use reasonable defaults
             return {
-                "active_projects": 3,  # cortex, alpha_arena, VortexV2
+                "active_projects": 3,  # cortex, alpha_arena, vortex-backend
                 "priority_a_goals": 0,
                 "priority_b_goals": 0,
                 "pending_goals": 0,
@@ -190,7 +190,7 @@ class IntelligentBatchOrchestratorAnthropic:
         active_projects = state.get("active_projects", 3)
 
         # Build context once for reuse
-        projects = ["cortex", "alpha_arena", "Vortex/VortexV2"]
+        projects = ["cortex", "alpha_arena", "Vortex/backend"]
         codebase_context = self._build_codebase_context(projects)
 
         # 1. Security Scan (IMMEDIATE)
@@ -226,7 +226,7 @@ Context: {codebase_context[:3000]}""",
                 system_prompt="""You are a senior software engineer conducting a code quality review.
 Focus on maintainability issues that will cause problems as the codebase grows.
 Be specific with file names and line numbers. Prioritize by impact on velocity.""",
-                user_prompt=f"""Analyze code quality across {active_projects} projects (cortex, alpha_arena, VortexV2).
+                user_prompt=f"""Analyze code quality across {active_projects} projects (cortex, alpha_arena, vortex-backend).
 
 Identify:
 1. **High complexity functions** (>50 lines, >10 branches, deeply nested)

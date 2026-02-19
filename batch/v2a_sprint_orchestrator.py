@@ -59,7 +59,7 @@ class V2aSprintOrchestrator:
         Returns:
             List of SprintTask definitions
         """
-        vortex_root = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
+        vortex_root = Path("/Users/jesse.kemp/Dev/Vortex/backend")
         Path("/Users/jesse.kemp/Dev/cortex")
 
         tasks = []
@@ -103,7 +103,7 @@ class V2aSprintOrchestrator:
 import sys
 sys.path.insert(0, '{vortex_root}')
 
-print('=== VortexV2 API Smoke Tests ===')
+print('=== Vortex Backend API Smoke Tests ===')
 
 # Test 1: App starts and has routes
 print('\\n[TEST 1] FastAPI app initializes')
@@ -140,7 +140,7 @@ print('\\n=== All API smoke tests passed ✓ ===')
 print('\\nNote: V2a endpoint not yet implemented - validation data will inform its design')
 "
 """,
-                description="Run basic VortexV2 API smoke tests",
+                description="Run basic Vortex backend API smoke tests",
                 estimated_duration_minutes=5,
                 dependencies=[],
             )
@@ -324,7 +324,7 @@ print(f'Add to README.md manually or review: {{v2a_section}}')
                 sprint_id=task_def.sprint_id,
                 wave_id=task_def.wave_id,
                 metadata={
-                    "project": "VortexV2",
+                    "project": "vortex-backend",
                     "batch_orchestrator": "V2aSprintOrchestrator",
                     "submitted_at": datetime.now().isoformat(),
                     "definition_id": task_def.task_id,  # Store original definition ID
