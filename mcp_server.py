@@ -14,11 +14,13 @@ Tools:
   - cortex_sessions: Active/recent Claude sessions
   - cortex_taskboard: Task board items (list/create/update)
   - cortex_emos_status: EMOS pair counts and readiness
+  - cortex_prompt_refine: Get refinement suggestions for any prompt (cross-model)
 
 Resources:
   - cortex://goals: Current GOALS.md content
   - cortex://metrics/tests: Test results by project
   - cortex://metrics/emos: EMOS pair counts
+  - cortex://prompts/patterns: Learned prompt patterns and category hints
 """
 
 import json
@@ -31,6 +33,7 @@ from mcp.server.fastmcp import FastMCP
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
 GOALS_FILE = Path.home() / "Dev" / "GOALS.md"
+PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
 
 mcp = FastMCP("cortex")
 
@@ -184,6 +187,60 @@ def cortex_emos_status() -> str:
         return json.dumps({"error": str(e)})
 
 
+@mcp.tool()
+def cortex_prompt_refine(prompt: str, category: str = "") -> str:
+    """Get refinement suggestions for a prompt using learned patterns.
+
+    Analyzes the prompt, classifies it, and returns category-specific refinement
+    hints plus similar high-value prompts from the database. Works for any model.
+
+    Args:
+        prompt: The raw user prompt to refine.
+        category: Optional override for category (direction/investigation/meta/idea/decision/request).
+    """
+    patterns_file = PROMPTS_DIR / "patterns.json"
+    if not patterns_file.exists():
+        return json.dumps({"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"})
+
+    try:
+        patterns = json.loads(patterns_file.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        return json.dumps({"error": str(e)})
+
+    # Auto-classify if no category provided
+    if not category:
+        prompt_lower = prompt.lower()
+        category_keywords = {
+            "direction": ["should", "path", "strategy", "approach", "plan", "vision", "10/10"],
+            "investigation": ["why", "broken", "failing", "debug", "diagnose", "root cause"],
+            "meta": ["learn", "improve", "optimize", "refine", "prompt", "workflow"],
+            "idea": ["what if", "imagine", "consider", "concept", "brainstorm"],
+            "decision": ["decide", "choose", "trade-off", "versus", "option"],
+            "request": ["add", "create", "build", "implement", "fix", "update"],
+        }
+        scores = {}
+        for cat, keywords in category_keywords.items():
+            scores[cat] = sum(1 for kw in keywords if kw in prompt_lower)
+        category = max(scores, key=scores.get) if any(scores.values()) else "request"
+
+    # Get category hint
+    hints = patterns.get("category_hints", {})
+    hint = hints.get(category, "Add: acceptance criteria, scope, test requirements")
+
+    # Find similar high-value prompts
+    top = patterns.get("top_patterns", [])
+    similar = [p for p in top if p.get("category") == category and p.get("value_score", 0) >= 0.7][:3]
+
+    result = {
+        "classified_category": category,
+        "refinement_hint": hint,
+        "similar_high_value_prompts": similar,
+        "word_count": len(prompt.split()),
+        "suggestion": f"Consider adding: {hint.split(': ', 1)[-1] if ': ' in hint else hint}",
+    }
+    return json.dumps(result, indent=2)
+
+
 # ── Resources ──
 
 
@@ -211,6 +268,15 @@ def emos_metrics_resource() -> str:
     if emos_file.exists():
         return emos_file.read_text()
     return json.dumps({"error": "No EMOS metrics found"})
+
+
+@mcp.resource("cortex://prompts/patterns")
+def prompt_patterns_resource() -> str:
+    """Learned prompt patterns: category hints, top prompts, recurring structures."""
+    patterns_file = PROMPTS_DIR / "patterns.json"
+    if patterns_file.exists():
+        return patterns_file.read_text()
+    return json.dumps({"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"})
 
 
 if __name__ == "__main__":
