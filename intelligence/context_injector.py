@@ -198,11 +198,11 @@ class ContextInjector:
         dev_root = self.root_dir
         if str(dev_root) in str(cwd):
             try:
-                # Find the project directory (first child of Dev or nested like Vortex/VortexV2)
+                # Find the project directory (first child of Dev or nested like Vortex/backend)
                 rel_path = cwd.relative_to(dev_root)
                 parts = rel_path.parts
                 if parts:
-                    # Handle nested projects like Vortex/VortexV2 or production/audio/dj-copilot
+                    # Handle nested projects like Vortex/backend or production/audio/dj-copilot
                     if len(parts) >= 2 and parts[0] in ["Vortex", "production"]:
                         # Return deepest non-category directory
                         return (
@@ -320,7 +320,7 @@ class ContextInjector:
 
         # Try to load domain expert
         try:
-            if project.lower() in ["vortexv2", "vortex"]:
+            if project.lower() in ["vortex-backend", "vortex"]:
                 from intelligence.domains.vortex_expert import VortexExpert
 
                 self._domain_experts[project] = VortexExpert()

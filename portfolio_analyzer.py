@@ -449,7 +449,7 @@ class PortfolioAnalyzer:
                     "title": "Consider Project Integrations",
                     "issue": f"{tier1_projects} tier-1 projects could be integrated",
                     "impact": "Automated pattern extraction and calibration",
-                    "action": "Build VortexV2 and Alpha Arena integrations (Agents 6-7)",
+                    "action": "Build Vortex backend and Alpha Arena integrations (Agents 6-7)",
                     "estimated_time": "30-40 minutes",
                 }
             )

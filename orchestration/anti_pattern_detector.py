@@ -56,7 +56,7 @@ class AntiPatternAlert:
     severity: Severity
 
     # Context
-    project: str  # e.g., "VortexV2", "alpha_arena"
+    project: str  # e.g., "vortex-backend", "alpha_arena"
     validated_item: str  # e.g., "FieldSelectiveEnsemble", "bias_correction_v2"
     validation_source: str  # Path to validation report
     validation_date: datetime
@@ -152,12 +152,12 @@ class AntiPatternDetector:
 
         # Project configurations
         self.projects = {
-            "VortexV2": {
-                "validation_dir": "Vortex/VortexV2/data/validation",
-                "production_config": "Vortex/VortexV2/data/validation/production_config.json",
-                "api_files": ["Vortex/VortexV2/app/api/v2/weather.py"],
-                "model_files": ["Vortex/VortexV2/app/models/*.py"],
-                "entry_points": ["Vortex/VortexV2/ui/app.py", "Vortex/VortexV2/app/main.py"],
+            "vortex-backend": {
+                "validation_dir": "Vortex/backend/data/validation",
+                "production_config": "Vortex/backend/data/validation/production_config.json",
+                "api_files": ["Vortex/backend/app/api/v2/weather.py"],
+                "model_files": ["Vortex/backend/app/models/*.py"],
+                "entry_points": ["Vortex/backend/ui/app.py", "Vortex/backend/app/main.py"],
             },
             "alpha_arena": {
                 "validation_dir": "alpha_arena/data/validation",
@@ -214,7 +214,7 @@ class AntiPatternDetector:
         6. Create alert if no evidence of deployment
 
         Args:
-            project: Project name (e.g., "VortexV2")
+            project: Project name (e.g., "vortex-backend")
 
         Returns:
             List of alerts for undeployed improvements

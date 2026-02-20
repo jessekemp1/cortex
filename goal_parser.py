@@ -61,8 +61,8 @@ class GoalParser:
 
     # Project name mapping (handles various formats)
     PROJECT_ALIASES = {
-        "vortexv2": "VortexV2",
-        "vortex v2": "VortexV2",
+        "vortexv2": "vortex-backend",
+        "vortex v2": "vortex-backend",
         "alpha arena": "alpha_arena",
         "alpha-arena": "alpha_arena",
         "alphaarena": "alpha_arena",

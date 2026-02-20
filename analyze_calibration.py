@@ -196,8 +196,8 @@ def generate_report():
     # === SECTION 8: NEXT STEPS ===
     print("8. NEXT STEPS")
     print("-" * 60)
-    print("Week 3-4: VortexV2 Forecast Calibration")
-    print("  - Design VortexV2 integration architecture")
+    print("Week 3-4: Vortex Backend Forecast Calibration")
+    print("  - Design Vortex backend integration architecture")
     print("  - Add Cortex hook to validation pipeline")
     print("  - Record 30+ forecast predictions")
     print()

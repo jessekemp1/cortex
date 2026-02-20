@@ -463,7 +463,7 @@ class ContextIntelligence:
             if item.is_dir() and item.name.lower() == project.lower():
                 return item
 
-        # Check nested paths (e.g., Vortex/VortexV2)
+        # Check nested paths (e.g., Vortex/backend)
         for parent in self.root_dir.iterdir():
             if parent.is_dir():
                 nested = parent / project

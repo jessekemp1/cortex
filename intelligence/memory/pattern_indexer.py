@@ -563,7 +563,7 @@ def main():
             if path.is_dir() and (path / ".git").exists():
                 git_repos.append(path)
 
-        # Check one level deep (for projects like Vortex/VortexV2)
+        # Check one level deep (for projects like Vortex/backend)
         for path in root_dir.iterdir():
             if path.is_dir() and not (path / ".git").exists():
                 for subpath in path.iterdir():

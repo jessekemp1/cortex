@@ -151,7 +151,7 @@ class BatchResultDetector(SignalDetector):
     ) -> Optional[WorkSignal]:
         """Convert a batch result markdown file to a WorkSignal."""
         try:
-            # Parse project from filename (e.g., VortexV2_Ensemble_Models_FULL.md)
+            # Parse project from filename (e.g., Vortex_Ensemble_Models_FULL.md)
             filename = md_file.stem
             filename.replace("_FULL", "").split("_")
 
@@ -160,8 +160,8 @@ class BatchResultDetector(SignalDetector):
             title = filename.replace("_", " ").replace(" FULL", "")
 
             project_keywords = {
-                "VortexV2": "VortexV2",
-                "Vortex": "VortexV2",
+                "VortexV2": "vortex-backend",
+                "Vortex": "vortex-backend",
                 "Cortex": "cortex",
                 "Alpha": "alpha_arena",
                 "Arena": "alpha_arena",

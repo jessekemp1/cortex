@@ -20,7 +20,7 @@ def scan_projects() -> List[Dict]:
         "cortex/site": {"name": "Cortex Command Center", "type": "react"},
         "cortex/dashboard": {"name": "Cortex Orchestration", "type": "streamlit"},
         "cortex/api": {"name": "Cortex Bridge API", "type": "fastapi"},
-        "Vortex/VortexV2": {"name": "VortexV2", "type": "mixed"},
+        "Vortex/backend": {"name": "Vortex Backend", "type": "mixed"},
         "Vortex/VortexV3": {"name": "VortexV3", "type": "react"},
         "alpha_arena": {"name": "Alpha Arena", "type": "streamlit"},
         "kempion-research-site": {"name": "Kempion Research", "type": "react"},
@@ -59,7 +59,7 @@ def scan_projects() -> List[Dict]:
             project["start_command"] = f"uvicorn api.bridge_endpoint:app --port {project['port']}"
 
         elif info["type"] == "mixed":
-            # VortexV2 has both API and UI
+            # Vortex backend has both API and UI
             project["services"] = [
                 {
                     "name": "API",
@@ -93,7 +93,7 @@ def detect_vite_port(package_json_path: Path) -> int:
 
     # Project-specific defaults to avoid conflicts
     project_path_str = str(package_json_path.parent)
-    if "VortexV3" in project_path_str:
+    if "VortexV3" in project_path_str:  # VortexV3 is still named VortexV3
         return 3002  # VortexV3 uses 3002 per PORT_ALLOCATION.md
     elif "kempion" in project_path_str.lower():
         return 5174  # Kempion Research uses 5174
@@ -120,9 +120,9 @@ def detect_streamlit_port(project_path: Path) -> int:
     if "cortex" in str(project_path):
         return 8502  # Cortex Orchestration
     elif "alpha" in str(project_path).lower():
-        return 8504  # Alpha Arena (changed from 8503 to avoid VortexV2 UI conflict)
+        return 8504  # Alpha Arena (changed from 8503 to avoid Vortex backend UI conflict)
     elif "vortex" in str(project_path).lower():
-        return 8503  # VortexV2 UI
+        return 8503  # Vortex backend UI
     return 8501
 
 

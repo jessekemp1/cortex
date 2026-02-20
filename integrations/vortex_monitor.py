@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-VortexV2 Forecast Accuracy Monitor
+Vortex Backend Forecast Accuracy Monitor
 
-Monitors VortexV2 forecast validation results and triggers alerts when:
+Monitors Vortex backend forecast validation results and triggers alerts when:
 - Forecast accuracy drops below threshold (MAE too high)
 - Model performance degrades significantly
 - Validation data becomes stale
@@ -58,7 +58,7 @@ class ValidationIssue:
 
 class VortexForecastMonitor:
     """
-    Monitor VortexV2 forecast validation results.
+    Monitor Vortex backend forecast validation results.
 
     Reads validation JSON files and triggers alerts when accuracy degrades.
     """
@@ -73,12 +73,12 @@ class VortexForecastMonitor:
         Initialize forecast monitor.
 
         Args:
-            vortex_data_dir: Path to VortexV2 data directory
+            vortex_data_dir: Path to Vortex backend data directory
             thresholds: Custom thresholds (uses defaults if None)
             enable_alerts: Whether to send alerts via alert manager
         """
         if vortex_data_dir is None:
-            vortex_data_dir = Path(__file__).parent.parent.parent / "Vortex" / "VortexV2" / "data"
+            vortex_data_dir = Path(__file__).parent.parent.parent / "Vortex" / "backend" / "data"
 
         self.vortex_data_dir = vortex_data_dir
         self.validation_dir = vortex_data_dir / "validation"
@@ -105,7 +105,7 @@ class VortexForecastMonitor:
         issues = []
 
         if verbose:
-            print("🌪️  VortexV2 Forecast Accuracy Monitor")
+            print("🌪️  Vortex Backend Forecast Accuracy Monitor")
             print("=" * 60)
 
         # Check if validation directory exists
@@ -117,7 +117,7 @@ class VortexForecastMonitor:
                 current_value=0,
                 threshold_value=1,
                 message=f"Validation directory not found: {self.validation_dir}",
-                recommendation="Check VortexV2 installation and run validation",
+                recommendation="Check Vortex backend installation and run validation",
             )
             issues.append(issue)
             if verbose:
@@ -361,7 +361,7 @@ class VortexForecastMonitor:
             if issue.severity == "CRITICAL":
                 try:
                     self._alert_manager.send_alert(
-                        title=f"VortexV2: {issue.field} accuracy degraded",
+                        title=f"Vortex Backend: {issue.field} accuracy degraded",
                         message=f"{issue.message}\n\nRecommendation: {issue.recommendation}",
                         severity="CRITICAL",
                         source="vortex_monitor",
@@ -385,7 +385,7 @@ def main():
     """CLI for forecast monitoring."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="VortexV2 forecast accuracy monitor")
+    parser = argparse.ArgumentParser(description="Vortex backend forecast accuracy monitor")
     parser.add_argument("--no-alerts", action="store_true", help="Disable alerts")
     parser.add_argument("--quiet", action="store_true", help="Quiet mode")
     args = parser.parse_args()

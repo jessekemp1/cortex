@@ -18,8 +18,8 @@ def detect_project():
     cwd = Path.cwd()
     cwd_str = str(cwd)
 
-    if "VortexV2" in cwd_str or "Vortex/VortexV2" in cwd_str:
-        return "VortexV2"
+    if "Vortex/backend" in cwd_str:
+        return "vortex-backend"
     elif "alpha_arena" in cwd_str or "AlphaArena" in cwd_str:
         return "AlphaArena"
     elif "cortex" in cwd_str.lower():

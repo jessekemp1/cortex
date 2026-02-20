@@ -378,7 +378,7 @@ class MetricTracker:
         Track test coverage percentage for a project.
 
         Args:
-            project: Project identifier (e.g., "cortex", "VortexV2").
+            project: Project identifier (e.g., "cortex", "vortex-backend").
             coverage_pct: Test coverage percentage (0-100).
             metadata: Optional context (e.g., {"test_files": 41, "total_lines": 5000}).
             timestamp: Optional timestamp (defaults to now UTC).
@@ -467,7 +467,7 @@ class MetricTracker:
             DatabaseError: If storage fails.
 
         Example:
-            >>> tracker.track_commits("VortexV2", 5, timeframe="24h")
+            >>> tracker.track_commits("vortex-backend", 5, timeframe="24h")
         """
         metadata = metadata or {}
         metadata["timeframe"] = timeframe
@@ -787,7 +787,7 @@ if __name__ == "__main__":
             tracker.track_coverage("cortex", 34.5, {"test_files": 41})
             tracker.track_coverage("cortex", 32.0, {"test_files": 40})
             tracker.track_violations("cortex", 12, linter="ruff")
-            tracker.track_commits("VortexV2", 5, timeframe="24h")
+            tracker.track_commits("vortex-backend", 5, timeframe="24h")
             tracker.track_file_changes("cortex", "main.py", 48.5, {"is_critical": True})
 
             # Query metrics

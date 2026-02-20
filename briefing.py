@@ -616,7 +616,7 @@ class BriefingGenerator:
             """Normalize title for deduplication."""
             import re
 
-            # Remove project prefix (e.g., "cortex: " or "VortexV2: ")
+            # Remove project prefix (e.g., "cortex: " or "vortex-backend: ")
             normalized = re.sub(r"^[^:]+:\s*", "", title.lower())
             # Remove parenthetical content (e.g., "(feat/branch-name)")
             normalized = re.sub(r"\([^)]*\)", "", normalized)

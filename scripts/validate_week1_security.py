@@ -207,7 +207,7 @@ def check_dependency_versions(root_dir: Path, results: ValidationResult):
     requirements_files = [
         root_dir / "cortex" / "requirements.txt",
         root_dir / "alpha_arena" / "requirements.txt",
-        root_dir / "Vortex" / "VortexV2" / "requirements.txt",
+        root_dir / "Vortex" / "backend" / "requirements.txt",
     ]
 
     all_passed = True

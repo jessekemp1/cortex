@@ -93,7 +93,7 @@ class TestSimilarWork:
             title="Similar Project Work",
             type="spec",
             similarity_score=0.85,
-            project="VortexV2",
+            project="vortex-backend",
             summary="A similar implementation",
             key_patterns=["async_pattern", "retry_pattern"],
             lessons_learned=["Lesson 1"],
@@ -134,7 +134,7 @@ class TestPattern:
         pattern = Pattern(
             name="async_fastapi",
             description="Async FastAPI pattern for high-throughput APIs",
-            projects=["VortexV2", "cortex"],
+            projects=["vortex-backend", "cortex"],
             reference="/patterns/async_fastapi.md",
         )
 
@@ -256,7 +256,7 @@ class TestIntelligenceResult:
         result = IntelligenceResult(
             query_timestamp="2025-01-27T10:00:00",
             query_type=IntelligenceQueryType.implementation,
-            project="VortexV2",
+            project="vortex-backend",
             similar_work=[],
             applicable_patterns=[],
             lessons=[],
@@ -271,7 +271,7 @@ class TestIntelligenceResult:
         data = result.to_dict()
 
         assert data["query_type"] == "implementation"
-        assert data["project"] == "VortexV2"
+        assert data["project"] == "vortex-backend"
         assert data["reasoning"] == "Test reasoning"
         assert data["overall_confidence"] == 0.85
 
@@ -284,7 +284,7 @@ class TestProjectContext:
         from cortex.intelligence.models import ProjectContext
 
         ctx = ProjectContext(
-            name="VortexV2",
+            name="vortex-backend",
             description="Weather forecasting API",
             tech_stack=["Python", "FastAPI", "GRIB"],
             status="active",
@@ -294,7 +294,7 @@ class TestProjectContext:
             last_updated="2025-01-27",
         )
 
-        assert ctx.name == "VortexV2"
+        assert ctx.name == "vortex-backend"
         assert len(ctx.tech_stack) == 3
         assert ctx.lessons_count == 10
         assert ctx.health_data is None  # Optional field

@@ -1046,7 +1046,7 @@ class UnifiedIntelligence:
         # Map project name to path
         project_paths = {
             "cortex": self.root_dir / "cortex",
-            "VortexV2": self.root_dir / "Vortex" / "VortexV2",
+            "vortex-backend": self.root_dir / "Vortex" / "backend",
             "alpha_arena": self.root_dir / "alpha_arena",
             "DJ-CoPilot": self.root_dir / "DJ-CoPilot",
         }

@@ -353,7 +353,7 @@ IMPORTANT: Output ONLY the JSON, no other text."""
         # TODO: Integrate with Cortex intelligence system
         # For now, return placeholder
         return [
-            "Similar deployment in VortexV2 on 2026-01-15",
+            "Similar deployment in Vortex backend on 2026-01-15",
             "Feature flag pattern used in Alpha Arena",
         ]
 
@@ -362,8 +362,8 @@ IMPORTANT: Output ONLY the JSON, no other text."""
         relevant_files = []
         project = signal.context.get("project", "")
 
-        if project == "VortexV2":
-            base_dir = self.root_dir / "Vortex" / "VortexV2"
+        if project == "vortex-backend":
+            base_dir = self.root_dir / "Vortex" / "backend"
         elif project == "Alpha Arena":
             base_dir = self.root_dir / "alpha_arena"
         elif project == "Cortex":

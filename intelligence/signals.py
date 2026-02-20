@@ -68,7 +68,7 @@ class SignalDetector:
 
     def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
         self.root_dir = Path(root_dir)
-        self.vortex_dir = self.root_dir / "Vortex" / "VortexV2"
+        self.vortex_dir = self.root_dir / "Vortex" / "backend"
         self.alpha_arena_dir = self.root_dir / "alpha_arena"
         self.cortex_dir = self.root_dir / "cortex"
         self.cache_dir = Path.home() / ".cortex" / "signals"
@@ -161,7 +161,7 @@ class SignalDetector:
                                 title=f"Deploy {model_name} for {field_name} - +{improvement_pct:.1f}% improvement",
                                 description=f"{model_name} shows {improvement_pct:.1f}% better {field_name} accuracy than production {prod_model}, but is not deployed",
                                 context={
-                                    "project": "VortexV2",
+                                    "project": "vortex-backend",
                                     "field": field_name,
                                     "validated_model": model_name,
                                     "production_model": prod_model,
@@ -196,7 +196,7 @@ class SignalDetector:
         """
         signals = []
         projects = [
-            ("VortexV2", self.vortex_dir),
+            ("vortex-backend", self.vortex_dir),
             ("Alpha Arena", self.alpha_arena_dir),
             ("Cortex", self.cortex_dir),
         ]
@@ -309,7 +309,7 @@ class SignalDetector:
         """
         signals = []
         projects = [
-            ("VortexV2", self.vortex_dir),
+            ("vortex-backend", self.vortex_dir),
             ("Alpha Arena", self.alpha_arena_dir),
             ("Cortex", self.cortex_dir),
         ]
@@ -387,7 +387,7 @@ class SignalDetector:
         """
         signals = []
 
-        # Check VortexV2 performance metrics
+        # Check Vortex backend performance metrics
         metrics_file = self.vortex_dir / "data" / "validation" / "dashboard_data.json"
 
         if metrics_file.exists():
@@ -411,7 +411,7 @@ class SignalDetector:
                                 title=f"High latency detected in {model_name}: {latency_p95:.0f}ms",
                                 description=f"{model_name} has p95 latency of {latency_p95:.0f}ms, exceeding 200ms threshold",
                                 context={
-                                    "project": "VortexV2",
+                                    "project": "vortex-backend",
                                     "model": model_name,
                                     "latency_p95_ms": latency_p95,
                                     "threshold_ms": 200,

@@ -116,11 +116,11 @@ def get_project_insights(project_name: str) -> Dict:
     workspace = Path.home() / "Dev"
     insights = {"validation_alerts": [], "test_status": None, "deployment_needed": False}
 
-    # VortexV2 specific insights
-    if project_name == "VortexV2":
+    # Vortex backend specific insights
+    if project_name == "vortex-backend":
         try:
             # Check for validation reports indicating improvements
-            validation_dir = workspace / "Vortex" / "VortexV2" / "data" / "validation"
+            validation_dir = workspace / "Vortex" / "backend" / "data" / "validation"
             if validation_dir.exists():
                 reports = list(validation_dir.glob("*REPORT*.md"))
                 for report in reports[:3]:

@@ -107,7 +107,7 @@ def test_basic_next_action():
 
 # Test Case 2: Project-Specific Filtering
 def test_project_specific_filtering():
-    """Test Case 2: Project-Specific Next Action - Filters to VortexV2."""
+    """Test Case 2: Project-Specific Next Action - Filters to Vortex backend."""
     stdout, stderr, return_code, exec_time = run_cli_command(["next", "vortexv2"])
 
     # Should succeed

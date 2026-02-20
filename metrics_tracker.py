@@ -814,7 +814,7 @@ def main():
         task="Find similar GRIB processing code",
         time_without_cortex=30,  # Would take 30 min without Cortex
         time_with_cortex=5,  # Took 5 min with spec search
-        project="VortexV2",
+        project="vortex-backend",
         notes="Used spec knowledge base to find existing implementation",
     )
     print("  ✅ Recorded 25 minutes saved (83% improvement)")
@@ -825,7 +825,7 @@ def main():
         mistake_type="data_validation",
         was_prevented=True,
         lesson_id="grib_index_check",
-        project="VortexV2",
+        project="vortex-backend",
         impact_minutes=240,  # Would have wasted 4 hours
         notes="Remembered lesson: check GRIB index before download",
     )
@@ -840,7 +840,7 @@ def main():
         confidence=0.85,
         predicted_time=15,
         project="Cortex",
-        notes="Based on similar VortexV2 integration pattern",
+        notes="Based on similar Vortex backend integration pattern",
     )
     print(f"  ✅ Recorded prediction {prediction_id} (85% confidence, 15 min estimate)")
 

@@ -42,7 +42,7 @@ class StatusPlugin(BasePlugin):
             "max_commits": 10,
             "max_recommendations": 5,
             "projects": {
-                "vortex": {"path": "Vortex/VortexV2", "ports": [8000, 8501]},
+                "vortex": {"path": "Vortex/backend", "ports": [8000, 8501]},
                 "arena": {"path": "alpha_arena", "ports": [8502]},
                 "cortex": {"path": "cortex", "ports": []},
             },
@@ -325,8 +325,8 @@ class StatusPlugin(BasePlugin):
     def _get_service_name(self, project: str, port: int) -> str:
         """Get service name for project and port."""
         names = {
-            ("vortex", 8000): "VortexV2 API",
-            ("vortex", 8501): "VortexV2 UI",
+            ("vortex", 8000): "Vortex Backend API",
+            ("vortex", 8501): "Vortex Backend UI",
             ("arena", 8502): "Alpha Arena Dashboard",
         }
         return names.get((project, port), f"{project.title()} (:{port})")

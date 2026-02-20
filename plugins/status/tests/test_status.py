@@ -150,7 +150,7 @@ class TestStatusPlugin:
 
     def test_get_service_name(self, plugin):
         """Test service name mapping."""
-        assert "VortexV2 API" in plugin._get_service_name("vortex", 8000)
+        assert "Vortex Backend API" in plugin._get_service_name("vortex", 8000)
         assert "Alpha Arena" in plugin._get_service_name("arena", 8502)
 
     @patch("subprocess.run")

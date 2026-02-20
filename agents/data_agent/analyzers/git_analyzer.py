@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         print("Usage: python git_analyzer.py <repo_path> [days]")
-        print("Example: python git_analyzer.py /Users/jesse.kemp/Dev/Vortex/VortexV2 30")
+        print("Example: python git_analyzer.py /Users/jesse.kemp/Dev/Vortex/backend 30")
         sys.exit(1)
 
     repo_path = sys.argv[1]

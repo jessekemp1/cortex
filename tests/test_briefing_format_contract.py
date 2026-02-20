@@ -17,7 +17,7 @@ from briefing import (
 
 def _sample_briefing() -> BriefingData:
     return BriefingData(
-        active_projects=["VortexV2", "cortex", "alpha_arena"],
+        active_projects=["vortex-backend", "cortex", "alpha_arena"],
         recent_commits_24h=21,
         total_commits_7d=133,
         blockers=[{"project": "Winfield", "blocker": "Missing .env file"}],
@@ -25,16 +25,16 @@ def _sample_briefing() -> BriefingData:
             {
                 "priority": "HIGH",
                 "title": "Fix forecast endpoint reliability",
-                "project": "VortexV2",
+                "project": "vortex-backend",
                 "steps": ["Add guard for model lookup", "Run e2e API tests"],
                 "estimated_impact": "high",
             }
         ],
-        patterns=["VortexV2 momentum: 30 commits this week"],
+        patterns=["Vortex backend momentum: 30 commits this week"],
         waiting_on=[],
         project_snapshot=[
             {
-                "project": "VortexV2",
+                "project": "vortex-backend",
                 "commits_7d": 30,
                 "uncommitted": 2,
                 "status": "active",
@@ -65,7 +65,7 @@ def _sample_briefing() -> BriefingData:
             "predictions": [
                 {
                     "confidence": "high",
-                    "prediction": "Continue work on VortexV2",
+                    "prediction": "Continue work on Vortex backend",
                     "reason": "Momentum and open action items",
                 }
             ],
@@ -100,7 +100,7 @@ def test_project_snapshot_has_tabular_row():
     briefing = _sample_briefing()
     output = format_briefing(briefing, use_color=False)
     assert "Project                     C7d  WIP  Trend" in output
-    assert "VortexV2" in output
+    assert "vortex-backend" in output
 
 
 def test_briefing_style_validation_rejects_invalid_config():

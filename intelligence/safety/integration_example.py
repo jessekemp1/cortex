@@ -201,7 +201,7 @@ def example_usage():
 
     # Example 3: Intelligence query
     print("Example 3: Intelligence query")
-    result = bridge.intelligence_query("Analyze VortexV2 architecture", query_type="context")
+    result = bridge.intelligence_query("Analyze Vortex backend architecture", query_type="context")
     print(f"Result: {result}\n")
 
     # Example 4: Recommendation injection
