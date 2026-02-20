@@ -59,7 +59,7 @@ Jobs:
 # Security audit completed - get results now!
 cd /Users/jesse.kemp/Dev && python -c "
 import os
-os.environ['ANTHROPIC_API_KEY'] = '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'
+os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-api03-YOUR_KEY_HERE'
 from cortex.batch.batch_api_client import BatchAPIClient
 
 client = BatchAPIClient()
