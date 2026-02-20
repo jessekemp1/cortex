@@ -130,7 +130,7 @@ def get_tasks_for_project(
     Get tasks for a specific project from tasks.yaml file.
 
     Args:
-        project_name: Project name (e.g., "VortexV2", "cortex")
+        project_name: Project name (e.g., "vortex-backend", "cortex")
         root_dir: Root directory to search (defaults to /Users/jesse.kemp/Dev)
 
     Returns:
@@ -142,7 +142,7 @@ def get_tasks_for_project(
     # Find project directory
     project_paths = [
         root_dir / project_name,
-        root_dir / "Vortex" / project_name,  # VortexV2 is nested
+        root_dir / "Vortex" / project_name,  # Vortex backend is nested
     ]
 
     for project_path in project_paths:

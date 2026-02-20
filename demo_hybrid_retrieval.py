@@ -22,7 +22,7 @@ def create_demo_patterns():
     return [
         Pattern(
             id="proj1:abc123",
-            project="VortexV2",
+            project="vortex-backend",
             commit_hash="abc123",
             commit_date=datetime(2024, 1, 1),
             title="Fix async database connection",
@@ -44,7 +44,7 @@ def create_demo_patterns():
         ),
         Pattern(
             id="proj1:ghi789",
-            project="VortexV2",
+            project="vortex-backend",
             commit_hash="ghi789",
             commit_date=datetime(2024, 1, 3),
             title="Add API rate limiting middleware",

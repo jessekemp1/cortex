@@ -29,7 +29,7 @@ class TestSessionHandoff:
         handoff = SessionHandoff(
             timestamp=datetime.now(),
             session_id="test_session_123",
-            project="VortexV2",
+            project="vortex-backend",
             workstream=WorkstreamType.BUILDING,
             active_task="Debug wind_speed forecast",
             task_status="in_progress",
@@ -43,7 +43,7 @@ class TestSessionHandoff:
             confidence=0.8,
         )
 
-        assert handoff.project == "VortexV2"
+        assert handoff.project == "vortex-backend"
         assert handoff.workstream == WorkstreamType.BUILDING
         assert len(handoff.blockers) == 1
         assert len(handoff.decisions_made) == 1

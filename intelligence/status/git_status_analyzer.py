@@ -51,7 +51,7 @@ class GitStatusAnalyzer:
     PROJECT_PATTERNS = {
         "alpha_arena": r"^alpha_arena/",
         "cortex": r"^cortex/",
-        "vortex": r"^Vortex/VortexV2/",
+        "vortex": r"^Vortex/backend/",
         "dj_copilot": r"^DJ-CoPilot/",
         "kempion_site": r"^kempion-research-site",
     }
@@ -263,7 +263,7 @@ class GitStatusAnalyzer:
             test_files = [f for f in files if "/test" in f and any(api in f for api in api_files)]
             group_id = f"{project}_api_changes"
             groups[group_id] = ChangeGroup(
-                name=f"VortexV2 API Changes ({len(api_files)} files)",
+                name=f"Vortex Backend API Changes ({len(api_files)} files)",
                 files=api_files + test_files,
                 change_type="feat",
                 project=project,

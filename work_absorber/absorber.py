@@ -216,13 +216,13 @@ class WorkAbsorber:
             if is_project_dir(item):
                 projects.append(item.name)
 
-            # Also check one level deeper for nested projects (e.g., Vortex/VortexV2)
+            # Also check one level deeper for nested projects (e.g., Vortex/backend)
             if item.is_dir() and item.name not in skip:
                 for subitem in item.iterdir():
                     if subitem.name.startswith(".") or subitem.name in skip:
                         continue
                     if is_project_dir(subitem):
-                        # Use nested name like "Vortex/VortexV2"
+                        # Use nested name like "Vortex/backend"
                         projects.append(f"{item.name}/{subitem.name}")
 
         return projects

@@ -329,17 +329,17 @@ Output ONLY valid JSON in this format:
     {{
       "description": "Run pytest to identify failing tests",
       "action": "bash",
-      "command": "pytest Vortex/VortexV2/tests/test_ensemble.py -v"
+      "command": "pytest Vortex/backend/tests/test_ensemble.py -v"
     }},
     {{
       "description": "Read test file to understand failures",
       "action": "read",
-      "file_path": "Vortex/VortexV2/tests/test_ensemble.py"
+      "file_path": "Vortex/backend/tests/test_ensemble.py"
     }},
     {{
       "description": "Fix test assertion",
       "action": "edit",
-      "file_path": "Vortex/VortexV2/tests/test_ensemble.py"
+      "file_path": "Vortex/backend/tests/test_ensemble.py"
     }}
   ]
 }}
@@ -423,8 +423,8 @@ Output ONLY the JSON, no other text."""
 
         # Try to infer project from contract signal_id or title
         contract_text = f"{contract.contract_id} {contract.title} {contract.description}".lower()
-        if "vortexv2" in contract_text or "vortex/vortexv2" in contract_text:
-            working_dir = self.root_dir / "Vortex" / "VortexV2"
+        if "vortex-backend" in contract_text or "vortex/backend" in contract_text:
+            working_dir = self.root_dir / "Vortex" / "backend"
         elif "alpha_arena" in contract_text or "alpha arena" in contract_text:
             working_dir = self.root_dir / "alpha_arena"
         elif "cortex" in contract_text and "vortex" not in contract_text:
@@ -433,8 +433,8 @@ Output ONLY the JSON, no other text."""
         # Legacy: check context if provided
         if "project" in getattr(contract, "context", {}):
             project = contract.context["project"]
-            if project == "VortexV2":
-                working_dir = self.root_dir / "Vortex" / "VortexV2"
+            if project == "vortex-backend":
+                working_dir = self.root_dir / "Vortex" / "backend"
             elif project == "Alpha Arena":
                 working_dir = self.root_dir / "alpha_arena"
             elif project == "Cortex":
@@ -619,8 +619,8 @@ Output ONLY the JSON, no other text."""
 
         # Try to infer project from contract signal_id or title
         contract_text = f"{contract.contract_id} {contract.title} {contract.description}".lower()
-        if "vortexv2" in contract_text or "vortex/vortexv2" in contract_text:
-            working_dir = self.root_dir / "Vortex" / "VortexV2"
+        if "vortex-backend" in contract_text or "vortex/backend" in contract_text:
+            working_dir = self.root_dir / "Vortex" / "backend"
         elif "alpha_arena" in contract_text or "alpha arena" in contract_text:
             working_dir = self.root_dir / "alpha_arena"
         elif "cortex" in contract_text and "vortex" not in contract_text:
@@ -629,8 +629,8 @@ Output ONLY the JSON, no other text."""
         # Legacy: check context if provided
         if "project" in getattr(contract, "context", {}):
             project = contract.context["project"]
-            if project == "VortexV2":
-                working_dir = self.root_dir / "Vortex" / "VortexV2"
+            if project == "vortex-backend":
+                working_dir = self.root_dir / "Vortex" / "backend"
             elif project == "Alpha Arena":
                 working_dir = self.root_dir / "alpha_arena"
             elif project == "Cortex":

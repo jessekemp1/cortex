@@ -16,7 +16,7 @@ def create_demo_sessions():
 
     # Week 1-2: Heavy debugging work
     debug_prompts = [
-        "Debug GRIB validation failing in VortexV2",
+        "Debug GRIB validation failing in Vortex backend",
         "Fix authentication error in login flow",
         "Investigate why ensemble forecasts are incorrect",
         "Quick fix for broken deployment pipeline",
@@ -27,7 +27,7 @@ def create_demo_sessions():
         sessions.append(
             {
                 "session_id": f"debug_session_{i}",
-                "cwd": "/Users/jesse.kemp/Dev/Vortex/VortexV2",
+                "cwd": "/Users/jesse.kemp/Dev/Vortex/backend",
                 "start_time": now - timedelta(days=14 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=14 - i)}],
                 "responses": [{"stop_reason": "end_turn", "error": None}],
@@ -37,7 +37,7 @@ def create_demo_sessions():
 
     # Week 2-3: Mix of feature work and research
     mixed_prompts = [
-        "Add new forecast visualization to VortexV2",
+        "Add new forecast visualization to Vortex backend",
         "Research best practices for GRIB data compression",
         "Implement batch processing for Alpha Arena",
         "Investigate neural network architectures for trading",
@@ -51,7 +51,7 @@ def create_demo_sessions():
                 "cwd": (
                     "/Users/jesse.kemp/Dev/alpha_arena"
                     if i % 2
-                    else "/Users/jesse.kemp/Dev/Vortex/VortexV2"
+                    else "/Users/jesse.kemp/Dev/Vortex/backend"
                 ),
                 "start_time": now - timedelta(days=10 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=10 - i)}],

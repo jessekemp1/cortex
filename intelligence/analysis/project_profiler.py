@@ -120,7 +120,7 @@ class ProjectProfile:
         Convert profile to context string for injection.
 
         Format: "Project (Tech Stack) | Warning"
-        Example: "VortexV2 (Python 3.11/FastAPI/PostgreSQL) | ⚠️  Test coverage: 45%"
+        Example: "Vortex backend (Python 3.11/FastAPI/PostgreSQL) | Test coverage: 45%"
         """
         parts = []
 

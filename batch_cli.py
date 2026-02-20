@@ -5,7 +5,7 @@ Batch API Scheduler CLI
 Schedule work to run via Batch API for 50% cost savings and reduced real-time usage.
 
 Usage:
-    python batch_cli.py schedule "Analyze VortexV2 performance" --prompt "..." --priority high
+    python batch_cli.py schedule "Analyze Vortex backend performance" --prompt "..." --priority high
     python batch_cli.py list [--status pending|submitted|completed]
     python batch_cli.py submit  # Submit ready tasks now
     python batch_cli.py check   # Check for completed tasks

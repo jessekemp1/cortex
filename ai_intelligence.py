@@ -119,7 +119,7 @@ class ProjectScanner:
                     # But actually, lets verify if we should recurse.
                     # If we stop here, we can't find nested projects.
                     # Best approach: Add to projects, but ALSO recurse if depth allows,
-                    # to catch monorepo structures like Vortex/VortexV2
+                    # to catch monorepo structures like Vortex/backend
                     scan_queue.append((subdir, depth + 1))
                 else:
                     scan_queue.append((subdir, depth + 1))

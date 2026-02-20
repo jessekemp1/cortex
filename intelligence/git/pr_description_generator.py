@@ -27,7 +27,7 @@ class PRDescription:
 
 
 PROJECT_MAP = {
-    "Vortex/VortexV2": "VortexV2",
+    "Vortex/backend": "Vortex Backend",
     "Vortex/VortexV3": "VortexV3",
     "Vortex/Winfield": "Winfield",
     "cortex": "Cortex",
@@ -172,7 +172,7 @@ def generate_summary(categories: dict[str, list[str]], projects: list[str]) -> l
 def generate_test_plan(projects: list[str], files: list[str]) -> list[str]:
     plan = []
     test_commands = {
-        "VortexV2": "pytest Vortex/VortexV2/tests/ -v",
+        "Vortex Backend": "pytest Vortex/backend/tests/ -v",
         "VortexV3": "cd Vortex/VortexV3 && npm test",
         "Winfield": "pytest Vortex/Winfield/tests/ -v",
         "Cortex": "pytest cortex/tests/ -v",
@@ -191,8 +191,8 @@ def generate_test_plan(projects: list[str], files: list[str]) -> list[str]:
 
 def generate_deployment_notes(projects: list[str]) -> list[str]:
     notes = []
-    if "VortexV2" in projects:
-        notes.append("VortexV2: Validate on staging (:9000) before production (:8000)")
+    if "Vortex Backend" in projects:
+        notes.append("Vortex Backend: Validate on staging (:9000) before production (:8000)")
     if "Cortex" in projects:
         notes.append("Cortex: Dashboard on :8502 — verify after deploy")
     if "VortexV3" in projects:

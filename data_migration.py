@@ -4,7 +4,7 @@ Agent 5: Data Migration
 Migrates existing Cortex data to new Portfolio Memory format
 
 Tasks:
-1. Register existing projects (VortexV2, Alpha Arena, Cortex)
+1. Register existing projects (Vortex backend, Alpha Arena, Cortex)
 2. Import any existing patterns
 3. Import any existing lessons
 4. Backfill project metadata from git history
@@ -60,7 +60,7 @@ class DataMigrator:
         print(f"  Tech stacks: {len(stats['tech_stacks'])}")
 
     def register_existing_projects(self):
-        """Register VortexV2, Alpha Arena, Cortex as projects"""
+        """Register Vortex backend, Alpha Arena, Cortex as projects"""
 
         # Load existing project index
         index_file = self.portfolio_path / "project_index.json"
@@ -70,11 +70,11 @@ class DataMigrator:
         else:
             data = {"meta": {}, "projects": {}}
 
-        # Project 1: VortexV2
-        vortex_path = self.dev_root / "Vortex" / "VortexV2"
+        # Project 1: Vortex backend
+        vortex_path = self.dev_root / "Vortex" / "backend"
         if vortex_path.exists():
-            data["projects"]["VortexV2"] = {
-                "name": "VortexV2",
+            data["projects"]["vortex-backend"] = {
+                "name": "vortex-backend",
                 "path": str(vortex_path),
                 "description": "Weather forecast validation system for Great Lakes",
                 "tech_stack": [
@@ -96,7 +96,7 @@ class DataMigrator:
                 ],
                 "registered_at": datetime.now().isoformat(),
             }
-            print("  ✅ Registered VortexV2")
+            print("  ✅ Registered vortex-backend")
 
         # Project 2: Alpha Arena
         alpha_path = self.dev_root / "alpha_arena"
@@ -169,7 +169,7 @@ class DataMigrator:
             json.dump(data, f, indent=2)
 
     def import_patterns(self):
-        """Import existing patterns from VortexV2 and Alpha Arena"""
+        """Import existing patterns from Vortex backend and Alpha Arena"""
 
         # Load existing patterns
         patterns_file = self.portfolio_path / "patterns.json"
@@ -179,7 +179,7 @@ class DataMigrator:
         else:
             patterns = []
 
-        # Pattern 1: GRIB Processing Pipeline (from VortexV2)
+        # Pattern 1: GRIB Processing Pipeline (from Vortex backend)
         patterns.append(
             {
                 "name": "GRIB Data Processing Pipeline",
@@ -202,12 +202,12 @@ class DataMigrator:
                     "Use concurrent downloads for multiple models",
                     "Cache decoded data to avoid re-processing",
                 ],
-                "projects": ["VortexV2"],
+                "projects": ["vortex-backend"],
             }
         )
         print("  ✅ Imported pattern: GRIB Data Processing Pipeline")
 
-        # Pattern 2: Forecast Bias Tracking (from VortexV2)
+        # Pattern 2: Forecast Bias Tracking (from Vortex backend)
         self.pm.add_pattern(
             name="Real-time Forecast Bias Tracking",
             category="validation",
@@ -223,7 +223,7 @@ class DataMigrator:
                 "mae_reduction": "15-25% improvement",
                 "bias_stability": "<0.5°F drift per week",
             },
-            projects=["VortexV2"],
+            projects=["vortex-backend"],
         )
         print("  ✅ Imported pattern: Real-time Forecast Bias Tracking")
 
@@ -250,7 +250,7 @@ class DataMigrator:
     def import_lessons(self):
         """Import lessons learned from project failures/mistakes"""
 
-        # Lesson 1: GRIB Index Files (VortexV2)
+        # Lesson 1: GRIB Index Files (Vortex backend)
         self.pm.add_lesson(
             title="Always Check GRIB Index Files Before Download",
             category="data_processing",
@@ -269,7 +269,7 @@ if inv:
     ds = h.download()
 """,
             success_rate="100% prevention since implementation",
-            projects=["VortexV2"],
+            projects=["vortex-backend"],
             tags=["data_validation", "grib", "bandwidth"],
         )
         print("  ✅ Imported lesson: Check GRIB Index Files")
@@ -320,7 +320,7 @@ def download_with_retry(url):
     return response
 """,
             success_rate="95% prevention (still occasional failures on AWS outages)",
-            projects=["VortexV2", "AlphaArena"],
+            projects=["vortex-backend", "AlphaArena"],
             tags=["api", "rate_limiting", "resilience"],
         )
         print("  ✅ Imported lesson: Exponential Backoff for APIs")
@@ -331,11 +331,11 @@ def download_with_retry(url):
 
         kb = SpecKnowledgeBase()
 
-        # Index VortexV2 specs
-        vortex_docs = self.dev_root / "Vortex" / "VortexV2" / "docs"
+        # Index Vortex backend specs
+        vortex_docs = self.dev_root / "Vortex" / "backend" / "docs"
         if vortex_docs.exists():
-            count = kb.index_project(str(vortex_docs), "VortexV2")
-            print(f"  ✅ Indexed {count} VortexV2 specs")
+            count = kb.index_project(str(vortex_docs), "vortex-backend")
+            print(f"  ✅ Indexed {count} vortex-backend specs")
 
         # Index Alpha Arena specs
         alpha_docs = self.dev_root / "alpha_arena" / "docs"

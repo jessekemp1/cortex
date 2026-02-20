@@ -446,14 +446,14 @@ class IntelligenceMixin:
         Get comprehensive project context including patterns and lessons.
 
         Args:
-            project: Project name (e.g., "VortexV2")
+            project: Project name (e.g., "vortex-backend")
 
         Returns:
             Dict with project, patterns, lessons, tech_stack, related
 
         Example:
             >>> bridge = CortexBridge()
-            >>> context = bridge.get_portfolio_context("VortexV2")
+            >>> context = bridge.get_portfolio_context("vortex-backend")
             >>> print(context["lessons"][0]["lesson"])
         """
         if not self.portfolio:
@@ -517,7 +517,7 @@ class IntelligenceMixin:
 
         Example:
             >>> bridge = CortexBridge()
-            >>> lessons = bridge.get_lessons(project="VortexV2")
+            >>> lessons = bridge.get_lessons(project="vortex-backend")
         """
         if not self.portfolio:
             return [{"error": "Portfolio memory not available"}]
@@ -737,7 +737,7 @@ class IntelligenceMixin:
 
         Example:
             >>> bridge = CortexBridge()
-            >>> similar = bridge.find_similar_work("ensemble forecasting", "VortexV2")
+            >>> similar = bridge.find_similar_work("ensemble forecasting", "vortex-backend")
         """
         if not self.spec_kb:
             return [{"error": "Spec Knowledge Base not available"}]

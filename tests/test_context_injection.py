@@ -96,8 +96,8 @@ class TestContextInjector:
 
     def test_detect_nested_project(self, injector):
         """Should detect nested project names."""
-        project = injector._detect_project(Path("/Users/jesse.kemp/Dev/Vortex/VortexV2"))
-        assert project == "VortexV2"
+        project = injector._detect_project(Path("/Users/jesse.kemp/Dev/Vortex/backend"))
+        assert project == "backend"
 
     def test_detect_production_project(self, injector):
         """Should detect projects under production directory."""
@@ -259,12 +259,12 @@ class TestPatternHints:
         """Pattern hints should appear in context output."""
         ctx = InjectionContext(
             project_name="TestProject",
-            pattern_hint="Similar to VortexV2: GRIB integration",
+            pattern_hint="Similar to vortex-backend: GRIB integration",
         )
         result = ctx.to_string()
 
         assert "Pattern:" in result
-        assert "Similar to" in result or "VortexV2" in result
+        assert "Similar to" in result or "vortex-backend" in result
 
     def test_pattern_hint_formatting(self):
         """Pattern hints should be formatted correctly."""

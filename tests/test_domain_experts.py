@@ -55,11 +55,11 @@ class TestVortexExpert:
         return VortexExpert()
 
     def test_project_name(self, expert):
-        """Project name should be VortexV2."""
-        assert expert.project_name == "VortexV2"
+        """Project name should be vortex-backend."""
+        assert expert.project_name == "vortex-backend"
 
     def test_domain_keywords(self, expert):
-        """Should have VortexV2-specific keywords."""
+        """Should have Vortex backend-specific keywords."""
         keywords = expert._get_domain_keywords()
         assert "grib" in keywords
         assert "ndbc" in keywords
@@ -68,7 +68,7 @@ class TestVortexExpert:
 
     def test_is_relevant_with_path(self, expert):
         """Should detect relevance from path."""
-        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
+        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/backend")
         assert expert.is_relevant(vortex_path)
 
         Path("/Users/jesse.kemp/Dev/cortex")
@@ -83,7 +83,7 @@ class TestVortexExpert:
 
     def test_is_not_relevant_without_keywords(self, expert):
         """Should not be relevant for generic tasks."""
-        # Generic task without VortexV2 keywords
+        # Generic task without Vortex backend keywords
         result = expert.is_relevant(Path("/tmp"), "fix login page")
         # This could be True or False depending on implementation
         # Just check it returns a boolean
@@ -92,7 +92,7 @@ class TestVortexExpert:
     def test_get_quick_insight_returns_string_or_none(self, expert):
         """get_quick_insight should return string or None."""
         result = expert.get_quick_insight(
-            Path("/Users/jesse.kemp/Dev/Vortex/VortexV2"),
+            Path("/Users/jesse.kemp/Dev/Vortex/backend"),
             "test GRIB loading",
         )
         assert result is None or isinstance(result, str)
@@ -100,7 +100,7 @@ class TestVortexExpert:
     def test_get_quick_insight_with_coordinate_task(self, expert):
         """Should provide coordinate hints for coordinate-related tasks."""
         result = expert.get_quick_insight(
-            Path("/Users/jesse.kemp/Dev/Vortex/VortexV2"),
+            Path("/Users/jesse.kemp/Dev/Vortex/backend"),
             "validate Lake Huron coordinates",
         )
         if result:
@@ -109,14 +109,14 @@ class TestVortexExpert:
     def test_get_quick_insight_with_grib_task(self, expert):
         """Should provide GRIB hints for GRIB-related tasks."""
         result = expert.get_quick_insight(
-            Path("/Users/jesse.kemp/Dev/Vortex/VortexV2"), "parse GRIB files"
+            Path("/Users/jesse.kemp/Dev/Vortex/backend"), "parse GRIB files"
         )
         if result:
             assert "u10" in result or "v10" in result or "GRIB" in result
 
     def test_get_warnings_returns_list(self, expert):
         """get_warnings should return list of DomainInsight."""
-        warnings = expert.get_warnings(Path("/Users/jesse.kemp/Dev/Vortex/VortexV2"))
+        warnings = expert.get_warnings(Path("/Users/jesse.kemp/Dev/Vortex/backend"))
         assert isinstance(warnings, list)
         for warning in warnings:
             assert isinstance(warning, DomainInsight)

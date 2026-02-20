@@ -101,7 +101,7 @@ class RecommendationEngine:
             # Map project name to path
             project_paths = {
                 "cortex": self.dev_path / "cortex",
-                "VortexV2": self.dev_path / "Vortex" / "VortexV2",
+                "vortex-backend": self.dev_path / "Vortex" / "backend",
                 "alpha_arena": self.dev_path / "alpha_arena",
                 "DJ-CoPilot": self.dev_path / "DJ-CoPilot",
             }
@@ -232,7 +232,7 @@ class RecommendationEngine:
             )
 
         # Check dependency health for key projects
-        for project in ["cortex", "VortexV2"]:
+        for project in ["cortex", "vortex-backend"]:
             dep_health = self._get_dependency_health(project)
             if dep_health and dep_health.get("total_score", 100) < 60:
                 concerns = dep_health.get("concerns", [])

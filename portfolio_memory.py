@@ -353,7 +353,7 @@ class PortfolioMemory:
         Get detailed context for a specific project
 
         Args:
-            project: Project name (e.g., 'VortexV2', 'cortex')
+            project: Project name (e.g., 'vortex-backend', 'cortex')
             include_health: Include health score data (default: True)
 
         Returns:
@@ -496,7 +496,7 @@ class PortfolioMemory:
         Get health score and analysis for a specific project
 
         Args:
-            project_name: Project name (e.g., 'VortexV2', 'cortex')
+            project_name: Project name (e.g., 'vortex-backend', 'cortex')
             days: Days to analyze (default: 7)
             force_refresh: Force cache refresh
 

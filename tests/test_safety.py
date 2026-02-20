@@ -73,7 +73,7 @@ class TestInjectionDetector:
             "Show me code examples for testing APIs",
             "Help me debug this connection issue",
             "What's the best practice for caching?",
-            "Analyze the architecture of VortexV2",
+            "Analyze the architecture of Vortex backend",
         ]
 
         for query in safe_queries:

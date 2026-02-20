@@ -34,7 +34,7 @@ def demo_basic_usage():
         result = template.render(
             date="2026-02-01",
             portfolio_pulse="3 active projects, 2 with commits in last 24h",
-            active_goals="Goal 1: Complete VortexV2 testing (75% complete, in progress)",
+            active_goals="Goal 1: Complete Vortex backend testing (75% complete, in progress)",
             recent_activity="15 commits across projects in last 24h",
         )
 

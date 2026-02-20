@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VortexV2 Domain Expert - Marine weather forecasting intelligence.
+Vortex backend Domain Expert - Marine weather forecasting intelligence.
 
 Provides:
 - GRIB data freshness monitoring
@@ -17,10 +17,10 @@ from intelligence.domains.base_expert import BaseDomainExpert, DomainInsight
 
 
 class VortexExpert(BaseDomainExpert):
-    """VortexV2 marine weather forecasting domain expert."""
+    """Vortex backend marine weather forecasting domain expert."""
 
-    # VortexV2 project location
-    VORTEX_PATH = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2")
+    # Vortex backend project location
+    VORTEX_PATH = Path("/Users/jesse.kemp/Dev/Vortex/backend")
     DATA_PATH = VORTEX_PATH / "data"
 
     # Domain-specific keywords that trigger expertise
@@ -54,7 +54,16 @@ class VortexExpert(BaseDomainExpert):
 
     @property
     def project_name(self) -> str:
-        return "VortexV2"
+        return "vortex-backend"
+
+    def is_relevant(self, cwd: Path, task: str = "") -> bool:
+        """Check relevance — matches both identifier and filesystem path."""
+        path_str = str(cwd).lower()
+        if "vortex/backend" in path_str or "vortex-backend" in path_str:
+            return True
+        if task and any(kw in task.lower() for kw in self._get_domain_keywords()):
+            return True
+        return False
 
     def get_quick_insight(self, cwd: Path, task: str = "") -> Optional[str]:
         """
@@ -62,7 +71,7 @@ class VortexExpert(BaseDomainExpert):
 
         Returns compact domain-specific hints based on task keywords.
         """
-        # Check if this is VortexV2 related
+        # Check if this is Vortex backend related
         if not self.is_relevant(cwd, task):
             return None
 
@@ -102,7 +111,7 @@ class VortexExpert(BaseDomainExpert):
         return None
 
     def get_warnings(self, cwd: Path) -> List[DomainInsight]:
-        """Get current warnings for VortexV2 project."""
+        """Get current warnings for Vortex backend project."""
         warnings = []
 
         # Check GRIB data freshness
@@ -123,7 +132,7 @@ class VortexExpert(BaseDomainExpert):
             warnings.append(
                 DomainInsight(
                     category="warning",
-                    message="VortexV2 data directory not found",
+                    message="Vortex backend data directory not found",
                     confidence=1.0,
                     source="filesystem",
                 )
@@ -132,7 +141,7 @@ class VortexExpert(BaseDomainExpert):
         return warnings
 
     def get_validation_suggestions(self, task: str) -> List[str]:
-        """Suggest validation steps for VortexV2 tasks."""
+        """Suggest validation steps for Vortex backend tasks."""
         suggestions = []
         task_lower = task.lower()
 
@@ -175,7 +184,7 @@ class VortexExpert(BaseDomainExpert):
         return suggestions
 
     def _get_domain_keywords(self) -> List[str]:
-        """Get VortexV2 domain keywords."""
+        """Get Vortex backend domain keywords."""
         return self.DOMAIN_KEYWORDS
 
     def _check_grib_freshness(self) -> Optional[str]:

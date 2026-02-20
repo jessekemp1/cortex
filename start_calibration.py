@@ -24,7 +24,7 @@ def start_task_prediction():
 
     # Collect task information
     task = input("Task description: ")
-    project = input("Project (VortexV2/AlphaArena/Cortex/Other): ")
+    project = input("Project (vortex-backend/AlphaArena/Cortex/Other): ")
 
     print("\n--- Prediction ---")
     print("Estimate how long this will take WITHOUT Cortex (baseline)")

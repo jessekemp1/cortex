@@ -2292,7 +2292,7 @@ def main():
         epilog="""
 Examples:
   cortex next                    # Get next action
-  cortex next vortexv2          # Get next action for VortexV2
+  cortex next vortex-backend    # Get next action for Vortex backend
   cortex next --with-context    # Include context predictions
   cortex next --json            # JSON output
   cortex execute                # Execute top recommendation

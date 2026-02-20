@@ -307,7 +307,7 @@ def track_command_if_present(prompt: str, session_id: str, cwd: str) -> dict:
             project = None
             cwd_path = Path(cwd)
             if "vortex" in cwd_path.as_posix().lower():
-                project = "VortexV2"
+                project = "vortex-backend"
             elif "alpha_arena" in cwd_path.as_posix().lower():
                 project = "alpha_arena"
             elif "cortex" in cwd_path.as_posix().lower():
