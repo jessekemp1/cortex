@@ -68,8 +68,9 @@ class TestContextInjector:
         injector.inject(Path.cwd(), task="test task")
         elapsed = (time.time() - start) * 1000
         # Lenient timeout — context injection involves file I/O and project detection,
-        # which varies with system load. 10s is generous but prevents infinite hangs.
-        assert elapsed < 10000
+        # which varies with system load. 15s prevents infinite hangs without flaking
+        # under concurrent test load.
+        assert elapsed < 15000
 
     def test_inject_returns_string(self, injector):
         """Inject should return a non-empty string."""

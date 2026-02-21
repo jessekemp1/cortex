@@ -15,6 +15,9 @@ from typing import Tuple
 
 import pytest
 
+# All tests in this module shell out to CLI commands and take 20-30s each
+pytestmark = pytest.mark.slow
+
 # Add Dev root to path for script execution
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
