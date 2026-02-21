@@ -108,7 +108,7 @@ def test_basic_next_action():
 # Test Case 2: Project-Specific Filtering
 def test_project_specific_filtering():
     """Test Case 2: Project-Specific Next Action - Filters to Vortex backend."""
-    stdout, stderr, return_code, exec_time = run_cli_command(["next", "vortexv2"])
+    stdout, stderr, return_code, exec_time = run_cli_command(["next", "vortex-backend"])
 
     # Should succeed
     assert return_code == 0, f"Command failed with return code {return_code}. stderr: {stderr}"
@@ -119,10 +119,10 @@ def test_project_specific_filtering():
     # Validate output format
     validate_text_output(stdout, ["CORTEX", "CURRENT STATE", "NEXT ACTION"])
 
-    # If recommendations exist, they should be filtered to vortexv2
+    # If recommendations exist, they should be filtered to vortex-backend
     # (Note: This is a soft check - if no recommendations exist, that's also valid)
     if "NEXT ACTION" in stdout and "No recommendations" not in stdout:
-        # Check if output mentions vortexv2 (case-insensitive)
+        # Check if output mentions vortex-backend (case-insensitive)
         stdout.lower()
         # Either in the recommendation itself or in related projects
         # This is a lenient check since filtering happens at orchestrator level
