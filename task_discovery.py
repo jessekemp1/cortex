@@ -1,3 +1,4 @@
+import os
 """Task discovery from tasks.yaml files"""
 
 import json
@@ -61,7 +62,7 @@ def _save_cache_to_disk(tasks: List[Dict[str, Any]]) -> None:
 def _discover_tasks_uncached(root_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Discover tasks without using cache."""
     if root_dir is None:
-        root_dir = Path("/Users/jesse.kemp/Dev")
+        root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     # Use efficient directory walking that excludes slow directories
     all_tasks = []
@@ -131,13 +132,13 @@ def get_tasks_for_project(
 
     Args:
         project_name: Project name (e.g., "vortex-backend", "cortex")
-        root_dir: Root directory to search (defaults to /Users/jesse.kemp/Dev)
+        root_dir: Root directory to search (defaults to ~/projects)
 
     Returns:
         List of task dictionaries
     """
     if root_dir is None:
-        root_dir = Path("/Users/jesse.kemp/Dev")
+        root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     # Find project directory
     project_paths = [
@@ -171,7 +172,7 @@ def get_all_tasks(root_dir: Optional[Path] = None, use_cache: bool = True) -> Li
     Get all tasks from all projects.
 
     Args:
-        root_dir: Root directory to search (defaults to /Users/jesse.kemp/Dev)
+        root_dir: Root directory to search (defaults to ~/projects)
         use_cache: Whether to use cached results (default: True)
 
     Returns:

@@ -27,7 +27,7 @@ def create_layer3_requests() -> List[BatchRequest]:
     requests = []
 
     # Read the strategic plan
-    plan_path = Path("/Users/jesse.kemp/Dev/cortex/LAYERS_3_4_STRATEGIC_PLAN.md")
+    plan_path = Path("~/projects/cortex/LAYERS_3_4_STRATEGIC_PLAN.md")
     plan_content = plan_path.read_text()
 
     # Task 1: Implement metric_tracker.py
@@ -309,7 +309,7 @@ def create_layer4_requests() -> List[BatchRequest]:
 
     requests = []
 
-    plan_path = Path("/Users/jesse.kemp/Dev/cortex/LAYERS_3_4_STRATEGIC_PLAN.md")
+    plan_path = Path("~/projects/cortex/LAYERS_3_4_STRATEGIC_PLAN.md")
     plan_content = plan_path.read_text()
 
     # Task 5: Implement file_selector.py

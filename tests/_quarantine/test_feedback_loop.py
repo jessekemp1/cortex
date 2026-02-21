@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Integration test for Cortex feedback loop.
@@ -35,7 +36,7 @@ def test_feedback_loop():
 
     # Step 2: Get recommendation from orchestrator
     print("\n2. Get recommendation from orchestrator")
-    orchestrator = CortexOrchestrator(root_dir=Path("/Users/jesse.kemp/Dev"))
+    orchestrator = CortexOrchestrator(root_dir=Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
     response = orchestrator.get_next_action(limit=1)
 
     if not response.next_action:

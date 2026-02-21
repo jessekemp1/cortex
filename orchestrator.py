@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Converx Orchestrator - Combines existing tools into strategist interface
@@ -25,7 +26,7 @@ class Priority(str, Enum):
 
 
 # Add parent directory to path to import existing tools
-# Path(__file__) is in cortex/, so parent is /Users/jesse.kemp/Dev
+# Path(__file__) is in cortex/, so parent is ~/projects
 script_dir = Path(__file__).parent
 # Go up one level: cortex -> Dev
 dev_root = script_dir.parent
@@ -184,7 +185,7 @@ class CortexOrchestrator:
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
 
         # Initialize tools (gracefully handle missing tools)

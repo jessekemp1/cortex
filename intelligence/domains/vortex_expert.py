@@ -20,7 +20,7 @@ class VortexExpert(BaseDomainExpert):
     """Vortex backend marine weather forecasting domain expert."""
 
     # Vortex backend project location
-    VORTEX_PATH = Path("/Users/jesse.kemp/Dev/Vortex/backend")
+    VORTEX_PATH = Path("~/projects/Vortex/backend")
     DATA_PATH = VORTEX_PATH / "data"
 
     # Domain-specific keywords that trigger expertise

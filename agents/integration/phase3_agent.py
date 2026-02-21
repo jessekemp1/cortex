@@ -1,3 +1,4 @@
+import os
 """Phase 3 Agent: Enhanced Integration with Learning and Feedback Loop"""
 
 import sys
@@ -33,7 +34,7 @@ class Phase3Agent(BaseCoordinationAgent):
 
     def __init__(self, root_dir: Path = None):
         super().__init__(phase_name="Enhanced Integration", phase_number=3, root_dir=root_dir)
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.cortex_dir = self.root_dir / "cortex"
         self.integration_dir = self.cortex_dir / "integration"
 

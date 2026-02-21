@@ -1,3 +1,4 @@
+import os
 """Execution history analyzer for learning from Cortex runtime."""
 
 from datetime import datetime, timedelta
@@ -24,7 +25,7 @@ class ExecutionHistoryAnalyzer:
         Args:
             root_dir: Root directory of workspace
         """
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.history: Optional[Any] = None
 
         if HISTORY_AVAILABLE and ExecutionHistory:

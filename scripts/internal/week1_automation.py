@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Week 1 Foundation Calibration - Automated Tracking
@@ -71,7 +72,7 @@ class Week1Automation:
 
     def __init__(self, root_dir: Path = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
         self.cortex_dir = root_dir / "cortex"
 

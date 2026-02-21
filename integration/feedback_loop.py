@@ -1,3 +1,4 @@
+import os
 """Bidirectional feedback loop between Cortex intelligence and runtime."""
 
 from pathlib import Path
@@ -30,7 +31,7 @@ class FeedbackLoop:
         Args:
             root_dir: Root directory of workspace
         """
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.analyzer = ExecutionHistoryAnalyzer(root_dir) if ExecutionHistoryAnalyzer else None
         self.integration = (
             CortexLocalOrchestratorIntegration(root_dir)

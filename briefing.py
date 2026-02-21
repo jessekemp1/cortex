@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Briefing Generator - Daily briefing system for cross-project status
@@ -276,7 +277,7 @@ class BriefingGenerator:
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
 
         # Initialize core tools
@@ -1494,7 +1495,7 @@ def generate_daily_briefing(root_dir: Optional[Path] = None) -> BriefingData:
     Convenience function to generate daily briefing.
 
     Args:
-        root_dir: Root directory to scan (default: /Users/jesse.kemp/Dev)
+        root_dir: Root directory to scan (default: ~/projects)
 
     Returns:
         BriefingData with briefing information

@@ -109,7 +109,7 @@ class IntelligentBatchOrchestratorAnthropic:
     Generates optimal overnight batch queue for Claude analysis.
     """
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
         self.cortex_dir = self.root_dir / "cortex"
         self.capacity = BatchCapacity()

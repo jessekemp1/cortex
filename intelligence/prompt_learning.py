@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Prompt Learning Loop - Closes the loop between what you ask for and what Cortex recommends.
@@ -52,7 +53,7 @@ class PromptLearningLoop:
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
         self.root_dir = root_dir
         self.analyzer = PromptHistoryAnalyzer()

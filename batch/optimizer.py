@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Adaptive Batch Queue Optimizer
@@ -49,7 +50,7 @@ class DynamicWorkGenerator:
     - Test failures from CI/test runs
     """
 
-    def __init__(self, root_dir: Path = Path("/Users/jesse.kemp/Dev")):
+    def __init__(self, root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))):
         self.root_dir = root_dir
         self.cortex_dir = root_dir / "cortex"
 
@@ -1006,7 +1007,7 @@ class AdaptiveEstimator:
 
 
 def integrate_with_orchestrator(
-    root_dir: Path = Path("/Users/jesse.kemp/Dev"),
+    root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))),
 ) -> List[BatchWorkItem]:
     """
     Integration point with IntelligentBatchOrchestrator.

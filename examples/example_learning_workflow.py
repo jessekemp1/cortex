@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Example: Cortex Learning System Workflow
@@ -25,7 +26,7 @@ def main():
     # Initialize components
     logger = FeedbackLogger()
     learning = LearningSystem()
-    orchestrator = CortexOrchestrator(root_dir=Path("/Users/jesse.kemp/Dev"))
+    orchestrator = CortexOrchestrator(root_dir=Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     # Step 1: Get a recommendation
     print("STEP 1: Get Recommendation")

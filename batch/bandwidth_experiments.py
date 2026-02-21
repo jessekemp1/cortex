@@ -90,7 +90,7 @@ class BandwidthExperimentRunner:
             queue: BatchTaskQueue instance (creates new if None)
         """
         self.queue = queue or BatchTaskQueue()
-        self.cortex_root = Path("/Users/jesse.kemp/Dev/cortex")
+        self.cortex_root = Path("~/projects/cortex")
         self.results_dir = Path.home() / ".cortex" / "research" / "bandwidth" / "experiments"
         self.results_dir.mkdir(parents=True, exist_ok=True)
 

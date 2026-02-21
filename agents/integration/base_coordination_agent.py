@@ -1,3 +1,4 @@
+import os
 """Base coordination agent for managing integration phases"""
 
 import sys
@@ -39,7 +40,7 @@ class BaseCoordinationAgent(ABC):
         """
         self.phase_name = phase_name
         self.phase_number = phase_number
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.progress: Dict[str, Any] = {
             "phase": phase_number,
             "phase_name": phase_name,

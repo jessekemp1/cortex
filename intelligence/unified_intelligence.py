@@ -37,7 +37,7 @@ class UnifiedIntelligence:
         Initialize with project root directory.
 
         Args:
-            root_dir: Path to development root (e.g., /Users/jesse.kemp/Dev)
+            root_dir: Path to development root (e.g., ~/projects)
         """
         self.root_dir = Path(root_dir)
 

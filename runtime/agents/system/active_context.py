@@ -1,3 +1,4 @@
+import os
 """System agent for Cortex V2 Prime Active Context Loop.
 
 This agent runs the core "Active Context" loop:
@@ -48,7 +49,7 @@ class ActiveContextAgent(BaseAgent):
         """Initialize the Active Context agent.
 
         Args:
-            root_dir: Root directory to monitor (defaults to /Users/jesse.kemp/Dev)
+            root_dir: Root directory to monitor (defaults to ~/projects)
         """
         super().__init__(
             agent_id="system_active_context",
@@ -66,7 +67,7 @@ class ActiveContextAgent(BaseAgent):
 
         # Set root directory
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = Path(root_dir)
 
         # Initialize Engine A: Context Absorber

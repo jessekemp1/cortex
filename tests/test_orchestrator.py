@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Tests for CortexOrchestrator
@@ -18,7 +19,7 @@ def test_orchestrator_initialization():
     """Test orchestrator can be initialized."""
     orchestrator = CortexOrchestrator()
     assert orchestrator is not None
-    assert orchestrator.root_dir == Path("/Users/jesse.kemp/Dev")
+    assert orchestrator.root_dir == Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
 
 def test_orchestrator_custom_root():

@@ -27,7 +27,7 @@ def create_demo_sessions():
         sessions.append(
             {
                 "session_id": f"debug_session_{i}",
-                "cwd": "/Users/jesse.kemp/Dev/Vortex/backend",
+                "cwd": "~/projects/Vortex/backend",
                 "start_time": now - timedelta(days=14 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=14 - i)}],
                 "responses": [{"stop_reason": "end_turn", "error": None}],
@@ -49,9 +49,9 @@ def create_demo_sessions():
             {
                 "session_id": f"mixed_session_{i}",
                 "cwd": (
-                    "/Users/jesse.kemp/Dev/alpha_arena"
+                    "~/projects/alpha_arena"
                     if i % 2
-                    else "/Users/jesse.kemp/Dev/Vortex/backend"
+                    else "~/projects/Vortex/backend"
                 ),
                 "start_time": now - timedelta(days=10 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=10 - i)}],
@@ -73,7 +73,7 @@ def create_demo_sessions():
         sessions.append(
             {
                 "session_id": f"recent_session_{i}",
-                "cwd": "/Users/jesse.kemp/Dev/cortex",
+                "cwd": "~/projects/cortex",
                 "start_time": now - timedelta(days=5 - i),
                 "prompts": [{"text": prompt, "timestamp": now - timedelta(days=5 - i)}],
                 "responses": [{"stop_reason": "end_turn", "error": None}],

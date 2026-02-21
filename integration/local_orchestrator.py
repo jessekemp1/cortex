@@ -1,3 +1,4 @@
+import os
 """Integration adapter for Cortex intelligence with Cortex runtime.
 
 Provides the bridge between Cortex's recommendation engine and the
@@ -40,7 +41,7 @@ class CortexLocalOrchestratorIntegration:
         Args:
             root_dir: Root directory for workspace
         """
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self._executor: Optional[RuntimeExecutor] = None
         self._adapter: Optional["RecommendationToAgentAdapter"] = None
 

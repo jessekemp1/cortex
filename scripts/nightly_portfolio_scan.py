@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Nightly Portfolio Health Scan"""
 
@@ -6,7 +7,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-DEV_ROOT = Path("/Users/jesse.kemp/Dev")
+DEV_ROOT = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 SCAN_DIR = Path.home() / ".cortex" / "scans"
 SCAN_DIR.mkdir(parents=True, exist_ok=True)
 

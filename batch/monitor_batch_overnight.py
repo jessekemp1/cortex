@@ -122,9 +122,9 @@ def apply_code_changes(results: list, output_dir: Path):
 
         # Determine full path
         if target_file.startswith(".claude"):
-            full_path = Path("/Users/jesse.kemp/Dev") / target_file
+            full_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))) / target_file
         else:
-            full_path = Path("/Users/jesse.kemp/Dev/cortex") / target_file
+            full_path = Path("~/projects/cortex") / target_file
 
         # Create parent directory if needed
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,11 +136,11 @@ def apply_code_changes(results: list, output_dir: Path):
         full_path.write_text(code)
 
         if existed:
-            modified_files.append(str(full_path.relative_to(Path("/Users/jesse.kemp/Dev"))))
-            log(f"  ✅ Modified: {full_path.relative_to(Path('/Users/jesse.kemp/Dev'))}")
+            modified_files.append(str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))))
+            log(f"  ✅ Modified: {full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))}")
         else:
-            created_files.append(str(full_path.relative_to(Path("/Users/jesse.kemp/Dev"))))
-            log(f"  ✅ Created: {full_path.relative_to(Path('/Users/jesse.kemp/Dev'))}")
+            created_files.append(str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))))
+            log(f"  ✅ Created: {full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))}")
 
     log(f"Applied changes: {len(created_files)} created, {len(modified_files)} modified")
 
@@ -161,7 +161,7 @@ def run_tests(test_path: str = "intelligence/") -> bool:
     try:
         result = subprocess.run(
             ["pytest", test_path, "-v", "--tb=short"],
-            cwd="/Users/jesse.kemp/Dev/cortex",
+            cwd="~/projects/cortex",
             capture_output=True,
             text=True,
             timeout=60,

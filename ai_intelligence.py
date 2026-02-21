@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 AI Intelligence - Project Scanner for Cortex
@@ -32,7 +33,7 @@ class ProjectActivity:
 class ProjectScanner:
     """Scan and analyze projects (git and non-git)."""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
 
     def find_git_repos(self) -> List[Path]:

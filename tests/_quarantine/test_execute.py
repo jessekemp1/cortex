@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Test script for cortex execute command"""
 
@@ -21,7 +22,7 @@ def test_execute_flow():
 
     # 1. Initialize components
     print("1. Initializing components...")
-    root_dir = Path("/Users/jesse.kemp/Dev")
+    root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     # Check LOCAL_ORCHESTRATOR_AVAILABLE
     from integration.local_orchestrator import LOCAL_ORCHESTRATOR_AVAILABLE

@@ -87,7 +87,7 @@ class GoalParser:
 
     def __init__(self, action_plan_path: Optional[Path] = None):
         if action_plan_path is None:
-            action_plan_path = Path("/Users/jesse.kemp/Dev/ACTION_PLAN.md")
+            action_plan_path = Path("~/projects/ACTION_PLAN.md")
         self.action_plan_path = action_plan_path
 
     def parse(self) -> List[Goal]:
@@ -323,13 +323,13 @@ class GoalParser:
             - [x] Completed goal
 
         Args:
-            goals_md_path: Path to GOALS.md (defaults to /Users/jesse.kemp/Dev/GOALS.md)
+            goals_md_path: Path to GOALS.md (defaults to ~/projects/GOALS.md)
 
         Returns:
             List of Goal objects
         """
         if goals_md_path is None:
-            goals_md_path = Path("/Users/jesse.kemp/Dev/GOALS.md")
+            goals_md_path = Path("~/projects/GOALS.md")
 
         if not goals_md_path.exists():
             return []

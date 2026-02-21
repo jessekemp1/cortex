@@ -1,3 +1,4 @@
+import os
 """Session Manager - Creates and manages session context from git history."""
 
 import json
@@ -27,7 +28,7 @@ class SessionManager:
     """Manages session context derived from git history and project state."""
 
     def __init__(
-        self, root_dir: Path = Path("/Users/jesse.kemp/Dev"), enable_tiered_memory: bool = True
+        self, root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))), enable_tiered_memory: bool = True
     ):
         self.root_dir = Path(root_dir)
         self.cache_dir = Path.home() / ".claude" / "session"

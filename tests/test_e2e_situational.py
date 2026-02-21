@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 E2E Situational Tests for Converx CLI
@@ -33,7 +34,7 @@ def run_cli_command(cmd_args: list, timeout: int = 60) -> Tuple[str, str, int, f
     Returns:
         Tuple of (stdout, stderr, return_code, execution_time)
     """
-    root_dir = Path("/Users/jesse.kemp/Dev")
+    root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
     # Use the CLI module directly
     cortex_script = root_dir / "cortex" / "cli.py"
     cmd = [sys.executable, str(cortex_script), "--root", str(root_dir)] + cmd_args
@@ -224,7 +225,7 @@ def test_with_context_integration():
 # Test Case 6: Error Handling - Missing Tools
 def test_error_handling_missing_tools():
     """Test Case 6: Error Handling - Missing Tools - Gracefully handles missing recommendation_engine."""
-    root_dir = Path("/Users/jesse.kemp/Dev")
+    root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
     recommendation_engine_path = root_dir / "recommendation_engine.py"
     backup_path = root_dir / "recommendation_engine.py.bak"
 
@@ -261,7 +262,7 @@ def test_error_handling_missing_tools():
 # Test Case 7: Error Handling - Missing ACTION_PLAN.md
 def test_error_handling_missing_action_plan():
     """Test Case 7: Error Handling - Missing ACTION_PLAN.md - Gracefully handles missing file."""
-    root_dir = Path("/Users/jesse.kemp/Dev")
+    root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
     action_plan_path = root_dir / "ACTION_PLAN.md"
     backup_path = root_dir / "ACTION_PLAN.md.bak"
 
