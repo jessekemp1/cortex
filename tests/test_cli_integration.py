@@ -6,12 +6,21 @@ Tests all new CLI commands: deep, quick, auto, config
 
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 
+CLI_SCRIPT = str(Path(__file__).parent.parent / "cli.py")
+
+
 def run_command(cmd, expect_success=True):
-    """Run a CLI command and return result"""
+    """Run a CLI command and return result.
+
+    Uses absolute path to cli.py so tests work regardless of cwd.
+    """
+    # Replace bare "python cli.py" with absolute path
+    cmd = cmd.replace("python cli.py", f"{sys.executable} {CLI_SCRIPT}")
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
 
     if expect_success:
@@ -23,7 +32,7 @@ def run_command(cmd, expect_success=True):
     return True, result
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_cli_help():
     """Test 1: CLI help includes deep mode commands"""
     print("\n" + "=" * 60)
@@ -45,7 +54,7 @@ def test_cli_help():
         print(f"✅ Help includes '{cmd}'")
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_config_show():
     """Test 2: Config --show command"""
     print("\n" + "=" * 60)
@@ -62,7 +71,7 @@ def test_config_show():
         print(f"✅ Output contains '{item}'")
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_deep_command():
     """Test 3: Deep analysis command"""
     print("\n" + "=" * 60)
@@ -84,7 +93,7 @@ def test_deep_command():
     print("✅ Deep command executed successfully")
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_deep_json():
     """Test 4: Deep analysis with JSON output"""
     print("\n" + "=" * 60)
@@ -108,7 +117,7 @@ def test_deep_json():
     print(f"✅ Valid JSON output ({len(result.stdout)} bytes)")
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_quick_command():
     """Test 5: Quick mode command (expects fallback message)"""
     print("\n" + "=" * 60)
@@ -125,7 +134,7 @@ def test_quick_command():
     print("✅ Quick mode shows expected fallback message")
 
 
-@pytest.mark.xfail(reason="CLI tests use 'python cli.py' but pytest cwd is /Dev, not /Dev/cortex")
+
 def test_auto_command():
     """Test 6: Auto mode command"""
     print("\n" + "=" * 60)
