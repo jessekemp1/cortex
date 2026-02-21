@@ -1,3 +1,0 @@
-"""
-Converx tests
-"""
