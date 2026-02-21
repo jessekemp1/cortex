@@ -1,3 +1,4 @@
+import os
 """Unit tests for Cortex Bridge API.
 
 Tests the CortexBridge class which provides a unified interface for AI agents
@@ -17,7 +18,7 @@ class TestCortexBridgeInitialization:
         from cortex.bridge import CortexBridge
 
         bridge = CortexBridge()
-        assert bridge.root_dir == Path("/Users/jesse.kemp/Dev")
+        assert bridge.root_dir == Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     def test_bridge_initializes_with_custom_root(self):
         """Bridge should accept custom root directory."""

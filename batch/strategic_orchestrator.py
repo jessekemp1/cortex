@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Strategic Planning Batch Orchestrator
@@ -35,7 +36,7 @@ class StrategicBatchJob:
 class StrategicBatchOrchestrator:
     """Generates strategic planning and research work for overnight batch processing"""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
         self.cortex_dir = self.root_dir / "cortex"
 

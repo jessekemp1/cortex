@@ -1,3 +1,4 @@
+import os
 """
 Cortex Recommendations Engine
 
@@ -29,7 +30,7 @@ class RecommendationEngine:
     """Generate smart recommendations based on portfolio health and goals."""
 
     def __init__(self, dev_path: Path = None):
-        self.dev_path = dev_path or Path("/Users/jesse.kemp/Dev")
+        self.dev_path = dev_path or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.portfolio = PortfolioMemory()
         self._goals_cache = None
         self._goals_cache_time = None

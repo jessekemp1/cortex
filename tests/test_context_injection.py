@@ -1,3 +1,4 @@
+import os
 """Tests for context injection system."""
 
 import time
@@ -60,7 +61,7 @@ class TestContextInjector:
     @pytest.fixture
     def injector(self):
         """Create injector with Dev root."""
-        return ContextInjector(Path("/Users/jesse.kemp/Dev"))
+        return ContextInjector(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     def test_inject_completes_reasonably_fast(self, injector):
         """Injection should complete in reasonable time (under 3s for tests)."""
@@ -92,25 +93,25 @@ class TestContextInjector:
 
     def test_detect_project_from_dev_path(self, injector):
         """Should detect project name from Dev path."""
-        project = injector._detect_project(Path("/Users/jesse.kemp/Dev/cortex"))
+        project = injector._detect_project(Path("~/projects/cortex"))
         assert project == "cortex"
 
     def test_detect_nested_project(self, injector):
         """Should detect nested project names."""
-        project = injector._detect_project(Path("/Users/jesse.kemp/Dev/Vortex/backend"))
+        project = injector._detect_project(Path("~/projects/Vortex/backend"))
         assert project == "backend"
 
     def test_detect_production_project(self, injector):
         """Should detect projects under production directory."""
         project = injector._detect_project(
-            Path("/Users/jesse.kemp/Dev/production/audio/dj-copilot")
+            Path("~/projects/production/audio/dj-copilot")
         )
         assert project == "dj-copilot"
 
     def test_find_project_root_with_git(self, injector):
         """Should find project root when .git exists."""
         # Use cortex as test case (has .git or pyproject.toml)
-        cortex_path = Path("/Users/jesse.kemp/Dev/cortex")
+        cortex_path = Path("~/projects/cortex")
         if cortex_path.exists():
             root = injector._find_project_root(cortex_path / "intelligence")
             # Should find a project root somewhere up the tree
@@ -135,27 +136,27 @@ class TestContextInjectorIntegration:
     @pytest.fixture
     def injector(self):
         """Create injector with Dev root."""
-        return ContextInjector(Path("/Users/jesse.kemp/Dev"))
+        return ContextInjector(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     @pytest.mark.skipif(
-        not Path("/Users/jesse.kemp/Dev/Vortex/backend").exists(),
+        not Path("~/projects/Vortex/backend").exists(),
         reason="Vortex backend project not found",
     )
     def test_inject_vortex_project(self, injector):
         """Test injection for Vortex backend project."""
-        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/backend")
+        vortex_path = Path("~/projects/Vortex/backend")
         result = injector.inject(vortex_path, task="fix GRIB loading")
 
         # Should include project name
         assert "backend" in result or "Vortex" in result
 
     @pytest.mark.skipif(
-        not Path("/Users/jesse.kemp/Dev/cortex").exists(),
+        not Path("~/projects/cortex").exists(),
         reason="Cortex project not found",
     )
     def test_inject_cortex_project(self, injector):
         """Test injection for Cortex project."""
-        cortex_path = Path("/Users/jesse.kemp/Dev/cortex")
+        cortex_path = Path("~/projects/cortex")
         result = injector.inject(cortex_path)
 
         # Should include project name
@@ -168,11 +169,11 @@ class TestCaching:
     @pytest.fixture
     def injector(self):
         """Create injector with Dev root."""
-        return ContextInjector(Path("/Users/jesse.kemp/Dev"))
+        return ContextInjector(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     def test_profile_caching(self, injector):
         """Profile should be cached on second call."""
-        cortex_path = Path("/Users/jesse.kemp/Dev/cortex")
+        cortex_path = Path("~/projects/cortex")
         if not cortex_path.exists():
             pytest.skip("Cortex project not found")
 
@@ -207,7 +208,7 @@ class TestWarningInclusion:
     @pytest.fixture
     def injector(self):
         """Create injector with Dev root."""
-        return ContextInjector(Path("/Users/jesse.kemp/Dev"))
+        return ContextInjector(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     def test_warnings_in_output(self):
         """Warnings should appear in context output."""
@@ -233,12 +234,12 @@ class TestWarningInclusion:
         assert "Warning 1" in result
 
     @pytest.mark.skipif(
-        not Path("/Users/jesse.kemp/Dev/Vortex/backend").exists(),
+        not Path("~/projects/Vortex/backend").exists(),
         reason="Vortex backend project not found",
     )
     def test_vortex_warnings_integration(self, injector):
         """Vortex backend domain expert warnings should appear when relevant."""
-        vortex_path = Path("/Users/jesse.kemp/Dev/Vortex/backend")
+        vortex_path = Path("~/projects/Vortex/backend")
         result = injector.inject(vortex_path, task="process GRIB data")
 
         # If GRIB data is stale, warning should appear
@@ -254,7 +255,7 @@ class TestPatternHints:
     @pytest.fixture
     def injector(self):
         """Create injector with Dev root."""
-        return ContextInjector(Path("/Users/jesse.kemp/Dev"))
+        return ContextInjector(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     def test_pattern_hint_in_output(self):
         """Pattern hints should appear in context output."""

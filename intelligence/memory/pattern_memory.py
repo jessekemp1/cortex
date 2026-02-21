@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Pattern Memory API - High-level interface for pattern recognition.
@@ -72,12 +73,12 @@ class PatternMemory:
         Initialize pattern memory.
 
         Args:
-            root_dir: Root directory for indexing (default: /Users/jesse.kemp/Dev)
+            root_dir: Root directory for indexing (default: ~/projects)
             use_hybrid_retrieval: Use hybrid BM25+embedding retrieval (default: True)
             hybrid_alpha: Weight for hybrid retrieval (0=BM25, 1=embedding, 0.5=equal)
         """
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
         self.root_dir = root_dir
         self.indexer = PatternIndexer(root_dir)

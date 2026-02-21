@@ -59,8 +59,8 @@ class V2aSprintOrchestrator:
         Returns:
             List of SprintTask definitions
         """
-        vortex_root = Path("/Users/jesse.kemp/Dev/Vortex/backend")
-        Path("/Users/jesse.kemp/Dev/cortex")
+        vortex_root = Path("~/projects/Vortex/backend")
+        Path("~/projects/cortex")
 
         tasks = []
 

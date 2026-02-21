@@ -233,24 +233,24 @@ class TestRecovery:
 
 class TestProjectRouter:
     def test_router_resolves_vortex_backend(self, router: ProjectRouter) -> None:
-        info = router.resolve("/Users/jesse.kemp/Dev/Vortex/backend/app/main.py")
+        info = router.resolve("~/projects/Vortex/backend/app/main.py")
         assert info.name == "vortex_backend"
         assert info.display_name == "Vortex Backend"
 
     def test_router_resolves_unknown_path(self, router: ProjectRouter) -> None:
-        info = router.resolve("/Users/jesse.kemp/Dev/scripts/run_gate.sh")
+        info = router.resolve("~/projects/scripts/run_gate.sh")
         assert info.name == "repo_root"
 
     def test_router_returns_project_rules(self, router: ProjectRouter) -> None:
-        rules = router.get_rules("/Users/jesse.kemp/Dev/Vortex/backend/app/main.py")
+        rules = router.get_rules("~/projects/Vortex/backend/app/main.py")
         assert any("GRIB" in r for r in rules)
 
     def test_router_resolves_cortex(self, router: ProjectRouter) -> None:
-        info = router.resolve("/Users/jesse.kemp/Dev/cortex/guardian/claims.py")
+        info = router.resolve("~/projects/cortex/guardian/claims.py")
         assert info.name == "cortex"
 
     def test_router_resolves_winfield(self, router: ProjectRouter) -> None:
-        info = router.resolve("/Users/jesse.kemp/Dev/Vortex/Winfield/scripts/blend.py")
+        info = router.resolve("~/projects/Vortex/Winfield/scripts/blend.py")
         assert info.name == "winfield"
 
 

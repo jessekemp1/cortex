@@ -13,7 +13,7 @@ from pathlib import Path
 class WorkflowBatchHooks:
     """Auto-batch common tasks based on workflow events"""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
         self.cortex_dir = self.root_dir / "cortex"
 
@@ -87,7 +87,7 @@ class WorkflowBatchHooks:
         Hook: End of day → queue overnight pattern scan
 
         Usage in ~/.cortex/LaunchAgents or cron:
-            0 22 * * * cd /Users/jesse.kemp/Dev/cortex && python -c "from batch.workflow_hooks import WorkflowBatchHooks; WorkflowBatchHooks().on_end_of_day()"
+            0 22 * * * cd ~/projects/cortex && python -c "from batch.workflow_hooks import WorkflowBatchHooks; WorkflowBatchHooks().on_end_of_day()"
         """
         description = "Nightly pattern scan: anti-patterns, circular imports, security issues, code duplication across all active projects"
 
@@ -162,7 +162,7 @@ def install_git_hooks() -> None:
     - post-commit hook: Suggests batch jobs after commit
     - post-merge hook: Suggests batch jobs after PR merge
     """
-    hooks_dir = Path("/Users/jesse.kemp/Dev/.git/hooks")
+    hooks_dir = Path("~/projects/.git/hooks")
     if not hooks_dir.exists():
         print("Warning: Not in a git repository root")
         return

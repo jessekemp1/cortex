@@ -1,3 +1,4 @@
+import os
 """
 Reflection Synthesizer - Weekly progress summary from actual work artifacts.
 
@@ -346,7 +347,7 @@ class ReflectionSynthesizer:
 def generate_weekly_reflection(root_dir: Optional[Path] = None, days: int = 7) -> Dict[str, Any]:
     """Generate weekly reflection summary."""
     if root_dir is None:
-        root_dir = Path("/Users/jesse.kemp/Dev")
+        root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     synthesizer = ReflectionSynthesizer(root_dir)
     return synthesizer.synthesize_week(days)
@@ -354,5 +355,5 @@ def generate_weekly_reflection(root_dir: Optional[Path] = None, days: int = 7) -
 
 def format_reflection(reflection: Dict[str, Any]) -> str:
     """Format reflection for display."""
-    synthesizer = ReflectionSynthesizer(Path("/Users/jesse.kemp/Dev"))
+    synthesizer = ReflectionSynthesizer(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
     return synthesizer.format_reflection(reflection)

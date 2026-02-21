@@ -1,18 +1,34 @@
-"""Tests for anti-pattern mining script."""
+"""Tests for anti-pattern mining script.
+
+mine_anti_patterns.py is an optional user-installed script, not bundled with Cortex.
+Point CORTEX_ANTI_PATTERNS_SCRIPT to your copy to enable these tests.
+"""
 
 import json
+import os
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
-sys.path.insert(0, "/Users/jesse.kemp/Dev/.claude/scripts")
-from mine_anti_patterns import (
-    analyze_failed_outcomes,
-    analyze_rule_violations,
-    correlate_violations_with_outcomes,
-    extract_anti_patterns,
-    format_anti_pattern_entry,
-    load_jsonl,
-)
+import pytest
+
+# Locate the script via env var or skip the entire module
+_script_path = os.environ.get("CORTEX_ANTI_PATTERNS_SCRIPT")
+if _script_path:
+    sys.path.insert(0, str(Path(_script_path).parent))
+    try:
+        from mine_anti_patterns import (
+            analyze_failed_outcomes,
+            analyze_rule_violations,
+            correlate_violations_with_outcomes,
+            extract_anti_patterns,
+            format_anti_pattern_entry,
+            load_jsonl,
+        )
+    except ImportError:
+        pytest.skip("mine_anti_patterns.py not importable — set CORTEX_ANTI_PATTERNS_SCRIPT", allow_module_level=True)
+else:
+    pytest.skip("CORTEX_ANTI_PATTERNS_SCRIPT not set — skipping anti-pattern mining tests", allow_module_level=True)
 
 
 class TestLoadJsonl:

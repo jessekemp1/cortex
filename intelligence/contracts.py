@@ -97,7 +97,7 @@ class TaskContract:
 class ContractGenerator:
     """Opus-powered contract generation - asks ALL questions upfront."""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
         self.cache_dir = Path.home() / ".cortex" / "contracts"
         self.cache_dir.mkdir(parents=True, exist_ok=True)

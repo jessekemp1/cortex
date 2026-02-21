@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Integration test for briefing system.
@@ -30,7 +31,7 @@ def test_briefing_generation():
     """Test basic briefing generation."""
     print("Testing briefing generation...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     assert briefing is not None
     assert briefing.generated_at is not None
@@ -51,7 +52,7 @@ def test_text_formatting():
     """Test text output formatting."""
     print("\nTesting text formatting...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     # Test with colors
     output_color = format_briefing(briefing, use_color=True)
@@ -73,7 +74,7 @@ def test_json_formatting():
     """Test JSON output formatting."""
     print("\nTesting JSON formatting...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     output = format_briefing_json(briefing)
     assert isinstance(output, str)
@@ -100,7 +101,7 @@ def test_briefing_generator():
     """Test BriefingGenerator class."""
     print("\nTesting BriefingGenerator class...")
 
-    generator = BriefingGenerator(Path("/Users/jesse.kemp/Dev"))
+    generator = BriefingGenerator(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
     briefing = generator.generate_daily_briefing()
 
     assert briefing is not None
@@ -112,7 +113,7 @@ def test_pattern_detection():
     """Test pattern detection logic."""
     print("\nTesting pattern detection...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     # Should detect patterns if there's activity
     if briefing.total_commits_7d > 0:
@@ -126,7 +127,7 @@ def test_priority_actions():
     """Test priority action generation."""
     print("\nTesting priority actions...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     # Should have at most 3 priority actions
     assert len(briefing.priority_actions) <= 3
@@ -147,7 +148,7 @@ def test_blockers():
     """Test blocker detection."""
     print("\nTesting blocker detection...")
 
-    briefing = generate_daily_briefing(Path("/Users/jesse.kemp/Dev"))
+    briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     # Each blocker should have required fields
     for blocker in briefing.blockers:

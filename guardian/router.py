@@ -1,6 +1,7 @@
 """ProjectRouter — maps file paths to project ownership and rules."""
 
 from __future__ import annotations
+import os
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,7 +33,7 @@ class ProjectRouter:
     Uses longest-prefix-wins so that nested project roots resolve correctly.
     """
 
-    REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+    REPO_ROOT = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     PROJECTS = [
         ProjectInfo(

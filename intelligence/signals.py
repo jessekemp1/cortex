@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Signal Detection System
@@ -66,7 +67,7 @@ class Signal:
 class SignalDetector:
     """Autonomously monitors for work signals."""
 
-    def __init__(self, root_dir: str = "/Users/jesse.kemp/Dev"):
+    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
         self.root_dir = Path(root_dir)
         self.vortex_dir = self.root_dir / "Vortex" / "backend"
         self.alpha_arena_dir = self.root_dir / "alpha_arena"

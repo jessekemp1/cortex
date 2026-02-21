@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Context Intelligence - Predicts relevant context for Cortex
@@ -38,7 +39,7 @@ class ContextIntelligence:
     """Predicts relevant context based on current activity."""
 
     # Path to personal-ai-dataset
-    KNOWLEDGE_BASE_PATH = Path("/Users/jesse.kemp/Dev/personal-ai-dataset")
+    KNOWLEDGE_BASE_PATH = Path("~/projects/personal-ai-dataset")
 
     # Project documentation patterns
     DOC_PATTERNS = [
@@ -51,7 +52,7 @@ class ContextIntelligence:
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
         self.kb_available = self._check_knowledge_base()
 

@@ -1,3 +1,4 @@
+import os
 """Unit tests for Cortex Session Context Management.
 
 Tests the SessionManager class which creates and manages session context
@@ -19,7 +20,7 @@ class TestSessionManagerInit:
         from cortex.intelligence.session_manager import SessionManager
 
         manager = SessionManager()
-        assert manager.root_dir == Path("/Users/jesse.kemp/Dev")
+        assert manager.root_dir == Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     def test_session_manager_custom_root(self):
         """SessionManager should accept custom root directory."""
@@ -90,19 +91,19 @@ class TestSessionManagerDetectProject:
         """_detect_project should detect project from current directory."""
         from cortex.intelligence.session_manager import SessionManager
 
-        manager = SessionManager(root_dir="/Users/jesse.kemp/Dev")
+        manager = SessionManager(root_dir="~/projects")
 
         # Test with a path under root
-        project = manager._detect_project(Path("/Users/jesse.kemp/Dev/cortex"))
+        project = manager._detect_project(Path("~/projects/cortex"))
         assert project == "cortex"
 
     def test_detect_project_from_subdirectory(self):
         """_detect_project should work from subdirectory."""
         from cortex.intelligence.session_manager import SessionManager
 
-        manager = SessionManager(root_dir="/Users/jesse.kemp/Dev")
+        manager = SessionManager(root_dir="~/projects")
 
-        project = manager._detect_project(Path("/Users/jesse.kemp/Dev/cortex/intelligence"))
+        project = manager._detect_project(Path("~/projects/cortex/intelligence"))
         assert project == "cortex"
 
     def test_detect_project_fallback(self):

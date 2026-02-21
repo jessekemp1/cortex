@@ -1,3 +1,4 @@
+import os
 """
 Portfolio Memory - Access cross-project patterns, lessons, and metadata
 
@@ -467,7 +468,7 @@ class PortfolioMemory:
             return None
 
         # Use Dev directory as the git root
-        dev_path = Path("/Users/jesse.kemp/Dev")
+        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return None
 
@@ -522,7 +523,7 @@ class PortfolioMemory:
                 break
 
         # Use Dev directory as git root (all projects are in one repo)
-        dev_path = Path("/Users/jesse.kemp/Dev")
+        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return {"error": "Git repository not found", "project": actual_name}
 
@@ -573,7 +574,7 @@ class PortfolioMemory:
         projects = self.portfolio_data.get("projects", {})
 
         # Get health for Dev repo (contains all projects)
-        dev_path = Path("/Users/jesse.kemp/Dev")
+        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return {"error": "Git repository not found"}
 

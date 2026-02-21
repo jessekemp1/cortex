@@ -1,3 +1,4 @@
+import os
 """
 Deep Analysis Mode - Comprehensive portfolio intelligence
 
@@ -569,7 +570,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     project = sys.argv[1]
-    root_dir = Path("/Users/jesse.kemp/Dev")
+    root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
     analyzer = DeepAnalyzer(root_dir)
 

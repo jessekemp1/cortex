@@ -107,7 +107,7 @@ class GitTracker:
     Tracks Git and GitHub state for Cortex intelligence.
 
     Usage:
-        tracker = GitTracker("/Users/jesse.kemp/Dev")
+        tracker = GitTracker("~/projects")
         state = tracker.get_state()
         summary = tracker.get_summary()
     """

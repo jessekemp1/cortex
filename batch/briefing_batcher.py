@@ -1,3 +1,4 @@
+import os
 """
 Briefing Batch Processor
 
@@ -43,7 +44,7 @@ class RecommendationBatcher:
         """Initialize recommendation batcher with optional session manager integration"""
         self.client = BatchAPIClient()
         self.model_policy = BatchModels()
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 
         # Try to initialize session manager for context
         try:

@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """
 Scheduler - Cron-style scheduling for daily briefings
@@ -38,7 +39,7 @@ class BriefingScheduler:
 
     def __init__(self, root_dir: Optional[Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
 
         # Config file location

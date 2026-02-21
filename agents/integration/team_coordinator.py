@@ -1,3 +1,4 @@
+import os
 """Team coordinator for managing sequential execution of agent teams"""
 
 import sys
@@ -20,7 +21,7 @@ class TeamCoordinator:
         Args:
             root_dir: Root directory of the workspace
         """
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.agents: List[BaseCoordinationAgent] = []
         self.execution_log: List[Dict[str, Any]] = []
 
