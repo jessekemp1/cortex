@@ -11,7 +11,8 @@ from security import (
 
 @dataclass
 class CortexConfig:
-    root_dir: Path = field(default_factory=lambda: Path(os.path.expanduser("~/Dev")))
+    # Default to cwd; override via CORTEX_ROOT_DIR env var or ~/.cortex/config.yaml root_dir
+    root_dir: Path = field(default_factory=lambda: Path.cwd())
     config_dir: Path = field(default_factory=lambda: Path.home() / ".cortex")
     learning_enabled: bool = True
     default_limit: int = 3
@@ -111,7 +112,7 @@ def create_default_config():
             secure_create_file(
                 config_file,
                 content="""# Cortex Configuration
-root_dir: ~/Dev  # Or use ${HOME}/Dev for portability
+# root_dir: ~/my-projects  # Override default (cwd). Can also use CORTEX_ROOT_DIR env var.
 learning_enabled: true
 default_limit: 3
 

@@ -11,6 +11,7 @@ Capabilities:
 """
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -209,7 +210,7 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
 
     def __init__(self, root_dir: Optional[str | Path] = None):
         if root_dir is None:
-            root_dir = Path("/Users/jesse.kemp/Dev")
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", Path.cwd()))
         self.root_dir = Path(root_dir)
 
         # Load configuration
@@ -888,7 +889,15 @@ def main():
     elif args.command == "mine-anti-patterns":
         import subprocess
 
-        cmd = ["python3", "/Users/jesse.kemp/Dev/.claude/scripts/mine_anti_patterns.py"]
+        script_path = os.environ.get("CORTEX_ANTI_PATTERNS_SCRIPT")
+        if not script_path:
+            print(
+                "Error: CORTEX_ANTI_PATTERNS_SCRIPT env var not set.\n"
+                "Point it to your mine_anti_patterns.py script path.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        cmd = ["python3", script_path]
         cmd.extend(["--days", str(getattr(args, "days", 30))])
         if getattr(args, "dry_run", False):
             cmd.append("--dry-run")
