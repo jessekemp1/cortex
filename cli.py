@@ -2448,10 +2448,10 @@ Deep Mode (Phase 1):
     check_parser.set_defaults(func=cmd_check)
 
     # Draft command (Spec Generator)
-    from spec_generator import SpecGenerator
-
     def cmd_draft(args):
         """Draft a new Golden Spec from intent."""
+        from spec_generator import SpecGenerator
+
         generator = SpecGenerator(Path(args.root))
 
         # Determine project name: explicitly provided or current dir name
