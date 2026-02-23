@@ -2389,10 +2389,10 @@ Deep Mode (Phase 1):
     notify_parser.set_defaults(func=cmd_notify)
 
     # Check command (Golden Spec Validator)
-    from golden_spec_validator import GoldenSpecValidator
-
     def cmd_check(args):
         """Check project alignment with Golden Spec."""
+        from golden_spec_validator import GoldenSpecValidator
+
         validator = GoldenSpecValidator(Path(args.root))
 
         target_projects = (
