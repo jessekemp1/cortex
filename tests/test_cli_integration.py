@@ -11,17 +11,25 @@ from pathlib import Path
 import pytest
 
 
-CLI_SCRIPT = str(Path(__file__).parent.parent / "cli.py")
+CORTEX_DIR = str(Path(__file__).parent.parent)
+ROOT_DIR = str(Path(__file__).parent.parent.parent)
+CLI_SCRIPT = str(Path(CORTEX_DIR) / "cli.py")
 
 
 def run_command(cmd, expect_success=True):
     """Run a CLI command and return result.
 
-    Uses absolute path to cli.py so tests work regardless of cwd.
+    Uses absolute path to cli.py with PYTHONPATH set to cortex/ so
+    module imports (intelligence.*, bridge, etc.) resolve correctly.
     """
-    # Replace bare "python cli.py" with absolute path
-    cmd = cmd.replace("python cli.py", f"{sys.executable} {CLI_SCRIPT}")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+    # Replace bare "python cli.py" with absolute path + explicit --root
+    cmd = cmd.replace("python cli.py", f"{sys.executable} {CLI_SCRIPT} --root {ROOT_DIR}")
+    import os
+
+    env = {**os.environ, "PYTHONPATH": CORTEX_DIR}
+    result = subprocess.run(
+        cmd, shell=True, capture_output=True, text=True, timeout=30, env=env
+    )
 
     if expect_success:
         if result.returncode != 0:
@@ -81,8 +89,8 @@ def test_deep_command():
     success, result = run_command("python cli.py deep cortex")
     assert success, "Deep command failed"
 
-    # Check output contains expected elements
-    expected = ["Deep Intelligence", "Git Analysis", "Warnings", "Recommendations"]
+    # Check output contains expected elements (format updated 2026-02)
+    expected = ["Deep Intelligence", "Git Analysis", "Code Quality"]
     for item in expected:
         assert item in result.stdout, f"Output missing '{item}'"
         print(f"✅ Output contains '{item}'")

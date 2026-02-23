@@ -14,6 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    from intelligence.adaptive_latency import AnalysisMode
+except ImportError:
+    AnalysisMode = None
+
 # Conditional imports needed by mixin methods
 try:
     from cortex.intelligence.models import IntelligenceQueryType
