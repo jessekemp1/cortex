@@ -81,3 +81,4 @@ _archive_grok_mvp/
 config-backups/
 golden-spec-method/
 vision/
+*.docx
