@@ -34,7 +34,7 @@ class BriefingAgent(BaseAgent):
             description="Cortex-powered daily briefing with strategic recommendations",
             metadata=AgentMetadata(
                 version="2.0.0",
-                author="jesse.kemp",
+                author="Jesse Kemp",
                 description="Full-featured morning briefing using Cortex recommendation engine",
                 tags=["daily", "cortex", "strategic", "learning"],
             ),
