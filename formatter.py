@@ -21,7 +21,7 @@ def make_clickable(text: str) -> str:
     Just ensure paths are clean and not embedded in problematic contexts.
     """
     # For now, just return text as-is since Claude Code auto-detects paths
-    # Paths like ~/projects/file.md are already clickable
+    # Paths like ~/Dev/file.md are already clickable
     return text
 
 

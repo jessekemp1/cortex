@@ -1148,7 +1148,7 @@ def cmd_schedule(args):
 
             # Write to Drop Zone
             # Locate local-orchestrator relative to cortex (assuming sibling directories in Dev)
-            # cortex_dir is ~/projects/cortex
+            # cortex_dir is ~/Dev/cortex
             dev_dir = cortex_dir.parent
             drop_zone = dev_dir / "local-orchestrator" / "agents" / "dynamic"
             drop_zone.mkdir(parents=True, exist_ok=True)
@@ -1520,26 +1520,26 @@ def cmd_interactions(args):
     "UserPromptSubmit": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/projects/cortex/hooks/interaction_capture.py prompt"
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py prompt"
       }]
     }],
     "PostToolUse": [{
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "python ~/projects/cortex/hooks/interaction_capture.py tool_complete"
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py tool_complete"
       }]
     }],
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/projects/cortex/hooks/interaction_capture.py stop"
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py stop"
       }]
     }],
     "SessionEnd": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/projects/cortex/hooks/interaction_capture.py session_end"
+        "command": "python ~/Dev/cortex/hooks/interaction_capture.py session_end"
       }]
     }]
   }

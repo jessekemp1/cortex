@@ -124,7 +124,7 @@ def apply_code_changes(results: list, output_dir: Path):
         if target_file.startswith(".claude"):
             full_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))) / target_file
         else:
-            full_path = Path("~/projects/cortex") / target_file
+            full_path = Path("~/Dev/cortex").expanduser() / target_file
 
         # Create parent directory if needed
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -161,7 +161,7 @@ def run_tests(test_path: str = "intelligence/") -> bool:
     try:
         result = subprocess.run(
             ["pytest", test_path, "-v", "--tb=short"],
-            cwd="~/projects/cortex",
+            cwd="~/Dev/cortex",
             capture_output=True,
             text=True,
             timeout=60,
