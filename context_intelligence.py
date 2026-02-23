@@ -39,7 +39,7 @@ class ContextIntelligence:
     """Predicts relevant context based on current activity."""
 
     # Path to personal-ai-dataset
-    KNOWLEDGE_BASE_PATH = Path("~/projects/personal-ai-dataset")
+    KNOWLEDGE_BASE_PATH = Path("~/Dev/personal-ai-dataset").expanduser()
 
     # Project documentation patterns
     DOC_PATTERNS = [

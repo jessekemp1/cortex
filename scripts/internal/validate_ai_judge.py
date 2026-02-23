@@ -139,7 +139,7 @@ def validate_file_structure():
     """Validate file structure."""
     print("\n✓ Checking file structure...")
 
-    base = Path("~/projects/cortex")
+    base = Path("~/Dev/cortex").expanduser()
 
     required_files = [
         "intelligence/evaluation/__init__.py",

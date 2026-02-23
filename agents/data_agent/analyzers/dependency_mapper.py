@@ -1164,10 +1164,10 @@ if __name__ == "__main__":
         print("  tree <project_path>      - Show ASCII dependency tree")
         print("  clear <project_path>     - Clear cache")
         print("\nExamples:")
-        print("  python dependency_mapper.py analyze ~/projects/cortex")
-        print("  python dependency_mapper.py circular ~/projects/cortex")
-        print("  python dependency_mapper.py health ~/projects/cortex")
-        print("  python dependency_mapper.py tree ~/projects/cortex")
+        print("  python dependency_mapper.py analyze ~/Dev/cortex")
+        print("  python dependency_mapper.py circular ~/Dev/cortex")
+        print("  python dependency_mapper.py health ~/Dev/cortex")
+        print("  python dependency_mapper.py tree ~/Dev/cortex")
         sys.exit(1)
 
     command = sys.argv[1]

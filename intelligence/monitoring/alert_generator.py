@@ -412,7 +412,7 @@ class AlertGenerator:
         # Common project locations
         search_paths = [
             os.path.expanduser(f"~/Projects/{project}"),
-            os.path.expanduser(f"~/projects/{project}"),
+            os.path.expanduser(f"~/Dev/{project}"),
             os.path.expanduser(f"~/{project}"),
             os.path.expanduser(f"~/code/{project}"),
             os.path.expanduser(f"~/dev/{project}"),

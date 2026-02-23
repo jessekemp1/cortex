@@ -68,10 +68,10 @@ class TestVortexExpert:
 
     def test_is_relevant_with_path(self, expert):
         """Should detect relevance from path."""
-        vortex_path = Path("~/projects/Vortex/backend")
+        vortex_path = Path("~/Dev/Vortex/backend")
         assert expert.is_relevant(vortex_path)
 
-        Path("~/projects/cortex")
+        Path("~/Dev/cortex")
         # May still be relevant if task has keywords
         # So don't assert False here
 
@@ -92,7 +92,7 @@ class TestVortexExpert:
     def test_get_quick_insight_returns_string_or_none(self, expert):
         """get_quick_insight should return string or None."""
         result = expert.get_quick_insight(
-            Path("~/projects/Vortex/backend"),
+            Path("~/Dev/Vortex/backend"),
             "test GRIB loading",
         )
         assert result is None or isinstance(result, str)
@@ -100,7 +100,7 @@ class TestVortexExpert:
     def test_get_quick_insight_with_coordinate_task(self, expert):
         """Should provide coordinate hints for coordinate-related tasks."""
         result = expert.get_quick_insight(
-            Path("~/projects/Vortex/backend"),
+            Path("~/Dev/Vortex/backend"),
             "validate Lake Huron coordinates",
         )
         if result:
@@ -109,14 +109,14 @@ class TestVortexExpert:
     def test_get_quick_insight_with_grib_task(self, expert):
         """Should provide GRIB hints for GRIB-related tasks."""
         result = expert.get_quick_insight(
-            Path("~/projects/Vortex/backend"), "parse GRIB files"
+            Path("~/Dev/Vortex/backend"), "parse GRIB files"
         )
         if result:
             assert "u10" in result or "v10" in result or "GRIB" in result
 
     def test_get_warnings_returns_list(self, expert):
         """get_warnings should return list of DomainInsight."""
-        warnings = expert.get_warnings(Path("~/projects/Vortex/backend"))
+        warnings = expert.get_warnings(Path("~/Dev/Vortex/backend"))
         assert isinstance(warnings, list)
         for warning in warnings:
             assert isinstance(warning, DomainInsight)
