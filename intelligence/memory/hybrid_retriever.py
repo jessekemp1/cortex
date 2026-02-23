@@ -75,8 +75,17 @@ class HybridRetriever:
                     current_ids = {p.id for p in self.patterns}
 
                     if cached_ids == current_ids:
+                        import warnings
+
                         with open(cache_file, "rb") as f:
-                            self.pattern_embeddings = pickle.load(f)
+                            # Suppress numpy internal namespace deprecation from
+                            # cached arrays serialized with older numpy versions.
+                            # Cache files are local-only (~/.cortex/patterns).
+                            with warnings.catch_warnings():
+                                warnings.filterwarnings(
+                                    "ignore", category=DeprecationWarning, module="numpy"
+                                )
+                                self.pattern_embeddings = pickle.load(f)
                         logger.info(f"Loaded {len(self.patterns)} pattern embeddings from cache")
                         return
             except Exception as e:
