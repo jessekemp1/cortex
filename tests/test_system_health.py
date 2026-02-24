@@ -6,7 +6,7 @@ Tests for System Health (Golden Spec: Dependency Transparency)
 import sys
 from pathlib import Path
 
-# Add converx directory to path for imports
+# Add cortex directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from orchestrator import CortexOrchestrator, SystemHealth

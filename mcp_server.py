@@ -24,6 +24,7 @@ Resources:
 """
 
 import json
+import os
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -32,7 +33,7 @@ from mcp.server.fastmcp import FastMCP
 
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
-GOALS_FILE = Path.home() / "Dev" / "GOALS.md"
+GOALS_FILE = Path(os.environ.get("CORTEX_ROOT_DIR", Path.home() / "Dev")) / "GOALS.md"
 PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
 
 mcp = FastMCP("cortex")
