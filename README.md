@@ -96,6 +96,96 @@ Set `CORTEX_ROOT_DIR=/path/to/projects` to point Cortex at your workspace.
 
 ---
 
+## Demo
+
+**The Compound Intelligence Effect: A realistic morning session**
+
+You open Claude Code to work on your FastAPI project. Last week you debugged a tricky circular import in the auth module. Two months ago you discovered that Redis connection pooling needs specific timeout settings for your use case. Without Cortex, Claude starts fresh — no memory of either lesson.
+
+With Cortex, your session begins differently:
+
+```bash
+$ cortex briefing
+📊 CORTEX INTELLIGENCE BRIEFING — February 24, 2025
+
+🎯 ACTIVE PROJECTS (3)
+  • fastapi-backend: 2 commits since yesterday, tests passing
+  • data-pipeline: scheduled job failed 6hrs ago (memory threshold)
+  • frontend-react: no recent activity, goal deadline in 3 days
+
+⚠️  NEEDS ATTENTION
+  • data-pipeline: investigate memory usage spike
+  • frontend-react: authentication integration overdue
+
+🧠 RELEVANT PATTERNS
+  • Redis connection pooling: timeout settings matter for long-running tasks
+  • FastAPI circular imports: resolved via lazy imports in auth module
+
+🎯 TODAY'S FOCUS
+  • Complete Redis caching layer for FastAPI backend
+  • Debug data-pipeline memory issue
+```
+
+You ask Claude: *"Should I use Redis for caching the user session data?"*
+
+Behind the scenes, Cortex surfaces relevant context to Claude via MCP:
+
+```bash
+$ cortex intelligence "should I use Redis for caching user sessions?"
+
+🔍 INTELLIGENCE QUERY RESULTS
+
+📋 SIMILAR WORK
+  • 2024-12-15: Implemented Redis caching for API rate limiting
+  • 2024-11-28: Session storage comparison (Redis vs PostgreSQL)
+
+🎯 APPLICABLE PATTERNS
+  • Redis connection pooling requires max_connections=20, timeout=30s for this deployment
+  • Use redis-py with connection_pool for FastAPI background tasks
+  • Separate Redis DB indices: 0=cache, 1=sessions, 2=rate_limiting
+
+⚠️  ANTI-PATTERNS
+  • DON'T use default Redis timeout (causes 502 errors under load)
+  • AVOID storing large objects (>1MB) — use PostgreSQL for user profiles
+
+✅ RECOMMENDATIONS
+  • Start with TTL=3600 for user sessions, monitor hit rates
+  • Use RedisJSON extension if storing complex session data
+  • Set up monitoring on connection pool exhaustion
+```
+
+Claude reads this context and gives you a targeted answer — not generic Redis advice, but specific guidance based on what worked (and what failed) in your previous projects.
+
+Later, you're refactoring imports when Cortex proactively surfaces a warning:
+
+```bash
+⚠️  ANTI-PATTERN DETECTED: Circular Import Risk
+
+Pattern: importing 'auth.models' at module level in 'models/user.py'
+Previous incident: 2024-12-08 in fastapi-backend
+Resolution: moved import inside get_current_user() function
+
+Prevent this? [y/N] y
+```
+
+**The compound effect**: After 3 months using Cortex, your morning briefings evolve:
+
+```bash
+🧠 CROSS-PROJECT PATTERNS (learned)
+  • Database migration strategy: always backup, run in transaction, test rollback
+  • Docker memory limits: 512MB minimum for FastAPI + Redis stack
+  • Test flakiness: 94% caused by async timing, fixed with pytest-asyncio strict mode
+
+📈 PORTFOLIO HEALTH
+  • 12 anti-patterns learned, 0 repeated in last 30 days
+  • Average debugging time: down 34% since November
+  • Test coverage: 89% average across all projects
+```
+
+Your LLM agent doesn't just get smarter. It gets educated about *your* codebase, *your* patterns, *your* lessons learned. Every session builds on the last. Every mistake teaches the next session. This is what persistent intelligence looks like.
+
+---
+
 ## Python SDK
 
 ```python
