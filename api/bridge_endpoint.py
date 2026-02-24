@@ -225,15 +225,72 @@ async def service_health():
 
     # Check Winfield (:8002)
     try:
-        req = urllib.request.Request("http://localhost:8002/")
+        req = urllib.request.Request("http://localhost:8002/api/v1/health")
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
             services["winfield"] = {
-                "status": "healthy" if resp.status == 200 else "degraded",
+                "status": "healthy" if data.get("status") == "healthy" else "degraded",
                 "port": 8002,
+                "models": data.get("models_available", 0),
+                "stations": data.get("observation_stations", 0),
+                "version": data.get("version", "unknown"),
             }
     except Exception:
         services["winfield"] = {"status": "offline", "port": 8002}
+
+    # Check Vortex Frontend (:5173 dev / :3000 prod)
+    vortex_frontend_port = None
+    for port in [5173, 3000]:
+        try:
+            req = urllib.request.Request(f"http://localhost:{port}/")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    services["vortex_frontend"] = {
+                        "status": "healthy",
+                        "port": port,
+                        "label": "Vortex UI (React)",
+                    }
+                    vortex_frontend_port = port
+                    break
+        except Exception:
+            continue
+    if vortex_frontend_port is None:
+        services["vortex_frontend"] = {"status": "offline", "port": 5173, "label": "Vortex UI (React)"}
+
+    # Check Alpha Arena (:8502)
+    try:
+        req = urllib.request.Request("http://localhost:8502/healthz")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            services["alpha_arena"] = {
+                "status": "healthy" if resp.status == 200 else "degraded",
+                "port": 8502,
+                "label": "Alpha Arena (Streamlit)",
+            }
+    except Exception:
+        # Streamlit healthz may 200 but not JSON — just check connectivity
+        try:
+            req = urllib.request.Request("http://localhost:8502/")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                services["alpha_arena"] = {
+                    "status": "healthy" if resp.status == 200 else "degraded",
+                    "port": 8502,
+                    "label": "Alpha Arena (Streamlit)",
+                }
+        except Exception:
+            services["alpha_arena"] = {"status": "offline", "port": 8502, "label": "Alpha Arena (Streamlit)"}
+
+    # Check Cortex Runtime API (:8003)
+    try:
+        req = urllib.request.Request("http://localhost:8003/api/v1/runtime/health")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read())
+            services["cortex_runtime"] = {
+                "status": "healthy" if data.get("status") == "healthy" else "degraded",
+                "port": 8003,
+                "label": "Cortex Runtime API",
+            }
+    except Exception:
+        services["cortex_runtime"] = {"status": "offline", "port": 8003, "label": "Cortex Runtime API"}
 
     # Check Mission Control site (:3001)
     try:

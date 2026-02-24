@@ -26,7 +26,7 @@ SILENCE_DIR = CORTEX_DIR  # silence files: alert_silence_<service>
 CONSECUTIVE_FILE = CORTEX_DIR / "alert_consecutive.json"
 
 SERVICES = [
-    ("vortex-backend",  "http://127.0.0.1:8000/health"),
+    ("vortex-backend",  "http://127.0.0.1:8000/api/v2/health"),
     ("winfield",        "http://127.0.0.1:8002/health"),
     ("cortex-site",     "http://127.0.0.1:3001/"),
     ("cortex-bridge",   "http://127.0.0.1:8765/health"),
