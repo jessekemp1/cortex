@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { path: '/vortex', label: 'VORTEX', icon: '◎' },
   { path: '/sessions', label: 'SESSIONS', icon: '⊚' },
   { path: '/taskboard', label: 'TASKS', icon: '⬢' },
+  { path: '/infrastructure', label: 'INFRA', icon: '⬡' },
 ]
 
 export function Sidebar() {
