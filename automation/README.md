@@ -62,7 +62,7 @@ launchctl unload ~/Library/LaunchAgents/com.cortex.daily.plist
 
 You can still run manual scans anytime:
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd $CORTEX_DIR
 ./daily_scan.sh
 ```
 
@@ -76,7 +76,7 @@ launchctl load ~/Library/LaunchAgents/com.cortex.daily.plist
 
 The LaunchAgent is configured to:
 - Run every day at 8:00 AM
-- Use `/Users/jesse.kemp/Dev/cortex` as working directory
+- Use `$CORTEX_DIR` as working directory
 - Log output to `~/.cortex/logs/daily_scan.log`
 - Log errors to `~/.cortex/logs/daily_scan_error.log`
 - Use standard PATH including Homebrew
@@ -151,7 +151,7 @@ For Linux systems, use cron instead:
 crontab -e
 
 # Add this line for 8am daily:
-0 8 * * * /Users/jesse.kemp/Dev/cortex/daily_scan.sh >> ~/.cortex/logs/daily_scan.log 2>> ~/.cortex/logs/daily_scan_error.log
+0 8 * * * $CORTEX_DIR/daily_scan.sh >> ~/.cortex/logs/daily_scan.log 2>> ~/.cortex/logs/daily_scan_error.log
 ```
 
 ## Troubleshooting
@@ -172,8 +172,8 @@ launchctl load ~/Library/LaunchAgents/com.cortex.daily.plist
 
 Ensure the scripts are executable:
 ```bash
-chmod +x /Users/jesse.kemp/Dev/cortex/daily_scan.sh
-chmod +x /Users/jesse.kemp/Dev/cortex/cortex_mvp
+chmod +x $CORTEX_DIR/daily_scan.sh
+chmod +x $CORTEX_DIR/cortex_mvp
 ```
 
 ### Path Issues
@@ -187,7 +187,7 @@ If commands aren't found, verify the PATH in the plist includes:
 
 Ensure the venv exists and is working:
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd $CORTEX_DIR
 source venv/bin/activate
 python --version
 pip list

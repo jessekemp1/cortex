@@ -1009,7 +1009,9 @@ async def get_sessions(
             if not project_dir.is_dir():
                 continue
 
-            project_name = project_dir.name.replace("-Users-jesse-kemp-", "").replace("-", "/")
+            # Strip Claude project path prefix (format: -Users-<username>-<path>)
+            import re
+            project_name = re.sub(r'^-Users-[^-]+-', '', project_dir.name).replace("-", "/")
 
             for jsonl_file in project_dir.glob("*.jsonl"):
                 try:

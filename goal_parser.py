@@ -75,7 +75,7 @@ class GoalParser:
         "financial aggregator": "financial-aggregator",
         "ai-project-curator": "ai-project-curator",
         "cortex": "cortex",
-        "converx": "cortex",
+        "cortex": "cortex",
         "windfield": "Windfield",
         "vortex": "Vortex",
         "local-orchestrator": "local-orchestrator",

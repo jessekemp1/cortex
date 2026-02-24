@@ -217,9 +217,9 @@ Events logged to `~/.cortex-lean/guardian_log.jsonl`:
   "event_id": "uuid-v4",
   "schema_version": 1,
   "timestamp": "2026-02-11T14:32:01Z",
-  "project": "/Users/jesse.kemp/Dev",
+  "project": "/path/to/project",
   "tool": "Edit",
-  "target_path": "/Users/jesse.kemp/Dev/cortex/lean/SPEC.md",
+  "target_path": "/path/to/project/cortex/lean/SPEC.md",
   "status": "warn_blind_edit",
   "error_signature": null
 }

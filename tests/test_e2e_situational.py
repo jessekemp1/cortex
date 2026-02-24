@@ -1,7 +1,7 @@
 import os
 #!/usr/bin/env python3
 """
-E2E Situational Tests for Converx CLI
+E2E Situational Tests for Cortex CLI
 
 Tests all 8 MVP use cases from DESIGN_SPEC.md by running actual CLI commands
 and validating output format and content.
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 def run_cli_command(cmd_args: list, timeout: int = 60) -> Tuple[str, str, int, float]:
     """
-    Run converx CLI command and capture output.
+    Run cortex CLI command and capture output.
 
     Args:
         cmd_args: List of command arguments (e.g., ['next', '--json'])

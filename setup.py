@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 long_description = ""
 readme = Path(__file__).parent / "README.md"
@@ -17,8 +17,35 @@ setup(
     url="https://github.com/jessekemp/cortex",  # update before PyPI publish
     license="Apache-2.0",
     python_requires=">=3.11",
-    packages=["cortex"],
-    package_dir={"cortex": "."},
+    packages=find_packages(
+        exclude=[
+            "tests*",
+            "docs*",
+            "examples*",
+            "reports*",
+            "analysis*",
+            "scripts*",
+            "MARKETING*",
+            "FUTURE*",
+            "STRATEGY*",
+            "OPUS*",
+            "GPT5*",
+            "_dead*",
+            "_archive*",
+            "mvp*",
+            "cortex_mvp*",
+            "golden-spec-method*",
+            "config-backups*",
+            "vision*",
+            "site*",
+            "dashboard*",
+            "batch*",
+            "automation*",
+            "v2*",
+            "v21*",
+        ]
+    ),
+    include_package_data=True,
     install_requires=[
         "anthropic>=0.40.0",
         "rich>=13.0.0",

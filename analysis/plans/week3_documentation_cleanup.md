@@ -59,7 +59,7 @@ After completing Week 1 (critical security) and Week 2 (high-priority improvemen
 
 **Archive Directories** (Priority 3 - Optional):
 - archive/vortex-legacy/README.md
-- archive/converx_archive_20251208/
+- archive/cortex_archive_20251208/
 - cortex/_archive_grok_mvp/
 - cortex/_dead/
 - And 5+ more archive locations

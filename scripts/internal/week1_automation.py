@@ -4,7 +4,7 @@ import os
 Week 1 Foundation Calibration - Automated Tracking
 
 Automates Week 1 calibration by:
-1. Running converx next daily
+1. Running cortex next daily
 2. Detecting action execution via git activity
 3. Auto-logging feedback based on patterns
 4. Generating progress reports
@@ -33,7 +33,7 @@ try:
     from feedback import FeedbackLogger
     from orchestrator import CortexOrchestrator
 except ImportError as e:
-    print(f"Warning: Could not import Converx modules: {e}", file=sys.stderr)
+    print(f"Warning: Could not import Cortex modules: {e}", file=sys.stderr)
     FeedbackLogger = None
     CortexOrchestrator = None
     CortexFormatter = None
@@ -156,7 +156,7 @@ class Week1Automation:
         }
 
     def _get_recommendation(self) -> Optional[Dict[str, Any]]:
-        """Get today's recommendation from Converx."""
+        """Get today's recommendation from Cortex."""
         if not self.orchestrator:
             print("Warning: Orchestrator not available")
             return None

@@ -1,7 +1,7 @@
 import os
 #!/usr/bin/env python3
 """
-Converx Orchestrator - Combines existing tools into strategist interface
+Cortex Orchestrator - Combines existing tools into strategist interface
 
 Orchestrates:
 - ai_intelligence.py (project activity)
