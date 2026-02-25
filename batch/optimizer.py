@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Adaptive Batch Queue Optimizer
@@ -15,6 +14,7 @@ Key Features:
 """
 
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -28,6 +28,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent))
 from intelligent_orchestrator import BatchCapacity, BatchWorkItem
+
+
+def _sanitize_batch_id(raw_id: str) -> str:
+    """Sanitize a batch ID for Anthropic API (^[a-zA-Z0-9_-]{1,64}$)."""
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", raw_id)[:64]
 
 
 @dataclass
@@ -113,9 +118,9 @@ class DynamicWorkGenerator:
                             description=f"Large commit ({files_changed} files, +{insertions}/-{deletions}). Analyze for: edge cases, test coverage, performance impact, breaking changes.",
                             prompt=f"""Analyze this large commit for potential issues:
 
-Commit: {commit['hash']}
-Subject: {commit['subject']}
-Author: {commit['author']}
+Commit: {commit["hash"]}
+Subject: {commit["subject"]}
+Author: {commit["author"]}
 Files: {files_changed}, Lines: +{insertions}/-{deletions}
 
 --- ACTUAL DIFF ---
@@ -168,9 +173,9 @@ Provide actionable recommendations with file paths and line references.""",
                             description=f"Commit modified security-sensitive files: {', '.join(security_files[:3])}",
                             prompt=f"""Security-focused review of commit:
 
-Commit: {commit['hash']}
-Subject: {commit['subject']}
-Security-sensitive files: {', '.join(security_files)}
+Commit: {commit["hash"]}
+Subject: {commit["subject"]}
+Security-sensitive files: {", ".join(security_files)}
 
 --- ACTUAL DIFF (security-sensitive files) ---
 {sec_diff}
@@ -199,7 +204,9 @@ Flag any high-risk changes with specific line references and recommend mitigatio
 
         return work_items
 
-    def _get_commit_diff(self, commit_hash: str, files: Optional[List[str]] = None, max_chars: int = 30_000) -> str:
+    def _get_commit_diff(
+        self, commit_hash: str, files: Optional[List[str]] = None, max_chars: int = 30_000
+    ) -> str:
         """
         Fetch actual git diff content for a commit.
 
@@ -230,7 +237,10 @@ Flag any high-risk changes with specific line references and recommend mitigatio
 
             diff = result.stdout
             if len(diff) > max_chars:
-                diff = diff[:max_chars] + f"\n\n[... truncated at {max_chars:,} chars, full diff is {len(result.stdout):,} chars ...]"
+                diff = (
+                    diff[:max_chars]
+                    + f"\n\n[... truncated at {max_chars:,} chars, full diff is {len(result.stdout):,} chars ...]"
+                )
 
             return diff if diff.strip() else "[empty diff]"
 
@@ -335,7 +345,7 @@ Flag any high-risk changes with specific line references and recommend mitigatio
 
                 work_items.append(
                     BatchWorkItem(
-                        id=f"todo-analysis-{project}",
+                        id=_sanitize_batch_id(f"todo-analysis-{project}"),
                         title=f"TODO/FIXME analysis: {project}",
                         description=f"Analyze {len(project_todos)} TODOs in {project} ({fixmes} FIXMEs, {hacks} HACKs)",
                         prompt=f"""Analyze TODOs and FIXMEs in {project}:
@@ -439,13 +449,13 @@ Create a prioritized action plan.""",
                     for project, failed_tests in by_project.items():
                         work_items.append(
                             BatchWorkItem(
-                                id=f"test-failure-{project}",
+                                id=_sanitize_batch_id(f"test-failure-{project}"),
                                 title=f"Test failure analysis: {project}",
                                 description=f"Analyze {len(failed_tests)} failing tests in {project}",
                                 prompt=f"""Analyze failing tests in {project}:
 
 Failed tests ({len(failed_tests)}):
-{chr(10).join(f'  - {test}' for test in failed_tests[:20])}
+{chr(10).join(f"  - {test}" for test in failed_tests[:20])}
 
 For each failure:
 1. Identify root cause (code bug, flaky test, env issue)
@@ -482,7 +492,7 @@ Prioritize by impact and provide actionable recommendations.""",
                 if "error" in result.stdout.lower() or "error" in result.stderr.lower():
                     work_items.append(
                         BatchWorkItem(
-                            id=f"test-collection-{project_dir.replace('/', '-')}",
+                            id=_sanitize_batch_id(f"test-collection-{project_dir}"),
                             title=f"Test collection errors: {project_dir}",
                             description=f"Test collection failing in {project_dir}",
                             prompt=f"""Investigate test collection errors in {project_dir}:
@@ -629,7 +639,6 @@ class CapacityAwareQueueFiller:
                 total_tokens + item_tokens <= target_tokens
                 and total_time_hours + item_time <= max_time_hours
             ):
-
                 selected.append(item)
                 total_tokens += item_tokens
                 total_time_hours += item_time
