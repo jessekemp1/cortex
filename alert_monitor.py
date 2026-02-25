@@ -26,10 +26,10 @@ SILENCE_DIR = CORTEX_DIR  # silence files: alert_silence_<service>
 CONSECUTIVE_FILE = CORTEX_DIR / "alert_consecutive.json"
 
 SERVICES = [
-    ("vortex-backend",  "http://127.0.0.1:8000/api/v2/health"),
-    ("winfield",        "http://127.0.0.1:8002/health"),
-    ("cortex-site",     "http://127.0.0.1:3001/"),
-    ("cortex-bridge",   "http://127.0.0.1:8765/health"),
+    ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
+    ("winfield", "http://127.0.0.1:8002/api/v1/health"),
+    ("cortex-site", "http://127.0.0.1:3001/"),
+    ("cortex-bridge", "http://127.0.0.1:8765/health"),
 ]
 
 # Alert only after 2 consecutive failures (avoids transient noise)
@@ -106,16 +106,18 @@ def check_services() -> list[dict]:
         else:
             consec[name] = consec.get(name, 0) + 1
             if consec[name] >= CONSECUTIVE_THRESHOLD:
-                alerts.append({
-                    "ts": now_ts,
-                    "type": "service_down",
-                    "severity": "HIGH",
-                    "service": name,
-                    "url": url,
-                    "consecutive_failures": consec[name],
-                    "message": f"{name} DOWN ({consec[name]} consecutive failures)",
-                    "silence_cmd": f"touch ~/.cortex/alert_silence_{name}",
-                })
+                alerts.append(
+                    {
+                        "ts": now_ts,
+                        "type": "service_down",
+                        "severity": "HIGH",
+                        "service": name,
+                        "url": url,
+                        "consecutive_failures": consec[name],
+                        "message": f"{name} DOWN ({consec[name]} consecutive failures)",
+                        "silence_cmd": f"touch ~/.cortex/alert_silence_{name}",
+                    }
+                )
 
     _save_consecutive(consec)
     return alerts
@@ -154,15 +156,17 @@ def check_scheduler_failures() -> list[dict]:
                 if _is_silenced(f"scheduler_{job}"):
                     continue
 
-                alerts.append({
-                    "ts": ts_str,
-                    "type": "scheduler_failure",
-                    "severity": "MEDIUM",
-                    "job": job,
-                    "error": error,
-                    "message": f"Scheduler job '{job}' failed: {error[:100]}",
-                    "silence_cmd": f"touch ~/.cortex/alert_silence_scheduler_{job}",
-                })
+                alerts.append(
+                    {
+                        "ts": ts_str,
+                        "type": "scheduler_failure",
+                        "severity": "MEDIUM",
+                        "job": job,
+                        "error": error,
+                        "message": f"Scheduler job '{job}' failed: {error[:100]}",
+                        "silence_cmd": f"touch ~/.cortex/alert_silence_scheduler_{job}",
+                    }
+                )
             except (json.JSONDecodeError, ValueError):
                 continue
     except OSError:
@@ -227,17 +231,19 @@ def check_test_regression() -> list[dict]:
             if drop > TEST_REGRESSION_PCT and data.get("failed", 0) > 0:
                 if _is_silenced(f"tests_{project}"):
                     continue
-                alerts.append({
-                    "ts": now_ts,
-                    "type": "test_regression",
-                    "severity": "MEDIUM",
-                    "project": project,
-                    "current": current_count,
-                    "baseline": baseline_count,
-                    "drop_pct": round(drop * 100, 1),
-                    "message": f"REGRESSION: {project} tests {baseline_count}→{current_count} (-{drop*100:.1f}%)",
-                    "silence_cmd": f"touch ~/.cortex/alert_silence_tests_{project}",
-                })
+                alerts.append(
+                    {
+                        "ts": now_ts,
+                        "type": "test_regression",
+                        "severity": "MEDIUM",
+                        "project": project,
+                        "current": current_count,
+                        "baseline": baseline_count,
+                        "drop_pct": round(drop * 100, 1),
+                        "message": f"REGRESSION: {project} tests {baseline_count}→{current_count} (-{drop * 100:.1f}%)",
+                        "silence_cmd": f"touch ~/.cortex/alert_silence_tests_{project}",
+                    }
+                )
     except Exception:
         pass
 

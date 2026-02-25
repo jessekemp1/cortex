@@ -14,7 +14,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Jesse Kemp",
-    url="https://github.com/jessekemp/cortex",  # update before PyPI publish
+    url="https://github.com/jessekemp1/cortex",
     license="Apache-2.0",
     python_requires=">=3.11",
     packages=find_packages(

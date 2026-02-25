@@ -1520,26 +1520,26 @@ def cmd_interactions(args):
     "UserPromptSubmit": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/Dev/cortex/hooks/interaction_capture.py prompt"
+        "command": "python -m cortex.hooks.interaction_capture prompt"
       }]
     }],
     "PostToolUse": [{
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "python ~/Dev/cortex/hooks/interaction_capture.py tool_complete"
+        "command": "python -m cortex.hooks.interaction_capture tool_complete"
       }]
     }],
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/Dev/cortex/hooks/interaction_capture.py stop"
+        "command": "python -m cortex.hooks.interaction_capture stop"
       }]
     }],
     "SessionEnd": [{
       "hooks": [{
         "type": "command",
-        "command": "python ~/Dev/cortex/hooks/interaction_capture.py session_end"
+        "command": "python -m cortex.hooks.interaction_capture session_end"
       }]
     }]
   }
