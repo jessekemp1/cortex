@@ -8,6 +8,7 @@ Designed to maximize throughput while respecting API limits.
 
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -147,7 +148,9 @@ class BatchQueueManager:
         """Trip the circuit breaker after max consecutive failures."""
         from datetime import timedelta
 
-        self._circuit_open_until = datetime.now() + timedelta(minutes=self._circuit_cooldown_minutes)
+        self._circuit_open_until = datetime.now() + timedelta(
+            minutes=self._circuit_cooldown_minutes
+        )
         logger.error(
             f"Circuit breaker TRIPPED after {self._consecutive_failures} consecutive failures. "
             f"Pausing submissions for {self._circuit_cooldown_minutes} min until "
@@ -223,8 +226,10 @@ class BatchQueueManager:
 
 Please provide a comprehensive implementation plan and any code changes needed."""
 
+            # Sanitize custom_id: Anthropic API requires ^[a-zA-Z0-9_-]{1,64}$
+            sanitized_id = re.sub(r"[^a-zA-Z0-9_-]", "_", task["task_id"])[:64]
             request = BatchRequest(
-                custom_id=task["task_id"],
+                custom_id=sanitized_id,
                 params={
                     "messages": [{"role": "user", "content": full_prompt}],
                     "max_tokens": 4000,
@@ -266,14 +271,27 @@ Please provide a comprehensive implementation plan and any code changes needed."
             error_str = str(e).lower()
             logger.error(f"❌ Failed to submit job {job['id']}: {e}")
 
-            # Check for budget/rate limit errors that indicate systemic issues
-            if any(kw in error_str for kw in ["usage limit", "rate limit", "budget", "429", "400"]):
+            # Only trip circuit breaker on systemic issues (rate limits, budget).
+            # Do NOT trip on 400 validation errors — those are per-request input
+            # issues that won't resolve by waiting. Skipping the bad job and
+            # continuing is the correct behavior.
+            is_rate_limit = any(
+                kw in error_str for kw in ["usage limit", "rate limit", "budget", "429"]
+            )
+            is_validation_error = "400" in error_str or "invalid_request" in error_str
+
+            if is_rate_limit and not is_validation_error:
                 self._consecutive_failures += 1
                 logger.warning(
-                    f"API limit error ({self._consecutive_failures}/{self._max_consecutive_failures})"
+                    f"API rate/budget error ({self._consecutive_failures}/"
+                    f"{self._max_consecutive_failures})"
                 )
                 if self._consecutive_failures >= self._max_consecutive_failures:
                     self._trip_circuit_breaker()
+            elif is_validation_error:
+                logger.warning(
+                    f"Validation error for job {job['id']} — skipping (not tripping breaker)"
+                )
 
             return None
 
