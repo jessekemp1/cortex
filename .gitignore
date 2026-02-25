@@ -5,6 +5,13 @@ MARKETING/
 FUTURE/
 STRATEGY/
 
+# Internal tooling and session state — never publish
+.claude/
+.batch/
+.serena/
+.next_session.md
+.cortex/
+
 # Python
 __pycache__/
 *.py[cod]
