@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Context Intelligence - Predicts relevant context for Cortex
@@ -6,6 +5,7 @@ Context Intelligence - Predicts relevant context for Cortex
 Integrates with personal-ai-dataset to provide relevant context predictions.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -38,8 +38,10 @@ class ContextPrediction:
 class ContextIntelligence:
     """Predicts relevant context based on current activity."""
 
-    # Path to personal-ai-dataset
-    KNOWLEDGE_BASE_PATH = Path("~/Dev/personal-ai-dataset").expanduser()
+    # Path to knowledge base — override via CORTEX_KNOWLEDGE_BASE env var
+    KNOWLEDGE_BASE_PATH = Path(
+        os.environ.get("CORTEX_KNOWLEDGE_BASE", "~/knowledge-base")
+    ).expanduser()
 
     # Project documentation patterns
     DOC_PATTERNS = [
