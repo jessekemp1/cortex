@@ -304,7 +304,7 @@ All data is local by default. Nothing leaves your machine unless you configure a
 **From source:**
 
 ```bash
-git clone https://github.com/your-org/cortex
+git clone https://github.com/jessekemp1/cortex
 cd cortex
 pip install -e .            # core only
 pip install -e ".[server]"  # + FastAPI server (uvicorn, apscheduler)
@@ -328,7 +328,7 @@ pytest tests/ -v
 ## Paper
 
 **Cortex: Persistent Intelligence Architecture for LLM-Powered Agents**
-DOI: coming February 24, 2026.
+*(Technical paper — DOI pending Zenodo upload)*
 
 Covers the three-tier memory architecture, implicit feedback weighting, and measured outcomes from production use across a multi-project portfolio.
 
