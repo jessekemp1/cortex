@@ -35,10 +35,28 @@ class TaskState(Enum):
 
     PENDING = "pending"  # Task created, not yet scheduled
     SCHEDULED = "scheduled"  # Scheduled for future execution
-    RUNNING = "running"  # Currently executing
+    RUNNING = "running"  # Currently executing (local) or legacy
+    SUBMITTED = "submitted"  # Sent to Anthropic Batch API, awaiting results
     COMPLETED = "completed"  # Successfully completed
     FAILED = "failed"  # Execution failed
     CANCELLED = "cancelled"  # Manually cancelled
+
+
+# Task types that should be routed to Anthropic Batch API (not local execution)
+AI_TASK_TYPES = {
+    "review",
+    "documentation",
+    "research",
+    "security",
+    "pattern",
+    "analysis",
+    "ai_inference",
+    "briefing",
+    "learning",
+    "recommendation",
+    "test-gaps",
+    "docs",
+}
 
 
 @dataclass
@@ -78,6 +96,16 @@ class BatchTask:
     sprint_id: str = ""  # Sprint identifier (e.g., "sprint_1", "sprint_2")
     wave_id: str = ""  # Wave identifier (e.g., "wave_1", "wave_2")
     blocks: List[str] = field(default_factory=list)  # Task IDs blocked by this task
+
+    # Anthropic Batch API tracking (unified queue)
+    api_batch_id: Optional[str] = None  # Anthropic batch ID (msgbatch_xxx)
+    api_custom_id: Optional[str] = None  # Sanitized custom_id sent to API
+    model: Optional[str] = None  # Model used (claude-sonnet-4, etc.)
+    submitted_at: Optional[datetime] = None  # When sent to Anthropic API
+    result_file: Optional[str] = None  # Path to result JSON
+    result_text: Optional[str] = None  # Extracted response text
+    token_input: Optional[int] = None  # Actual input tokens (from API)
+    token_output: Optional[int] = None  # Actual output tokens (from API)
 
     def can_start(self, completed_task_ids: Set[str]) -> bool:
         """
@@ -120,6 +148,15 @@ class BatchTask:
             "sprint_id": self.sprint_id,
             "wave_id": self.wave_id,
             "blocks": json.dumps(self.blocks),
+            # API tracking
+            "api_batch_id": self.api_batch_id,
+            "api_custom_id": self.api_custom_id,
+            "model": self.model,
+            "submitted_at": (self.submitted_at.isoformat() if self.submitted_at else None),
+            "result_file": self.result_file,
+            "result_text": self.result_text,
+            "token_input": self.token_input,
+            "token_output": self.token_output,
         }
 
     @classmethod
@@ -154,6 +191,17 @@ class BatchTask:
             sprint_id=data.get("sprint_id", ""),
             wave_id=data.get("wave_id", ""),
             blocks=json.loads(data.get("blocks", "[]")),
+            # API tracking (with backwards compatibility)
+            api_batch_id=data.get("api_batch_id"),
+            api_custom_id=data.get("api_custom_id"),
+            model=data.get("model"),
+            submitted_at=(
+                datetime.fromisoformat(data["submitted_at"]) if data.get("submitted_at") else None
+            ),
+            result_file=data.get("result_file"),
+            result_text=data.get("result_text"),
+            token_input=data.get("token_input"),
+            token_output=data.get("token_output"),
         )
 
 
@@ -233,6 +281,24 @@ class BatchTaskQueue:
             if "blocks" not in columns:
                 conn.execute("ALTER TABLE batch_tasks ADD COLUMN blocks TEXT DEFAULT '[]'")
 
+            # API tracking columns (unified queue)
+            if "api_batch_id" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN api_batch_id TEXT")
+            if "api_custom_id" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN api_custom_id TEXT")
+            if "model" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN model TEXT")
+            if "submitted_at" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN submitted_at TEXT")
+            if "result_file" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN result_file TEXT")
+            if "result_text" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN result_text TEXT")
+            if "token_input" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN token_input INTEGER")
+            if "token_output" not in columns:
+                conn.execute("ALTER TABLE batch_tasks ADD COLUMN token_output INTEGER")
+
             conn.commit()
         except sqlite3.OperationalError:
             # Column might already exist
@@ -263,6 +329,20 @@ class BatchTaskQueue:
             """
             CREATE INDEX IF NOT EXISTS idx_wave_id
             ON batch_tasks(wave_id)
+        """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_api_batch_id
+            ON batch_tasks(api_batch_id)
+        """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_priority_state
+            ON batch_tasks(priority, state)
         """
         )
 
@@ -323,13 +403,24 @@ class BatchTaskQueue:
 
         conn.execute(
             """
-            INSERT INTO batch_tasks VALUES (
+            INSERT INTO batch_tasks (
+                task_id, task_type, command, description, priority,
+                created_at, scheduled_time, state, started_at, completed_at,
+                exit_code, stdout, stderr, error_message,
+                estimated_duration_minutes, actual_duration_seconds,
+                retry_count, max_retries, metadata,
+                dependencies, sprint_id, wave_id, blocks,
+                api_batch_id, api_custom_id, model, submitted_at,
+                result_file, result_text, token_input, token_output
+            ) VALUES (
                 :task_id, :task_type, :command, :description, :priority,
                 :created_at, :scheduled_time, :state, :started_at, :completed_at,
                 :exit_code, :stdout, :stderr, :error_message,
                 :estimated_duration_minutes, :actual_duration_seconds,
                 :retry_count, :max_retries, :metadata,
-                :dependencies, :sprint_id, :wave_id, :blocks
+                :dependencies, :sprint_id, :wave_id, :blocks,
+                :api_batch_id, :api_custom_id, :model, :submitted_at,
+                :result_file, :result_text, :token_input, :token_output
             )
         """,
             task_dict,
@@ -671,6 +762,135 @@ class BatchTaskQueue:
                 )
                 cleaned.append(task.task_id)
         return cleaned
+
+    # =========================================================================
+    # API batch submission methods (unified queue)
+    # =========================================================================
+
+    def get_pending_api_tasks(self, limit: int = 100) -> List[BatchTask]:
+        """Get PENDING tasks that should be submitted to Anthropic Batch API.
+
+        Filters by AI_TASK_TYPES and orders by priority then creation time.
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+
+        placeholders = ",".join("?" for _ in AI_TASK_TYPES)
+        cursor = conn.execute(
+            f"""
+            SELECT * FROM batch_tasks
+            WHERE state = 'pending' AND task_type IN ({placeholders})
+            ORDER BY
+                CASE priority
+                    WHEN 'immediate' THEN 0
+                    WHEN 'high' THEN 1
+                    WHEN 'normal' THEN 2
+                    WHEN 'low' THEN 3
+                    ELSE 4
+                END,
+                created_at ASC
+            LIMIT ?
+            """,
+            (*AI_TASK_TYPES, limit),
+        )
+        tasks = [BatchTask.from_dict(dict(row)) for row in cursor.fetchall()]
+        conn.close()
+        return tasks
+
+    def get_submitted_tasks(self) -> List[BatchTask]:
+        """Get all tasks sent to Anthropic API but not yet completed."""
+        return self._get_tasks_by_state(TaskState.SUBMITTED)
+
+    def get_tasks_by_batch_id(self, api_batch_id: str) -> List[BatchTask]:
+        """Get all tasks grouped under a single Anthropic batch."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            "SELECT * FROM batch_tasks WHERE api_batch_id = ?",
+            (api_batch_id,),
+        )
+        tasks = [BatchTask.from_dict(dict(row)) for row in cursor.fetchall()]
+        conn.close()
+        return tasks
+
+    def mark_submitted(
+        self,
+        task_ids: List[str],
+        api_batch_id: str,
+        custom_id_map: Dict[str, str],
+        model: str,
+    ):
+        """Atomically mark multiple tasks as SUBMITTED with API identifiers."""
+        now = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        try:
+            for task_id in task_ids:
+                conn.execute(
+                    """
+                    UPDATE batch_tasks
+                    SET state = 'submitted',
+                        api_batch_id = ?,
+                        api_custom_id = ?,
+                        model = ?,
+                        submitted_at = ?
+                    WHERE task_id = ?
+                    """,
+                    (
+                        api_batch_id,
+                        custom_id_map.get(task_id, task_id),
+                        model,
+                        now,
+                        task_id,
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def mark_completed_with_result(
+        self,
+        task_id: str,
+        result_text: str,
+        result_file: str,
+        token_input: int = 0,
+        token_output: int = 0,
+    ):
+        """Mark task COMPLETED and store result data."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            """
+            UPDATE batch_tasks
+            SET state = 'completed',
+                completed_at = ?,
+                result_text = ?,
+                result_file = ?,
+                token_input = ?,
+                token_output = ?
+            WHERE task_id = ?
+            """,
+            (
+                datetime.now().isoformat(),
+                result_text,
+                result_file,
+                token_input,
+                token_output,
+                task_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_pending_api_count(self) -> int:
+        """Get count of PENDING API tasks (fast, no object creation)."""
+        conn = sqlite3.connect(self.db_path)
+        placeholders = ",".join("?" for _ in AI_TASK_TYPES)
+        cursor = conn.execute(
+            f"SELECT COUNT(*) FROM batch_tasks WHERE state = 'pending' AND task_type IN ({placeholders})",
+            tuple(AI_TASK_TYPES),
+        )
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
 
     # =========================================================================
     # Dependency-aware methods for V2a batch orchestration
