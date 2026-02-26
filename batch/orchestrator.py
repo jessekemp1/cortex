@@ -432,25 +432,14 @@ class BatchOrchestrator:
 
     def sync_to_daemon(self) -> int:
         """
-        Sync all queued JSON jobs to SQLite so the daemon can execute them.
+        Sync queued jobs to daemon.
 
-        Call this ONCE after all submissions are complete, not per-job.
+        With the unified SQLite pipeline, _submit_to_api() writes directly
+        to SQLite so this is a no-op for new jobs. Kept for backward
+        compatibility with callers that still invoke it.
         """
-        try:
-            from .queue_sync import sync_json_to_sqlite
-        except ImportError:
-            try:
-                from cortex.batch.queue_sync import sync_json_to_sqlite
-            except ImportError:
-                from batch.queue_sync import sync_json_to_sqlite
-        try:
-            synced = sync_json_to_sqlite()
-            if synced > 0:
-                logger.info(f"Synced {synced} jobs to daemon queue")
-            return synced
-        except Exception as e:
-            logger.error(f"Queue sync FAILED — jobs won't execute: {e}")
-            return 0
+        logger.debug("sync_to_daemon called — no-op with unified SQLite pipeline")
+        return 0
 
     def get_status(self, job_id: str) -> Optional[JobStatus]:
         """

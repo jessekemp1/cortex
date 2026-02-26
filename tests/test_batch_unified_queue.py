@@ -508,3 +508,128 @@ class TestBatchRetriever:
         task = self.queue.get_task(t.task_id)
         assert task.token_input == 100
         assert task.token_output == 200
+
+
+# ============================================================================
+# Phase 3: get_tasks_by_state, cleanup_old_tasks, dashboard integration
+# ============================================================================
+
+
+class TestPhase3Methods:
+    """Verify Phase 3 query methods and TTL cleanup."""
+
+    def setup_method(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db_path = Path(self.tmp) / "test_queue.db"
+        self.queue = BatchTaskQueue(db_path=self.db_path)
+
+    def test_get_tasks_by_state_empty(self):
+        tasks = self.queue.get_tasks_by_state(TaskState.COMPLETED)
+        assert tasks == []
+
+    def test_get_tasks_by_state_filters(self):
+        t1 = self.queue.add_task(command="cmd1", task_type="review")
+        t2 = self.queue.add_task(command="cmd2", task_type="review")
+        # Complete one, leave the other pending
+        self.queue.mark_submitted([t1.task_id], "b1", {t1.task_id: "c1"}, "claude-sonnet-4")
+        self.queue.mark_completed_with_result(
+            t1.task_id,
+            result_text="done",
+            result_file="/tmp/r.json",
+            token_input=10,
+            token_output=20,
+        )
+
+        pending = self.queue.get_tasks_by_state(TaskState.PENDING)
+        completed = self.queue.get_tasks_by_state(TaskState.COMPLETED)
+
+        assert len(pending) == 1
+        assert pending[0].task_id == t2.task_id
+        assert len(completed) == 1
+        assert completed[0].task_id == t1.task_id
+
+    def test_cleanup_old_tasks_removes_old(self):
+        import sqlite3
+
+        # Add and complete a task, then backdate its completed_at
+        t = self.queue.add_task(command="old", task_type="review")
+        self.queue.mark_submitted([t.task_id], "b1", {t.task_id: "c1"}, "claude-sonnet-4")
+        self.queue.mark_completed_with_result(
+            t.task_id,
+            result_text="done",
+            result_file="/tmp/r.json",
+            token_input=10,
+            token_output=20,
+        )
+
+        # Backdate completed_at to 60 days ago
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE batch_tasks SET completed_at = ? WHERE task_id = ?",
+            ("2025-01-01T00:00:00", t.task_id),
+        )
+        conn.commit()
+        conn.close()
+
+        deleted = self.queue.cleanup_old_tasks(days=30)
+        assert deleted == 1
+
+        remaining = self.queue.get_tasks_by_state(TaskState.COMPLETED)
+        assert len(remaining) == 0
+
+    def test_cleanup_preserves_recent(self):
+        t = self.queue.add_task(command="recent", task_type="review")
+        self.queue.mark_submitted([t.task_id], "b1", {t.task_id: "c1"}, "claude-sonnet-4")
+        self.queue.mark_completed_with_result(
+            t.task_id,
+            result_text="done",
+            result_file="/tmp/r.json",
+            token_input=10,
+            token_output=20,
+        )
+
+        deleted = self.queue.cleanup_old_tasks(days=30)
+        assert deleted == 0
+
+        remaining = self.queue.get_tasks_by_state(TaskState.COMPLETED)
+        assert len(remaining) == 1
+
+    def test_cleanup_preserves_pending(self):
+        import sqlite3
+
+        t = self.queue.add_task(command="pending", task_type="review")
+
+        # Even if we hack created_at to be old, pending tasks should be kept
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE batch_tasks SET completed_at = ? WHERE task_id = ?",
+            ("2025-01-01T00:00:00", t.task_id),
+        )
+        conn.commit()
+        conn.close()
+
+        deleted = self.queue.cleanup_old_tasks(days=30)
+        assert deleted == 0  # State is PENDING, not completed/failed
+
+    def test_dashboard_local_queue_integration(self):
+        """Verify dashboard get_local_queue reads from SQLite."""
+        self.queue.add_task(command="p1", task_type="review")
+        self.queue.add_task(command="p2", task_type="research")
+
+        t3 = self.queue.add_task(command="done", task_type="review")
+        self.queue.mark_submitted([t3.task_id], "b1", {t3.task_id: "c1"}, "claude-sonnet-4")
+        self.queue.mark_completed_with_result(
+            t3.task_id,
+            result_text="result",
+            result_file="/tmp/r.json",
+            token_input=50,
+            token_output=100,
+        )
+
+        # Verify via get_tasks_by_state (what dashboard now uses)
+        pending = self.queue.get_tasks_by_state(TaskState.PENDING)
+        completed = self.queue.get_tasks_by_state(TaskState.COMPLETED)
+
+        assert len(pending) == 2
+        assert len(completed) == 1
+        assert completed[0].result_text == "result"

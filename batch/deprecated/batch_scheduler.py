@@ -270,7 +270,6 @@ class BatchScheduler:
 
         for task in self.tasks:
             if task.status == "pending" and task.submit_after and now >= task.submit_after:
-
                 try:
                     # Create batch request with proper message format
                     batch_request = BatchRequest(
@@ -438,11 +437,11 @@ def create_batch_plan_from_cortex_plan(plan_id: str, scheduler: BatchScheduler) 
 
 **Description:** {step.description}
 
-**Files to modify:** {', '.join(step.files) if step.files else 'TBD'}
+**Files to modify:** {", ".join(step.files) if step.files else "TBD"}
 
 **Estimated time:** {step.estimated_time} minutes
 
-**Validation criteria:** {step.validation if hasattr(step, 'validation') else 'TBD'}
+**Validation criteria:** {step.validation if hasattr(step, "validation") else "TBD"}
 
 Please provide:
 1. Detailed implementation steps
