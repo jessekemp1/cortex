@@ -1,9 +1,10 @@
 # Research Project: Human-AI Bandwidth Optimization
 
-**Status**: Active Research
+**Status**: Foundation — Evolved into [Exponential Collaboration](./EXPONENTIAL_COLLAB.md)
 **Created**: 2026-01-15
 **Owner**: Jesse + Claude (collaborative)
 **Cortex Integration**: Yes - feeds into learning system
+**Evolution**: This v1 research established the conceptual framework (bandwidth model, trust accumulator, creativity amplifier). The v2 research ([EXPONENTIAL_COLLAB.md](./EXPONENTIAL_COLLAB.md)) builds on these foundations with production implementation, iTerm orchestration, workstream engines, and exponential idea augmentation.
 
 ---
 
