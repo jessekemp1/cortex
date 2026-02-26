@@ -1,5 +1,3 @@
-import os
-#!/usr/bin/env python3
 """
 E2E Situational Tests for Cortex CLI
 
@@ -8,6 +6,7 @@ and validating output format and content.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -35,8 +34,10 @@ def run_cli_command(cmd_args: list, timeout: int = 60) -> Tuple[str, str, int, f
         Tuple of (stdout, stderr, return_code, execution_time)
     """
     root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
-    # Use the CLI module directly
+    # Use the CLI module directly — handle both monorepo root and cortex dir as CWD
     cortex_script = root_dir / "cortex" / "cli.py"
+    if not cortex_script.exists() and (root_dir / "cli.py").exists():
+        cortex_script = root_dir / "cli.py"
     cmd = [sys.executable, str(cortex_script), "--root", str(root_dir)] + cmd_args
 
     start_time = time.time()
@@ -154,9 +155,9 @@ def test_json_output_format():
     assert "total_projects" in state, "Missing 'total_projects' in current_state"
 
     # Validate next_action (can be None)
-    assert data["next_action"] is None or isinstance(
-        data["next_action"], dict
-    ), "next_action should be None or dict"
+    assert data["next_action"] is None or isinstance(data["next_action"], dict), (
+        "next_action should be None or dict"
+    )
 
     # Validate alternative_actions
     assert isinstance(data["alternative_actions"], list), "alternative_actions should be a list"
@@ -192,9 +193,9 @@ def test_status_command():
     assert "Total:" in stdout or "active" in stdout.lower(), "Output should show project counts"
 
     # Should show actionable next steps (focus, action, or blockers)
-    assert (
-        "FOCUS" in stdout or "NEXT ACTION" in stdout or "BLOCKERS" in stdout
-    ), "Output should show actionable next steps"
+    assert "FOCUS" in stdout or "NEXT ACTION" in stdout or "BLOCKERS" in stdout, (
+        "Output should show actionable next steps"
+    )
 
 
 # Test Case 5: With Context Integration
@@ -239,9 +240,9 @@ def test_error_handling_missing_tools():
         stdout, stderr, return_code, exec_time = run_cli_command(["next"])
 
         # Should still succeed (graceful degradation)
-        assert (
-            return_code == 0
-        ), f"Command should succeed even with missing tool. return_code: {return_code}"
+        assert return_code == 0, (
+            f"Command should succeed even with missing tool. return_code: {return_code}"
+        )
 
         # Should complete within 5 seconds
         assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
@@ -276,9 +277,9 @@ def test_error_handling_missing_action_plan():
         stdout, stderr, return_code, exec_time = run_cli_command(["next"])
 
         # Should still succeed (graceful degradation)
-        assert (
-            return_code == 0
-        ), f"Command should succeed even with missing ACTION_PLAN.md. return_code: {return_code}"
+        assert return_code == 0, (
+            f"Command should succeed even with missing ACTION_PLAN.md. return_code: {return_code}"
+        )
 
         # Should complete within 5 seconds
         assert exec_time < 30.0, f"Command took {exec_time:.2f}s, expected <30s"
@@ -306,9 +307,9 @@ def test_empty_state_handling():
     stdout, stderr, return_code, exec_time = run_cli_command(["next"])
 
     # Should succeed (never crash)
-    assert (
-        return_code == 0
-    ), f"Command should never crash, even with empty state. return_code: {return_code}"
+    assert return_code == 0, (
+        f"Command should never crash, even with empty state. return_code: {return_code}"
+    )
 
     # Should complete within 60 seconds
     assert exec_time < 60.0, f"Command took {exec_time:.2f}s, expected <60s"
@@ -318,15 +319,15 @@ def test_empty_state_handling():
 
     # Should not contain error messages in main output
     assert "Traceback" not in stdout, "Should not show traceback in output"
-    assert (
-        "Error:" not in stdout or "No recommendations" in stdout
-    ), "Should handle empty state gracefully"
+    assert "Error:" not in stdout or "No recommendations" in stdout, (
+        "Should handle empty state gracefully"
+    )
 
     # Should provide helpful message if no recommendations
     if "No recommendations" in stdout:
-        assert (
-            "ACTION_PLAN" in stdout or "Try:" in stdout or "Check" in stdout
-        ), "Should provide helpful next steps when no recommendations"
+        assert "ACTION_PLAN" in stdout or "Try:" in stdout or "Check" in stdout, (
+            "Should provide helpful next steps when no recommendations"
+        )
 
 
 # Performance Test: Verify all commands complete in reasonable time
@@ -367,12 +368,12 @@ def test_json_text_consistency():
 
     # Check that text output mentions project counts if JSON has them
     if state.get("total_projects", 0) > 0:
-        assert (
-            "project" in text_stdout.lower() or "Total" in text_stdout
-        ), "Text output should mention projects if JSON has project data"
+        assert "project" in text_stdout.lower() or "Total" in text_stdout, (
+            "Text output should mention projects if JSON has project data"
+        )
 
     # Check that text output mentions goals if JSON has them
     if state.get("priority_a_goals", 0) > 0 or state.get("priority_b_goals", 0) > 0:
-        assert (
-            "goal" in text_stdout.lower() or "Priority" in text_stdout
-        ), "Text output should mention goals if JSON has goal data"
+        assert "goal" in text_stdout.lower() or "Priority" in text_stdout, (
+            "Text output should mention goals if JSON has goal data"
+        )

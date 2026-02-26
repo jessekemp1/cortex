@@ -357,7 +357,11 @@ class IntelligenceMixin:
             "source": "CortexBridge",
         }
 
-        external_file = self.root_dir / "cortex" / "external_recommendations.json"
+        # root_dir may be the monorepo root (Dev/) or the cortex dir itself
+        if (self.root_dir / "bridge.py").exists():
+            external_file = self.root_dir / "external_recommendations.json"
+        else:
+            external_file = self.root_dir / "cortex" / "external_recommendations.json"
 
         try:
             # Atomic-ish read/modify/write
