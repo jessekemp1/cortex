@@ -125,6 +125,44 @@ def get_overnight_results() -> List[Dict[str, Any]]:
                 except Exception:
                     continue
 
+    # Source 4: Completed tasks from unified SQLite queue (BatchTaskQueue)
+    try:
+        from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
+    except ImportError:
+        try:
+            from cortex.intelligence.process_monitor.batch_queue import (
+                BatchTaskQueue,
+                TaskState,
+            )
+        except ImportError:
+            TaskState = None
+
+    if TaskState is not None:
+        try:
+            queue = BatchTaskQueue()
+            # Get recently completed tasks (within cutoff window)
+            completed_tasks = queue.get_tasks_by_state(TaskState.COMPLETED)
+            for task in completed_tasks:
+                completed_at = task.completed_at
+                if completed_at and completed_at > cutoff:
+                    # Deduplicate: skip if we already have this job_id from other sources
+                    existing_ids = {r.get("job_id") for r in results}
+                    if task.task_id not in existing_ids:
+                        results.append(
+                            {
+                                "job_id": task.task_id,
+                                "title": task.description,
+                                "status": "completed",
+                                "completed_at": completed_at.isoformat(),
+                                "source": task.metadata.get("source", task.task_type),
+                                "type": task.task_type,
+                                "output": (task.result_text or "")[:500],
+                                "tokens_used": (task.token_input or 0) + (task.token_output or 0),
+                            }
+                        )
+        except Exception:
+            pass
+
     return results
 
 
@@ -440,21 +478,38 @@ def retrieve_completed_batches():
     Retrieve actual LLM responses for any submitted-but-not-retrieved batches.
 
     Runs before get_overnight_results() so that fresh content is available
-    for the morning briefing. Uses BatchQueueManager.monitor_and_update_status().
+    for the morning briefing. Uses unified BatchRetriever (SQLite-first),
+    falling back to legacy BatchQueueManager if needed.
     """
+    # Primary: unified BatchRetriever (SQLite-first pipeline)
     try:
-        from cortex.batch.queue_manager import BatchQueueManager
-    except ImportError:
-        try:
-            from batch.queue_manager import BatchQueueManager
-        except ImportError:
-            print("  (queue_manager not available, skipping retrieval)")
-            return
+        from batch.retriever import BatchRetriever
 
+        retriever = BatchRetriever()
+        stats = retriever.retrieve_completed()
+        print(
+            f"  Retrieved {stats.tasks_completed} completed, "
+            f"{stats.tasks_failed} failed "
+            f"({stats.batches_checked} batches checked)"
+        )
+        if stats.errors:
+            for err in stats.errors[:3]:
+                print(f"    Error: {err}")
+        return
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"  BatchRetriever error: {e}")
+
+    # Fallback: legacy BatchQueueManager (JSON-based)
     try:
+        from batch.queue_manager import BatchQueueManager
+
         manager = BatchQueueManager()
         manager.monitor_and_update_status()
-        print("  Checked submitted batches for completed results")
+        print("  (legacy) Checked submitted batches for completed results")
+    except ImportError:
+        print("  (retriever not available, skipping batch retrieval)")
     except Exception as e:
         print(f"  Error retrieving batch results: {e}")
 

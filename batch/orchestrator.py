@@ -328,113 +328,106 @@ class BatchOrchestrator:
 
     def _submit_to_api(self, job_data: Dict[str, Any]) -> str:
         """
-        Submit job to API batch queue (remediation_queue.json).
+        Submit job to unified SQLite batch queue.
 
-        Deduplicates by job ID across ALL statuses:
-        - queued: replaced with new definition (updated prompt/priority)
-        - submitted: skipped (already in-flight)
-        - completed/synced within 7 days: skipped (already done recently)
-        - completed/synced older than 7 days: allowed (re-run stale analysis)
+        Each task in the job becomes a separate BatchTask in SQLite,
+        which the submitter.py daemon picks up and sends to Anthropic.
 
         Args:
-            job_data: Job definition
+            job_data: Job definition with tasks list
 
         Returns:
             job_id (without prefix)
         """
-        # Load existing queue (with corruption recovery)
+        try:
+            from intelligence.process_monitor.batch_queue import BatchTaskQueue
+        except ImportError:
+            try:
+                from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
+            except ImportError:
+                # Fallback: write to JSON queue for backward compatibility
+                return self._submit_to_api_json_legacy(job_data)
+
+        queue = BatchTaskQueue()
+        job_id = job_data.get("id", f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        tasks = job_data.get("tasks", [])
+
+        # Map source to task_type for AI routing
+        source_to_type = {
+            "security": "security",
+            "docs": "documentation",
+            "research": "research",
+            "pattern": "pattern",
+            "goal": "analysis",
+            "general": "ai_inference",
+        }
+        task_type = source_to_type.get(job_data.get("source", "general"), "ai_inference")
+
+        tasks_added = 0
+        for task in tasks:
+            prompt = task.get("prompt", "")
+            if not prompt:
+                continue
+
+            queue.add_task(
+                command=prompt,
+                task_type=task_type,
+                description=task.get("title", job_data.get("description", "")),
+                priority=job_data.get("priority", "normal").lower(),
+                metadata={
+                    "api_job_id": job_id,
+                    "source": job_data.get("source", "general"),
+                    "project": job_data.get("project"),
+                    "title": task.get("title", ""),
+                    "files_affected": task.get("files_affected", []),
+                    "estimated_tokens": task.get("estimated_tokens", 0),
+                    "context": task.get("context", ""),
+                },
+            )
+            tasks_added += 1
+
+        # If job has no tasks but has a description/prompt, add it directly
+        if not tasks and job_data.get("description"):
+            prompt = job_data.get("prompt", job_data["description"])
+            queue.add_task(
+                command=prompt,
+                task_type=task_type,
+                description=job_data["description"],
+                priority=job_data.get("priority", "normal").lower(),
+                metadata={
+                    "api_job_id": job_id,
+                    "source": job_data.get("source", "general"),
+                    "project": job_data.get("project"),
+                },
+            )
+            tasks_added = 1
+
+        logger.info(f"✅ Submitted to SQLite queue: {job_id} ({tasks_added} tasks)")
+        return job_id
+
+    def _submit_to_api_json_legacy(self, job_data: Dict[str, Any]) -> str:
+        """Legacy fallback: write to JSON queue if SQLite imports fail."""
+        job_id = job_data.get("id", f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        logger.warning(f"Using legacy JSON queue for {job_id} (SQLite unavailable)")
+
         try:
             with open(self.queue_file) as f:
                 queue_data = json.load(f)
-            if not isinstance(queue_data, dict) or "priority_jobs" not in queue_data:
-                raise ValueError("Invalid queue structure")
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Queue file corrupt or invalid ({e}), reinitializing")
+        except Exception:
             self._init_queue_file()
             with open(self.queue_file) as f:
                 queue_data = json.load(f)
 
-        # Generate job ID if not provided
-        job_id = job_data.get("id", f"job_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-
-        # Convert to queue format
         job_definition = {
             "id": job_id,
             "priority": job_data.get("priority", "normal").upper(),
             "status": "queued",
             "description": job_data["description"],
             "tasks": job_data.get("tasks", []),
-            "estimated_total_tokens": job_data.get("estimated_total_tokens", 0),
-            "request_count": len(job_data.get("tasks", [])),
-            "depends_on": job_data.get("depends_on", []),
             "queued_at": datetime.now().isoformat(),
         }
-
-        # Add optional fields
-        if "source" in job_data:
-            job_definition["source"] = job_data["source"]
-        if "project" in job_data:
-            job_definition["project"] = job_data["project"]
-
-        # Deduplicate: skip if same job ID exists in ANY active state,
-        # or was completed within the last 7 days.
-        from datetime import timedelta
-
-        cutoff = (datetime.now() - timedelta(days=7)).isoformat()
-        duplicate_found = False
-        replaced = False
-
-        for idx, existing_job in enumerate(queue_data["priority_jobs"]):
-            if existing_job["id"] != job_id:
-                continue
-
-            existing_status = existing_job.get("status", "unknown")
-
-            # Replace if still queued (update prompt/priority)
-            if existing_status == "queued":
-                queue_data["priority_jobs"][idx] = job_definition
-                replaced = True
-                logger.debug(f"Replaced existing queued job: {job_id}")
-                break
-
-            # Skip if currently submitted (in-flight)
-            if existing_status == "submitted":
-                logger.debug(f"Skipping {job_id}: already submitted (in-flight)")
-                duplicate_found = True
-                break
-
-            # Skip if completed recently (within 7 days)
-            if existing_status in ("completed", "synced"):
-                completed_at = existing_job.get(
-                    "completed_at", existing_job.get("queued_at", "")
-                )
-                if completed_at and completed_at > cutoff:
-                    logger.debug(
-                        f"Skipping {job_id}: completed recently ({completed_at[:10]})"
-                    )
-                    duplicate_found = True
-                    break
-
-        if not replaced and not duplicate_found:
-            queue_data["priority_jobs"].append(job_definition)
-
-        # Update metadata
-        queue_data["queue_metadata"]["total_jobs"] = len(queue_data["priority_jobs"])
-        queue_data["queue_metadata"]["total_tasks"] = sum(
-            job.get("request_count", 0) for job in queue_data["priority_jobs"]
-        )
-        queue_data["queue_metadata"]["estimated_total_tokens"] = sum(
-            job.get("estimated_total_tokens", 0) for job in queue_data["priority_jobs"]
-        )
-
-        # Save queue (atomic write prevents corruption on interrupted writes)
+        queue_data["priority_jobs"].append(job_definition)
         self._atomic_write_json(self.queue_file, queue_data)
-
-        logger.info(f"✅ Submitted to API backend: {job_id}")
-        logger.info(f"   Queue: {self.queue_file}")
-        logger.info(f"   Tasks: {len(job_data.get('tasks', []))}")
-        logger.info(f"   Tokens: {job_data.get('estimated_total_tokens', 0):,}")
-
         return job_id
 
     def sync_to_daemon(self) -> int:

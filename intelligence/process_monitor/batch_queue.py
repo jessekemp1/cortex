@@ -892,6 +892,18 @@ class BatchTaskQueue:
         conn.close()
         return count
 
+    def get_tasks_by_state(self, state: "TaskState") -> List[BatchTask]:
+        """Get all tasks in a given state."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            "SELECT * FROM batch_tasks WHERE state = ? ORDER BY completed_at DESC",
+            (state.value,),
+        )
+        tasks = [BatchTask.from_dict(dict(row)) for row in cursor.fetchall()]
+        conn.close()
+        return tasks
+
     # =========================================================================
     # Dependency-aware methods for V2a batch orchestration
     # =========================================================================

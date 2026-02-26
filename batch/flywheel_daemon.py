@@ -148,12 +148,19 @@ class FlywheelDaemon:
             time.sleep(self.config.check_interval_seconds)
 
     def _check_and_fill(self):
-        """Check queue depth and fill if needed"""
+        """Check queue depth and fill if needed.
+
+        Before checking fill level, runs the unified submit/retrieve cycle
+        to push PENDING tasks to Anthropic and pull completed results.
+        """
         # Reset daily counter if new day
         today = datetime.now().strftime("%Y-%m-%d")
         if self.last_fill_date != today:
             self.jobs_added_today = 0
             self.last_fill_date = today
+
+        # Run unified submit/retrieve cycle before measuring depth
+        self._run_batch_cycle()
 
         # Get current queue depth
         queue_depth = self._get_queue_depth_hours()
@@ -352,26 +359,77 @@ Provide actionable recommendations for the week ahead.""",
             self._log(f"Failed to submit job {job.id}: {e}", level="error")
             return False
 
-    def _get_queue_depth_hours(self) -> float:
-        """Estimate queue depth in hours based on pending jobs"""
+    def _run_batch_cycle(self):
+        """Run one submit + retrieve cycle through the unified SQLite pipeline.
+
+        - Submitter picks up PENDING AI tasks and sends to Anthropic Batch API
+        - Retriever checks SUBMITTED batches and downloads completed results
+        """
         try:
-            from batch.queue_manager import BatchQueueManager
+            from batch.submitter import BatchSubmitter
 
-            manager = BatchQueueManager()
-            pending = manager.get_pending_count()
+            submitter = BatchSubmitter()
+            sub_stats = submitter.submit_pending()
+            if sub_stats.tasks_submitted > 0:
+                self._log(
+                    f"Submitted {sub_stats.tasks_submitted} tasks to Anthropic "
+                    f"({sub_stats.batches_created} batches)"
+                )
+            if sub_stats.circuit_breaker_open:
+                self._log("Circuit breaker OPEN — skipping submissions", level="warning")
+        except Exception as e:
+            self._log(f"Submitter error: {e}", level="error")
 
-            # Rough estimate: each job takes ~30 minutes
+        try:
+            from batch.retriever import BatchRetriever
+
+            retriever = BatchRetriever()
+            ret_stats = retriever.retrieve_completed()
+            if ret_stats.tasks_completed > 0:
+                self._log(
+                    f"Retrieved {ret_stats.tasks_completed} completed tasks "
+                    f"({ret_stats.results_saved} results saved)"
+                )
+            if ret_stats.tasks_failed > 0:
+                self._log(f"{ret_stats.tasks_failed} tasks failed", level="warning")
+        except Exception as e:
+            self._log(f"Retriever error: {e}", level="error")
+
+    def _get_queue_depth_hours(self) -> float:
+        """Estimate queue depth in hours based on pending tasks in SQLite.
+
+        Uses the unified BatchTaskQueue as source of truth.
+        Fallback: status file on disk.
+        """
+        try:
+            from intelligence.process_monitor.batch_queue import BatchTaskQueue
+
+            queue = BatchTaskQueue()
+            pending = queue.get_pending_api_count()
+
+            # Rough estimate: each task takes ~30 minutes of batch processing
             return pending * 0.5
 
-        except Exception:
-            # Fallback: check status file
+        except ImportError:
             try:
-                status_path = Path.home() / ".cortex" / "batch" / "queue_status.json"
-                if status_path.exists():
-                    data = json.loads(status_path.read_text())
-                    return data.get("estimated_hours", 0)
-            except Exception:
+                from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
+
+                queue = BatchTaskQueue()
+                pending = queue.get_pending_api_count()
+                return pending * 0.5
+            except ImportError:
                 pass
+        except Exception:
+            pass
+
+        # Fallback: check status file
+        try:
+            status_path = Path.home() / ".cortex" / "batch" / "queue_status.json"
+            if status_path.exists():
+                data = json.loads(status_path.read_text())
+                return data.get("estimated_hours", 0)
+        except Exception:
+            pass
 
         return 0.0
 
