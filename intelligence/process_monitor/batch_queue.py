@@ -904,6 +904,23 @@ class BatchTaskQueue:
         conn.close()
         return tasks
 
+    def cleanup_old_tasks(self, days: int = 30) -> int:
+        """Delete completed/failed tasks older than `days` days.
+
+        Returns the number of rows deleted. Keeps PENDING and SUBMITTED
+        tasks regardless of age.
+        """
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "DELETE FROM batch_tasks WHERE state IN ('completed', 'failed') AND completed_at < ?",
+            (cutoff,),
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return deleted
+
     # =========================================================================
     # Dependency-aware methods for V2a batch orchestration
     # =========================================================================

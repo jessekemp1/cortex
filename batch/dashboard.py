@@ -22,12 +22,12 @@ except ImportError:
         BatchAPIClient = None
 
 try:
-    from batch.batch_scheduler import BatchScheduler
+    from intelligence.process_monitor.batch_queue import BatchTaskQueue
 except ImportError:
     try:
-        from batch_scheduler import BatchScheduler
+        from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
     except ImportError:
-        BatchScheduler = None
+        BatchTaskQueue = None
 
 
 class BatchDashboard:
@@ -58,26 +58,31 @@ class BatchDashboard:
             return []
 
     def get_local_queue(self) -> Dict[str, Any]:
-        """Get local batch queue status."""
-        queue_file = self.batches_dir / "remediation_queue.json"
-
-        if not queue_file.exists():
-            return {"total": 0, "jobs": []}
+        """Get local batch queue status from unified SQLite queue."""
+        if not BatchTaskQueue:
+            return {"total": 0, "queued": 0, "submitted": 0, "completed": 0}
 
         try:
-            with open(queue_file) as f:
-                data = json.load(f)
+            from intelligence.process_monitor.batch_queue import TaskState
+        except ImportError:
+            from cortex.intelligence.process_monitor.batch_queue import TaskState
 
-            jobs = data.get("priority_jobs", [])
+        try:
+            queue = BatchTaskQueue()
+            pending = len(queue.get_tasks_by_state(TaskState.PENDING))
+            submitted = len(queue.get_tasks_by_state(TaskState.SUBMITTED))
+            completed = len(queue.get_tasks_by_state(TaskState.COMPLETED))
+            failed = len(queue.get_tasks_by_state(TaskState.FAILED))
+
             return {
-                "total": len(jobs),
-                "queued": len([j for j in jobs if j.get("status") == "queued"]),
-                "submitted": len([j for j in jobs if j.get("status") == "submitted"]),
-                "completed": len([j for j in jobs if j.get("status") == "completed"]),
-                "jobs": jobs,
+                "total": pending + submitted + completed + failed,
+                "queued": pending,
+                "submitted": submitted,
+                "completed": completed,
+                "failed": failed,
             }
         except Exception:
-            return {"total": 0, "jobs": []}
+            return {"total": 0, "queued": 0, "submitted": 0, "completed": 0}
 
     def get_performance_metrics(self, days: int = 7) -> Dict[str, Any]:
         """Get performance metrics from tracking database."""
@@ -160,22 +165,18 @@ class BatchDashboard:
         }
 
     def get_scheduler_status(self) -> Dict[str, Any]:
-        """Get batch scheduler status."""
-        if not BatchScheduler:
+        """Get batch pipeline status from unified SQLite queue."""
+        if not BatchTaskQueue:
             return {"available": False}
 
         try:
-            scheduler = BatchScheduler()
-            pending = scheduler.get_pending_tasks()
-            submitted = scheduler.get_submitted_tasks()
-            completed = scheduler.get_completed_tasks(days=7)
+            queue = BatchTaskQueue()
+            pending_api = queue.get_pending_api_count()
 
             return {
                 "available": True,
-                "pending": len(pending),
-                "submitted": len(submitted),
-                "completed_7d": len(completed),
-                "next_submit": pending[0].submit_after.isoformat() if pending else None,
+                "pending_api_tasks": pending_api,
+                "pipeline": "unified_sqlite",
             }
         except Exception:
             return {"available": False}
@@ -222,10 +223,12 @@ class BatchDashboard:
         lines.append("-" * 70)
         lines.append("  LOCAL QUEUE STATUS")
         lines.append("-" * 70)
-        lines.append(f"  Total Jobs:    {local['total']}")
-        lines.append(f"  Queued:        {local.get('queued', 0)}")
+        lines.append(f"  Total Tasks:   {local['total']}")
+        lines.append(f"  Pending:       {local.get('queued', 0)}")
         lines.append(f"  Submitted:     {local.get('submitted', 0)}")
         lines.append(f"  Completed:     {local.get('completed', 0)}")
+        if local.get("failed", 0) > 0:
+            lines.append(f"  Failed:        {local.get('failed', 0)}")
         lines.append("")
 
         # === SCHEDULER ===
@@ -234,11 +237,8 @@ class BatchDashboard:
         lines.append("  BATCH SCHEDULER")
         lines.append("-" * 70)
         if scheduler.get("available"):
-            lines.append(f"  Pending Tasks:      {scheduler.get('pending', 0)}")
-            lines.append(f"  Processing:         {scheduler.get('submitted', 0)}")
-            lines.append(f"  Completed (7d):     {scheduler.get('completed_7d', 0)}")
-            if scheduler.get("next_submit"):
-                lines.append(f"  Next Submit:        {scheduler['next_submit']}")
+            lines.append(f"  Pipeline:           {scheduler.get('pipeline', 'unknown')}")
+            lines.append(f"  Pending API Tasks:  {scheduler.get('pending_api_tasks', 0)}")
         else:
             lines.append("  Scheduler not available")
         lines.append("")
@@ -289,8 +289,8 @@ class BatchDashboard:
 
         # Check queue status
         if local.get("queued", 0) > 0:
-            lines.append(f"  [!] {local['queued']} jobs waiting in queue")
-            lines.append("      Run: python batch/queue_manager.py to process")
+            lines.append(f"  [!] {local['queued']} tasks pending in queue")
+            lines.append("      Flywheel daemon auto-submits, or run submitter manually")
 
         lines.append("")
         lines.append("=" * 70)

@@ -136,11 +136,19 @@ def apply_code_changes(results: list, output_dir: Path):
         full_path.write_text(code)
 
         if existed:
-            modified_files.append(str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))))
-            log(f"  ✅ Modified: {full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))}")
+            modified_files.append(
+                str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))))
+            )
+            log(
+                f"  ✅ Modified: {full_path.relative_to(Path(os.environ.get('CORTEX_ROOT_DIR', str(Path.cwd()))))}"
+            )
         else:
-            created_files.append(str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))))
-            log(f"  ✅ Created: {full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))}")
+            created_files.append(
+                str(full_path.relative_to(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))))
+            )
+            log(
+                f"  ✅ Created: {full_path.relative_to(Path(os.environ.get('CORTEX_ROOT_DIR', str(Path.cwd()))))}"
+            )
 
     log(f"Applied changes: {len(created_files)} created, {len(modified_files)} modified")
 
