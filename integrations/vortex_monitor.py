@@ -78,7 +78,10 @@ class VortexForecastMonitor:
             enable_alerts: Whether to send alerts via alert manager
         """
         if vortex_data_dir is None:
-            vortex_data_dir = Path(__file__).parent.parent.parent / "Vortex" / "backend" / "data"
+            import os
+
+            root = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path(__file__).parent.parent.parent)))
+            vortex_data_dir = root / "Vortex" / "backend" / "data"
 
         self.vortex_data_dir = vortex_data_dir
         self.validation_dir = vortex_data_dir / "validation"
@@ -345,11 +348,7 @@ class VortexForecastMonitor:
         # Lazy-load alert manager
         if self._alert_manager is None:
             try:
-                import sys
-                from pathlib import Path
-
-                sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-                from cortex.notifications.alert_manager import AlertManager
+                from notifications.alert_manager import AlertManager
 
                 self._alert_manager = AlertManager()
             except ImportError as e:

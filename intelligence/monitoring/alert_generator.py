@@ -409,8 +409,10 @@ class AlertGenerator:
 
     def _find_project_dir(self, project: str) -> Optional[str]:
         """Find the directory for a project."""
-        # Common project locations
+        # Common project locations — check CORTEX_ROOT_DIR first
+        root = os.environ.get("CORTEX_ROOT_DIR", "")
         search_paths = [
+            os.path.join(root, project) if root else "",
             os.path.expanduser(f"~/Projects/{project}"),
             os.path.expanduser(f"~/Dev/{project}"),
             os.path.expanduser(f"~/{project}"),

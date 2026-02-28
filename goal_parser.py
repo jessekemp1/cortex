@@ -87,7 +87,10 @@ class GoalParser:
 
     def __init__(self, action_plan_path: Optional[Path] = None):
         if action_plan_path is None:
-            action_plan_path = Path("~/Dev/ACTION_PLAN.md").expanduser()
+            import os
+
+            root = Path(os.environ.get("CORTEX_ROOT_DIR", "."))
+            action_plan_path = root / "ACTION_PLAN.md"
         self.action_plan_path = action_plan_path
 
     def parse(self) -> List[Goal]:
@@ -329,7 +332,10 @@ class GoalParser:
             List of Goal objects
         """
         if goals_md_path is None:
-            goals_md_path = Path("~/Dev/GOALS.md").expanduser()
+            import os
+
+            root = Path(os.environ.get("CORTEX_ROOT_DIR", "."))
+            goals_md_path = root / "GOALS.md"
 
         if not goals_md_path.exists():
             return []
