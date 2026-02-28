@@ -1147,10 +1147,8 @@ def cmd_schedule(args):
             yaml_content = AgentFactory.create_team_config(intent=intent)
 
             # Write to Drop Zone
-            # Locate local-orchestrator relative to cortex (assuming sibling directories in Dev)
-            # cortex_dir is ~/Dev/cortex
-            dev_dir = cortex_dir.parent
-            drop_zone = dev_dir / "local-orchestrator" / "agents" / "dynamic"
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(cortex_dir.parent)))
+            drop_zone = root_dir / "local-orchestrator" / "agents" / "dynamic"
             drop_zone.mkdir(parents=True, exist_ok=True)
 
             # Generate filename
@@ -1772,8 +1770,8 @@ def cmd_dashboard(args):
         # Fallback: try adding local-orchestrator explicitly if not in path
         import sys
 
-        dev_dir = Path(__file__).parent.parent.parent  # .../Dev
-        lo_dir = dev_dir / "local-orchestrator"
+        root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path(__file__).parent.parent)))
+        lo_dir = root_dir / "local-orchestrator"
         if str(lo_dir) not in sys.path:
             sys.path.insert(0, str(lo_dir))
 
@@ -1793,8 +1791,8 @@ def cmd_dashboard(args):
         # If STORAGE_PATH is just a filename, assume it is in local-orchestrator
         if not Path(STORAGE_PATH).is_absolute():
             # Find local-orchestrator dir
-            # We added it to sys.path earlier, or check relative
-            lo_dir = Path(__file__).parent.parent / "local-orchestrator"
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path(__file__).parent.parent)))
+            lo_dir = root_dir / "local-orchestrator"
             db_path = str(lo_dir / STORAGE_PATH)
         else:
             db_path = STORAGE_PATH

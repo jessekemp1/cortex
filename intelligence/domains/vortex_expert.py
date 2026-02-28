@@ -9,6 +9,7 @@ Provides:
 - Forecast validation suggestions
 """
 
+import os
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -19,8 +20,8 @@ from intelligence.domains.base_expert import BaseDomainExpert, DomainInsight
 class VortexExpert(BaseDomainExpert):
     """Vortex backend marine weather forecasting domain expert."""
 
-    # Vortex backend project location
-    VORTEX_PATH = Path("~/Dev/Vortex/backend").expanduser()
+    # Vortex backend project location — resolved from CORTEX_ROOT_DIR or CWD
+    VORTEX_PATH = Path(os.environ.get("CORTEX_ROOT_DIR", ".")) / "Vortex" / "backend"
     DATA_PATH = VORTEX_PATH / "data"
 
     # Domain-specific keywords that trigger expertise
