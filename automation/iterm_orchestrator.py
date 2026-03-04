@@ -372,19 +372,9 @@ cxw() {
     echo "🧠 Workstream: $project:$phase"
 }
 
-# Quick trust check
+# Quick trust check — delegates to cortex/scripts/trust_status.py
 cxt() {
-    python3 -c "
-import sys; sys.path.insert(0, '$HOME/Dev/cortex')
-from engines.workstream_orchestrator import WorkstreamOrchestrator
-o = WorkstreamOrchestrator()
-summary = o.get_trust_summary()
-for domain, info in summary['domains'].items():
-    level_icons = ['🔴', '🟠', '🟡', '🟢', '💚']
-    icon = level_icons[info['level']]
-    print(f'  {icon} {domain:20s} L{info[\"level\"]} ({info[\"accuracy\"]*100:.0f}% acc, {info[\"outcomes\"]} outcomes)')
-print(f'\\n  📊 Avg trust: L{summary[\"aggregate\"][\"avg_trust_level\"]:.1f}')
-" 2>/dev/null || echo "  ⚠ Cortex not available"
+    python3 "$HOME/Dev/cortex/scripts/trust_status.py" "$@" 2>/dev/null || echo "  ⚠ Cortex not available"
 }
 
 # Initialize on shell start
