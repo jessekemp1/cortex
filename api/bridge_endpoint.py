@@ -255,7 +255,11 @@ async def service_health():
         except Exception:
             continue
     if vortex_frontend_port is None:
-        services["vortex_frontend"] = {"status": "offline", "port": 5173, "label": "Vortex UI (React)"}
+        services["vortex_frontend"] = {
+            "status": "offline",
+            "port": 5173,
+            "label": "Vortex UI (React)",
+        }
 
     # Check Alpha Arena (:8502)
     try:
@@ -277,7 +281,11 @@ async def service_health():
                     "label": "Alpha Arena (Streamlit)",
                 }
         except Exception:
-            services["alpha_arena"] = {"status": "offline", "port": 8502, "label": "Alpha Arena (Streamlit)"}
+            services["alpha_arena"] = {
+                "status": "offline",
+                "port": 8502,
+                "label": "Alpha Arena (Streamlit)",
+            }
 
     # Check Cortex Runtime API (:8003)
     try:
@@ -290,7 +298,11 @@ async def service_health():
                 "label": "Cortex Runtime API",
             }
     except Exception:
-        services["cortex_runtime"] = {"status": "offline", "port": 8003, "label": "Cortex Runtime API"}
+        services["cortex_runtime"] = {
+            "status": "offline",
+            "port": 8003,
+            "label": "Cortex Runtime API",
+        }
 
     # Check Mission Control site (:3001)
     try:
@@ -1068,7 +1080,8 @@ async def get_sessions(
 
             # Strip Claude project path prefix (format: -Users-<username>-<path>)
             import re
-            project_name = re.sub(r'^-Users-[^-]+-', '', project_dir.name).replace("-", "/")
+
+            project_name = re.sub(r"^-Users-[^-]+-", "", project_dir.name).replace("-", "/")
 
             for jsonl_file in project_dir.glob("*.jsonl"):
                 try:
@@ -1541,6 +1554,106 @@ async def guardian_recover(req: GuardianRecoverRequest) -> Dict[str, Any]:
         "bytes_restored": result.bytes_restored,
         "pre_recovery_snapshot": result.pre_recovery_snapshot_id,
     }
+
+
+# ============================================================================
+# Signal Bus Endpoint
+# ============================================================================
+
+
+class SignalAbsorbRequest(BaseModel):
+    """Request model for absorbing a workspace signal via HTTP."""
+
+    source: str = Field(..., description="Signal source: claude_code, iterm, git, manual, etc.")
+    project: str = Field(..., description="Project name")
+    workstream: str = Field(default="build", description="Work phase: build, plan, test, etc.")
+    content_type: str = Field(..., description="Content type: idea, decision, code, insight, error")
+    content: str = Field(..., description="Signal content")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence 0-1")
+    context: Dict[str, Any] = Field(default_factory=dict, description="Extra context")
+
+
+_signal_bus: Optional[Any] = None
+
+
+def get_signal_bus():
+    """Get or create the UniversalSignalBus instance."""
+    global _signal_bus
+    if _signal_bus is None:
+        try:
+            from cortex.engines.universal_signal_bus import UniversalSignalBus
+
+            _signal_bus = UniversalSignalBus()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to initialize signal bus: {e}")
+    return _signal_bus
+
+
+@app.post("/signal/absorb")
+async def absorb_signal(payload: SignalAbsorbRequest) -> Dict[str, Any]:
+    """
+    Absorb a workspace signal from any tool into the Universal Signal Bus.
+
+    Fan-out to WorkstreamOrchestrator, SynthesisCore, and bus event log.
+    Returns immediately — never blocks the caller.
+
+    Example:
+        POST /signal/absorb
+        {"source": "iterm", "project": "vortex", "content_type": "insight",
+         "content": "HRRR wins wind_speed at all lead times today"}
+    """
+    try:
+        from cortex.engines.workstream_orchestrator import (
+            SignalSource,
+            WorkspaceSignal,
+            WorkstreamPhase,
+        )
+
+        # Map string values to enums with safe fallback
+        try:
+            source_enum = SignalSource(payload.source)
+        except ValueError:
+            source_enum = SignalSource.MANUAL
+
+        try:
+            phase_enum = WorkstreamPhase(payload.workstream)
+        except ValueError:
+            phase_enum = WorkstreamPhase.BUILD
+
+        signal = WorkspaceSignal(
+            source=source_enum,
+            timestamp=datetime.now(),
+            project=payload.project,
+            workstream=phase_enum,
+            content_type=payload.content_type,
+            content=payload.content,
+            context=payload.context,
+            confidence=payload.confidence,
+        )
+
+        bus = get_signal_bus()
+        bus.absorb(signal)
+
+        return {
+            "status": "absorbed",
+            "signal_id": signal.signal_id,
+            "project": payload.project,
+            "source": payload.source,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/signal/bus-stats")
+async def get_bus_stats() -> Dict[str, Any]:
+    """Get Universal Signal Bus event log statistics."""
+    try:
+        bus = get_signal_bus()
+        return bus.get_bus_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================

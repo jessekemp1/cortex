@@ -129,4 +129,4 @@ Section 6: Open Questions and Future Work
 ## Contact
 
 Jesse Kemp — Independent Researcher
-Project: https://github.com/jesse-kemp_data/cortex (pending public launch Feb 28)
+Project: https://github.com/jessekemp1/cortex
