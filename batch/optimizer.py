@@ -473,10 +473,16 @@ Prioritize by impact and provide actionable recommendations.""",
                             )
                         )
 
+            # Resolve monorepo root — handle running from /Dev/ or /Dev/cortex/
+            if (self.root_dir / "cortex").is_dir():
+                mono_root = self.root_dir
+            else:
+                mono_root = self.root_dir.parent
+
             # Also check for projects with pytest markers
             for project_dir in ["Vortex/backend", "alpha_arena", "cortex"]:
-                full_path = self.root_dir / project_dir
-                if not full_path.exists():
+                full_path = mono_root / project_dir
+                if not full_path.is_dir():
                     continue
 
                 # Run quick pytest collect to see if tests exist
