@@ -98,6 +98,8 @@ Set `CORTEX_ROOT_DIR=/path/to/projects` to point Cortex at your workspace.
 
 ## Demo
 
+![Cortex terminal demo — briefing + intelligence query](docs/assets/demo.png)
+
 **The Compound Intelligence Effect: A realistic morning session**
 
 You open Claude Code to work on your FastAPI project. Last week you debugged a tricky circular import in the auth module. Two months ago you discovered that Redis connection pooling needs specific timeout settings for your use case. Without Cortex, Claude starts fresh — no memory of either lesson.
