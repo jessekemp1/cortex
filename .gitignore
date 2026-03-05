@@ -1,5 +1,7 @@
-# Internal analysis/audit reports — not for public OSS repo
+# Internal analysis/audit reports and archived internal docs — not for public OSS repo
 analysis/reports/
+archive/
+docs/archive/
 
 # Personal archive and private strategy docs
 _dead/
