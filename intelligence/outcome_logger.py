@@ -173,6 +173,137 @@ def log_task_completion(
     )
 
 
+def compare_model_performance(
+    task_type: Optional[str] = None,
+    project: Optional[str] = None,
+    min_samples: int = 3,
+) -> dict:
+    """
+    Compare model performance across task types and projects.
+
+    Closes the cross-model intelligence gap: answers "which model
+    performs best for this type of work in this project?"
+
+    Args:
+        task_type: Filter by task type (optional)
+        project: Filter by project (optional)
+        min_samples: Minimum samples to include a model (default: 3)
+
+    Returns:
+        Dict with model comparison data:
+        {
+            "by_model": {"sonnet": {"success_rate": 0.85, ...}},
+            "by_task_type": {"bug_fix": {"best_model": "opus", ...}},
+            "recommendation": "For bug_fix tasks, opus has 92% success rate"
+        }
+    """
+    if not STORAGE_AVAILABLE:
+        return {"error": "Storage not available"}
+
+    try:
+        storage = get_storage()
+        outcome_entries = storage.load_model_outcomes(days=90, task_type=task_type)
+
+        # Filter by project if specified
+        if project:
+            outcome_entries = [e for e in outcome_entries if e.project_name == project]
+
+        if not outcome_entries:
+            return {"error": "No outcome data yet", "by_model": {}, "by_task_type": {}}
+
+        # Aggregate by model
+        by_model: dict = {}
+        for e in outcome_entries:
+            model = e.model_used
+            if model not in by_model:
+                by_model[model] = {
+                    "total": 0,
+                    "success": 0,
+                    "partial": 0,
+                    "failed": 0,
+                    "total_tokens": 0,
+                    "total_time": 0.0,
+                    "total_cost": 0.0,
+                }
+            stats = by_model[model]
+            stats["total"] += 1
+            outcome = e.outcome
+            if outcome in stats:
+                stats[outcome] += 1
+            stats["total_tokens"] += e.tokens_used
+            stats["total_time"] += e.time_seconds
+            stats["total_cost"] += e.estimated_cost_usd
+
+        # Calculate rates
+        for model, stats in by_model.items():
+            total = stats["total"]
+            if total > 0:
+                stats["success_rate"] = round(stats["success"] / total, 3)
+                stats["avg_tokens"] = int(stats["total_tokens"] / total)
+                stats["avg_time_s"] = round(stats["total_time"] / total, 1)
+                stats["avg_cost_usd"] = round(stats["total_cost"] / total, 4)
+
+        # Filter by min_samples
+        by_model = {m: s for m, s in by_model.items() if s["total"] >= min_samples}
+
+        # Aggregate by task type
+        by_task: dict = {}
+        for e in outcome_entries:
+            tt = e.task_type
+            model = e.model_used
+            outcome = e.outcome
+
+            if tt not in by_task:
+                by_task[tt] = {}
+            if model not in by_task[tt]:
+                by_task[tt][model] = {"total": 0, "success": 0}
+
+            by_task[tt][model]["total"] += 1
+            if outcome == "success":
+                by_task[tt][model]["success"] += 1
+
+        # Find best model per task type
+        by_task_summary = {}
+        for tt, models in by_task.items():
+            best_model = None
+            best_rate = -1.0
+            for model, stats in models.items():
+                if stats["total"] >= min_samples:
+                    rate = stats["success"] / stats["total"]
+                    if rate > best_rate:
+                        best_rate = rate
+                        best_model = model
+            if best_model:
+                by_task_summary[tt] = {
+                    "best_model": best_model,
+                    "success_rate": round(best_rate, 3),
+                    "samples": models[best_model]["total"],
+                    "all_models": {
+                        m: round(s["success"] / s["total"], 3)
+                        for m, s in models.items()
+                        if s["total"] >= min_samples
+                    },
+                }
+
+        # Generate recommendation
+        recommendations = []
+        for tt, summary in by_task_summary.items():
+            rate_pct = int(summary["success_rate"] * 100)
+            recommendations.append(
+                f"For {tt}: {summary['best_model']} ({rate_pct}% success, n={summary['samples']})"
+            )
+
+        return {
+            "by_model": by_model,
+            "by_task_type": by_task_summary,
+            "recommendations": recommendations,
+            "total_outcomes": len(outcome_entries),
+        }
+
+    except Exception as e:
+        return {"error": str(e), "by_model": {}, "by_task_type": {}}
+
+
 # Example usage (for documentation)
 if __name__ == "__main__":
     # Example 1: Simple logging

@@ -258,9 +258,11 @@ class ContextInjector:
             context.warnings.extend(profile.warnings[:2])
 
     def _add_patterns(self, context: InjectionContext, task: str, project: str):
-        """Add pattern hints to context."""
+        """Add pattern hints to context, including seed anti-pattern warnings."""
+        # Always try seed pattern matching (fast, no external dependencies)
+        self._add_seed_warnings(context, task)
+
         if not task:
-            # No task provided, skip pattern search
             return
 
         if self._pattern_memory is None:
@@ -268,7 +270,6 @@ class ContextInjector:
 
         # Check if pattern memory has patterns loaded
         if not self._pattern_memory.searcher:
-            # No patterns available, skip
             return
 
         try:
@@ -278,13 +279,26 @@ class ContextInjector:
 
             if similar and len(similar) > 0:
                 top = similar[0]
-                # Format pattern hint more compactly
                 hint = f"Similar to {top.project}: {top.title[:50]}"
                 if len(hint) > 70:
                     hint = hint[:67] + "..."
                 context.pattern_hint = hint
         except Exception:
-            # Graceful degradation - if pattern search fails, continue without it
+            pass
+
+    def _add_seed_warnings(self, context: InjectionContext, task: str):
+        """Match seed anti-patterns against current task context."""
+        try:
+            from intelligence.memory.seed_patterns import match_seed_patterns
+
+            matches = match_seed_patterns(task, min_confidence=0.7)
+            if matches:
+                top = matches[0]
+                # Add as a warning (highest priority in context output)
+                warning = f"{top.name}: {top.intervention[:80]}"
+                if warning not in context.warnings:
+                    context.warnings.append(warning)
+        except ImportError:
             pass
 
     def _add_domain_insight(self, context: InjectionContext, cwd: Path, task: str, project: str):

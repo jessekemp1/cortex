@@ -402,14 +402,50 @@ class PatternIndexer:
         metadata_file = self.cache_dir / "metadata.json"
         metadata_file.write_text(json.dumps(metadata, indent=2))
 
-    def load_patterns(self) -> List[Pattern]:
-        """Load patterns from cache."""
+    def load_patterns(self, include_seeds: bool = True) -> List[Pattern]:
+        """Load patterns from cache, with seed pattern fallback for cold start.
+
+        When no user-learned patterns exist yet, seed patterns provide
+        immediate value on fresh install. User patterns always take priority.
+        """
         cache_file = self.cache_dir / "patterns.json"
-        if not cache_file.exists():
+        if cache_file.exists():
+            data = json.loads(cache_file.read_text())
+            patterns = [Pattern.from_dict(p) for p in data]
+            if patterns:
+                return patterns
+
+        # Cold start: load seed patterns for immediate value
+        if include_seeds:
+            return self._load_seed_patterns()
+
+        return []
+
+    @staticmethod
+    def _load_seed_patterns() -> List[Pattern]:
+        """Convert seed anti-patterns to Pattern objects for cold-start search."""
+        try:
+            from intelligence.memory.seed_patterns import get_seed_patterns
+        except ImportError:
             return []
 
-        data = json.loads(cache_file.read_text())
-        return [Pattern.from_dict(p) for p in data]
+        seed_patterns = []
+        now = datetime.now()
+        for seed in get_seed_patterns():
+            seed_patterns.append(
+                Pattern(
+                    id=seed.id,
+                    project="cortex-seeds",
+                    commit_hash="seed",
+                    commit_date=now,
+                    title=seed.name,
+                    description=f"{seed.description} | {seed.intervention}",
+                    files_changed=[],
+                    keywords=set(seed.keywords),
+                    pattern_type=seed.category,
+                )
+            )
+        return seed_patterns
 
 
 class PatternSearcher:
