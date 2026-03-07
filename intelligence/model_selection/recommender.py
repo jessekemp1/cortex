@@ -24,13 +24,15 @@ class ContextAwareModelRecommender:
     Intelligent model recommender with context awareness.
 
     Key innovation: Considers orchestration context (budget, time, priority)
-    not just task characteristics.
+    not just task characteristics. When historical outcome data is available,
+    learned performance overrides rule-based defaults.
     """
 
     def __init__(self):
         self.classifier = TaskComplexityClassifier()
         self.rule_recommender = RuleBasedRecommender()
-        # Note: ModelPerformanceLearner will be added in Week 2
+        self._perf_cache: dict | None = None
+        self._perf_cache_age: float = 0
 
     def recommend(
         self,
@@ -54,13 +56,106 @@ class ContextAwareModelRecommender:
             task_description, {"files": context.files, "project": context.project}
         )
 
-        # 2. Get base recommendation (from rules for now, learner in Week 2)
+        # 2. Get base recommendation from rules
         base_rec = self.rule_recommender.recommend(task_type, complexity, {})
 
-        # 3. Apply context adjustments (KEY DIFFERENTIATION)
-        adjusted_rec = self._apply_context_adjustments(base_rec, context, complexity)
+        # 3. Override with learned performance data if available
+        learned_rec = self._apply_learned_override(base_rec, task_type, context.project)
+
+        # 4. Apply context adjustments (budget/time/priority)
+        adjusted_rec = self._apply_context_adjustments(learned_rec, context, complexity)
 
         return adjusted_rec
+
+    def _apply_learned_override(
+        self,
+        rec: ModelRecommendation,
+        task_type: str,
+        project: str,
+    ) -> ModelRecommendation:
+        """
+        Override rule-based recommendation with learned performance data.
+
+        Only overrides when historical data shows a statistically meaningful
+        difference (min 3 samples, >10% success rate improvement).
+        """
+        try:
+            from intelligence.outcome_logger import compare_model_performance
+        except ImportError:
+            return rec
+
+        perf = self._get_perf_data(task_type, project)
+        if not perf or "error" in perf or not perf.get("by_task_type"):
+            return rec
+
+        task_data = perf["by_task_type"].get(task_type)
+        if not task_data or not task_data.get("best_model"):
+            return rec
+
+        best_model = task_data["best_model"]
+        best_rate = task_data["success_rate"]
+        samples = task_data["samples"]
+
+        # Only override if learned model differs and has meaningfully better data
+        if best_model == rec.model:
+            # Same model — just enrich with historical data
+            return ModelRecommendation(
+                model=rec.model,
+                confidence=min(0.95, rec.confidence + 0.15),
+                reasoning=rec.reasoning
+                + f"\n[LEARNED] Confirmed by {samples} outcomes ({best_rate:.0%} success)",
+                estimated_success_rate=best_rate,
+                estimated_tokens=rec.estimated_tokens,
+                estimated_cost_usd=rec.estimated_cost_usd,
+                similar_tasks_count=samples,
+                historical_success_rate=best_rate,
+                alternatives=rec.alternatives,
+            )
+
+        # Different model — override if improvement is significant
+        all_models = task_data.get("all_models", {})
+        current_rate = all_models.get(rec.model, 0.0)
+
+        if best_rate - current_rate < 0.10:
+            # Less than 10% improvement — not worth overriding
+            return rec
+
+        return ModelRecommendation(
+            model=best_model,
+            confidence=min(0.90, 0.7 + (samples / 50)),  # Confidence grows with data
+            reasoning=(
+                f"[LEARNED] Overriding {rec.model}→{best_model} for {task_type}: "
+                f"{best_rate:.0%} success (n={samples}) vs {current_rate:.0%} for {rec.model}"
+            ),
+            estimated_success_rate=best_rate,
+            estimated_tokens=rec.estimated_tokens,
+            estimated_cost_usd=rec.estimated_cost_usd
+            * self._cost_multiplier(rec.model, best_model),
+            similar_tasks_count=samples,
+            historical_success_rate=best_rate,
+            alternatives=rec.alternatives,
+        )
+
+    def _get_perf_data(self, task_type: str, project: str) -> dict | None:
+        """Get performance data with simple time-based caching (60s TTL)."""
+        import time
+
+        now = time.time()
+        if self._perf_cache is not None and (now - self._perf_cache_age) < 60:
+            return self._perf_cache
+
+        try:
+            from intelligence.outcome_logger import compare_model_performance
+
+            self._perf_cache = compare_model_performance(
+                task_type=task_type,
+                project=project if project else None,
+                min_samples=3,
+            )
+            self._perf_cache_age = now
+            return self._perf_cache
+        except Exception:
+            return None
 
     def _apply_context_adjustments(
         self,
