@@ -10,14 +10,13 @@ function HeroSection() {
         </div>
 
         <h1 className="text-5xl md:text-6xl font-bold text-cortex-text-primary mb-6 leading-tight">
-          Your AI is brilliant.
-          <br />
-          It just has
-          <span className="text-cortex-cyan"> no memory.</span>
+          Your AI should
+          <span className="text-cortex-cyan"> know you </span>
+          by now.
         </h1>
 
         <p className="text-xl text-cortex-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">
-          Opus can reason about anything — but it can't remember last Tuesday.
+          Every session starts from zero. Same questions, same mistakes, same context re-explained.
           Cortex gives your AI agent persistent memory, cross-session learning,
           and the ability to get better at helping <em>you</em> over time.
         </p>
