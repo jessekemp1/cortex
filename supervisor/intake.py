@@ -24,14 +24,21 @@ log = logging.getLogger(__name__)
 
 # Keywords that map to task_type
 _TYPE_KEYWORDS: Dict[str, list[str]] = {
+    # Opus-tier task types (high complexity)
+    "architecture": ["architect", "architecture", "design system", "redesign", "migrate"],
+    "security": ["security", "vulnerability", "cve", "auth", "encryption", "xss", "injection"],
+    "planning": ["plan", "spec", "specification", "rfc", "proposal", "strategy"],
+    # Sonnet-tier task types (medium complexity)
     "test": ["test", "tests", "testing", "coverage", "assert"],
     "fix": ["fix", "bug", "broken", "error", "crash", "regression"],
-    "deploy": ["deploy", "ship", "release", "production", "merge"],
     "research": ["research", "investigate", "explore", "spike", "evaluate"],
     "refactor": ["refactor", "clean", "simplify", "extract", "rename"],
-    "feature": ["add", "implement", "create", "build", "wire", "integrate"],
     "review": ["review", "audit", "check", "verify", "validate"],
+    "feature": ["add", "implement", "create", "build", "wire", "integrate"],
+    # Haiku-tier task types (low complexity)
+    "deploy": ["deploy", "ship", "release", "production", "merge"],
     "docs": ["doc", "docs", "document", "readme", "guide"],
+    "classify": ["classify", "triage", "categorize", "tag", "label", "sort"],
 }
 
 _TASKBOARD_PATH = Path.home() / ".cortex" / "taskboard.json"

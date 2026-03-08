@@ -69,6 +69,8 @@ class RoutedTask:
     target: TaskTarget
     priority: str
     estimated_tokens: int = 0
+    model: Optional[str] = None  # Model tier assigned by router ("opus", "sonnet", "haiku")
+    model_id: Optional[str] = None  # Full model ID (e.g. "claude-opus-4-6")
 
     def as_shell_task(self) -> Dict[str, Any]:
         """Convert to BatchTaskQueue.add_task() kwargs."""
@@ -97,6 +99,25 @@ class RoutedTask:
 
 
 @dataclass
+class TaskResult:
+    """Canonical result of a dispatched task (model-layer equivalent of DispatchResult)."""
+
+    work_item_id: str
+    success: bool
+    output: str = ""
+    model_used: str = ""  # Full model ID
+    model_tier: str = ""  # "opus", "sonnet", "haiku"
+    tokens_used: int = 0
+    duration_seconds: float = 0.0
+    error: Optional[str] = None
+
+    @property
+    def quality_score(self) -> float:
+        """Simple binary quality score (1.0 if success, 0.0 otherwise)."""
+        return 1.0 if self.success else 0.0
+
+
+@dataclass
 class TickResult:
     """Result of a single supervisor tick."""
 
@@ -111,11 +132,15 @@ class TickResult:
     shell_tasks_completed: int = 0
     shell_task_ids: List[str] = field(default_factory=list)
 
-    # AI batching
+    # AI batching / orchestration
     ai_tasks_queued: int = 0
+    ai_tasks_dispatched: int = 0
+    ai_tasks_succeeded: int = 0
+    ai_tasks_failed: int = 0
     ai_batch_submitted: bool = False
     ai_batch_id: Optional[str] = None
     ai_results_received: int = 0
+    orchestration_errors: List[str] = field(default_factory=list)
 
     # Health
     tasks_healed: int = 0
@@ -133,9 +158,13 @@ class TickResult:
             "shell_tasks_completed": self.shell_tasks_completed,
             "shell_task_ids": self.shell_task_ids,
             "ai_tasks_queued": self.ai_tasks_queued,
+            "ai_tasks_dispatched": self.ai_tasks_dispatched,
+            "ai_tasks_succeeded": self.ai_tasks_succeeded,
+            "ai_tasks_failed": self.ai_tasks_failed,
             "ai_batch_submitted": self.ai_batch_submitted,
             "ai_batch_id": self.ai_batch_id,
             "ai_results_received": self.ai_results_received,
+            "orchestration_errors": self.orchestration_errors,
             "tasks_healed": self.tasks_healed,
             "healed_task_ids": self.healed_task_ids,
             "errors": self.errors,
@@ -148,6 +177,12 @@ class TickResult:
             parts.append(f"discovered={self.work_discovered}")
         if self.shell_tasks_started:
             parts.append(f"shell_started={self.shell_tasks_started}")
+        if self.ai_tasks_dispatched:
+            parts.append(f"dispatched={self.ai_tasks_dispatched}")
+        if self.ai_tasks_succeeded:
+            parts.append(f"succeeded={self.ai_tasks_succeeded}")
+        if self.ai_tasks_failed:
+            parts.append(f"failed={self.ai_tasks_failed}")
         if self.tasks_healed:
             parts.append(f"healed={self.tasks_healed}")
         if self.ai_batch_submitted:

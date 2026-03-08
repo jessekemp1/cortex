@@ -174,19 +174,20 @@ class TestAgentDispatcher:
     def test_build_system_prompt_default(self, dispatcher, work_item):
         work_item.system_prompt = None
         sys_prompt = dispatcher._build_system_prompt(work_item)
-        assert "execution agent" in sys_prompt
-        assert "test" in sys_prompt
+        # Agent profiles are used when task_type matches a registered agent
         assert "vortex" in sys_prompt
+        # "test" task_type matches test_engineer agent profile
+        assert "test" in sys_prompt.lower()
 
     def test_build_system_prompt_custom(self, dispatcher, work_item):
         work_item.system_prompt = "You are a specialized tester."
         sys_prompt = dispatcher._build_system_prompt(work_item)
         assert sys_prompt == "You are a specialized tester."
 
-    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    @patch("cortex.supervisor.dispatch.ANTHROPIC_SDK_AVAILABLE", False)
     def test_dispatch_uses_direct_api_fallback(self, dispatcher, work_item, model_selection):
         """When Agent SDK unavailable, falls back to direct API."""
-        with patch.object(dispatcher, "_run_direct", new_callable=AsyncMock) as mock_run:
+        with patch.object(dispatcher, "_run_dispatch", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = ("Test output", 500)
             result = dispatcher.dispatch(work_item, model_selection)
 
@@ -195,14 +196,14 @@ class TestAgentDispatcher:
         assert result.tokens_used == 500
         assert result.model_used == "claude-sonnet-4-6"
 
-    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    @patch("cortex.supervisor.dispatch.ANTHROPIC_SDK_AVAILABLE", False)
     def test_dispatch_handles_api_error(self, dispatcher, work_item, model_selection):
         """API errors are caught and returned as failed results."""
 
         async def fail(*args, **kwargs):
             raise RuntimeError("API key invalid")
 
-        with patch.object(dispatcher, "_run_direct", side_effect=fail):
+        with patch.object(dispatcher, "_run_dispatch", side_effect=fail):
             result = dispatcher.dispatch(work_item, model_selection)
 
         assert result.success is False
@@ -314,7 +315,7 @@ class TestTierFromModelId:
 class TestSupervisorOrchestrate:
     """Test the full pipeline: discover -> route -> dispatch -> collect."""
 
-    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    @patch("cortex.supervisor.dispatch.ANTHROPIC_SDK_AVAILABLE", False)
     def test_orchestrate_with_work_items(self):
         """orchestrate() with explicit work items routes and dispatches them."""
         from supervisor.core import CortexSupervisor
@@ -400,7 +401,17 @@ class TestSupervisorOrchestrate:
 
         with (
             patch.object(supervisor, "_discover_work", return_value=mock_items),
-            patch.object(supervisor, "_dispatch_work_items", return_value=1),
+            patch.object(
+                supervisor,
+                "_dispatch_work_items",
+                return_value={
+                    "queued": 1,
+                    "dispatched": 1,
+                    "succeeded": 1,
+                    "failed": 0,
+                    "errors": [],
+                },
+            ),
         ):
             result = supervisor.tick()
 
@@ -420,3 +431,180 @@ class TestSupervisorOrchestrate:
 
         result = supervisor.tick()
         assert result.work_discovered == 0
+
+
+# ── Quality Estimator Tests ──
+
+
+class TestEstimateQuality:
+    """Test heuristic quality scoring for dispatch results."""
+
+    def _make_result(self, success=True, output=""):
+        return DispatchResult(
+            work_item_id="wi_test",
+            success=success,
+            output=output,
+            model_used="claude-sonnet-4-6",
+            tokens_used=100,
+            duration_seconds=1.0,
+        )
+
+    def test_failed_result_scores_zero(self):
+        from supervisor.core import _estimate_quality
+
+        result = self._make_result(success=False, output="Error occurred")
+        assert _estimate_quality(result) == 0.0
+
+    def test_short_output_scores_low(self):
+        from supervisor.core import _estimate_quality
+
+        result = self._make_result(output="OK")
+        assert _estimate_quality(result) == 0.2
+
+    def test_refusal_output_scores_low(self):
+        from supervisor.core import _estimate_quality
+
+        result = self._make_result(
+            output="I cannot complete this task. Please provide more context and clarification."
+        )
+        assert _estimate_quality(result) == 0.3
+
+    def test_structured_output_scores_high(self):
+        from supervisor.core import _estimate_quality
+
+        output = """# Analysis Report
+
+## Findings
+
+```python
+def fix_bug():
+    return True
+```
+
+| Metric | Value |
+|--------|-------|
+| Tests  | 42    |
+"""
+        result = self._make_result(output=output)
+        assert _estimate_quality(result) == 0.9
+
+    def test_moderate_output_scores_medium(self):
+        from supervisor.core import _estimate_quality
+
+        result = self._make_result(
+            output="The authentication module has a race condition in the token refresh logic. "
+            "When two requests arrive simultaneously, both attempt to refresh the token."
+        )
+        assert _estimate_quality(result) == 0.6
+
+    def test_output_with_one_structured_signal(self):
+        from supervisor.core import _estimate_quality
+
+        result = self._make_result(output="Here is the fix:\n```python\nprint('hello')\n```")
+        assert _estimate_quality(result) == 0.7
+
+
+# ── Routing Integration Tests ──
+
+
+class TestRoutingIntegration:
+    """Test that task types from intake correctly route to expected model tiers."""
+
+    def test_architecture_routes_to_opus(self):
+        from supervisor.intake import _infer_task_type
+        from supervisor.router import ModelRouter
+
+        task_type = _infer_task_type("Redesign the authentication architecture")
+        assert task_type == "architecture"
+
+        router = ModelRouter(outcomes_path=Path("/dev/null"))
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type=task_type,
+            description="Redesign the authentication architecture",
+            priority=WorkItemPriority.HIGH,
+        )
+        selection = router.select_model(item)
+        assert selection.model_tier == "opus"
+
+    def test_security_routes_to_opus(self):
+        from supervisor.intake import _infer_task_type
+        from supervisor.router import ModelRouter
+
+        task_type = _infer_task_type("Audit security vulnerabilities in API endpoints")
+        assert task_type == "security"
+
+        router = ModelRouter(outcomes_path=Path("/dev/null"))
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type=task_type,
+            description="Audit security vulnerabilities",
+            priority=WorkItemPriority.HIGH,
+        )
+        selection = router.select_model(item)
+        assert selection.model_tier == "opus"
+
+    def test_classify_routes_to_haiku(self):
+        from supervisor.intake import _infer_task_type
+        from supervisor.router import ModelRouter
+
+        task_type = _infer_task_type("Classify and triage incoming support tickets")
+        assert task_type == "classify"
+
+        router = ModelRouter(outcomes_path=Path("/dev/null"))
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type=task_type,
+            description="Classify and triage incoming support tickets",
+            priority=WorkItemPriority.LOW,
+        )
+        selection = router.select_model(item)
+        assert selection.model_tier == "haiku"
+
+    def test_test_routes_to_sonnet(self):
+        from supervisor.intake import _infer_task_type
+        from supervisor.router import ModelRouter
+
+        task_type = _infer_task_type("Write unit tests for the payment module")
+        assert task_type == "test"
+
+        router = ModelRouter(outcomes_path=Path("/dev/null"))
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type=task_type,
+            description="Write unit tests for the payment module",
+            priority=WorkItemPriority.MEDIUM,
+        )
+        selection = router.select_model(item)
+        assert selection.model_tier == "sonnet"
+
+    def test_agent_profile_used_in_dispatch(self):
+        """Dispatcher uses agent profiles for system prompts when available."""
+        dispatcher = AgentDispatcher()
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type="test",
+            description="Write tests",
+            project="vortex",
+        )
+        prompt = dispatcher._build_system_prompt(item)
+        # Should use test_engineer agent profile, not generic
+        assert "test engineer" in prompt.lower()
+        assert "vortex" in prompt
+
+    def test_generic_task_type_gets_fallback_prompt(self):
+        """Unmatched task types get the generic system prompt."""
+        dispatcher = AgentDispatcher()
+        item = WorkItem(
+            id="wi_test",
+            source="test",
+            task_type="unknown_type",
+            description="Do something unusual",
+        )
+        prompt = dispatcher._build_system_prompt(item)
+        assert "execution agent" in prompt
