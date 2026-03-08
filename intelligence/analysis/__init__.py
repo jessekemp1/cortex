@@ -4,7 +4,7 @@ Layer 1: Project Analysis
 Deep analysis of project structure, tech stack, and health.
 """
 
-from intelligence.analysis.project_profiler import (
+from cortex.intelligence.analysis.project_profiler import (
     CriticalFile,
     ProjectProfile,
     ProjectProfiler,

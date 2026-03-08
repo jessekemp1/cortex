@@ -1329,7 +1329,9 @@ class TestBatchDispatch:
     """Tests for AgentDispatcher.submit_batch() and retrieve_batch()."""
 
     def _make_items(self, count=3):
-        """Create test (WorkItem, ModelSelection) tuples."""
+        """Create test (WorkItem, ModelAssignment) tuples."""
+        from supervisor.router import ModelAssignment
+
         items = []
         for i in range(count):
             wi = WorkItem(
@@ -1340,12 +1342,10 @@ class TestBatchDispatch:
                 prompt=f"Analyze topic {i}",
                 project="cortex",
             )
-            ms = DispatchModelSelection(
-                model_tier="sonnet",
-                model_id="claude-sonnet-4-20250514",
-                reasoning="batch test",
-                complexity_score=0.5,
+            ms = ModelAssignment(
+                model="sonnet",
                 confidence=0.8,
+                rationale="batch test",
             )
             items.append((wi, ms))
         return items
@@ -1375,7 +1375,7 @@ class TestBatchDispatch:
 
         req0 = requests[0]
         assert req0["custom_id"] == "batch-item-0"
-        assert req0["params"]["model"] == "claude-sonnet-4-20250514"
+        assert req0["params"]["model"] == "claude-sonnet-4-6"
         assert req0["params"]["max_tokens"] == 4096
         assert req0["params"]["messages"][0]["role"] == "user"
         assert "Analyze topic 0" in req0["params"]["messages"][0]["content"]
@@ -1406,7 +1406,7 @@ class TestBatchDispatch:
         assert meta["request_count"] == 2
         assert len(meta["items"]) == 2
         assert meta["items"][0]["work_item_id"] == "batch-item-0"
-        assert meta["items"][0]["model_tier"] == "sonnet"
+        assert meta["items"][0]["model_id"] == "sonnet"
 
     def test_submit_batch_empty_raises(self):
         """submit_batch() with empty list raises ValueError."""

@@ -105,7 +105,7 @@ _MAX_READ_SIZE = 100_000  # Max file read size in bytes
 
 # Re-export ModelSelection from router to maintain backwards compatibility.
 # Previously duplicated here; now single source of truth in router.py.
-from cortex.supervisor.router import ModelSelection  # noqa: E402
+from cortex.supervisor.router import ModelAssignment, ModelSelection, _MODEL_MAP  # noqa: E402
 
 
 @dataclass
@@ -274,7 +274,7 @@ class AgentDispatcher:
 
     def submit_batch(
         self,
-        items: list[tuple[WorkItem, ModelSelection]],
+        items: list[tuple[WorkItem, ModelAssignment]],
     ) -> str:
         """Submit work items as an Anthropic Message Batch for 50% cost savings.
 
@@ -296,7 +296,7 @@ class AgentDispatcher:
                 {
                     "custom_id": work_item.id,
                     "params": {
-                        "model": model_selection.model_id,
+                        "model": _MODEL_MAP.get(model_selection.model, model_selection.model),
                         "max_tokens": 4096,
                         "system": system_prompt,
                         "messages": [{"role": "user", "content": prompt}],
@@ -321,8 +321,8 @@ class AgentDispatcher:
                 {
                     "work_item_id": wi.id,
                     "task_type": wi.task_type,
-                    "model_id": ms.model_id,
-                    "model_tier": ms.model_tier,
+                    "model_id": ms.model,
+                    "model_tier": ms.model,
                 }
                 for wi, ms in items
             ],
