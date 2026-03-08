@@ -298,6 +298,7 @@ def cortex_orchestrate(
     project: str = "",
     priority: str = "medium",
     dry_run: bool = False,
+    max_items: int = 0,
 ) -> str:
     """Orchestrate work: discover tasks from GOALS.md/taskboard, route to optimal models, and dispatch.
 
@@ -309,6 +310,7 @@ def cortex_orchestrate(
         project: Optional project filter (vortex, cortex, etc.).
         priority: Priority level (critical/high/medium/low). Default: medium.
         dry_run: If true, discover and route but don't dispatch. Shows what would happen.
+        max_items: Limit number of items to process (0 = unlimited).
     """
     import sys
     from pathlib import Path
@@ -319,58 +321,25 @@ def cortex_orchestrate(
         sys.path.insert(0, str(cortex_dir))
 
     try:
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
         from supervisor.intake import WorkIntake
-        from supervisor.router import ModelRouter
 
+        config = SupervisorConfig(dry_run=dry_run)
+        supervisor = CortexSupervisor(config=config)
         intake = WorkIntake()
-        router = ModelRouter()
 
         if task:
-            # Single task mode
             work_items = [intake.from_cli(task, project=project, priority=priority)]
         else:
-            # Discovery mode
             work_items = intake.discover_all()
             if project:
                 work_items = [wi for wi in work_items if wi.project == project]
 
-        if not work_items:
-            return json.dumps({"status": "no_work", "message": "No pending work items found"})
+        if max_items:
+            work_items = work_items[:max_items]
 
-        # Route all items
-        routed = []
-        for wi in work_items:
-            selection = router.select_model(wi)
-            routed.append(
-                {
-                    "id": wi.id,
-                    "description": wi.description[:80],
-                    "task_type": wi.task_type,
-                    "project": wi.project,
-                    "priority": wi.priority.value,
-                    "model": selection.model_tier,
-                    "model_id": selection.model_id,
-                    "complexity": round(selection.complexity_score, 2),
-                    "confidence": round(selection.confidence, 2),
-                }
-            )
-
-        if dry_run:
-            return json.dumps(
-                {
-                    "status": "dry_run",
-                    "items_found": len(routed),
-                    "routing_plan": routed,
-                },
-                indent=2,
-            )
-
-        # Dispatch via supervisor
-        from supervisor.core import CortexSupervisor
-
-        supervisor = CortexSupervisor()
-        result = supervisor.orchestrate(work_items)
-        result["routing_plan"] = routed
+        result = supervisor.orchestrate(work_items if work_items else None)
         return json.dumps(result, indent=2)
 
     except Exception as e:
