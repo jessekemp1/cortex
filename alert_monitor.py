@@ -28,12 +28,16 @@ CONSECUTIVE_FILE = CORTEX_DIR / "alert_consecutive.json"
 SERVICES = [
     ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
     ("winfield", "http://127.0.0.1:8002/api/v1/health"),
+    ("navigator", "http://127.0.0.1:8000/api/v2/navigator/health"),
     ("cortex-site", "http://127.0.0.1:3001/"),
     ("cortex-bridge", "http://127.0.0.1:8765/health"),
 ]
 
-# Alert only after 2 consecutive failures (avoids transient noise)
+# Per-service consecutive failure thresholds (default: 2)
 CONSECUTIVE_THRESHOLD = 2
+CONSECUTIVE_THRESHOLDS = {
+    "navigator": 3,  # Navigator has external API deps (Open-Meteo) — allow more retries
+}
 
 # Test regression threshold: alert if any project drops > 2%
 TEST_REGRESSION_PCT = 0.02
@@ -80,13 +84,32 @@ def _append_alert(alert: dict):
         pass
 
 
-def check_service(name: str, url: str) -> bool:
-    """Return True if service is healthy (HTTP 200 within 3s)."""
+def check_service(name: str, url: str) -> tuple[bool, str]:
+    """Return (healthy, status_detail) for a service.
+
+    For Navigator, parses the JSON response to detect degraded status
+    (subsystem failures) even when the HTTP response is 200.
+    """
     try:
         with urllib.request.urlopen(url, timeout=3) as resp:
-            return resp.status == 200
+            if resp.status != 200:
+                return False, "http_error"
+            # Navigator returns structured health with subsystem checks
+            if name == "navigator":
+                data = json.loads(resp.read())
+                status = data.get("status", "unknown")
+                if status == "healthy":
+                    return True, "healthy"
+                # "degraded" or "unhealthy" — report which subsystems failed
+                failed = [
+                    k
+                    for k, v in data.get("checks", {}).items()
+                    if isinstance(v, dict) and v.get("status") != "ok"
+                ]
+                return False, f"{status}:{','.join(failed)}" if failed else status
+            return True, "healthy"
     except Exception:
-        return False
+        return False, "unreachable"
 
 
 def check_services() -> list[dict]:
@@ -98,14 +121,18 @@ def check_services() -> list[dict]:
     for name, url in SERVICES:
         if _is_silenced(name):
             continue
-        healthy = check_service(name, url)
+        healthy, detail = check_service(name, url)
+        threshold = CONSECUTIVE_THRESHOLDS.get(name, CONSECUTIVE_THRESHOLD)
 
         if healthy:
             # Reset consecutive failure counter
             consec[name] = 0
         else:
             consec[name] = consec.get(name, 0) + 1
-            if consec[name] >= CONSECUTIVE_THRESHOLD:
+            if consec[name] >= threshold:
+                message = f"{name} DOWN ({consec[name]} consecutive failures)"
+                if detail and detail not in ("unreachable", "http_error"):
+                    message = f"{name} {detail.upper()} ({consec[name]} consecutive failures)"
                 alerts.append(
                     {
                         "ts": now_ts,
@@ -114,7 +141,8 @@ def check_services() -> list[dict]:
                         "service": name,
                         "url": url,
                         "consecutive_failures": consec[name],
-                        "message": f"{name} DOWN ({consec[name]} consecutive failures)",
+                        "detail": detail,
+                        "message": message,
                         "silence_cmd": f"touch ~/.cortex/alert_silence_{name}",
                     }
                 )
