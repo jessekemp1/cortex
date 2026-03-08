@@ -23,7 +23,7 @@ from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 from .config import SupervisorConfig
 from .delegator import DelegationPolicy, SupervisorDelegator
 from .health import HealthMonitor
-from .models import TickResult
+from .models import TickResult, WorkItem
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,13 @@ class CortexSupervisor:
         )
         self.delegator = SupervisorDelegator(policy=delegation_policy)
 
+        # Orchestration pipeline (lazy-initialized to avoid import cost at startup)
+        self._intake = None
+        self._router = None
+        self._dispatcher = None
+        self._collector = None
+        self._pending_work_items: List[WorkItem] = []
+
         # Daemon state
         self._shutdown_event = threading.Event()
         self._last_health_check = datetime.min
@@ -96,6 +103,19 @@ class CortexSupervisor:
                 result.tasks_healed = len([a for a in healing_actions if a.success])
                 result.healed_task_ids = [a.issue.target_id for a in healing_actions if a.success]
                 self._last_health_check = datetime.now()
+
+            # 1b. Work discovery (periodic)
+            if self._should_run_work_discovery():
+                discovered = self._discover_work()
+                result.work_discovered = len(discovered)
+                result.work_items = discovered
+                self._pending_work_items.extend(discovered)
+                self._last_work_discovery = datetime.now()
+
+            # 1c. Dispatch pending AI work items
+            if self._pending_work_items and self.config.enable_ai_batching:
+                dispatched = self._dispatch_work_items()
+                result.ai_tasks_queued = dispatched
 
             # 2. Execute ready shell tasks IMMEDIATELY
             #    (ignoring scheduled_time - we run tasks as soon as dependencies are met)
@@ -173,6 +193,144 @@ class CortexSupervisor:
             return False
         elapsed = datetime.now() - self._last_health_check
         return elapsed.total_seconds() >= self.config.health_check_interval_seconds
+
+    def _should_run_work_discovery(self) -> bool:
+        """Check if it's time to discover new work."""
+        if not self.config.enable_work_discovery:
+            return False
+        elapsed = datetime.now() - self._last_work_discovery
+        return elapsed.total_seconds() >= self.config.work_discovery_interval_seconds
+
+    def _get_intake(self):
+        """Lazy-initialize WorkIntake."""
+        if self._intake is None:
+            from .intake import WorkIntake
+
+            self._intake = WorkIntake()
+        return self._intake
+
+    def _get_router(self):
+        """Lazy-initialize ModelRouter."""
+        if self._router is None:
+            from .router import ModelRouter
+
+            self._router = ModelRouter()
+        return self._router
+
+    def _get_dispatcher(self):
+        """Lazy-initialize AgentDispatcher."""
+        if self._dispatcher is None:
+            from .dispatch import AgentDispatcher
+
+            self._dispatcher = AgentDispatcher()
+        return self._dispatcher
+
+    def _get_collector(self):
+        """Lazy-initialize ResultCollector."""
+        if self._collector is None:
+            from .collector import ResultCollector
+
+            self._collector = ResultCollector()
+        return self._collector
+
+    def _discover_work(self) -> List[WorkItem]:
+        """Discover actionable work from all sources."""
+        try:
+            intake = self._get_intake()
+            items = intake.discover_all()
+            if items:
+                logger.info(f"Discovered {len(items)} work items")
+            return items
+        except Exception as e:
+            logger.error(f"Work discovery failed: {e}")
+            return []
+
+    def _dispatch_work_items(self) -> int:
+        """Route and dispatch pending work items. Returns count dispatched."""
+        router = self._get_router()
+        dispatcher = self._get_dispatcher()
+        collector = self._get_collector()
+        dispatched = 0
+
+        # Process up to max_ai_batch_size items per tick
+        batch = self._pending_work_items[: self.config.max_ai_batch_size]
+        self._pending_work_items = self._pending_work_items[self.config.max_ai_batch_size :]
+
+        for work_item in batch:
+            try:
+                # Route: select model
+                model_selection = router.select_model(work_item)
+                logger.info(
+                    f"Routed {work_item.id[:8]} → {model_selection.model_tier} "
+                    f"({model_selection.reasoning[:60]})"
+                )
+
+                # Dispatch: execute via agent
+                from .dispatch import ModelSelection as DispatchModelSelection
+
+                dispatch_selection = DispatchModelSelection(
+                    model_tier=model_selection.model_tier,
+                    model_id=model_selection.model_id,
+                    reasoning=model_selection.reasoning,
+                    complexity_score=model_selection.complexity_score,
+                    confidence=model_selection.confidence,
+                )
+                result = dispatcher.dispatch(work_item, dispatch_selection)
+
+                # Collect: record outcome
+                collector.collect(result)
+                collector.record_outcome(result)
+
+                # Feed back to router for learning
+                router.record_outcome(
+                    work_item_id=work_item.id,
+                    model_tier=model_selection.model_tier,
+                    success=result.success,
+                    quality_score=1.0 if result.success else 0.0,
+                    task_type=work_item.task_type,
+                )
+
+                dispatched += 1
+
+            except Exception as e:
+                logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}")
+
+        # Persist batch results if any
+        if dispatched > 0:
+            try:
+                collector.persist()
+                summary = collector.get_summary()
+                logger.info(
+                    f"Batch complete: {summary.succeeded}/{summary.total} succeeded, "
+                    f"{summary.total_tokens} tokens, {summary.total_duration_seconds}s"
+                )
+                collector.clear()
+            except Exception as e:
+                logger.error(f"Failed to persist results: {e}")
+
+        return dispatched
+
+    def orchestrate(self, work_items: Optional[List[WorkItem]] = None) -> Dict[str, Any]:
+        """Run a one-shot orchestration cycle (CLI/MCP entry point).
+
+        If work_items is None, discovers work from all sources.
+        Returns summary of the orchestration run.
+        """
+        if work_items is None:
+            work_items = self._discover_work()
+
+        if not work_items:
+            return {"status": "no_work", "items_found": 0}
+
+        self._pending_work_items = work_items
+        dispatched = self._dispatch_work_items()
+
+        return {
+            "status": "completed",
+            "items_found": len(work_items),
+            "items_dispatched": dispatched,
+            "items_remaining": len(self._pending_work_items),
+        }
 
     def run_once(self) -> TickResult:
         """

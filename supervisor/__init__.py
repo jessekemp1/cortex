@@ -37,3 +37,28 @@ __all__ = [
     "TaskTarget",
     "RoutedTask",
 ]
+
+
+# Lazy imports for orchestration components (Phase 3-6)
+def __getattr__(name):
+    if name == "AgentDispatcher":
+        from supervisor.dispatch import AgentDispatcher
+
+        return AgentDispatcher
+    if name == "ResultCollector":
+        from supervisor.collector import ResultCollector
+
+        return ResultCollector
+    if name == "ModelRouter":
+        from supervisor.router import ModelRouter
+
+        return ModelRouter
+    if name == "WorkIntake":
+        from supervisor.intake import WorkIntake
+
+        return WorkIntake
+    if name == "AgentProfile":
+        from supervisor.agents import AgentProfile
+
+        return AgentProfile
+    raise AttributeError(f"module 'supervisor' has no attribute {name!r}")
