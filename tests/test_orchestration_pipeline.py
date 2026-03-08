@@ -1214,3 +1214,109 @@ class TestDryRunMode:
 
         default = SupervisorConfig()
         assert default.dry_run is False
+
+
+# ── Phase 5: GOALS.md File Watcher Tests ──
+
+
+class TestGoalsWatcher:
+    """Tests for stat-based GOALS.md mtime watcher."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_env(self):
+        """Save and restore CORTEX_ROOT_DIR to avoid leaking into other tests."""
+        import os
+
+        orig = os.environ.get("CORTEX_ROOT_DIR")
+        yield
+        if orig is None:
+            os.environ.pop("CORTEX_ROOT_DIR", None)
+        else:
+            os.environ["CORTEX_ROOT_DIR"] = orig
+
+    def _make_supervisor(self, goals_dir):
+        """Create a supervisor with CORTEX_ROOT_DIR pointing at goals_dir."""
+        import os
+
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        os.environ["CORTEX_ROOT_DIR"] = str(goals_dir)
+        config = SupervisorConfig(
+            enable_work_discovery=True,
+            enable_ai_batching=False,
+            enable_self_healing=False,
+            watch_goals=True,
+            work_discovery_interval_seconds=9999,  # Never trigger by interval
+        )
+        return CortexSupervisor(config=config)
+
+    def test_goals_first_check_returns_false(self, tmp_path):
+        """Initial mtime=0 should NOT trigger (avoids startup storm)."""
+        goals = tmp_path / "GOALS.md"
+        goals.write_text("# Goals\n- Ship it\n")
+
+        supervisor = self._make_supervisor(tmp_path)
+        assert supervisor._goals_mtime == 0.0
+        assert supervisor._goals_file_changed() is False
+        # mtime should now be set (no longer 0)
+        assert supervisor._goals_mtime > 0
+
+    def test_goals_change_triggers_discovery(self, tmp_path):
+        """Modify a GOALS.md file, verify _goals_file_changed() returns True."""
+        import time as _time
+
+        goals = tmp_path / "GOALS.md"
+        goals.write_text("# Goals\n- Ship it\n")
+
+        supervisor = self._make_supervisor(tmp_path)
+        # First call initializes
+        supervisor._goals_file_changed()
+
+        # Modify the file (ensure mtime advances)
+        _time.sleep(0.05)
+        goals.write_text("# Goals\n- Ship it\n- New goal\n")
+
+        assert supervisor._goals_file_changed() is True
+
+    def test_goals_no_change_returns_false(self, tmp_path):
+        """Call twice without modifying — second call returns False."""
+        goals = tmp_path / "GOALS.md"
+        goals.write_text("# Goals\n- Ship it\n")
+
+        supervisor = self._make_supervisor(tmp_path)
+        # Initialize
+        supervisor._goals_file_changed()
+        # No change
+        assert supervisor._goals_file_changed() is False
+
+    def test_goals_missing_file_returns_false(self, tmp_path):
+        """Nonexistent GOALS.md returns False."""
+        # Point at a dir with no GOALS.md
+        supervisor = self._make_supervisor(tmp_path)
+        assert supervisor._goals_file_changed() is False
+
+    def test_should_run_work_discovery_with_goals_change(self, tmp_path):
+        """_should_run_work_discovery() returns True when goals changed, even if interval not elapsed."""
+        import time as _time
+
+        goals = tmp_path / "GOALS.md"
+        goals.write_text("# Goals\n- Ship it\n")
+
+        supervisor = self._make_supervisor(tmp_path)
+        # Initialize the mtime
+        supervisor._goals_file_changed()
+        # Set last discovery to now so interval hasn't elapsed
+        from datetime import datetime
+
+        supervisor._last_work_discovery = datetime.now()
+
+        # Without goals change, should NOT trigger (interval is 9999s)
+        assert supervisor._should_run_work_discovery() is False
+
+        # Modify GOALS.md
+        _time.sleep(0.05)
+        goals.write_text("# Goals\n- Ship it\n- New priority\n")
+
+        # Now should trigger via goals change
+        assert supervisor._should_run_work_discovery() is True

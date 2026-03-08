@@ -38,6 +38,7 @@ class SupervisorConfig:
     enable_ai_batching: bool = True  # Group AI tasks for batch submission
     enable_self_healing: bool = True  # Auto-detect and retry stuck tasks
     dry_run: bool = False  # Log routing decisions without calling API
+    watch_goals: bool = True  # Check GOALS.md for changes on every tick
 
     def __post_init__(self):
         """Ensure directories exist."""
