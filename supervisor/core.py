@@ -132,6 +132,9 @@ class CortexSupervisor:
         self._dispatched_descriptions: Dict[str, float] = {}  # description -> timestamp
         self._dispatch_ttl_seconds = 24 * 3600
 
+        # GOALS.md file watcher (stat-based mtime polling)
+        self._goals_mtime: float = 0.0
+
         # Daemon state
         self._shutdown_event = threading.Event()
         self._last_health_check = datetime.min
@@ -268,11 +271,31 @@ class CortexSupervisor:
         return elapsed.total_seconds() >= self.config.health_check_interval_seconds
 
     def _should_run_work_discovery(self) -> bool:
-        """Check if it's time to discover new work."""
+        """Check if work discovery should run (interval OR goals changed)."""
         if not self.config.enable_work_discovery:
             return False
+        # Check if GOALS.md changed (reactive, every tick)
+        if self.config.watch_goals and self._goals_file_changed():
+            logger.info("GOALS.md changed — triggering immediate work discovery")
+            return True
+        # Normal interval check
         elapsed = datetime.now() - self._last_work_discovery
         return elapsed.total_seconds() >= self.config.work_discovery_interval_seconds
+
+    def _goals_file_changed(self) -> bool:
+        """Check if GOALS.md has been modified since last check."""
+        from pathlib import Path
+
+        goals_path = Path(os.environ.get("CORTEX_ROOT_DIR", ".")) / "GOALS.md"
+        try:
+            mtime = goals_path.stat().st_mtime
+            if mtime > self._goals_mtime:
+                prev = self._goals_mtime
+                self._goals_mtime = mtime
+                return prev > 0  # Skip first check (initialization)
+        except OSError:
+            pass
+        return False
 
     def _get_intake(self):
         """Lazy-initialize WorkIntake."""
