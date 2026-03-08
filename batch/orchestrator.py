@@ -12,7 +12,7 @@ Provides unified interface for all batch operations.
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -363,16 +363,36 @@ class BatchOrchestrator:
         }
         task_type = source_to_type.get(job_data.get("source", "general"), "ai_inference")
 
+        # Dedup: collect existing pending/submitted task descriptions to avoid duplicates
+        existing_descriptions = set()
+        try:
+            import sqlite3
+
+            conn = sqlite3.connect(str(queue.db_path))
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT description FROM batch_tasks WHERE state IN ('pending', 'submitted')"
+            )
+            existing_descriptions = {row[0] for row in cur.fetchall()}
+            conn.close()
+        except Exception:
+            pass  # If dedup check fails, allow submission anyway
+
         tasks_added = 0
         for task in tasks:
             prompt = task.get("prompt", "")
             if not prompt:
                 continue
 
+            desc = task.get("title", job_data.get("description", ""))
+            if desc in existing_descriptions:
+                logger.info(f"⏭️  Skipping duplicate: {desc[:60]}")
+                continue
+
             queue.add_task(
                 command=prompt,
                 task_type=task_type,
-                description=task.get("title", job_data.get("description", "")),
+                description=desc,
                 priority=job_data.get("priority", "normal").lower(),
                 metadata={
                     "api_job_id": job_id,
@@ -384,23 +404,28 @@ class BatchOrchestrator:
                     "context": task.get("context", ""),
                 },
             )
+            existing_descriptions.add(desc)
             tasks_added += 1
 
         # If job has no tasks but has a description/prompt, add it directly
         if not tasks and job_data.get("description"):
-            prompt = job_data.get("prompt", job_data["description"])
-            queue.add_task(
-                command=prompt,
-                task_type=task_type,
-                description=job_data["description"],
-                priority=job_data.get("priority", "normal").lower(),
-                metadata={
-                    "api_job_id": job_id,
-                    "source": job_data.get("source", "general"),
-                    "project": job_data.get("project"),
-                },
-            )
-            tasks_added = 1
+            desc = job_data["description"]
+            if desc not in existing_descriptions:
+                prompt = job_data.get("prompt", desc)
+                queue.add_task(
+                    command=prompt,
+                    task_type=task_type,
+                    description=desc,
+                    priority=job_data.get("priority", "normal").lower(),
+                    metadata={
+                        "api_job_id": job_id,
+                        "source": job_data.get("source", "general"),
+                        "project": job_data.get("project"),
+                    },
+                )
+                tasks_added = 1
+            else:
+                logger.info(f"⏭️  Skipping duplicate: {desc[:60]}")
 
         logger.info(f"✅ Submitted to SQLite queue: {job_id} ({tasks_added} tasks)")
         return job_id
@@ -440,6 +465,50 @@ class BatchOrchestrator:
         """
         logger.debug("sync_to_daemon called — no-op with unified SQLite pipeline")
         return 0
+
+    def cleanup_queue(self, max_age_days: int = 7) -> dict:
+        """
+        Purge old completed/cancelled/failed tasks from SQLite queue.
+
+        Keeps tasks newer than max_age_days. Returns stats on what was removed.
+        """
+        import sqlite3
+
+        try:
+            from intelligence.process_monitor.batch_queue import BatchTaskQueue
+        except ImportError:
+            try:
+                from cortex.intelligence.process_monitor.batch_queue import BatchTaskQueue
+            except ImportError:
+                return {"error": "BatchTaskQueue not available"}
+
+        queue = BatchTaskQueue()
+        conn = sqlite3.connect(str(queue.db_path))
+        cur = conn.cursor()
+
+        cutoff = (datetime.now() - timedelta(days=max_age_days)).isoformat()
+
+        # Count before
+        cur.execute("SELECT state, COUNT(*) FROM batch_tasks GROUP BY state")
+        before = dict(cur.fetchall())
+
+        # Delete old completed/cancelled/failed
+        cur.execute(
+            """DELETE FROM batch_tasks
+            WHERE state IN ('completed', 'cancelled', 'failed')
+            AND created_at < ?""",
+            (cutoff,),
+        )
+        removed = cur.rowcount
+        conn.commit()
+
+        # Count after
+        cur.execute("SELECT state, COUNT(*) FROM batch_tasks GROUP BY state")
+        after = dict(cur.fetchall())
+
+        conn.close()
+        logger.info(f"🧹 Queue cleanup: removed {removed} tasks older than {max_age_days}d")
+        return {"removed": removed, "before": before, "after": after}
 
     def get_status(self, job_id: str) -> Optional[JobStatus]:
         """
