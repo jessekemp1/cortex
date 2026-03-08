@@ -2,12 +2,40 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from integration.local_orchestrator import CortexLocalOrchestratorIntegration
 from orchestrator import CortexOrchestrator
+
+
+def _mock_find_repos(self):
+    """Return empty list to avoid scanning full monorepo."""
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _patch_slow_operations():
+    """Patch slow operations: ProjectScanner, ProcessMonitor, PatternMemory."""
+    from unittest.mock import MagicMock
+
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        yield
 
 
 def test_get_real_recommendation():

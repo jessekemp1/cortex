@@ -1,11 +1,12 @@
-import os
 #!/usr/bin/env python3
 """
 Tests for CortexOrchestrator
 """
 
+import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -13,6 +14,51 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from orchestrator import CortexOrchestrator, StrategistResponse
+
+
+def _mock_find_repos(self):
+    """Return empty list to avoid scanning full monorepo."""
+    return []
+
+
+def _mock_analyze(self, repo_path):
+    """Return a minimal ProjectActivity to avoid git subprocess calls."""
+    from ai_intelligence import ProjectActivity
+
+    return ProjectActivity(
+        name=repo_path.name if hasattr(repo_path, "name") else "mock",
+        path=repo_path,
+        status="active",
+        commits_7d=1,
+        commits_30d=5,
+        files_changed_7d=2,
+        uncommitted_changes=0,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _patch_slow_operations():
+    """Patch ProjectScanner and other slow operations to avoid monorepo scans.
+
+    Mocks: ProjectScanner (filesystem scan), ProcessMonitor (system calls ~1s),
+    PatternMemory (index loading ~2.3s) which together cause 3-4s per test.
+    """
+    from unittest.mock import MagicMock
+
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.analyze_project", _mock_analyze),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        yield
 
 
 def test_orchestrator_initialization():

@@ -36,7 +36,7 @@ from intelligence.monitoring.metric_tracker import MetricTracker, MetricType
 from intelligence.monitoring.trend_analyzer import TrendAnalyzer
 from intelligence.recommendations.file_selector import FileSelector
 from intelligence.recommendations.smart_generator import SmartRecommendationGenerator
-from recommendations import RecommendationEngine
+from recommendation_engine import RecommendationEngine
 
 # Database Fixtures
 

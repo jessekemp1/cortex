@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,31 @@ from integration.local_orchestrator import (
     RecommendationToAgentAdapter,
 )
 from orchestrator import CortexOrchestrator, Recommendation
+
+
+def _mock_find_repos(self):
+    """Return empty list to avoid scanning full monorepo."""
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _patch_slow_operations():
+    """Patch slow operations: ProjectScanner, ProcessMonitor, PatternMemory."""
+    from unittest.mock import MagicMock
+
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        yield
 
 
 @pytest.mark.skipif(not LOCAL_ORCHESTRATOR_AVAILABLE, reason="local-orchestrator not available")

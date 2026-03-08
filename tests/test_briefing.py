@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Integration test for briefing system.
@@ -11,8 +10,12 @@ Tests:
 """
 
 import json
+import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 # Add cortex to path
 cortex_dir = Path(__file__).parent
@@ -25,6 +28,34 @@ from briefing import (
     format_briefing_json,
     generate_daily_briefing,
 )
+
+
+def _mock_find_repos(self):
+    """Return empty list to avoid scanning full monorepo."""
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _patch_slow_operations():
+    """Patch all slow operations in briefing: ProjectScanner, GitTracker,
+    ProcessMonitor, PatternMemory, RecommendationEngine internals."""
+    from unittest.mock import MagicMock
+
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("briefing.GitTracker", None),
+        patch("briefing.ProcessMonitor", None),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        yield
 
 
 def test_briefing_generation():

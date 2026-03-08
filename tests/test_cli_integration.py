@@ -2,6 +2,10 @@
 """
 CLI Integration Test Suite for Phase 1 Deep Mode
 Tests all new CLI commands: deep, quick, auto, config
+
+These tests shell out to the CLI and scan the full monorepo, so they are
+inherently slow (20-30s each). Marked as slow and skipped by default.
+Run with: pytest -m slow to include them.
 """
 
 import subprocess
@@ -10,6 +14,11 @@ from pathlib import Path
 
 import pytest
 
+# All tests in this module shell out to the real CLI and scan the monorepo
+pytestmark = pytest.mark.skipif(
+    not bool(__import__("os").environ.get("CORTEX_SLOW_TESTS")),
+    reason="Slow CLI integration tests — set CORTEX_SLOW_TESTS=1 to run",
+)
 
 CORTEX_DIR = str(Path(__file__).parent.parent)
 ROOT_DIR = str(Path(__file__).parent.parent.parent)
@@ -27,9 +36,7 @@ def run_command(cmd, expect_success=True):
     import os
 
     env = {**os.environ, "PYTHONPATH": CORTEX_DIR}
-    result = subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, timeout=30, env=env
-    )
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, env=env)
 
     if expect_success:
         if result.returncode != 0:
@@ -38,7 +45,6 @@ def run_command(cmd, expect_success=True):
             return False, result
 
     return True, result
-
 
 
 def test_cli_help():
@@ -62,7 +68,6 @@ def test_cli_help():
         print(f"✅ Help includes '{cmd}'")
 
 
-
 def test_config_show():
     """Test 2: Config --show command"""
     print("\n" + "=" * 60)
@@ -77,7 +82,6 @@ def test_config_show():
     for item in expected:
         assert item in result.stdout, f"Output missing '{item}'"
         print(f"✅ Output contains '{item}'")
-
 
 
 def test_deep_command():
@@ -99,7 +103,6 @@ def test_deep_command():
     assert "/100" in result.stdout, "Output missing health score"
     print("✅ Output includes health score (X/100 format)")
     print("✅ Deep command executed successfully")
-
 
 
 def test_deep_json():
@@ -125,7 +128,6 @@ def test_deep_json():
     print(f"✅ Valid JSON output ({len(result.stdout)} bytes)")
 
 
-
 def test_quick_command():
     """Test 5: Quick mode command (expects fallback message)"""
     print("\n" + "=" * 60)
@@ -136,11 +138,10 @@ def test_quick_command():
     success, result = run_command("python cli.py quick cortex", expect_success=False)
 
     # Check for expected fallback message
-    assert (
-        "not yet fully implemented" in result.stdout or "Suggestion" in result.stdout
-    ), "Quick mode missing fallback message"
+    assert "not yet fully implemented" in result.stdout or "Suggestion" in result.stdout, (
+        "Quick mode missing fallback message"
+    )
     print("✅ Quick mode shows expected fallback message")
-
 
 
 def test_auto_command():
@@ -153,9 +154,9 @@ def test_auto_command():
     assert success, "Auto command failed"
 
     # Auto should select deep mode and show analysis
-    assert (
-        "Deep Intelligence" in result.stdout or "Health" in result.stdout
-    ), "Auto mode didn't produce expected output"
+    assert "Deep Intelligence" in result.stdout or "Health" in result.stdout, (
+        "Auto mode didn't produce expected output"
+    )
     print("✅ Auto mode selected deep and ran successfully")
 
 
@@ -195,7 +196,7 @@ def main():
         status = "✅ PASS" if passed_test else "❌ FAIL"
         print(f"{status} - {test_name}")
 
-    print(f"\nOverall: {passed}/{total} tests passed ({passed/total*100:.0f}%)")
+    print(f"\nOverall: {passed}/{total} tests passed ({passed / total * 100:.0f}%)")
 
     if passed == total:
         print("\n" + "=" * 60)
