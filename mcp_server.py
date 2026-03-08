@@ -201,7 +201,9 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     """
     patterns_file = PROMPTS_DIR / "patterns.json"
     if not patterns_file.exists():
-        return json.dumps({"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"})
+        return json.dumps(
+            {"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"}
+        )
 
     try:
         patterns = json.loads(patterns_file.read_text())
@@ -230,7 +232,9 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
 
     # Find similar high-value prompts
     top = patterns.get("top_patterns", [])
-    similar = [p for p in top if p.get("category") == category and p.get("value_score", 0) >= 0.7][:3]
+    similar = [p for p in top if p.get("category") == category and p.get("value_score", 0) >= 0.7][
+        :3
+    ]
 
     result = {
         "classified_category": category,
@@ -240,6 +244,91 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
         "suggestion": f"Consider adding: {hint.split(': ', 1)[-1] if ': ' in hint else hint}",
     }
     return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_orchestrate(
+    task: str = "",
+    project: str = "",
+    priority: str = "medium",
+    dry_run: bool = False,
+) -> str:
+    """Orchestrate work: discover tasks from GOALS.md/taskboard, route to optimal models, and dispatch.
+
+    With no arguments, discovers all pending work and dispatches it.
+    With a task description, creates a single work item and dispatches it.
+
+    Args:
+        task: Optional task description. If empty, discovers work from all sources.
+        project: Optional project filter (vortex, cortex, etc.).
+        priority: Priority level (critical/high/medium/low). Default: medium.
+        dry_run: If true, discover and route but don't dispatch. Shows what would happen.
+    """
+    import sys
+    from pathlib import Path
+
+    # Add cortex to path for imports
+    cortex_dir = Path(__file__).parent
+    if str(cortex_dir) not in sys.path:
+        sys.path.insert(0, str(cortex_dir))
+
+    try:
+        from supervisor.intake import WorkIntake
+        from supervisor.router import ModelRouter
+
+        intake = WorkIntake()
+        router = ModelRouter()
+
+        if task:
+            # Single task mode
+            work_items = [intake.from_cli(task, project=project, priority=priority)]
+        else:
+            # Discovery mode
+            work_items = intake.discover_all()
+            if project:
+                work_items = [wi for wi in work_items if wi.project == project]
+
+        if not work_items:
+            return json.dumps({"status": "no_work", "message": "No pending work items found"})
+
+        # Route all items
+        routed = []
+        for wi in work_items:
+            selection = router.select_model(wi)
+            routed.append(
+                {
+                    "id": wi.id,
+                    "description": wi.description[:80],
+                    "task_type": wi.task_type,
+                    "project": wi.project,
+                    "priority": wi.priority.value,
+                    "model": selection.model_tier,
+                    "model_id": selection.model_id,
+                    "complexity": round(selection.complexity_score, 2),
+                    "confidence": round(selection.confidence, 2),
+                }
+            )
+
+        if dry_run:
+            return json.dumps(
+                {
+                    "status": "dry_run",
+                    "items_found": len(routed),
+                    "routing_plan": routed,
+                },
+                indent=2,
+            )
+
+        # Dispatch via supervisor
+        from supervisor.core import CortexSupervisor
+
+        supervisor = CortexSupervisor()
+        result = supervisor.orchestrate(work_items)
+        result["routing_plan"] = routed
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # ── Resources ──
@@ -277,7 +366,9 @@ def prompt_patterns_resource() -> str:
     patterns_file = PROMPTS_DIR / "patterns.json"
     if patterns_file.exists():
         return patterns_file.read_text()
-    return json.dumps({"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"})
+    return json.dumps(
+        {"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"}
+    )
 
 
 if __name__ == "__main__":

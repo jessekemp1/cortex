@@ -1,384 +1,422 @@
-"""Tests for the orchestration pipeline: intake -> router -> dispatch -> collect."""
+"""
+Tests for the full orchestration pipeline (Phases 3-6).
 
-from __future__ import annotations
+Tests:
+  - AgentDispatcher: prompt construction, timeout, concurrency
+  - AgentProfile: registry, task matching, system prompts
+  - ResultCollector: collection, summaries, persistence, outcomes
+  - CortexSupervisor.orchestrate(): end-to-end pipeline wiring
+"""
 
 import json
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock, patch
+import sys
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cortex.supervisor.agents import (
+# Add cortex directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from supervisor.agents import (
     AGENT_REGISTRY,
-    AgentProfile,
     get_agent_by_name,
     get_agent_for_task,
     list_agents,
 )
-from cortex.supervisor.models import WorkItem, WorkItemPriority, TaskTarget
+from supervisor.collector import BatchSummary, ResultCollector, _tier_from_model_id
+from supervisor.dispatch import AgentDispatcher, DispatchResult
+from supervisor.dispatch import ModelSelection as DispatchModelSelection
+from supervisor.models import WorkItem, WorkItemPriority
 
 
-# ---------------------------------------------------------------------------
-# Local helpers — lightweight router/dispatch/collector stubs for pipeline tests
-# These mirror the expected interfaces without importing unwritten modules.
-# ---------------------------------------------------------------------------
+# ── Fixtures ──
 
 
-class ModelTier(str, Enum):
-    OPUS = "opus"
-    SONNET = "sonnet"
-    HAIKU = "haiku"
+def _mock_find_repos(self):
+    return []
 
 
-@dataclass
-class ModelSelection:
-    model_tier: ModelTier
-    complexity_score: float
-    reason: str
+def _mock_analyze(self, repo_path):
+    from ai_intelligence import ProjectActivity
 
-
-@dataclass
-class DispatchResult:
-    work_item_id: str
-    success: bool
-    model_used: str
-    output: Optional[str] = None
-    error: Optional[str] = None
-    tokens_used: int = 0
-    duration_seconds: float = 0.0
-
-
-def compute_complexity(item: WorkItem) -> float:
-    """Score 0-1 based on token count, priority, file count, and task type."""
-    score = 0.0
-
-    # Token contribution (up to 0.3)
-    score += min(item.estimated_tokens / 100_000, 0.3)
-
-    # Priority contribution (up to 0.3)
-    priority_weights = {
-        WorkItemPriority.CRITICAL: 0.3,
-        WorkItemPriority.HIGH: 0.2,
-        WorkItemPriority.MEDIUM: 0.1,
-        WorkItemPriority.LOW: 0.0,
-    }
-    score += priority_weights.get(item.priority, 0.1)
-
-    # File count contribution (up to 0.2)
-    score += min(len(item.files) / 20, 0.2)
-
-    # Task type contribution (up to 0.2)
-    complex_types = {"architecture", "design", "implement", "spec"}
-    simple_types = {"classify", "triage", "categorize", "tag"}
-    if item.task_type in complex_types:
-        score += 0.2
-    elif item.task_type in simple_types:
-        score += 0.0
-    else:
-        score += 0.1
-
-    return min(score, 1.0)
-
-
-def select_model(complexity: float) -> ModelSelection:
-    """Route to model tier based on complexity score."""
-    if complexity >= 0.6:
-        return ModelSelection(ModelTier.OPUS, complexity, "High complexity")
-    elif complexity >= 0.3:
-        return ModelSelection(ModelTier.SONNET, complexity, "Medium complexity")
-    else:
-        return ModelSelection(ModelTier.HAIKU, complexity, "Low complexity")
-
-
-def collect_results(results: List[DispatchResult]) -> Dict[str, Any]:
-    """Summarize a batch of dispatch results."""
-    successes = [r for r in results if r.success]
-    failures = [r for r in results if not r.success]
-    total_tokens = sum(r.tokens_used for r in results)
-    return {
-        "total": len(results),
-        "successes": len(successes),
-        "failures": len(failures),
-        "total_tokens": total_tokens,
-        "failed_ids": [r.work_item_id for r in failures],
-    }
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def simple_work_item() -> WorkItem:
-    return WorkItem(
-        id="wi-001",
-        source="cli",
-        task_type="classify",
-        description="Triage incoming issue",
-        priority=WorkItemPriority.LOW,
-        estimated_tokens=500,
-        files=[],
+    return ProjectActivity(
+        name=repo_path.name if hasattr(repo_path, "name") else "mock",
+        path=repo_path,
+        status="active",
+        commits_7d=1,
+        commits_30d=5,
+        files_changed_7d=2,
+        uncommitted_changes=0,
     )
 
 
-@pytest.fixture
-def medium_work_item() -> WorkItem:
-    return WorkItem(
-        id="wi-002",
-        source="cli",
-        task_type="test",
-        description="Write integration tests for auth module",
-        priority=WorkItemPriority.MEDIUM,
-        estimated_tokens=15_000,
-        files=["src/auth.py", "tests/test_auth.py"],
-    )
+@pytest.fixture(autouse=True)
+def _patch_slow_operations():
+    """Patch slow operations for all tests in this module."""
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.analyze_project", _mock_analyze),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        yield
 
 
-@pytest.fixture
-def complex_work_item() -> WorkItem:
-    return WorkItem(
-        id="wi-003",
-        source="cli",
-        task_type="architecture",
-        description="Design event-driven pipeline for real-time ingestion",
-        priority=WorkItemPriority.CRITICAL,
-        estimated_tokens=80_000,
-        files=[f"src/module_{i}.py" for i in range(15)],
-    )
+# ── Agent Profiles ──
 
 
-@pytest.fixture
-def success_dispatch() -> DispatchResult:
-    return DispatchResult(
-        work_item_id="wi-001",
-        success=True,
-        model_used="haiku",
-        output='{"category": "bug"}',
-        tokens_used=350,
-        duration_seconds=1.2,
-    )
+class TestAgentProfiles:
+    def test_registry_has_expected_agents(self):
+        names = set(AGENT_REGISTRY.keys())
+        assert "architect" in names
+        assert "test_engineer" in names
+        assert "researcher" in names
+        assert "implementer" in names
+        assert "classifier" in names
 
+    def test_get_agent_for_task_test(self):
+        agent = get_agent_for_task("test")
+        assert agent is not None
+        assert agent.name == "test_engineer"
 
-@pytest.fixture
-def failure_dispatch() -> DispatchResult:
-    return DispatchResult(
-        work_item_id="wi-099",
-        success=False,
-        model_used="sonnet",
-        error="Rate limit exceeded",
-        tokens_used=0,
-        duration_seconds=0.0,
-    )
+    def test_get_agent_for_task_research(self):
+        agent = get_agent_for_task("research")
+        assert agent is not None
+        assert agent.name == "researcher"
 
+    def test_get_agent_for_task_unknown(self):
+        agent = get_agent_for_task("underwater_basket_weaving")
+        assert agent is None
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
-class TestWorkItemCreation:
-    def test_work_item_creation_from_cli(self, simple_work_item: WorkItem) -> None:
-        assert simple_work_item.id == "wi-001"
-        assert simple_work_item.source == "cli"
-        assert simple_work_item.task_type == "classify"
-        assert simple_work_item.priority == WorkItemPriority.LOW
-        assert isinstance(simple_work_item.created_at, datetime)
-
-    def test_work_item_priority_scoring(self) -> None:
-        critical = WorkItem(
-            id="c",
-            source="s",
-            task_type="fix",
-            description="d",
-            priority=WorkItemPriority.CRITICAL,
-        )
-        low = WorkItem(
-            id="l",
-            source="s",
-            task_type="fix",
-            description="d",
-            priority=WorkItemPriority.LOW,
-        )
-        assert compute_complexity(critical) > compute_complexity(low)
-
-
-class TestModelRouter:
-    def test_model_router_selects_opus_for_complex(
-        self,
-        complex_work_item: WorkItem,
-    ) -> None:
-        score = compute_complexity(complex_work_item)
-        selection = select_model(score)
-        assert selection.model_tier == ModelTier.OPUS
-
-    def test_model_router_selects_haiku_for_simple(
-        self,
-        simple_work_item: WorkItem,
-    ) -> None:
-        score = compute_complexity(simple_work_item)
-        selection = select_model(score)
-        assert selection.model_tier == ModelTier.HAIKU
-
-    def test_model_router_selects_sonnet_for_medium(
-        self,
-        medium_work_item: WorkItem,
-    ) -> None:
-        score = compute_complexity(medium_work_item)
-        selection = select_model(score)
-        assert selection.model_tier == ModelTier.SONNET
-
-
-class TestComplexityScoring:
-    def test_complexity_scoring_high_tokens(self) -> None:
-        item = WorkItem(
-            id="t",
-            source="s",
-            task_type="review",
-            description="d",
-            estimated_tokens=200_000,
-        )
-        score = compute_complexity(item)
-        # 0.3 (tokens capped) + 0.1 (medium priority) + 0.0 (no files) + 0.1 (review=other)
-        assert score == pytest.approx(0.5, abs=0.05)
-
-    def test_complexity_scoring_architecture_type(self) -> None:
-        item = WorkItem(
-            id="a",
-            source="s",
-            task_type="architecture",
-            description="d",
-            priority=WorkItemPriority.HIGH,
-        )
-        score = compute_complexity(item)
-        # 0.0 (tokens) + 0.2 (high priority) + 0.0 (no files) + 0.2 (architecture)
-        assert score == pytest.approx(0.4, abs=0.05)
-
-    def test_complexity_scoring_low_priority(self, simple_work_item: WorkItem) -> None:
-        score = compute_complexity(simple_work_item)
-        # 500/100000 ~ 0.005 + 0.0 (low) + 0.0 (no files) + 0.0 (classify=simple)
-        assert score < 0.1
-
-
-class TestDispatch:
-    def test_dispatch_result_success(self, success_dispatch: DispatchResult) -> None:
-        assert success_dispatch.success is True
-        assert success_dispatch.model_used == "haiku"
-        assert success_dispatch.tokens_used == 350
-        assert success_dispatch.error is None
-
-    def test_dispatch_result_failure(self, failure_dispatch: DispatchResult) -> None:
-        assert failure_dispatch.success is False
-        assert failure_dispatch.error == "Rate limit exceeded"
-        assert failure_dispatch.tokens_used == 0
-
-
-class TestCollector:
-    def test_collector_batch_summary(
-        self,
-        success_dispatch: DispatchResult,
-        failure_dispatch: DispatchResult,
-    ) -> None:
-        summary = collect_results([success_dispatch, failure_dispatch])
-        assert summary["total"] == 2
-        assert summary["successes"] == 1
-        assert summary["failures"] == 1
-        assert summary["total_tokens"] == 350
-        assert summary["failed_ids"] == ["wi-099"]
-
-    def test_collector_outcome_recording(
-        self,
-        success_dispatch: DispatchResult,
-        tmp_path,
-    ) -> None:
-        outcome_file = tmp_path / "outcomes.jsonl"
-        record = {
-            "work_item_id": success_dispatch.work_item_id,
-            "model_used": success_dispatch.model_used,
-            "success": success_dispatch.success,
-            "tokens_used": success_dispatch.tokens_used,
-        }
-        outcome_file.write_text(json.dumps(record) + "\n")
-
-        loaded = json.loads(outcome_file.read_text().strip())
-        assert loaded["work_item_id"] == "wi-001"
-        assert loaded["success"] is True
-        assert loaded["tokens_used"] == 350
-
-
-class TestAgentRegistry:
-    def test_agent_registry_lookup(self) -> None:
+    def test_get_agent_by_name(self):
         agent = get_agent_by_name("architect")
         assert agent is not None
-        assert agent.name == "architect"
         assert agent.preferred_model_tier == "opus"
 
-    def test_agent_task_type_matching(self) -> None:
-        agent = get_agent_for_task("review")
-        assert agent is not None
-        assert agent.name == "code_reviewer"
-        assert agent.can_handle("review") is True
-        assert agent.can_handle("architecture") is False
+    def test_list_agents(self):
+        agents = list_agents()
+        assert len(agents) == len(AGENT_REGISTRY)
 
-
-class TestFullPipeline:
-    def test_full_pipeline_mock(self, complex_work_item: WorkItem) -> None:
-        """Mock API call, test full intake -> route -> dispatch -> collect flow."""
-        # Step 1: Intake — work item exists
-        assert complex_work_item.id == "wi-003"
-
-        # Step 2: Route — select model
-        score = compute_complexity(complex_work_item)
-        assert 0.0 <= score <= 1.0
-        selection = select_model(score)
-        assert selection.model_tier == ModelTier.OPUS
-
-        # Step 3: Agent selection
-        agent = get_agent_for_task(complex_work_item.task_type)
-        assert agent is not None
-        assert agent.name == "architect"
-
-        # Step 4: Build prompt
-        prompt = agent.build_system_prompt(
-            project="vortex",
-            context="Multi-source weather pipeline.",
-        )
+    def test_agent_build_system_prompt(self):
+        agent = get_agent_by_name("test_engineer")
+        prompt = agent.build_system_prompt(project="vortex", context="Backend API tests")
         assert "vortex" in prompt
-        assert "Multi-source weather pipeline." in prompt
+        assert "Backend API tests" in prompt
 
-        # Step 5: Dispatch (mocked API)
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Design approved.")]
-        mock_response.usage.input_tokens = 5000
-        mock_response.usage.output_tokens = 2000
+    def test_classifier_has_short_timeout(self):
+        agent = get_agent_by_name("classifier")
+        assert agent.timeout_seconds == 60
 
-        with patch("anthropic.Anthropic") as mock_client_cls:
-            client = mock_client_cls.return_value
-            client.messages.create.return_value = mock_response
+    def test_architect_prefers_opus(self):
+        agent = get_agent_by_name("architect")
+        assert agent.preferred_model_tier == "opus"
 
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=4096,
-                system=prompt,
-                messages=[{"role": "user", "content": complex_work_item.description}],
+
+# ── AgentDispatcher ──
+
+
+class TestAgentDispatcher:
+    @pytest.fixture
+    def dispatcher(self):
+        test_key = "test-key-not-real"  # pragma: allowlist secret
+        return AgentDispatcher(api_key=test_key, max_concurrent=2)
+
+    @pytest.fixture
+    def work_item(self):
+        return WorkItem(
+            id="wi_test123",
+            source="test",
+            task_type="test",
+            description="Run unit tests for the auth module",
+            project="vortex",
+            files=["app/auth.py", "tests/test_auth.py"],
+            metadata={"coverage_target": "90%"},
+        )
+
+    @pytest.fixture
+    def model_selection(self):
+        return DispatchModelSelection(
+            model_tier="sonnet",
+            model_id="claude-sonnet-4-6",
+            reasoning="Test task -> sonnet",
+            complexity_score=0.4,
+            confidence=0.7,
+        )
+
+    def test_build_prompt_from_description(self, dispatcher, work_item):
+        work_item.prompt = None
+        work_item.command = None
+        prompt = dispatcher._build_prompt(work_item)
+        assert "Run unit tests" in prompt
+        assert "app/auth.py" in prompt
+        assert "coverage_target" in prompt
+
+    def test_build_prompt_from_explicit_prompt(self, dispatcher, work_item):
+        work_item.prompt = "Custom prompt text"
+        prompt = dispatcher._build_prompt(work_item)
+        assert "Custom prompt text" in prompt
+
+    def test_build_prompt_from_command(self, dispatcher, work_item):
+        work_item.prompt = None
+        work_item.command = "pytest tests/ -v"
+        prompt = dispatcher._build_prompt(work_item)
+        assert "pytest tests/ -v" in prompt
+        assert "Execute the following command" in prompt
+
+    def test_build_system_prompt_default(self, dispatcher, work_item):
+        work_item.system_prompt = None
+        sys_prompt = dispatcher._build_system_prompt(work_item)
+        assert "execution agent" in sys_prompt
+        assert "test" in sys_prompt
+        assert "vortex" in sys_prompt
+
+    def test_build_system_prompt_custom(self, dispatcher, work_item):
+        work_item.system_prompt = "You are a specialized tester."
+        sys_prompt = dispatcher._build_system_prompt(work_item)
+        assert sys_prompt == "You are a specialized tester."
+
+    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    def test_dispatch_uses_direct_api_fallback(self, dispatcher, work_item, model_selection):
+        """When Agent SDK unavailable, falls back to direct API."""
+        with patch.object(dispatcher, "_run_direct", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = ("Test output", 500)
+            result = dispatcher.dispatch(work_item, model_selection)
+
+        assert result.success is True
+        assert result.output == "Test output"
+        assert result.tokens_used == 500
+        assert result.model_used == "claude-sonnet-4-6"
+
+    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    def test_dispatch_handles_api_error(self, dispatcher, work_item, model_selection):
+        """API errors are caught and returned as failed results."""
+
+        async def fail(*args, **kwargs):
+            raise RuntimeError("API key invalid")
+
+        with patch.object(dispatcher, "_run_direct", side_effect=fail):
+            result = dispatcher.dispatch(work_item, model_selection)
+
+        assert result.success is False
+        assert "API key invalid" in result.error
+
+
+# ── ResultCollector ──
+
+
+class TestResultCollector:
+    @pytest.fixture
+    def collector(self, tmp_path):
+        return ResultCollector(
+            results_dir=tmp_path / "runs",
+            outcomes_path=tmp_path / "outcomes.jsonl",
+        )
+
+    @pytest.fixture
+    def success_result(self):
+        return DispatchResult(
+            work_item_id="wi_abc",
+            success=True,
+            output="All tests passed",
+            model_used="claude-sonnet-4-6",
+            tokens_used=1200,
+            duration_seconds=3.5,
+        )
+
+    @pytest.fixture
+    def failure_result(self):
+        return DispatchResult(
+            work_item_id="wi_def",
+            success=False,
+            output="",
+            model_used="claude-haiku-4-5-20251001",
+            tokens_used=200,
+            duration_seconds=1.0,
+            error="Rate limited",
+        )
+
+    def test_collect_single(self, collector, success_result):
+        collector.collect(success_result)
+        summary = collector.get_summary()
+        assert summary.total == 1
+        assert summary.succeeded == 1
+
+    def test_collect_batch(self, collector, success_result, failure_result):
+        summary = collector.collect_batch([success_result, failure_result])
+        assert summary.total == 2
+        assert summary.succeeded == 1
+        assert summary.failed == 1
+        assert summary.total_tokens == 1400
+        assert "sonnet" in summary.model_breakdown
+        assert "haiku" in summary.model_breakdown
+
+    def test_persist(self, collector, success_result, failure_result):
+        collector.collect(success_result)
+        collector.collect(failure_result)
+        run_dir = collector.persist()
+
+        assert run_dir.exists()
+        results_file = run_dir / "results.json"
+        summary_file = run_dir / "summary.json"
+        assert results_file.exists()
+        assert summary_file.exists()
+
+        results = json.loads(results_file.read_text())
+        assert len(results) == 2
+
+        summary = json.loads(summary_file.read_text())
+        assert summary["total"] == 2
+
+    def test_record_outcome(self, collector, success_result, tmp_path):
+        collector.record_outcome(success_result, quality_score=0.95)
+        outcomes_path = tmp_path / "outcomes.jsonl"
+        assert outcomes_path.exists()
+
+        lines = outcomes_path.read_text().strip().split("\n")
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["work_item_id"] == "wi_abc"
+        assert entry["model_tier"] == "sonnet"
+        assert entry["success"] is True
+
+    def test_clear(self, collector, success_result):
+        collector.collect(success_result)
+        assert collector.get_summary().total == 1
+        collector.clear()
+        assert collector.get_summary().total == 0
+
+
+class TestTierFromModelId:
+    def test_opus(self):
+        assert _tier_from_model_id("claude-opus-4-6") == "opus"
+
+    def test_sonnet(self):
+        assert _tier_from_model_id("claude-sonnet-4-6") == "sonnet"
+
+    def test_haiku(self):
+        assert _tier_from_model_id("claude-haiku-4-5-20251001") == "haiku"
+
+    def test_unknown(self):
+        assert _tier_from_model_id("gpt-4") == "unknown"
+
+
+# ── Supervisor Orchestration Wiring (Phase 6) ──
+
+
+class TestSupervisorOrchestrate:
+    """Test the full pipeline: discover -> route -> dispatch -> collect."""
+
+    @patch("cortex.supervisor.dispatch.AGENT_SDK_AVAILABLE", False)
+    def test_orchestrate_with_work_items(self):
+        """orchestrate() with explicit work items routes and dispatches them."""
+        from supervisor.core import CortexSupervisor
+
+        supervisor = CortexSupervisor()
+
+        items = [
+            WorkItem(
+                id="wi_test1",
+                source="test",
+                task_type="test",
+                description="Run tests",
+                priority=WorkItemPriority.HIGH,
+            ),
+        ]
+
+        mock_result = DispatchResult(
+            work_item_id="wi_test1",
+            success=True,
+            output="Tests passed",
+            model_used="claude-sonnet-4-6",
+            tokens_used=800,
+            duration_seconds=2.0,
+        )
+
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_dispatcher.dispatch.return_value = mock_result
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=1,
+                succeeded=1,
+                failed=0,
+                total_tokens=800,
+                total_duration_seconds=2.0,
+                model_breakdown={"sonnet": 1},
+                errors=[],
             )
+            mock_get_coll.return_value = mock_collector
 
-            result = DispatchResult(
-                work_item_id=complex_work_item.id,
-                success=True,
-                model_used=selection.model_tier.value,
-                output=response.content[0].text,
-                tokens_used=response.usage.input_tokens + response.usage.output_tokens,
-                duration_seconds=2.5,
-            )
+            result = supervisor.orchestrate(work_items=items)
 
-        # Step 6: Collect
-        summary = collect_results([result])
-        assert summary["total"] == 1
-        assert summary["successes"] == 1
-        assert summary["failures"] == 0
-        assert summary["total_tokens"] == 7000
-        assert result.output == "Design approved."
+        assert result["status"] == "completed"
+        assert result["items_found"] == 1
+        assert result["items_dispatched"] == 1
+
+    def test_orchestrate_no_work(self):
+        """orchestrate() with no discoverable work returns no_work status."""
+        from supervisor.core import CortexSupervisor
+
+        supervisor = CortexSupervisor()
+
+        with patch.object(supervisor, "_discover_work", return_value=[]):
+            result = supervisor.orchestrate()
+
+        assert result["status"] == "no_work"
+
+    def test_work_discovery_called_on_tick(self):
+        """tick() calls _discover_work when work_discovery interval elapsed."""
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            work_discovery_interval_seconds=0,
+            enable_work_discovery=True,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
+
+        mock_items = [
+            WorkItem(
+                id="wi_disc1",
+                source="goals",
+                task_type="feature",
+                description="Implement dashboard",
+            ),
+        ]
+
+        with (
+            patch.object(supervisor, "_discover_work", return_value=mock_items),
+            patch.object(supervisor, "_dispatch_work_items", return_value=1),
+        ):
+            result = supervisor.tick()
+
+        assert result.work_discovered == 1
+        assert len(result.work_items) == 1
+
+    def test_work_discovery_skipped_when_disabled(self):
+        """tick() skips work discovery when feature flag is off."""
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            enable_work_discovery=False,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
+
+        result = supervisor.tick()
+        assert result.work_discovered == 0

@@ -263,9 +263,9 @@ class TestCortexSupervisor:
             from intelligence.process_monitor.batch_executor import BatchExecutor
             from intelligence.process_monitor.batch_queue import BatchTaskQueue
 
-            # Create isolated queue for test
+            # Create isolated queue for test (disable work discovery to test shell queue only)
             queue = BatchTaskQueue(db_path=Path(tmpdir) / "test.db")
-            config = SupervisorConfig()
+            config = SupervisorConfig(enable_work_discovery=False)
 
             supervisor = CortexSupervisor(config=config)
             supervisor.shell_queue = queue
