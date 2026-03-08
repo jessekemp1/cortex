@@ -1350,6 +1350,96 @@ def cmd_execute(args):
         sys.exit(1)
 
 
+def cmd_orchestrate(args):
+    """Orchestrate work: discover tasks, route to optimal models, and dispatch."""
+    import json as _json
+
+    try:
+        from supervisor.intake import WorkIntake
+        from supervisor.router import ModelRouter
+    except ImportError as e:
+        print(f"Error: supervisor module not available: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        intake = WorkIntake()
+        router = ModelRouter()
+
+        if args.task:
+            # Single task mode
+            work_items = [
+                intake.from_cli(args.task, project=args.project or "", priority=args.priority)
+            ]
+        else:
+            # Discovery mode
+            work_items = intake.discover_all()
+            if args.project:
+                work_items = [wi for wi in work_items if wi.project == args.project]
+
+        if not work_items:
+            print("No pending work items found.")
+            return
+
+        # Route all items
+        routed = []
+        for wi in work_items:
+            selection = router.select_model(wi)
+            routed.append(
+                {
+                    "id": wi.id,
+                    "description": wi.description[:80],
+                    "task_type": wi.task_type,
+                    "project": wi.project,
+                    "priority": wi.priority.value
+                    if hasattr(wi.priority, "value")
+                    else str(wi.priority),
+                    "model": selection.model_tier,
+                    "model_id": selection.model_id,
+                    "complexity": round(selection.complexity_score, 2),
+                    "confidence": round(selection.confidence, 2),
+                }
+            )
+
+        # Display routing plan
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║            CORTEX - ORCHESTRATION PLAN               ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print(f"\nItems found: {len(routed)}\n")
+
+        for i, item in enumerate(routed, 1):
+            print(f"  [{i}] {item['description']}")
+            print(f"      Project: {item['project'] or 'auto'}  Priority: {item['priority']}")
+            print(
+                f"      Model: {item['model']} ({item['model_id']})  "
+                f"Complexity: {item['complexity']}  Confidence: {item['confidence']}"
+            )
+            print()
+
+        if args.dry_run:
+            print("(dry run — no dispatch)")
+            if args.json:
+                print(_json.dumps({"status": "dry_run", "items": routed}, indent=2))
+            return
+
+        # Dispatch via supervisor
+        from supervisor.core import CortexSupervisor
+
+        supervisor = CortexSupervisor()
+        result = supervisor.orchestrate(work_items)
+        result["routing_plan"] = routed
+
+        print("Dispatched successfully.")
+        if args.json:
+            print(_json.dumps(result, indent=2))
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        import traceback
+
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def cmd_learn(args):
     """Show learning metrics and patterns."""
     learning = LearningSystem()
@@ -2766,6 +2856,32 @@ Deep Mode (Phase 1):
         help="Skip logging outcome to feedback system",
     )
     execute_parser.set_defaults(func=cmd_execute)
+
+    # Orchestrate command
+    orchestrate_parser = subparsers.add_parser(
+        "orchestrate", help="Discover tasks, route to optimal models, and dispatch"
+    )
+    orchestrate_parser.add_argument(
+        "task",
+        nargs="?",
+        default="",
+        help="Task description (if empty, discovers from GOALS/taskboard)",
+    )
+    orchestrate_parser.add_argument(
+        "--project", type=str, default="", help="Filter by project name"
+    )
+    orchestrate_parser.add_argument(
+        "--priority",
+        type=str,
+        default="medium",
+        choices=["critical", "high", "medium", "low"],
+        help="Priority level (default: medium)",
+    )
+    orchestrate_parser.add_argument(
+        "--dry-run", action="store_true", help="Show routing plan without dispatching"
+    )
+    orchestrate_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    orchestrate_parser.set_defaults(func=cmd_orchestrate)
 
     # Goal, Task, Blocker, Progress commands
     try:
