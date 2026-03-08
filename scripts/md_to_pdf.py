@@ -175,7 +175,7 @@ def main():
         ),
     ]
 
-    base = Path("/Users/jesse.kemp/Dev")
+    base = Path(__file__).resolve().parent.parent.parent
 
     print("Converting Markdown → PDF...")
     print()

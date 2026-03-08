@@ -3,8 +3,10 @@ Generate a terminal-style PNG for the Cortex README demo.
 Produces docs/assets/demo.png — 960×680 dark terminal with colored ANSI-style text.
 """
 
-from PIL import Image, ImageDraw, ImageFont
 import os
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
 
 # ── Palette (Monokai-ish dark terminal) ─────────────────────────────────
 BG = (30, 30, 30)
@@ -115,5 +117,6 @@ for text, color, indent in lines:
 # ── Cursor blink ──────────────────────────────────────────────────────────
 draw.rectangle([PAD_L, y + 2, PAD_L + 8, y + LINE_H - 2], fill=GREEN)
 
-img.save("/Users/jesse.kemp/Dev/cortex/docs/assets/demo.png", "PNG", optimize=True)
+_out = Path(__file__).resolve().parent / "demo.png"
+img.save(str(_out), "PNG", optimize=True)
 print(f"Saved: docs/assets/demo.png  ({W}×{H})")
