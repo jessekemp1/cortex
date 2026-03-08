@@ -60,8 +60,25 @@ def test_system_health_to_dict():
 
 def test_orchestrator_includes_health():
     """Test orchestrator includes system health in response."""
-    orchestrator = CortexOrchestrator()
-    response = orchestrator.get_next_action(limit=0)
+    from unittest.mock import MagicMock, patch
+
+    def _mock_find_repos(self):
+        return []
+
+    mock_pm = MagicMock()
+    mock_pm.alert_generator.generate_alerts.return_value = []
+
+    with (
+        patch("ai_intelligence.ProjectScanner.find_git_repos", _mock_find_repos),
+        patch("ai_intelligence.ProjectScanner.find_projects", _mock_find_repos),
+        patch("recommendation_engine.ProcessMonitor", return_value=mock_pm),
+        patch(
+            "recommendation_engine.RecommendationEngine._enrich_with_patterns",
+            lambda self, recs: recs,
+        ),
+    ):
+        orchestrator = CortexOrchestrator()
+        response = orchestrator.get_next_action(limit=0)
 
     assert hasattr(response, "system_health")
     assert isinstance(response.system_health, SystemHealth)

@@ -1,11 +1,39 @@
-import os
 """Tests for context injection system."""
+
+import os
 
 import time
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from intelligence.context_injector import ContextInjector, InjectionContext
+
+
+def _make_mock_profile():
+    """Create a mock profile to avoid slow filesystem/git scans."""
+    profile = MagicMock()
+    profile.tech_stack.to_compact_str.return_value = "Python/FastAPI"
+    profile.test_coverage.estimated_coverage = 80
+    profile.warnings = []
+    return profile
+
+
+@pytest.fixture(autouse=True)
+def _patch_profiler():
+    """Patch ProjectProfiler to avoid slow filesystem scans."""
+    mock_profile = _make_mock_profile()
+    with (
+        patch(
+            "intelligence.analysis.project_profiler.ProjectProfiler.profile",
+            return_value=mock_profile,
+        ),
+        patch(
+            "intelligence.context_injector.ProcessMonitor",
+            None,
+        ),
+    ):
+        yield
 
 
 class TestInjectionContext:
@@ -103,9 +131,7 @@ class TestContextInjector:
 
     def test_detect_production_project(self, injector):
         """Should detect projects under production directory."""
-        project = injector._detect_project(
-            Path("~/Dev/production/audio/dj-copilot")
-        )
+        project = injector._detect_project(Path("~/Dev/production/audio/dj-copilot"))
         assert project == "dj-copilot"
 
     def test_find_project_root_with_git(self, injector):
