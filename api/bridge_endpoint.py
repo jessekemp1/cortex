@@ -13,6 +13,7 @@ Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -24,7 +25,7 @@ cortex_root = Path(__file__).parent.parent
 sys.path.insert(0, str(cortex_root.parent))
 
 try:
-    from fastapi import FastAPI, HTTPException, Query
+    from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field
 except ImportError:
@@ -1580,6 +1581,42 @@ async def guardian_recover(req: GuardianRecoverRequest) -> Dict[str, Any]:
 # ============================================================================
 
 
+def _get_api_key() -> Optional[str]:
+    """Read configured API key from env or ~/.cortex/api_key."""
+    key = os.environ.get("CORTEX_API_KEY")
+    if key:
+        return key
+    key_file = Path.home() / ".cortex" / "api_key"
+    if key_file.is_file():
+        return key_file.read_text().strip() or None
+    return None
+
+
+def _verify_signal_auth(request: "Request") -> None:
+    """Verify caller is authorised to inject signals.
+
+    Policy:
+      - If CORTEX_API_KEY (env or file) is set, require Bearer token match.
+      - If no key configured, allow localhost-only (127.0.0.1 / ::1).
+    Raises HTTPException(401) on failure.
+    """
+    api_key = _get_api_key()
+    if api_key:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing Bearer token")
+        if auth_header[7:] != api_key:
+            raise HTTPException(status_code=401, detail="Invalid API key")
+    else:
+        # No key configured — restrict to localhost
+        client_host = request.client.host if request.client else None
+        if client_host not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(
+                status_code=401,
+                detail="No API key configured; only localhost access allowed",
+            )
+
+
 class SignalAbsorbRequest(BaseModel):
     """Request model for absorbing a workspace signal via HTTP."""
 
@@ -1609,18 +1646,22 @@ def get_signal_bus():
 
 
 @app.post("/signal/absorb")
-async def absorb_signal(payload: SignalAbsorbRequest) -> Dict[str, Any]:
+async def absorb_signal(request: Request, payload: SignalAbsorbRequest) -> Dict[str, Any]:
     """
     Absorb a workspace signal from any tool into the Universal Signal Bus.
 
     Fan-out to WorkstreamOrchestrator, SynthesisCore, and bus event log.
     Returns immediately — never blocks the caller.
 
+    Auth: Bearer token (CORTEX_API_KEY env / ~/.cortex/api_key) or localhost-only.
+
     Example:
         POST /signal/absorb
+        Authorization: Bearer <key>
         {"source": "iterm", "project": "vortex", "content_type": "insight",
          "content": "HRRR wins wind_speed at all lead times today"}
     """
+    _verify_signal_auth(request)
     try:
         from cortex.engines.workstream_orchestrator import (
             SignalSource,
@@ -1986,12 +2027,31 @@ async def conductor_compose_prompt(req: PromptComposeRequest) -> Dict[str, Any]:
                 pass
 
     composed = "\n".join(sections)
+    token_estimate = len(composed.split()) * 2  # rough estimate
+
+    # Persist to prompt history
+    try:
+        history_dir = Path.home() / ".cortex" / "conductor"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        history_file = history_dir / "prompt_history.jsonl"
+        entry = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "intent": req.intent,
+            "project_id": req.project_id,
+            "intent_level": req.intent_level,
+            "prompt": composed,
+            "token_estimate": token_estimate,
+        }
+        with open(history_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass  # Non-critical — don't fail compose if history write fails
 
     return {
         "prompt": composed,
         "project": req.project_id,
         "intent_level": req.intent_level,
-        "token_estimate": len(composed.split()) * 2,  # rough estimate
+        "token_estimate": token_estimate,
     }
 
 
@@ -2045,6 +2105,41 @@ PROMPT_TEMPLATES = [
 async def conductor_templates() -> Dict[str, Any]:
     """Get available prompt templates for the Prompt Composer."""
     return {"templates": PROMPT_TEMPLATES}
+
+
+@app.get("/conductor/history")
+async def conductor_prompt_history(
+    limit: int = Query(default=20, ge=1, le=200, description="Number of recent entries to return"),
+) -> Dict[str, Any]:
+    """
+    Return recent prompt composition history, newest-first.
+
+    Reads from ~/.cortex/conductor/prompt_history.jsonl.
+    """
+    history_file = Path.home() / ".cortex" / "conductor" / "prompt_history.jsonl"
+
+    if not history_file.exists():
+        return {"entries": [], "total": 0}
+
+    entries: List[Dict[str, Any]] = []
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read prompt history: {e}")
+
+    # Newest-first
+    entries.reverse()
+    total = len(entries)
+    entries = entries[:limit]
+
+    return {"entries": entries, "total": total}
 
 
 # ============================================================================

@@ -15,6 +15,8 @@ Tools:
   - cortex_taskboard: Task board items (list/create/update)
   - cortex_emos_status: EMOS pair counts and readiness
   - cortex_prompt_refine: Get refinement suggestions for any prompt (cross-model)
+  - cortex_conductor_compose: Receive composed prompts from Conductor UI
+  - cortex_conductor_startup: Get startup intelligence summary from Conductor
 
 Resources:
   - cortex://goals: Current GOALS.md content
@@ -243,6 +245,50 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
         "word_count": len(prompt.split()),
         "suggestion": f"Consider adding: {hint.split(': ', 1)[-1] if ': ' in hint else hint}",
     }
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_conductor_compose(
+    intent: str, project: str, intent_level: str = "collaborative", include_context: bool = True
+) -> str:
+    """Receive a composed prompt from the Conductor UI instead of clipboard copy.
+
+    The Conductor composes a full prompt with context, intent classification,
+    and relevant Cortex intelligence, then delivers it here for execution.
+
+    Args:
+        intent: The user's intent or task description from Conductor.
+        project: Target project (vortex, cortex, alpha-arena, etc.).
+        intent_level: Intent level — one of 'advisory', 'collaborative', 'autonomous', 'supervisory'. Default: collaborative.
+        include_context: Whether to include Cortex context (goals, recent sessions, anomalies). Default: True.
+    """
+    valid_levels = {"advisory", "collaborative", "autonomous", "supervisory"}
+    if intent_level not in valid_levels:
+        intent_level = "collaborative"
+
+    payload = {
+        "intent": intent,
+        "project": project,
+        "intent_level": intent_level,
+        "include_context": include_context,
+    }
+    result = _bridge_post("/conductor/compose", payload, timeout=10.0)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def cortex_conductor_startup(project_id: str = "") -> str:
+    """Get startup intelligence summary from Conductor.
+
+    Returns project health, active goals, recent anomalies, and recommended
+    first actions — everything needed to orient at the start of a session.
+
+    Args:
+        project_id: Optional project to focus the startup summary on.
+    """
+    params = f"?project_id={project_id}" if project_id else ""
+    result = _bridge_get(f"/conductor/startup{params}", timeout=10.0)
     return json.dumps(result, indent=2)
 
 

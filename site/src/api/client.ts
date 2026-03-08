@@ -304,6 +304,23 @@ export const taskBoardApi = {
   },
 }
 
+// ── Conductor: Prompt History ──
+export interface PromptHistoryEntry {
+  timestamp: string
+  intent: string
+  project_id: string
+  intent_level: string
+  prompt: string
+  token_estimate: number
+}
+
+export const conductorApi = {
+  getPromptHistory: async (limit = 20): Promise<{ entries: PromptHistoryEntry[]; total: number }> => {
+    const response = await cortexApi.get('/conductor/history', { params: { limit } })
+    return response.data
+  },
+}
+
 export default {
   health: healthApi,
   serviceHealth: serviceHealthApi,
@@ -317,6 +334,7 @@ export default {
   projects: projectsApi,
   sessions: sessionsApi,
   taskBoard: taskBoardApi,
+  conductor: conductorApi,
   vortexHealth: vortexHealthApi,
   vortexScheduler: vortexSchedulerApi,
   vortexModels: vortexModelsApi,

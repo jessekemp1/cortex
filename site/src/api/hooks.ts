@@ -11,6 +11,7 @@ import {
   projectsApi,
   sessionsApi,
   taskBoardApi,
+  conductorApi,
   vortexHealthApi,
   vortexSchedulerApi,
   vortexModelsApi,
@@ -32,6 +33,7 @@ export const queryKeys = {
   projects: ['projects'] as const,
   sessions: ['sessions'] as const,
   taskboard: ['taskboard'] as const,
+  conductorHistory: (limit: number) => ['conductor', 'history', limit] as const,
   vortexHealth: ['vortex', 'health'] as const,
   vortexScheduler: ['vortex', 'scheduler'] as const,
   vortexModels: ['vortex', 'models'] as const,
@@ -296,6 +298,17 @@ export function useDeleteTaskBoardTaskMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
     },
+  })
+}
+
+// ── Conductor: Prompt History ──
+export function useConductorHistoryQuery(limit = 5) {
+  return useQuery({
+    queryKey: queryKeys.conductorHistory(limit),
+    queryFn: () => conductorApi.getPromptHistory(limit),
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+    retry: 1,
   })
 }
 
