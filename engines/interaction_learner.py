@@ -308,6 +308,14 @@ class InteractionLearner:
         prompts = [i for i in interactions if i.get("type") == "prompt_received"]
         tools = [i for i in interactions if i.get("type") == "tool_completed"]
 
+        # Derive source from first interaction that has one
+        source = "unknown"
+        for event in interactions:
+            s = event.get("source", "")
+            if s:
+                source = s
+                break
+
         # Analyze prompt patterns for implicit feedback
         for i, prompt_data in enumerate(prompts):
             prompt = prompt_data.get("prompt", "").lower()
@@ -511,6 +519,12 @@ class InteractionLearner:
             return
 
         try:
+            # Add parent dir to sys.path so `from cortex.state_paths` resolves inside feedback.py
+            import sys
+
+            parent = str(Path(__file__).resolve().parent.parent.parent)
+            if parent not in sys.path:
+                sys.path.insert(0, parent)
             from feedback import FeedbackLogger
 
             logger_instance = FeedbackLogger()
