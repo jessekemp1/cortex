@@ -1416,15 +1416,17 @@ def cmd_orchestrate(args):
             print()
 
         if args.dry_run:
-            print("(dry run — no dispatch)")
+            print("(dry run — routing plan only, no API calls)")
             if args.json:
                 print(_json.dumps({"status": "dry_run", "items": routed}, indent=2))
             return
 
-        # Dispatch via supervisor
+        # Dispatch via supervisor (dry_run=False since we already handled the flag above)
+        from supervisor.config import SupervisorConfig
         from supervisor.core import CortexSupervisor
 
-        supervisor = CortexSupervisor()
+        config = SupervisorConfig(dry_run=False)
+        supervisor = CortexSupervisor(config=config)
         result = supervisor.orchestrate(work_items)
         result["routing_plan"] = routed
 

@@ -525,7 +525,7 @@ class InteractionLearner:
             parent = str(Path(__file__).resolve().parent.parent.parent)
             if parent not in sys.path:
                 sys.path.insert(0, parent)
-            from feedback import FeedbackLogger
+            from cortex.feedback import FeedbackLogger
 
             logger_instance = FeedbackLogger()
 
