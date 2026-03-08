@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Week 1 Foundation Calibration - Automated Tracking
@@ -12,6 +11,7 @@ Automates Week 1 calibration by:
 """
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -21,10 +21,8 @@ from typing import Any, Dict, List, Optional
 
 # Add paths for imports
 script_dir = Path(__file__).parent
-dev_root = script_dir.parent
-scripts_dir = dev_root / "scripts"
-sys.path.insert(0, str(dev_root))
-sys.path.insert(0, str(scripts_dir))
+cortex_root = script_dir.parent.parent  # cortex/scripts/internal -> cortex/
+sys.path.insert(0, str(cortex_root))
 sys.path.insert(0, str(script_dir))
 
 try:

@@ -100,6 +100,12 @@ Set `CORTEX_ROOT_DIR=/path/to/projects` to point Cortex at your workspace.
 
 ![Cortex terminal demo — briefing + intelligence query](docs/assets/demo.png)
 
+### Conductor — Human-AI Collaboration Cockpit
+
+![Conductor cockpit — startup wizard with project health, intent levels, and prompt composition](docs/assets/conductor.png)
+
+The Conductor panel provides a structured startup workflow: select your project, set an intent level (advisory → autonomous), and compose context-rich prompts with one click. It tracks prompt history, monitors active Claude sessions, and surfaces portfolio health across all projects.
+
 **The Compound Intelligence Effect: A realistic morning session**
 
 You open Claude Code to work on your FastAPI project. Last week you debugged a tricky circular import in the auth module. Two months ago you discovered that Redis connection pooling needs specific timeout settings for your use case. Without Cortex, Claude starts fresh — no memory of either lesson.

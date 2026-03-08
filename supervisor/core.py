@@ -291,11 +291,11 @@ class CortexSupervisor:
         return self._router
 
     def _get_dispatcher(self):
-        """Lazy-initialize AgentDispatcher."""
+        """Lazy-initialize AgentDispatcher, respecting config.dry_run."""
         if self._dispatcher is None:
             from .dispatch import AgentDispatcher
 
-            self._dispatcher = AgentDispatcher()
+            self._dispatcher = AgentDispatcher(dry_run=self.config.dry_run)
         return self._dispatcher
 
     def _get_collector(self):
