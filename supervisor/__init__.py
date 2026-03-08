@@ -36,6 +36,8 @@ __all__ = [
     "WorkItem",
     "TaskTarget",
     "RoutedTask",
+    "run_pipeline",
+    "PipelineResult",
 ]
 
 
@@ -61,4 +63,12 @@ def __getattr__(name):
         from supervisor.agents import AgentProfile
 
         return AgentProfile
+    if name == "run_pipeline":
+        from supervisor.pipeline import run_pipeline
+
+        return run_pipeline
+    if name == "PipelineResult":
+        from supervisor.pipeline import PipelineResult
+
+        return PipelineResult
     raise AttributeError(f"module 'supervisor' has no attribute {name!r}")

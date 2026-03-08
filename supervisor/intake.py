@@ -303,6 +303,83 @@ class WorkIntake:
             metadata={"recommendation_id": recommendation.get("id", "")},
         )
 
+    def from_batch_jobs(
+        self,
+        batch_dir: Optional[Path] = None,
+    ) -> List[WorkItem]:
+        """Scan ~/.cortex/batch/ for pending batch jobs and convert to WorkItems.
+
+        Looks for:
+          - *.json files with status='pending' or status='queued'
+          - Batch queue DB entries in PENDING state
+
+        Returns WorkItems sorted by creation time (oldest first).
+        """
+        batch_path = batch_dir or (Path.home() / ".cortex" / "batch")
+        if not batch_path.exists():
+            log.info("Batch directory not found at %s", batch_path)
+            return []
+
+        items: List[WorkItem] = []
+
+        # 1. Scan JSON job files
+        for json_file in sorted(batch_path.glob("*.json")):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as exc:
+                log.warning("Failed to read batch file %s: %s", json_file.name, exc)
+                continue
+
+            # Support both single job and list-of-jobs formats
+            jobs = data if isinstance(data, list) else [data]
+            for job in jobs:
+                status = job.get("status", "").lower()
+                if status not in ("pending", "queued", "ready"):
+                    continue
+
+                description = (
+                    job.get("description")
+                    or job.get("title")
+                    or job.get("command")
+                    or json_file.stem
+                )
+                priority_str = job.get("priority", "medium").lower()
+
+                items.append(
+                    WorkItem(
+                        id=job.get("id", _make_id()),
+                        source="batch",
+                        task_type=_infer_task_type(description),
+                        description=description,
+                        command=job.get("command"),
+                        prompt=job.get("prompt"),
+                        project=job.get("project", _infer_project(description)),
+                        priority=_PRIORITY_MAP.get(priority_str, WorkItemPriority.MEDIUM),
+                        confidence=0.8,
+                        metadata={
+                            "batch_file": json_file.name,
+                            **{
+                                k: v
+                                for k, v in job.items()
+                                if k
+                                not in (
+                                    "id",
+                                    "description",
+                                    "title",
+                                    "command",
+                                    "prompt",
+                                    "project",
+                                    "priority",
+                                    "status",
+                                )
+                            },
+                        },
+                    )
+                )
+
+        log.info("Found %d pending batch jobs in %s", len(items), batch_path)
+        return items
+
     def from_recommendations_api(self) -> List[WorkItem]:
         """Query the Cortex bridge for recommendations and convert to WorkItems.
 
@@ -348,6 +425,9 @@ class WorkIntake:
 
         # Taskboard (all non-done statuses)
         all_items.extend(self.from_taskboard(status=""))
+
+        # Batch jobs from ~/.cortex/batch/
+        all_items.extend(self.from_batch_jobs())
 
         # Recommendations (best-effort, don't block on failure)
         all_items.extend(self.from_recommendations_api())

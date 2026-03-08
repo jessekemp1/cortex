@@ -1356,83 +1356,68 @@ def cmd_orchestrate(args):
 
     try:
         from supervisor.intake import WorkIntake
-        from supervisor.router import ModelRouter
+        from supervisor.pipeline import run_pipeline
     except ImportError as e:
         print(f"Error: supervisor module not available: {e}", file=sys.stderr)
         sys.exit(1)
 
     try:
-        intake = WorkIntake()
-        router = ModelRouter()
-
+        # Build work items from CLI task or discovery
+        work_items = None
         if args.task:
-            # Single task mode
+            intake = WorkIntake()
             work_items = [
                 intake.from_cli(args.task, project=args.project or "", priority=args.priority)
             ]
-        else:
-            # Discovery mode
-            work_items = intake.discover_all()
-            if args.project:
-                work_items = [wi for wi in work_items if wi.project == args.project]
 
-        if not work_items:
+        # Run the full pipeline
+        result = run_pipeline(
+            work_items=work_items,
+            dry_run=args.dry_run,
+            project_filter=args.project if not args.task else None,
+        )
+
+        if not result.routing_decisions and not result.work_items:
             print("No pending work items found.")
             return
-
-        # Route all items
-        routed = []
-        for wi in work_items:
-            selection = router.select_model(wi)
-            routed.append(
-                {
-                    "id": wi.id,
-                    "description": wi.description[:80],
-                    "task_type": wi.task_type,
-                    "project": wi.project,
-                    "priority": wi.priority.value
-                    if hasattr(wi.priority, "value")
-                    else str(wi.priority),
-                    "model": selection.model_tier,
-                    "model_id": selection.model_id,
-                    "complexity": round(selection.complexity_score, 2),
-                    "confidence": round(selection.confidence, 2),
-                }
-            )
 
         # Display routing plan
         print("╔══════════════════════════════════════════════════════╗")
         print("║            CORTEX - ORCHESTRATION PLAN               ║")
         print("╚══════════════════════════════════════════════════════╝")
-        print(f"\nItems found: {len(routed)}\n")
+        print(f"\nItems found: {result.items_discovered}\n")
 
-        for i, item in enumerate(routed, 1):
-            print(f"  [{i}] {item['description']}")
-            print(f"      Project: {item['project'] or 'auto'}  Priority: {item['priority']}")
+        for i, rd in enumerate(result.routing_decisions, 1):
+            print(f"  [{i}] {rd.work_item.description[:80]}")
+            proj = rd.work_item.project or "auto"
+            pri = (
+                rd.work_item.priority.value
+                if hasattr(rd.work_item.priority, "value")
+                else str(rd.work_item.priority)
+            )
+            print(f"      Project: {proj}  Priority: {pri}")
             print(
-                f"      Model: {item['model']} ({item['model_id']})  "
-                f"Complexity: {item['complexity']}  Confidence: {item['confidence']}"
+                f"      Model: {rd.model_tier} ({rd.model_id})  "
+                f"Complexity: {rd.complexity_score:.2f}  Confidence: {rd.confidence:.2f}"
             )
             print()
 
-        if args.dry_run:
+        if result.dry_run:
             print("(dry run — routing plan only, no API calls)")
-            if args.json:
-                print(_json.dumps({"status": "dry_run", "items": routed}, indent=2))
-            return
 
-        # Dispatch via supervisor (dry_run=False since we already handled the flag above)
-        from supervisor.config import SupervisorConfig
-        from supervisor.core import CortexSupervisor
+        if not result.dry_run and result.items_dispatched > 0:
+            print(
+                f"Dispatched: {result.items_dispatched} "
+                f"(succeeded={result.items_succeeded}, failed={result.items_failed})"
+            )
 
-        config = SupervisorConfig(dry_run=False)
-        supervisor = CortexSupervisor(config=config)
-        result = supervisor.orchestrate(work_items)
-        result["routing_plan"] = routed
+        if result.errors:
+            print(f"\nErrors ({len(result.errors)}):")
+            for err in result.errors:
+                print(f"  - {err}")
 
-        print("Dispatched successfully.")
         if args.json:
-            print(_json.dumps(result, indent=2))
+            print(_json.dumps(result.to_dict(), indent=2))
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
