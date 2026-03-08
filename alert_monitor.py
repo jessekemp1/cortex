@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Alert Monitor — surfaces critical failures without you having to ask.
+Alert Monitor — surfaces critical failures and auto-restarts Tier 1 services.
 
 Checks every invocation (called by LaunchAgent every 5 minutes):
-  1. Service health: HTTP GET to :8000/health, :8002/health, :3001/
-  2. Scheduler failures: errors in ~/.cortex/metrics/scheduler_jobs.jsonl (last 5 min)
-  3. Test regression: project test counts vs persisted baseline (>2% drop = alert)
+  1. Service health: HTTP GET to all operational endpoints
+  2. Auto-restart: Tier 1 services get launchctl kickstart on failure
+  3. Scheduler failures: errors in ~/.cortex/metrics/scheduler_jobs.jsonl (last 5 min)
+  4. Test regression: project test counts vs persisted baseline (>2% drop = alert)
 
 Writes to ~/.cortex/alerts.jsonl (append-only, read by session_start_context.py).
 Suppressed for 1h by: touch ~/.cortex/alert_silence_<service>
@@ -14,6 +15,7 @@ Suppressed for 1h by: touch ~/.cortex/alert_silence_<service>
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -24,20 +26,38 @@ ALERTS_LOG = CORTEX_DIR / "alerts.jsonl"
 METRICS_DIR = CORTEX_DIR / "metrics"
 SILENCE_DIR = CORTEX_DIR  # silence files: alert_silence_<service>
 CONSECUTIVE_FILE = CORTEX_DIR / "alert_consecutive.json"
+RESTART_LOG = CORTEX_DIR / "restart_history.jsonl"
 
+# === Tier 1: Always-on operational services (99.99% target) ===
+# === Tier 2: Supporting services ===
 SERVICES = [
     ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
-    ("winfield", "http://127.0.0.1:8002/api/v1/health"),
-    ("navigator", "http://127.0.0.1:8000/api/v2/navigator/health"),
-    ("cortex-site", "http://127.0.0.1:3001/"),
+    ("cortex-runtime", "http://127.0.0.1:8003/docs"),
     ("cortex-bridge", "http://127.0.0.1:8765/health"),
+    ("cortex-site", "http://127.0.0.1:3001/"),
+    ("alpha-arena", "http://127.0.0.1:8502/_stcore/health"),
+    ("navigator", "http://127.0.0.1:8000/api/v2/navigator/health"),
 ]
+
+# Map service names to their launchd labels for auto-restart
+TIER1_LAUNCHD_LABELS = {
+    "vortex-backend": "com.vortexv2.backend",
+    "cortex-runtime": "com.cortex.runtime",
+    "cortex-bridge": "com.cortex.bridge",
+    "cortex-site": "com.cortex.site",
+    "alpha-arena": "com.alphaarena.dashboard",
+}
 
 # Per-service consecutive failure thresholds (default: 2)
 CONSECUTIVE_THRESHOLD = 2
 CONSECUTIVE_THRESHOLDS = {
     "navigator": 3,  # Navigator has external API deps (Open-Meteo) — allow more retries
 }
+
+# Auto-restart after this many consecutive failures (Tier 1 only)
+AUTO_RESTART_THRESHOLD = 3
+# Max restarts per hour per service (prevent restart storms)
+MAX_RESTARTS_PER_HOUR = 3
 
 # Test regression threshold: alert if any project drops > 2%
 TEST_REGRESSION_PCT = 0.02
@@ -82,6 +102,81 @@ def _append_alert(alert: dict):
             f.write(json.dumps(alert) + "\n")
     except Exception:
         pass
+
+
+def _log_restart(service: str, label: str, success: bool):
+    """Log restart attempt to restart_history.jsonl."""
+    try:
+        RESTART_LOG.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": _now().isoformat(),
+            "service": service,
+            "label": label,
+            "success": success,
+        }
+        with open(RESTART_LOG, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+
+def _recent_restart_count(service: str) -> int:
+    """Count restarts for a service in the last hour."""
+    if not RESTART_LOG.exists():
+        return 0
+    cutoff = (_now() - timedelta(hours=1)).isoformat()
+    count = 0
+    try:
+        for line in RESTART_LOG.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("service") == service and entry.get("ts", "") >= cutoff:
+                    count += 1
+            except json.JSONDecodeError:
+                continue
+    except OSError:
+        pass
+    return count
+
+
+def _attempt_restart(service: str) -> bool:
+    """Attempt to restart a Tier 1 service via launchctl kickstart."""
+    label = TIER1_LAUNCHD_LABELS.get(service)
+    if not label:
+        return False
+
+    # Rate limit: max N restarts per hour
+    if _recent_restart_count(service) >= MAX_RESTARTS_PER_HOUR:
+        print(
+            f"⚠️  RESTART SUPPRESSED: {service} hit {MAX_RESTARTS_PER_HOUR} restarts/hour limit",
+            file=sys.stderr,
+        )
+        return False
+
+    try:
+        # Force-restart via launchctl kickstart -k (kill + restart)
+        result = subprocess.run(
+            ["launchctl", "kickstart", "-k", f"gui/502/{label}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        success = result.returncode == 0
+        _log_restart(service, label, success)
+        if success:
+            print(f"🔄 AUTO-RESTART: {service} ({label}) restarted", file=sys.stderr)
+        else:
+            print(
+                f"❌ RESTART FAILED: {service} ({label}): {result.stderr.strip()}",
+                file=sys.stderr,
+            )
+        return success
+    except Exception as e:
+        _log_restart(service, label, False)
+        print(f"❌ RESTART ERROR: {service}: {e}", file=sys.stderr)
+        return False
 
 
 def check_service(name: str, url: str) -> tuple[bool, str]:
@@ -129,6 +224,14 @@ def check_services() -> list[dict]:
             consec[name] = 0
         else:
             consec[name] = consec.get(name, 0) + 1
+
+            # Auto-restart Tier 1 services after threshold
+            if consec[name] >= AUTO_RESTART_THRESHOLD and name in TIER1_LAUNCHD_LABELS:
+                restarted = _attempt_restart(name)
+                if restarted:
+                    # Reset counter — give it a chance to come back
+                    consec[name] = 0
+
             if consec[name] >= threshold:
                 message = f"{name} DOWN ({consec[name]} consecutive failures)"
                 if detail and detail not in ("unreachable", "http_error"):
