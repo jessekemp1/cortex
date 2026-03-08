@@ -10,6 +10,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { path: '/conductor', label: 'CONDUCTOR', icon: '▷' },
   { path: '/', label: 'OVERVIEW', icon: '◈' },
   { path: '/anomalies', label: 'ANOMALIES', icon: '⚠' },
   { path: '/intelligence', label: 'INTEL', icon: '◉' },
