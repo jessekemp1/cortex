@@ -273,27 +273,29 @@ class CompoundingRiskAssessor:
         except Exception:
             return 0
 
+    # Directories to search when counting callers or looking for test files
+    _SOURCE_DIRS = ["cortex", "Vortex", "alpha_arena", "pupil"]
+
     def _count_callers(self, file_path: str) -> int:
         """Estimate how many files import this module."""
         try:
             module_name = Path(file_path).stem
+            # Scope to known Python source dirs to avoid scanning node_modules/data
+            search_dirs = [
+                str(self.REPO_ROOT / d) for d in self._SOURCE_DIRS if (self.REPO_ROOT / d).is_dir()
+            ]
             result = subprocess.run(
                 [
                     "grep",
                     "-rl",
                     "--include=*.py",
-                    "--exclude-dir=.git",
-                    "--exclude-dir=node_modules",
-                    "--exclude-dir=.venv",
-                    "--exclude-dir=venv",
                     "--exclude-dir=__pycache__",
-                    "--exclude-dir=data",
                     f"import {module_name}",
-                    str(self.REPO_ROOT),
+                    *search_dirs,
                 ],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=5,
             )
             return len([l for l in result.stdout.splitlines() if l.strip()])
         except Exception:
@@ -302,9 +304,16 @@ class CompoundingRiskAssessor:
     def _has_test_file(self, file_path: str) -> bool:
         """Check if a dedicated test file exists for this module."""
         stem = Path(file_path).stem
-        repo = self.REPO_ROOT
-        candidates = list(repo.rglob(f"test_{stem}.py")) + list(repo.rglob(f"{stem}_test.py"))
-        return len(candidates) > 0
+        # Only search known test directories — avoids scanning node_modules/data
+        test_dirs = [
+            self.REPO_ROOT / d / "tests"
+            for d in self._SOURCE_DIRS
+            if (self.REPO_ROOT / d / "tests").is_dir()
+        ]
+        for test_dir in test_dirs:
+            if list(test_dir.rglob(f"test_{stem}.py")) or list(test_dir.rglob(f"{stem}_test.py")):
+                return True
+        return False
 
     def _read_test_count(self, project: str) -> int:
         """Read test count from cortex metrics or fall back to MEMORY heuristics."""
