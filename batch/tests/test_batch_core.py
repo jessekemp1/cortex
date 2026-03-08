@@ -244,7 +244,7 @@ class TestBatchAPIClient:
         mock_batch = MagicMock()
         mock_batch.id = "batch_123"
         mock_batch.processing_status = "processing"
-        mock_client.beta.messages.batches.create.return_value = mock_batch
+        mock_client.messages.batches.create.return_value = mock_batch
         mock_anthropic.Anthropic.return_value = mock_client
 
         client = BatchAPIClient()

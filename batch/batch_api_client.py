@@ -114,7 +114,7 @@ class BatchAPIClient:
                 batch_requests.append(batch_request)
 
             # Submit to API
-            batch = self.client.beta.messages.batches.create(requests=batch_requests)
+            batch = self.client.messages.batches.create(requests=batch_requests)
 
             batch_id = batch.id
 
@@ -158,7 +158,7 @@ class BatchAPIClient:
             }
         """
         try:
-            batch = self.client.beta.messages.batches.retrieve(batch_id)
+            batch = self.client.messages.batches.retrieve(batch_id)
             counts = {
                 "processing": batch.request_counts.processing,
                 "succeeded": batch.request_counts.succeeded,
@@ -231,7 +231,7 @@ class BatchAPIClient:
                 elapsed = time.time() - start_time
                 if elapsed > timeout_seconds:
                     raise BatchTimeoutError(
-                        f"Batch {batch_id} did not complete within " f"{timeout_minutes} minutes"
+                        f"Batch {batch_id} did not complete within {timeout_minutes} minutes"
                     )
 
                 # Log progress periodically
@@ -300,7 +300,7 @@ class BatchAPIClient:
 
         try:
             # Get the results URL from the batch object
-            batch = self.client.beta.messages.batches.retrieve(batch_id)
+            batch = self.client.messages.batches.retrieve(batch_id)
             results_url = getattr(batch, "results_url", None)
 
             if not results_url:
@@ -316,7 +316,6 @@ class BatchAPIClient:
                 headers={
                     "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",
-                    "anthropic-beta": "message-batches-2024-09-24",
                 },
                 timeout=30.0,
             )
@@ -364,7 +363,7 @@ class BatchAPIClient:
         """
         try:
             batches = []
-            for batch in self.client.beta.messages.batches.list(limit=limit):
+            for batch in self.client.messages.batches.list(limit=limit):
                 batches.append(
                     {
                         "id": batch.id,
