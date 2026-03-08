@@ -37,6 +37,7 @@ class SupervisorConfig:
     enable_work_discovery: bool = True  # Proactively find work from sources
     enable_ai_batching: bool = True  # Group AI tasks for batch submission
     enable_self_healing: bool = True  # Auto-detect and retry stuck tasks
+    dry_run: bool = False  # Log routing decisions without calling API
 
     def __post_init__(self):
         """Ensure directories exist."""
