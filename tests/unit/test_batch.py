@@ -197,7 +197,7 @@ class TestBatchAPIClientSubmit:
                 mock_batch = MagicMock()
                 mock_batch.id = "batch_test_123"
                 mock_batch.processing_status = "in_progress"
-                mock_client.beta.messages.batches.create.return_value = mock_batch
+                mock_client.messages.batches.create.return_value = mock_batch
 
                 client = BatchAPIClient()
                 # Override batch_dir to use temp directory
@@ -240,7 +240,7 @@ class TestBatchAPIClientStatus:
             mock_batch.request_counts.errored = 1
             mock_batch.request_counts.expired = 0
 
-            mock_client.beta.messages.batches.retrieve.return_value = mock_batch
+            mock_client.messages.batches.retrieve.return_value = mock_batch
 
             client = BatchAPIClient()
             status = client.get_batch_status("batch_123")
@@ -270,7 +270,7 @@ class TestBatchAPIClientStatus:
             mock_batch.request_counts.errored = 1
             mock_batch.request_counts.expired = 0
 
-            mock_client.beta.messages.batches.retrieve.return_value = mock_batch
+            mock_client.messages.batches.retrieve.return_value = mock_batch
 
             client = BatchAPIClient()
             status = client.get_batch_status("batch_456")
@@ -303,7 +303,7 @@ class TestBatchAPIClientList:
             mock_batch1.request_counts.errored = 0
             mock_batch1.request_counts.expired = 0
 
-            mock_client.beta.messages.batches.list.return_value = [mock_batch1]
+            mock_client.messages.batches.list.return_value = [mock_batch1]
 
             client = BatchAPIClient()
             batches = client.list_batches(limit=5)

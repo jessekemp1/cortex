@@ -145,6 +145,7 @@ class CortexSupervisor:
         # AI batch state
         self._pending_ai_tasks: List[Any] = []
         self._last_ai_batch_submission = datetime.min
+        self._pending_batch_ids: List[str] = []
 
     def tick(self) -> TickResult:
         """
@@ -163,6 +164,15 @@ class CortexSupervisor:
                 result.tasks_healed = len([a for a in healing_actions if a.success])
                 result.healed_task_ids = [a.issue.target_id for a in healing_actions if a.success]
                 self._last_health_check = datetime.now()
+
+            # 1a. Check pending AI batches for results
+            if self._pending_batch_ids:
+                try:
+                    received = self._check_pending_batches()
+                    result.ai_results_received += received
+                except Exception as e:
+                    logger.error(f"Batch check failed: {e}", exc_info=True)
+                    result.orchestration_errors.append(f"batch_check: {e}")
 
             # 1b. Work discovery (periodic)
             if self._should_run_work_discovery():
@@ -427,52 +437,88 @@ class CortexSupervisor:
                 logger.error(f"Shell routing failed for {work_item.id[:8]}: {e}")
                 errors.append(f"{work_item.id[:8]}: {e}")
 
-        # Route AI items through dispatch pipeline
-        for work_item in ai_items:
-            try:
-                model_selection = router.select_model(work_item)
-                logger.info(
-                    f"Routed {work_item.id[:8]} → {model_selection.model_tier} "
-                    f"({model_selection.reasoning[:60]})"
-                )
+        # Route AI items — batch path (multiple items) or single dispatch
+        from .dispatch import ModelSelection as DispatchModelSelection
 
-                from .dispatch import ModelSelection as DispatchModelSelection
-
-                dispatch_selection = DispatchModelSelection(
-                    model_tier=model_selection.model_tier,
-                    model_id=model_selection.model_id,
-                    reasoning=model_selection.reasoning,
-                    complexity_score=model_selection.complexity_score,
-                    confidence=model_selection.confidence,
-                )
-                result = dispatcher.dispatch(work_item, dispatch_selection)
-
-                collector.collect(result)
-                collector.record_outcome(result)
-
-                quality = _estimate_quality(result)
-                router.record_outcome(
-                    work_item_id=work_item.id,
-                    model_tier=model_selection.model_tier,
-                    success=result.success,
-                    quality_score=quality,
-                    task_type=work_item.task_type,
-                )
-
-                dispatched += 1
-                self._mark_dispatched(work_item)
-
-                if result.success:
-                    succeeded += 1
-                else:
+        if len(ai_items) > 1 and self.config.enable_ai_batching:
+            # Batch path: route all items then submit as one batch
+            batch_pairs: list[tuple[WorkItem, Any]] = []
+            for work_item in ai_items:
+                try:
+                    ms = router.select_model(work_item)
+                    logger.info(
+                        f"Routed {work_item.id[:8]} → {ms.model_tier} ({ms.reasoning[:60]})"
+                    )
+                    dispatch_ms = DispatchModelSelection(
+                        model_tier=ms.model_tier,
+                        model_id=ms.model_id,
+                        reasoning=ms.reasoning,
+                        complexity_score=ms.complexity_score,
+                        confidence=ms.confidence,
+                    )
+                    batch_pairs.append((work_item, dispatch_ms))
+                except Exception as e:
+                    logger.error(f"Routing failed for {work_item.id[:8]}: {e}")
                     failed += 1
-                    if result.error:
-                        errors.append(f"{work_item.id[:8]}: {result.error}")
+                    errors.append(f"{work_item.id[:8]}: {e}")
 
-            except Exception as e:
-                logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}")
-                failed += 1
-                errors.append(f"{work_item.id[:8]}: {e}")
+            if batch_pairs:
+                try:
+                    batch_id = dispatcher.submit_batch(batch_pairs)
+                    self._pending_batch_ids.append(batch_id)
+                    dispatched += len(batch_pairs)
+                    for wi, _ in batch_pairs:
+                        self._mark_dispatched(wi)
+                    logger.info(f"Submitted AI batch {batch_id} with {len(batch_pairs)} items")
+                except Exception as e:
+                    logger.error(f"Batch submission failed: {e}")
+                    failed += len(batch_pairs)
+                    errors.append(f"batch_submit: {e}")
+        else:
+            # Single-dispatch path (1 item or batching disabled)
+            for work_item in ai_items:
+                try:
+                    model_selection = router.select_model(work_item)
+                    logger.info(
+                        f"Routed {work_item.id[:8]} → {model_selection.model_tier} "
+                        f"({model_selection.reasoning[:60]})"
+                    )
+
+                    dispatch_selection = DispatchModelSelection(
+                        model_tier=model_selection.model_tier,
+                        model_id=model_selection.model_id,
+                        reasoning=model_selection.reasoning,
+                        complexity_score=model_selection.complexity_score,
+                        confidence=model_selection.confidence,
+                    )
+                    result = dispatcher.dispatch(work_item, dispatch_selection)
+
+                    collector.collect(result)
+                    collector.record_outcome(result)
+
+                    quality = _estimate_quality(result)
+                    router.record_outcome(
+                        work_item_id=work_item.id,
+                        model_tier=model_selection.model_tier,
+                        success=result.success,
+                        quality_score=quality,
+                        task_type=work_item.task_type,
+                    )
+
+                    dispatched += 1
+                    self._mark_dispatched(work_item)
+
+                    if result.success:
+                        succeeded += 1
+                    else:
+                        failed += 1
+                        if result.error:
+                            errors.append(f"{work_item.id[:8]}: {result.error}")
+
+                except Exception as e:
+                    logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}")
+                    failed += 1
+                    errors.append(f"{work_item.id[:8]}: {e}")
 
         # Persist batch results if any
         if dispatched > 0:
@@ -496,6 +542,57 @@ class CortexSupervisor:
             "shell_routed": shell_routed,
             "errors": errors,
         }
+
+    # ------------------------------------------------------------------
+    # AI batch polling
+    # ------------------------------------------------------------------
+
+    def _check_pending_batches(self) -> int:
+        """Poll pending AI batches and collect any completed results.
+
+        Returns the number of results received across all completed batches.
+        """
+        if not self._pending_batch_ids:
+            return 0
+
+        dispatcher = self._get_dispatcher()
+        collector = self._get_collector()
+        router = self._get_router()
+        total_received = 0
+        still_pending: List[str] = []
+
+        for batch_id in self._pending_batch_ids:
+            try:
+                results = dispatcher.retrieve_batch(batch_id, router=router)
+                if not results:
+                    # Still in progress
+                    still_pending.append(batch_id)
+                    continue
+
+                # Collect completed results
+                for dr in results:
+                    collector.collect(dr)
+                    collector.record_outcome(dr)
+                total_received += len(results)
+
+                logger.info(
+                    f"Batch {batch_id[:12]} complete: {len(results)} results "
+                    f"({sum(1 for r in results if r.success)} succeeded)"
+                )
+            except Exception as e:
+                logger.error(f"Failed to retrieve batch {batch_id[:12]}: {e}")
+                still_pending.append(batch_id)  # Keep it for next tick
+
+        self._pending_batch_ids = still_pending
+
+        if total_received > 0:
+            try:
+                collector.persist()
+                collector.clear()
+            except Exception as e:
+                logger.error(f"Failed to persist batch results: {e}")
+
+        return total_received
 
     # ------------------------------------------------------------------
     # Work dedup helpers
