@@ -357,9 +357,16 @@ def trigger_learning_pipeline() -> None:
     )
 
     try:
+        env = os.environ.copy()
+        # Parent dir needed so `from cortex.state_paths` resolves
+        parent = str(CORTEX_DIR.parent)
+        env["PYTHONPATH"] = (
+            f"{CORTEX_DIR}{os.pathsep}{parent}{os.pathsep}{env.get('PYTHONPATH', '')}"
+        )
         proc = subprocess.Popen(
             [sys.executable, "-c", cmd],
             cwd=str(CORTEX_DIR),
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,

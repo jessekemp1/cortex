@@ -18,7 +18,9 @@ import pytest
 
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line("markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')")
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    )
 
 
 # Add parent directory to path for imports
@@ -34,7 +36,7 @@ from intelligence.monitoring.metric_tracker import MetricTracker, MetricType
 from intelligence.monitoring.trend_analyzer import TrendAnalyzer
 from intelligence.recommendations.file_selector import FileSelector
 from intelligence.recommendations.smart_generator import SmartRecommendationGenerator
-from recommendation_engine import RecommendationEngine
+from recommendations import RecommendationEngine
 
 # Database Fixtures
 
