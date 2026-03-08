@@ -127,6 +127,11 @@ class CortexSupervisor:
         self._collector = None
         self._pending_work_items: List[WorkItem] = []
 
+        # Work dedup tracking — avoid re-dispatching the same items every tick
+        self._dispatched_ids: set = set()
+        self._dispatched_descriptions: Dict[str, float] = {}  # description -> timestamp
+        self._dispatch_ttl_seconds = 24 * 3600
+
         # Daemon state
         self._shutdown_event = threading.Event()
         self._last_health_check = datetime.min
@@ -134,7 +139,7 @@ class CortexSupervisor:
         self._tick_count = 0
         self._started_at: Optional[datetime] = None
 
-        # AI batch state (Phase 2)
+        # AI batch state
         self._pending_ai_tasks: List[Any] = []
         self._last_ai_batch_submission = datetime.min
 
@@ -161,7 +166,15 @@ class CortexSupervisor:
                 discovered = self._discover_work()
                 result.work_discovered = len(discovered)
                 result.work_items = discovered
-                self._pending_work_items.extend(discovered)
+                # Dedup: skip items already dispatched or similar to dispatched
+                self._cleanup_dispatched_cache()
+                new_items = [
+                    item
+                    for item in discovered
+                    if item.id not in self._dispatched_ids
+                    and not self._is_recently_dispatched(item.description)
+                ]
+                self._pending_work_items.extend(new_items)
                 self._last_work_discovery = datetime.now()
 
             # 1c. Dispatch pending AI work items via orchestration pipeline
@@ -305,33 +318,94 @@ class CortexSupervisor:
             logger.error(f"Work discovery failed: {e}")
             return []
 
+    def _dedup_work_items(self, items: List[WorkItem]) -> List[WorkItem]:
+        """Filter out items that were already dispatched or are too similar."""
+        from .intake import _similarity
+
+        new_items: List[WorkItem] = []
+        for item in items:
+            # Exact ID match
+            if item.id in self._dispatched_ids:
+                continue
+            # Similarity check against previously dispatched descriptions
+            is_dup = False
+            for desc in self._dispatched_descriptions:
+                if _similarity(item.description, desc) > 0.7:
+                    is_dup = True
+                    break
+            if not is_dup:
+                new_items.append(item)
+        return new_items
+
     def _dispatch_work_items(self) -> Dict[str, Any]:
         """Route and dispatch pending work items.
 
+        Handles:
+        - Dedup: skips items already dispatched (by ID or description similarity)
+        - Shell routing: items with `command` go to BatchExecutor
+        - AI dispatch: everything else goes through router → dispatcher → collector
+
         Returns a summary dict with keys: queued, dispatched, succeeded, failed, errors.
         """
+        from .models import RoutedTask, TaskTarget
+
         router = self._get_router()
         dispatcher = self._get_dispatcher()
         collector = self._get_collector()
         dispatched = 0
         succeeded = 0
         failed = 0
+        shell_routed = 0
         errors: List[str] = []
 
         # Process up to max_ai_batch_size items per tick
         batch = self._pending_work_items[: self.config.max_ai_batch_size]
         self._pending_work_items = self._pending_work_items[self.config.max_ai_batch_size :]
 
+        # Dedup: filter out already-dispatched items
+        self._cleanup_dispatched_cache()
+        batch = [
+            wi
+            for wi in batch
+            if wi.id not in self._dispatched_ids
+            and not self._is_recently_dispatched(wi.description)
+        ]
+
+        # Split into shell vs AI items
+        shell_items: List[WorkItem] = []
+        ai_items: List[WorkItem] = []
         for work_item in batch:
+            if self._should_route_to_shell(work_item):
+                shell_items.append(work_item)
+            else:
+                ai_items.append(work_item)
+
+        # Route shell items to BatchExecutor
+        for work_item in shell_items:
             try:
-                # Route: select model
+                routed = RoutedTask(
+                    work_item=work_item,
+                    target=TaskTarget.SHELL,
+                    priority=work_item.priority.value,
+                )
+                kwargs = routed.as_shell_task()
+                self.shell_queue.add_task(**kwargs)
+                shell_routed += 1
+                self._mark_dispatched(work_item)
+                logger.info(f"Shell-routed {work_item.id[:8]}: {work_item.command[:50]}")
+            except Exception as e:
+                logger.error(f"Shell routing failed for {work_item.id[:8]}: {e}")
+                errors.append(f"{work_item.id[:8]}: {e}")
+
+        # Route AI items through dispatch pipeline
+        for work_item in ai_items:
+            try:
                 model_selection = router.select_model(work_item)
                 logger.info(
                     f"Routed {work_item.id[:8]} → {model_selection.model_tier} "
                     f"({model_selection.reasoning[:60]})"
                 )
 
-                # Dispatch: execute via agent
                 from .dispatch import ModelSelection as DispatchModelSelection
 
                 dispatch_selection = DispatchModelSelection(
@@ -343,11 +417,9 @@ class CortexSupervisor:
                 )
                 result = dispatcher.dispatch(work_item, dispatch_selection)
 
-                # Collect: record outcome
                 collector.collect(result)
                 collector.record_outcome(result)
 
-                # Feed back to router for learning with heuristic quality
                 quality = _estimate_quality(result)
                 router.record_outcome(
                     work_item_id=work_item.id,
@@ -358,6 +430,8 @@ class CortexSupervisor:
                 )
 
                 dispatched += 1
+                self._mark_dispatched(work_item)
+
                 if result.success:
                     succeeded += 1
                 else:
@@ -389,8 +463,39 @@ class CortexSupervisor:
             "dispatched": dispatched,
             "succeeded": succeeded,
             "failed": failed,
+            "shell_routed": shell_routed,
             "errors": errors,
         }
+
+    # ------------------------------------------------------------------
+    # Work dedup helpers
+    # ------------------------------------------------------------------
+
+    def _mark_dispatched(self, work_item: WorkItem) -> None:
+        """Record a work item as dispatched to prevent re-dispatch."""
+        self._dispatched_ids.add(work_item.id)
+        self._dispatched_descriptions[work_item.description] = time.time()
+
+    def _is_recently_dispatched(self, description: str) -> bool:
+        """Check if a similar description was recently dispatched."""
+        from .intake import _similarity
+
+        for past_desc in self._dispatched_descriptions:
+            if _similarity(description, past_desc) >= 0.7:
+                return True
+        return False
+
+    def _cleanup_dispatched_cache(self) -> None:
+        """Remove expired entries from dispatched tracking (TTL-based)."""
+        cutoff = time.time() - self._dispatch_ttl_seconds
+        self._dispatched_descriptions = {
+            desc: ts for desc, ts in self._dispatched_descriptions.items() if ts > cutoff
+        }
+
+    @staticmethod
+    def _should_route_to_shell(work_item: WorkItem) -> bool:
+        """Determine if a work item should go to shell executor."""
+        return bool(work_item.command)
 
     def orchestrate(self, work_items: Optional[List[WorkItem]] = None) -> Dict[str, Any]:
         """Run a one-shot orchestration cycle (CLI/MCP entry point).
