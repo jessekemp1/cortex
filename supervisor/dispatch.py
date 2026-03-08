@@ -15,7 +15,7 @@ import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from cortex.supervisor.models import WorkItem
@@ -37,16 +37,9 @@ MODEL_TIMEOUTS: dict[str, float] = {
     "haiku": 60.0,
 }
 
-
-@dataclass
-class ModelSelection:
-    """Routing decision produced by the router module."""
-
-    model_tier: str  # "opus", "sonnet", "haiku"
-    model_id: str  # e.g. "claude-opus-4-6"
-    reasoning: str
-    complexity_score: float
-    confidence: float
+# Re-export ModelSelection from router to maintain backwards compatibility.
+# Previously duplicated here; now single source of truth in router.py.
+from cortex.supervisor.router import ModelSelection  # noqa: E402
 
 
 @dataclass
@@ -59,6 +52,7 @@ class DispatchResult:
     model_used: str
     tokens_used: int
     duration_seconds: float
+    task_type: str = ""  # Propagated from WorkItem for outcome recording
     error: Optional[str] = None
     checkpoint_id: Optional[str] = None  # For resume
 
@@ -120,6 +114,7 @@ class AgentDispatcher:
                     model_used=model_selection.model_id,
                     tokens_used=tokens,
                     duration_seconds=round(elapsed, 3),
+                    task_type=work_item.task_type,
                 )
             except asyncio.TimeoutError:
                 elapsed = time.monotonic() - start
@@ -136,6 +131,7 @@ class AgentDispatcher:
                     model_used=model_selection.model_id,
                     tokens_used=0,
                     duration_seconds=round(elapsed, 3),
+                    task_type=work_item.task_type,
                     error=f"Timed out after {timeout}s",
                 )
             except Exception as exc:
@@ -152,6 +148,7 @@ class AgentDispatcher:
                     model_used=model_selection.model_id,
                     tokens_used=0,
                     duration_seconds=round(elapsed, 3),
+                    task_type=work_item.task_type,
                     error=str(exc),
                 )
 

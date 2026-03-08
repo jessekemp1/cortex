@@ -295,7 +295,10 @@ class TestCortexSupervisor:
 
             from supervisor import SupervisorConfig
 
-            config = SupervisorConfig()
+            config = SupervisorConfig(
+                enable_work_discovery=False,
+                enable_ai_batching=False,
+            )
             supervisor = CortexSupervisor(config=config)
             supervisor.shell_queue = queue
 
@@ -313,8 +316,14 @@ class TestCortexSupervisor:
     def test_run_once(self):
         """Test run_once() returns a TickResult."""
         from supervisor import CortexSupervisor
+        from supervisor.config import SupervisorConfig
 
-        supervisor = CortexSupervisor()
+        config = SupervisorConfig(
+            enable_work_discovery=False,
+            enable_ai_batching=False,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
         result = supervisor.run_once()
 
         assert result is not None

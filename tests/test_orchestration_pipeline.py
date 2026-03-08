@@ -288,6 +288,22 @@ class TestResultCollector:
         assert entry["model_tier"] == "sonnet"
         assert entry["success"] is True
 
+    def test_record_outcome_includes_task_type(self, collector, tmp_path):
+        """Collector must propagate task_type from DispatchResult to outcome records."""
+        result = DispatchResult(
+            work_item_id="wi_typed",
+            success=True,
+            output="Done",
+            model_used="claude-sonnet-4-6",
+            tokens_used=100,
+            duration_seconds=1.0,
+            task_type="security",
+        )
+        collector.record_outcome(result, quality_score=0.85)
+        outcomes_path = tmp_path / "outcomes.jsonl"
+        entry = json.loads(outcomes_path.read_text().strip())
+        assert entry["task_type"] == "security"
+
     def test_clear(self, collector, success_result):
         collector.collect(success_result)
         assert collector.get_summary().total == 1
