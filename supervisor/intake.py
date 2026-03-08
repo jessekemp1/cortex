@@ -147,6 +147,8 @@ class WorkIntake:
         """
         if goals_path is None:
             goals_path = self.root_dir / "GOALS.md"
+        elif isinstance(goals_path, str):
+            goals_path = Path(goals_path)
 
         if not goals_path.exists():
             log.warning("GOALS.md not found at %s", goals_path)
