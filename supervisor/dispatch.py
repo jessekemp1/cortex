@@ -18,16 +18,15 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-import httpx
-
 from cortex.supervisor.models import WorkItem
 
 try:
-    from claude_agent_sdk import Agent
+    import anthropic  # noqa: F401
 
-    AGENT_SDK_AVAILABLE = True
+    ANTHROPIC_SDK_AVAILABLE = True
 except ImportError:
-    AGENT_SDK_AVAILABLE = False
+    anthropic = None  # type: ignore[assignment]
+    ANTHROPIC_SDK_AVAILABLE = False
 
 log = logging.getLogger(__name__)
 
@@ -105,24 +104,14 @@ class AgentDispatcher:
         start = time.monotonic()
         async with self._semaphore:
             try:
-                if AGENT_SDK_AVAILABLE:
-                    output, tokens = await asyncio.wait_for(
-                        self._run_agent_sdk(
-                            model_selection.model_id,
-                            system_prompt,
-                            prompt,
-                        ),
-                        timeout=timeout,
-                    )
-                else:
-                    output, tokens = await asyncio.wait_for(
-                        self._run_direct(
-                            model_selection.model_id,
-                            system_prompt,
-                            prompt,
-                        ),
-                        timeout=timeout,
-                    )
+                output, tokens = await asyncio.wait_for(
+                    self._run_dispatch(
+                        model_selection.model_id,
+                        system_prompt,
+                        prompt,
+                    ),
+                    timeout=timeout,
+                )
                 elapsed = time.monotonic() - start
                 return DispatchResult(
                     work_item_id=work_item.id,
@@ -194,10 +183,26 @@ class AgentDispatcher:
         return "\n\n".join(parts)
 
     def _build_system_prompt(self, work_item: WorkItem) -> str:
-        """Construct a system prompt with project context."""
+        """Construct a system prompt with project context.
+
+        Uses agent profiles from the registry when available for the
+        work item's task type, providing specialized instructions instead
+        of the generic fallback.
+        """
         if work_item.system_prompt:
             return work_item.system_prompt
 
+        # Try to use a registered agent profile for better prompts
+        from cortex.supervisor.agents import get_agent_for_task
+
+        agent = get_agent_for_task(work_item.task_type)
+        if agent:
+            return agent.build_system_prompt(
+                project=work_item.project or "",
+                context=work_item.description,
+            )
+
+        # Fallback for unmatched task types
         parts: list[str] = [
             "You are a focused execution agent.",
             f"Task type: {work_item.task_type}",
@@ -215,61 +220,34 @@ class AgentDispatcher:
     # Agent creation / execution
     # ------------------------------------------------------------------
 
-    def _create_agent(self, model_id: str, system_prompt: str) -> Any:
-        """Create a Claude Agent SDK agent instance.
+    def _get_client(self) -> Any:
+        """Get an Anthropic client instance."""
+        if not ANTHROPIC_SDK_AVAILABLE:
+            raise RuntimeError("anthropic SDK not installed. Install with: pip install anthropic")
+        return anthropic.Anthropic(api_key=self._api_key or None)
 
-        Returns the agent object. Raises ``RuntimeError`` if the SDK is not
-        installed.
-        """
-        if not AGENT_SDK_AVAILABLE:
-            raise RuntimeError("Claude Agent SDK is not installed")
-        return Agent(model=model_id, system_prompt=system_prompt)
-
-    async def _run_agent_sdk(
-        self,
-        model_id: str,
-        system_prompt: str,
-        prompt: str,
-    ) -> tuple[str, int]:
-        """Execute via Claude Agent SDK and return (output, tokens_used)."""
-        agent = self._create_agent(model_id, system_prompt)
-        result = await asyncio.to_thread(agent.run, prompt)
-        output = getattr(result, "output", str(result))
-        tokens = getattr(result, "tokens_used", 0)
-        return output, tokens
-
-    async def _run_direct(
+    async def _run_dispatch(
         self,
         model_id: str,
         system_prompt: str,
         prompt: str,
         max_tokens: int = 4096,
     ) -> tuple[str, int]:
-        """Direct Anthropic API call as fallback when Agent SDK unavailable."""
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": self._api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model_id,
-                    "max_tokens": max_tokens,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=300.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        """Execute via Anthropic SDK and return (output, tokens_used).
+
+        Uses the official ``anthropic`` package which handles auth,
+        retries, and streaming correctly.
+        """
+        client = self._get_client()
+        response = await asyncio.to_thread(
+            client.messages.create,
+            model=model_id,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}],
+        )
 
         # Extract text from response content blocks.
-        content_blocks = data.get("content", [])
-        output = "\n".join(
-            block.get("text", "") for block in content_blocks if block.get("type") == "text"
-        )
-        usage = data.get("usage", {})
-        tokens = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
+        output = "\n".join(block.text for block in response.content if block.type == "text")
+        tokens = response.usage.input_tokens + response.usage.output_tokens
         return output, tokens

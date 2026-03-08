@@ -23,20 +23,27 @@ from .models import WorkItem, WorkItemPriority
 
 log = logging.getLogger(__name__)
 
-_DEFAULT_OUTCOMES_PATH = Path.home() / ".cortex" / "metrics" / "model_outcomes.jsonl"
+_DEFAULT_OUTCOMES_PATH = Path.home() / ".cortex" / "orchestration" / "model_outcomes.jsonl"
 
 # --- Complexity factor maps ---
 
 _TYPE_COMPLEXITY: Dict[str, float] = {
+    # Opus tier
     "architecture": 0.9,
-    "security": 0.8,
+    "security": 0.85,
+    "planning": 0.8,
+    # Sonnet tier
     "research": 0.7,
     "refactor": 0.6,
     "feature": 0.5,
+    "fix": 0.5,
     "test": 0.4,
     "review": 0.4,
     "quality": 0.3,
+    # Haiku tier
+    "deploy": 0.25,
     "docs": 0.2,
+    "classify": 0.1,
     "classification": 0.1,
     "qa": 0.1,
 }
@@ -109,23 +116,27 @@ class ModelRouter:
     TASK_MODEL_MAP: Dict[str, str] = {
         # Opus: high-stakes reasoning
         "planning": "opus",
-        "review": "opus",
-        "debate": "opus",
         "architecture": "opus",
         "security": "opus",
+        "debate": "opus",
         # Sonnet: balanced execution
         "implement": "sonnet",
         "research": "sonnet",
         "test": "sonnet",
+        "fix": "sonnet",
+        "feature": "sonnet",
+        "review": "sonnet",
         "analysis": "sonnet",
         "investigation": "sonnet",
         "refactor": "sonnet",
-        # Haiku: fast classification
+        # Haiku: fast classification/simple tasks
         "classify": "haiku",
         "triage": "haiku",
         "format": "haiku",
         "validate": "haiku",
         "cleanup": "haiku",
+        "deploy": "haiku",
+        "docs": "haiku",
     }
 
     # Complexity overrides (simple/complex bypass TASK_MODEL_MAP)
@@ -179,21 +190,30 @@ class ModelRouter:
     def select_model(self, work_item: WorkItem) -> ModelSelection:
         """Select the best model tier for the given work item.
 
-        Combines a static complexity score with historical performance
-        data. If historical data strongly favors a different tier than
-        the static score suggests, the historical signal can shift the
-        selection by one tier.
+        Combines a static complexity score with task-type mapping and
+        historical performance data. The TASK_MODEL_MAP provides a floor
+        for each task type — e.g. architecture tasks always get at least
+        opus, even if the numeric complexity score alone wouldn't reach
+        the opus threshold.
         """
         complexity = self._compute_complexity(work_item)
         historical = self._get_historical_performance(work_item.task_type)
 
-        # Base tier from complexity
+        # Base tier from complexity score
         if complexity >= _OPUS_THRESHOLD:
-            base_tier = "opus"
+            score_tier = "opus"
         elif complexity >= _SONNET_THRESHOLD:
-            base_tier = "sonnet"
+            score_tier = "sonnet"
         else:
-            base_tier = "haiku"
+            score_tier = "haiku"
+
+        # Task-type mapping provides a floor (never downgrade below it)
+        map_tier = self.TASK_MODEL_MAP.get(work_item.task_type)
+        tier_rank = {"haiku": 0, "sonnet": 1, "opus": 2}
+        if map_tier and tier_rank.get(map_tier, 0) > tier_rank.get(score_tier, 0):
+            base_tier = map_tier
+        else:
+            base_tier = score_tier
 
         # Check if historical data suggests a different tier
         final_tier = base_tier

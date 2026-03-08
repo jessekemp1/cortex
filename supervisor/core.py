@@ -23,9 +23,65 @@ from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 from .config import SupervisorConfig
 from .delegator import DelegationPolicy, SupervisorDelegator
 from .health import HealthMonitor
-from .models import TickResult, WorkItem
+from .models import TaskResult, TickResult, WorkItem
 
 logger = logging.getLogger(__name__)
+
+
+def _estimate_quality(result: Any) -> float:
+    """Heuristic quality score for a dispatch result (0.0-1.0).
+
+    Replaces the previous hardcoded 1.0/0.0 binary with signals from
+    the actual output to give the router real learning signal:
+    - Failed dispatch → 0.0
+    - Very short output (<50 chars) → 0.2 (likely "I need more context")
+    - Contains refusal signals → 0.3
+    - Contains structured output (code blocks, JSON, tables) → 0.9
+    - Medium-length substantive output → 0.7
+    """
+    if not result.success:
+        return 0.0
+
+    output = result.output.strip()
+    length = len(output)
+
+    lower = output.lower()
+
+    # Very short AND no structured content = low quality
+    if length < 50 and "```" not in output:
+        return 0.2
+
+    # Refusal / inability signals
+    refusal_phrases = [
+        "cannot complete",
+        "need more context",
+        "need additional information",
+        "unable to",
+        "please provide",
+        "i need clarification",
+        "insufficient input",
+    ]
+    if any(phrase in lower for phrase in refusal_phrases):
+        return 0.3
+
+    # Structured output signals (code, JSON, tables, headings)
+    structured_signals = 0
+    if "```" in output:
+        structured_signals += 1
+    if output.count("#") >= 2:
+        structured_signals += 1
+    if any(c in output for c in ["{", "[", "|---"]):
+        structured_signals += 1
+    if length > 500:
+        structured_signals += 1
+
+    if structured_signals >= 2:
+        return 0.9
+    if structured_signals == 1:
+        return 0.7
+
+    # Default: moderate quality
+    return 0.6
 
 
 class CortexSupervisor:
@@ -112,10 +168,18 @@ class CortexSupervisor:
                 self._pending_work_items.extend(discovered)
                 self._last_work_discovery = datetime.now()
 
-            # 1c. Dispatch pending AI work items
+            # 1c. Dispatch pending AI work items via orchestration pipeline
             if self._pending_work_items and self.config.enable_ai_batching:
-                dispatched = self._dispatch_work_items()
-                result.ai_tasks_queued = dispatched
+                try:
+                    dispatch_summary = self._dispatch_work_items()
+                    result.ai_tasks_queued = dispatch_summary["queued"]
+                    result.ai_tasks_dispatched = dispatch_summary["dispatched"]
+                    result.ai_tasks_succeeded = dispatch_summary["succeeded"]
+                    result.ai_tasks_failed = dispatch_summary["failed"]
+                    result.orchestration_errors = dispatch_summary.get("errors", [])
+                except Exception as e:
+                    logger.error(f"Orchestration pipeline failed: {e}", exc_info=True)
+                    result.orchestration_errors.append(str(e))
 
             # 2. Execute ready shell tasks IMMEDIATELY
             #    (ignoring scheduled_time - we run tasks as soon as dependencies are met)
@@ -245,12 +309,18 @@ class CortexSupervisor:
             logger.error(f"Work discovery failed: {e}")
             return []
 
-    def _dispatch_work_items(self) -> int:
-        """Route and dispatch pending work items. Returns count dispatched."""
+    def _dispatch_work_items(self) -> Dict[str, Any]:
+        """Route and dispatch pending work items.
+
+        Returns a summary dict with keys: queued, dispatched, succeeded, failed, errors.
+        """
         router = self._get_router()
         dispatcher = self._get_dispatcher()
         collector = self._get_collector()
         dispatched = 0
+        succeeded = 0
+        failed = 0
+        errors: List[str] = []
 
         # Process up to max_ai_batch_size items per tick
         batch = self._pending_work_items[: self.config.max_ai_batch_size]
@@ -281,19 +351,28 @@ class CortexSupervisor:
                 collector.collect(result)
                 collector.record_outcome(result)
 
-                # Feed back to router for learning
+                # Feed back to router for learning with heuristic quality
+                quality = _estimate_quality(result)
                 router.record_outcome(
                     work_item_id=work_item.id,
                     model_tier=model_selection.model_tier,
                     success=result.success,
-                    quality_score=1.0 if result.success else 0.0,
+                    quality_score=quality,
                     task_type=work_item.task_type,
                 )
 
                 dispatched += 1
+                if result.success:
+                    succeeded += 1
+                else:
+                    failed += 1
+                    if result.error:
+                        errors.append(f"{work_item.id[:8]}: {result.error}")
 
             except Exception as e:
                 logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}")
+                failed += 1
+                errors.append(f"{work_item.id[:8]}: {e}")
 
         # Persist batch results if any
         if dispatched > 0:
@@ -307,8 +386,15 @@ class CortexSupervisor:
                 collector.clear()
             except Exception as e:
                 logger.error(f"Failed to persist results: {e}")
+                errors.append(f"persist: {e}")
 
-        return dispatched
+        return {
+            "queued": len(batch),
+            "dispatched": dispatched,
+            "succeeded": succeeded,
+            "failed": failed,
+            "errors": errors,
+        }
 
     def orchestrate(self, work_items: Optional[List[WorkItem]] = None) -> Dict[str, Any]:
         """Run a one-shot orchestration cycle (CLI/MCP entry point).
@@ -323,13 +409,16 @@ class CortexSupervisor:
             return {"status": "no_work", "items_found": 0}
 
         self._pending_work_items = work_items
-        dispatched = self._dispatch_work_items()
+        dispatch_summary = self._dispatch_work_items()
 
         return {
             "status": "completed",
             "items_found": len(work_items),
-            "items_dispatched": dispatched,
+            "items_dispatched": dispatch_summary["dispatched"],
+            "items_succeeded": dispatch_summary["succeeded"],
+            "items_failed": dispatch_summary["failed"],
             "items_remaining": len(self._pending_work_items),
+            "errors": dispatch_summary.get("errors", []),
         }
 
     def run_once(self) -> TickResult:
