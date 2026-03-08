@@ -1210,20 +1210,35 @@ class IntelligenceMixin:
             rec_dicts = []
             for rec in recommendations:
                 rec_dict = {
-                    "type": rec.type,
+                    "type": rec.type.value if hasattr(rec.type, "value") else rec.type,
                     "title": rec.title,
                     "description": rec.description,
-                    "priority": rec.priority,
-                    "confidence": rec.confidence,
+                    "priority": rec.priority.value
+                    if hasattr(rec.priority, "value")
+                    else rec.priority,
+                    "confidence": rec.confidence.value
+                    if hasattr(rec.confidence, "value")
+                    else rec.confidence,
                     "calculated_priority": (
-                        rec.metadata.get("calculated_priority", 0.5) if rec.metadata else 0.5
+                        rec.metadata.get("calculated_priority", 0.5)
+                        if getattr(rec, "metadata", None)
+                        else 0.5
                     ),
-                    "files": rec.files or [],
-                    "steps": rec.steps or [],
-                    "rationale": (rec.metadata.get("rationale", "") if rec.metadata else ""),
-                    "pattern": rec.metadata.get("pattern", "") if rec.metadata else "",
+                    "files": getattr(rec, "files", None) or [],
+                    "steps": [
+                        s.description if hasattr(s, "description") else str(s)
+                        for s in (getattr(rec, "steps", None) or [])
+                    ],
+                    "rationale": (
+                        rec.metadata.get("rationale", "") if getattr(rec, "metadata", None) else ""
+                    ),
+                    "pattern": (
+                        rec.metadata.get("pattern", "") if getattr(rec, "metadata", None) else ""
+                    ),
                     "pattern_success_rate": (
-                        rec.metadata.get("pattern_success_rate", 0.0) if rec.metadata else 0.0
+                        rec.metadata.get("pattern_success_rate", 0.0)
+                        if getattr(rec, "metadata", None)
+                        else 0.0
                     ),
                 }
                 rec_dicts.append(rec_dict)
