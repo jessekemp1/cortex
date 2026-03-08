@@ -175,7 +175,7 @@ class ModelRouter:
                             model_tier=data.get("model_tier", ""),
                             task_type=data.get("task_type", ""),
                             success=data.get("success", False),
-                            quality_score=data.get("quality_score", 0.0),
+                            quality_score=data.get("quality_score") or 0.0,
                             timestamp=data.get("timestamp", ""),
                         )
                     )
@@ -390,15 +390,18 @@ class ModelRouter:
 
         Rules:
         - If success rate < 40% for base_model on this task_type → escalate
-        - If success rate > 90% for base_model on this task_type → consider downgrade
+        - If success rate > 90% AND at least one failure recorded → consider downgrade
+        - 100% success with no failures = insufficient signal, never downgrade
+        - Require ≥10 outcomes before any adjustment (safety valve)
         - Otherwise use base_model
         """
         tier_order = ["haiku", "sonnet", "opus"]
         stats_for_type = self._outcome_stats.get(task_type, {})
         model_stats = stats_for_type.get(base_model)
 
-        if not model_stats or model_stats["total"] < 3:
-            # Not enough data — use base model with lower confidence
+        # Safety valve: require meaningful sample size before any adjustment
+        min_outcomes = 10
+        if not model_stats or model_stats["total"] < min_outcomes:
             return ModelAssignment(
                 model=base_model,
                 confidence=0.5,
@@ -406,6 +409,7 @@ class ModelRouter:
             )
 
         success_rate = model_stats["success"] / model_stats["total"]
+        failure_count = model_stats["total"] - model_stats["success"]
         base_idx = tier_order.index(base_model)
 
         if success_rate < 0.4 and base_idx < 2:
@@ -420,8 +424,10 @@ class ModelRouter:
                 ),
             )
 
-        if success_rate > 0.9 and base_idx > 0:
-            # Downgrade to cheaper tier
+        if success_rate > 0.9 and base_idx > 0 and failure_count > 0:
+            # Only downgrade when we have REAL evidence (at least one failure
+            # proves the quality scoring is actually differentiating).
+            # 100% success = binary scoring / no learning signal → never downgrade.
             downgraded = tier_order[base_idx - 1]
             return ModelAssignment(
                 model=downgraded,
@@ -497,7 +503,9 @@ class ModelRouter:
                 continue
             if not outcome.success:
                 continue
-            tier_scores.setdefault(outcome.model_tier, []).append(outcome.quality_score)
+            # Skip None quality scores (from legacy records without scoring)
+            if outcome.quality_score is not None:
+                tier_scores.setdefault(outcome.model_tier, []).append(outcome.quality_score)
 
         result: Dict[str, float] = {}
         for tier, scores in tier_scores.items():

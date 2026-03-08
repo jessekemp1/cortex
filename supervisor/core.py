@@ -21,9 +21,8 @@ from intelligence.process_monitor.batch_executor import BatchExecutor
 from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 
 from .config import SupervisorConfig
-from .delegator import DelegationPolicy, SupervisorDelegator
 from .health import HealthMonitor
-from .models import TaskResult, TickResult, WorkItem
+from .models import TickResult, WorkItem
 
 logger = logging.getLogger(__name__)
 
@@ -103,14 +102,12 @@ class CortexSupervisor:
     def __init__(
         self,
         config: Optional[SupervisorConfig] = None,
-        delegation_policy: Optional[DelegationPolicy] = None,
     ):
         """
         Initialize the supervisor.
 
         Args:
             config: Supervisor configuration (uses defaults if None)
-            delegation_policy: Delegation policy (uses defaults if None)
         """
         self.config = config or SupervisorConfig()
 
@@ -122,7 +119,6 @@ class CortexSupervisor:
             stale_task_hours=self.config.stale_task_hours,
             max_retries=self.config.max_retries,
         )
-        self.delegator = SupervisorDelegator(policy=delegation_policy)
 
         # Orchestration pipeline (lazy-initialized to avoid import cost at startup)
         self._intake = None
@@ -720,5 +716,14 @@ class CortexSupervisor:
         }
 
     def get_delegation_summary(self) -> Dict[str, Any]:
-        """Get a summary of delegation status and agent loads."""
-        return self.delegator.get_routing_stats()
+        """Get a summary of agent registry and routing configuration."""
+        from .agents import list_agents
+
+        agents = list_agents()
+        return {
+            "agents": len(agents),
+            "profiles": [
+                {"name": a.name, "tier": a.preferred_model_tier, "tasks": sorted(a.task_types)}
+                for a in agents
+            ],
+        }

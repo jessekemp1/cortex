@@ -373,31 +373,33 @@ def phase2_router(tmp_path: Path) -> ActualModelRouter:
 
 @pytest.fixture
 def phase2_router_with_outcomes(tmp_path: Path) -> ActualModelRouter:
-    """Router pre-loaded with outcome stats for testing adjustment logic."""
+    """Router pre-loaded with outcome stats for testing adjustment logic.
+
+    Safety valve requires >=10 outcomes and at least 1 failure before downgrade.
+    """
     outcomes_file = tmp_path / "outcomes.jsonl"
-    # Build enough records (>=3) so adjustment logic triggers
     records = []
-    # sonnet on "implement" fails a lot (1/5 = 20% success → should escalate)
-    for i in range(5):
+    # sonnet on "implement" fails a lot (2/12 = 17% success -> should escalate)
+    for i in range(12):
         records.append(
             {
                 "work_item_id": f"w-impl-{i}",
                 "model_tier": "sonnet",
                 "task_type": "implement",
-                "success": i < 1,  # only first 1 succeeds
-                "quality_score": 0.8 if i < 1 else 0.1,
+                "success": i < 2,  # first 2 succeed, rest fail
+                "quality_score": 0.8 if i < 2 else 0.1,
                 "timestamp": "2026-01-01T00:00:00",
             }
         )
-    # opus on "planning" succeeds a lot (5/5 = 100% → should downgrade)
-    for i in range(5):
+    # opus on "planning" succeeds almost always (11/12 = 92%, 1 failure)
+    for i in range(12):
         records.append(
             {
                 "work_item_id": f"w-plan-{i}",
                 "model_tier": "opus",
                 "task_type": "planning",
-                "success": True,
-                "quality_score": 0.95,
+                "success": i != 11,  # last one fails
+                "quality_score": 0.95 if i != 11 else 0.2,
                 "timestamp": "2026-01-01T00:00:00",
             }
         )
@@ -460,14 +462,14 @@ class TestPhase2Route:
     def test_moderate_complexity_uses_task_map(self, phase2_router: ActualModelRouter) -> None:
         """Moderate complexity should not override — uses TASK_MODEL_MAP."""
         item = _make_phase2_item(
-            task_type="review",  # maps to opus
+            task_type="review",  # maps to sonnet in TASK_MODEL_MAP
             description="review the pull request changes for correctness",
             priority=WorkItemPriority.MEDIUM,
             files=3,
         )
         result = phase2_router.route(item)
-        # Should use task map (review → opus), not a complexity override
-        assert result.model == "opus"
+        # Should use task map (review → sonnet), not a complexity override
+        assert result.model == "sonnet"
         assert "Complexity override" not in result.rationale
 
     def test_outcome_adjustment_escalates(
@@ -524,3 +526,53 @@ class TestPhase2Route:
         assert 0.0 <= result.confidence <= 1.0
         assert isinstance(result.rationale, str)
         assert len(result.rationale) > 0
+
+    def test_safety_valve_no_downgrade_on_100pct_success(self, tmp_path: Path) -> None:
+        """100% success with no failures = no real signal -> never downgrade."""
+        outcomes_file = tmp_path / "all_success.jsonl"
+        records = []
+        # 15 records, all success (above min_outcomes=10 threshold)
+        for i in range(15):
+            records.append(
+                {
+                    "work_item_id": f"w-plan-{i}",
+                    "model_tier": "opus",
+                    "task_type": "planning",
+                    "success": True,
+                    "quality_score": 1.0,
+                    "timestamp": "2026-01-01T00:00:00",
+                }
+            )
+        outcomes_file.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+        router = ActualModelRouter(outcomes_path=outcomes_file)
+
+        item = _make_phase2_item(task_type="planning")
+        result = router.route(item)
+        # Must NOT downgrade: 100% success = no learning signal (safety valve)
+        assert result.model == "opus"
+        assert "Downgraded" not in result.rationale
+
+    def test_safety_valve_requires_min_outcomes(self, tmp_path: Path) -> None:
+        """Fewer than 10 outcomes -> no adjustment, use base model."""
+        outcomes_file = tmp_path / "few.jsonl"
+        records = []
+        # Only 5 records (below min_outcomes=10)
+        for i in range(5):
+            records.append(
+                {
+                    "work_item_id": f"w-impl-{i}",
+                    "model_tier": "sonnet",
+                    "task_type": "implement",
+                    "success": i < 1,
+                    "quality_score": 0.8 if i < 1 else 0.1,
+                    "timestamp": "2026-01-01T00:00:00",
+                }
+            )
+        outcomes_file.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+        router = ActualModelRouter(outcomes_path=outcomes_file)
+
+        item = _make_phase2_item(task_type="implement")
+        result = router.route(item)
+        # Should use base model (sonnet) due to insufficient data
+        assert result.model == "sonnet"
+        assert "insufficient" in result.rationale.lower()
