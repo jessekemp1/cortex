@@ -1320,3 +1320,240 @@ class TestGoalsWatcher:
 
         # Now should trigger via goals change
         assert supervisor._should_run_work_discovery() is True
+
+
+# ── Batch API tests ──
+
+
+class TestBatchDispatch:
+    """Tests for AgentDispatcher.submit_batch() and retrieve_batch()."""
+
+    def _make_items(self, count=3):
+        """Create test (WorkItem, ModelSelection) tuples."""
+        items = []
+        for i in range(count):
+            wi = WorkItem(
+                id=f"batch-item-{i}",
+                source="test",
+                task_type="research",
+                description=f"Research task {i}",
+                prompt=f"Analyze topic {i}",
+                project="cortex",
+            )
+            ms = DispatchModelSelection(
+                model_tier="sonnet",
+                model_id="claude-sonnet-4-20250514",
+                reasoning="batch test",
+                complexity_score=0.5,
+                confidence=0.8,
+            )
+            items.append((wi, ms))
+        return items
+
+    def test_submit_batch_creates_correct_requests(self, tmp_path):
+        """submit_batch() builds correct Anthropic request format."""
+        mock_client = MagicMock()
+        mock_batch = MagicMock()
+        mock_batch.id = "msgbatch_test_123"
+        mock_client.messages.batches.create.return_value = mock_batch
+
+        dispatcher = AgentDispatcher(api_key="test-key", dry_run=False)
+
+        with (
+            patch.object(dispatcher, "_get_client", return_value=mock_client),
+            patch("pathlib.Path.home", return_value=tmp_path),
+        ):
+            items = self._make_items(3)
+            batch_id = dispatcher.submit_batch(items)
+
+        assert batch_id == "msgbatch_test_123"
+
+        # Verify the request structure passed to the API
+        call_kwargs = mock_client.messages.batches.create.call_args
+        requests = call_kwargs.kwargs.get("requests") or call_kwargs[1].get("requests")
+        assert len(requests) == 3
+
+        req0 = requests[0]
+        assert req0["custom_id"] == "batch-item-0"
+        assert req0["params"]["model"] == "claude-sonnet-4-20250514"
+        assert req0["params"]["max_tokens"] == 4096
+        assert req0["params"]["messages"][0]["role"] == "user"
+        assert "Analyze topic 0" in req0["params"]["messages"][0]["content"]
+
+    def test_submit_batch_persists_metadata(self, tmp_path):
+        """submit_batch() saves batch metadata to disk."""
+        import json
+
+        mock_client = MagicMock()
+        mock_batch = MagicMock()
+        mock_batch.id = "msgbatch_persist_456"
+        mock_client.messages.batches.create.return_value = mock_batch
+
+        dispatcher = AgentDispatcher(api_key="test-key", dry_run=False)
+
+        with (
+            patch.object(dispatcher, "_get_client", return_value=mock_client),
+            patch("pathlib.Path.home", return_value=tmp_path),
+        ):
+            items = self._make_items(2)
+            dispatcher.submit_batch(items)
+
+        meta_file = tmp_path / ".cortex" / "orchestration" / "batches" / "msgbatch_persist_456.json"
+        assert meta_file.exists()
+
+        meta = json.loads(meta_file.read_text())
+        assert meta["batch_id"] == "msgbatch_persist_456"
+        assert meta["request_count"] == 2
+        assert len(meta["items"]) == 2
+        assert meta["items"][0]["work_item_id"] == "batch-item-0"
+        assert meta["items"][0]["model_tier"] == "sonnet"
+
+    def test_submit_batch_empty_raises(self):
+        """submit_batch() with empty list raises ValueError."""
+        dispatcher = AgentDispatcher(api_key="test-key")
+        with pytest.raises(ValueError, match="at least one item"):
+            dispatcher.submit_batch([])
+
+    def test_retrieve_batch_processes_results(self, tmp_path):
+        """retrieve_batch() converts API results into DispatchResults."""
+        import json
+
+        # Set up metadata on disk
+        meta_dir = tmp_path / ".cortex" / "orchestration" / "batches"
+        meta_dir.mkdir(parents=True)
+        meta = {
+            "batch_id": "msgbatch_ret_789",
+            "items": [
+                {
+                    "work_item_id": "item-0",
+                    "task_type": "research",
+                    "model_id": "claude-sonnet-4-20250514",
+                    "model_tier": "sonnet",
+                },
+                {
+                    "work_item_id": "item-1",
+                    "task_type": "analysis",
+                    "model_id": "claude-sonnet-4-20250514",
+                    "model_tier": "sonnet",
+                },
+                {
+                    "work_item_id": "item-2",
+                    "task_type": "test",
+                    "model_id": "claude-sonnet-4-20250514",
+                    "model_tier": "sonnet",
+                },
+            ],
+        }
+        (meta_dir / "msgbatch_ret_789.json").write_text(json.dumps(meta))
+
+        # Mock client
+        mock_client = MagicMock()
+        mock_batch_obj = MagicMock()
+        mock_batch_obj.processing_status = "ended"
+        mock_client.messages.batches.retrieve.return_value = mock_batch_obj
+
+        # Build mock results
+        def _make_result(cid, succeeded=True):
+            r = MagicMock()
+            r.custom_id = cid
+            if succeeded:
+                r.result.type = "succeeded"
+                text_block = MagicMock()
+                text_block.type = "text"
+                text_block.text = f"Result for {cid}"
+                r.result.message.content = [text_block]
+                r.result.message.usage.input_tokens = 100
+                r.result.message.usage.output_tokens = 200
+            else:
+                r.result.type = "errored"
+            return r
+
+        mock_client.messages.batches.results.return_value = [
+            _make_result("item-0", True),
+            _make_result("item-1", True),
+            _make_result("item-2", False),
+        ]
+
+        dispatcher = AgentDispatcher(api_key="test-key", dry_run=False)
+
+        with (
+            patch.object(dispatcher, "_get_client", return_value=mock_client),
+            patch("pathlib.Path.home", return_value=tmp_path),
+        ):
+            results = dispatcher.retrieve_batch("msgbatch_ret_789")
+
+        assert len(results) == 3
+        assert results[0].success is True
+        assert results[0].work_item_id == "item-0"
+        assert results[0].tokens_used == 300
+        assert "Result for item-0" in results[0].output
+        assert results[0].task_type == "research"
+
+        assert results[2].success is False
+        assert "errored" in results[2].error
+
+    def test_retrieve_batch_in_progress_returns_empty(self):
+        """retrieve_batch() returns empty list if batch not ended."""
+        mock_client = MagicMock()
+        mock_batch_obj = MagicMock()
+        mock_batch_obj.processing_status = "in_progress"
+        mock_client.messages.batches.retrieve.return_value = mock_batch_obj
+
+        dispatcher = AgentDispatcher(api_key="test-key", dry_run=False)
+
+        with patch.object(dispatcher, "_get_client", return_value=mock_client):
+            results = dispatcher.retrieve_batch("msgbatch_pending")
+
+        assert results == []
+
+    def test_retrieve_batch_records_outcomes(self, tmp_path):
+        """retrieve_batch() calls router.record_outcome for each result."""
+        import json
+
+        meta_dir = tmp_path / ".cortex" / "orchestration" / "batches"
+        meta_dir.mkdir(parents=True)
+        meta = {
+            "batch_id": "msgbatch_learn",
+            "items": [
+                {
+                    "work_item_id": "learn-0",
+                    "task_type": "research",
+                    "model_id": "claude-sonnet-4-20250514",
+                    "model_tier": "sonnet",
+                },
+            ],
+        }
+        (meta_dir / "msgbatch_learn.json").write_text(json.dumps(meta))
+
+        mock_client = MagicMock()
+        mock_batch_obj = MagicMock()
+        mock_batch_obj.processing_status = "ended"
+        mock_client.messages.batches.retrieve.return_value = mock_batch_obj
+
+        r = MagicMock()
+        r.custom_id = "learn-0"
+        r.result.type = "succeeded"
+        tb = MagicMock()
+        tb.type = "text"
+        tb.text = "done"
+        r.result.message.content = [tb]
+        r.result.message.usage.input_tokens = 50
+        r.result.message.usage.output_tokens = 100
+        mock_client.messages.batches.results.return_value = [r]
+
+        mock_router = MagicMock()
+        dispatcher = AgentDispatcher(api_key="test-key", dry_run=False)
+
+        with (
+            patch.object(dispatcher, "_get_client", return_value=mock_client),
+            patch("pathlib.Path.home", return_value=tmp_path),
+        ):
+            dispatcher.retrieve_batch("msgbatch_learn", router=mock_router)
+
+        mock_router.record_outcome.assert_called_once_with(
+            work_item_id="learn-0",
+            model_tier="sonnet",
+            success=True,
+            quality_score=1.0,
+            task_type="research",
+        )

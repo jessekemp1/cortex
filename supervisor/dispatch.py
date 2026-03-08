@@ -269,6 +269,151 @@ class AgentDispatcher:
         return result
 
     # ------------------------------------------------------------------
+    # Batch API (50% cost reduction for non-urgent work)
+    # ------------------------------------------------------------------
+
+    def submit_batch(
+        self,
+        items: list[tuple[WorkItem, ModelSelection]],
+    ) -> str:
+        """Submit work items as an Anthropic Message Batch for 50% cost savings.
+
+        Args:
+            items: List of (WorkItem, ModelSelection) tuples to batch.
+
+        Returns:
+            The batch ID string for later retrieval via :meth:`retrieve_batch`.
+        """
+        if not items:
+            raise ValueError("Batch must contain at least one item")
+
+        client = self._get_client()
+        requests = []
+        for work_item, model_selection in items:
+            prompt = self._build_prompt(work_item)
+            system_prompt = self._build_system_prompt(work_item)
+            requests.append(
+                {
+                    "custom_id": work_item.id,
+                    "params": {
+                        "model": model_selection.model_id,
+                        "max_tokens": 4096,
+                        "system": system_prompt,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                }
+            )
+
+        batch = client.messages.batches.create(requests=requests)
+        batch_id = batch.id
+
+        # Persist metadata for tracking / recovery
+        meta_dir = Path.home() / ".cortex" / "orchestration" / "batches"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        import json
+        from datetime import datetime
+
+        metadata = {
+            "batch_id": batch_id,
+            "created_at": datetime.now().isoformat(),
+            "request_count": len(requests),
+            "items": [
+                {
+                    "work_item_id": wi.id,
+                    "task_type": wi.task_type,
+                    "model_id": ms.model_id,
+                    "model_tier": ms.model_tier,
+                }
+                for wi, ms in items
+            ],
+        }
+        (meta_dir / f"{batch_id}.json").write_text(json.dumps(metadata, indent=2))
+        log.info("Batch submitted: %s (%d requests)", batch_id, len(requests))
+        return batch_id
+
+    def retrieve_batch(
+        self,
+        batch_id: str,
+        router: Any = None,
+    ) -> list[DispatchResult]:
+        """Retrieve results for a completed batch.
+
+        Args:
+            batch_id: ID returned by :meth:`submit_batch`.
+            router: Optional model router for recording outcomes.
+
+        Returns:
+            List of :class:`DispatchResult` (one per request).
+            Returns an empty list if the batch is still in progress.
+        """
+        import json
+
+        client = self._get_client()
+        batch = client.messages.batches.retrieve(batch_id)
+
+        if batch.processing_status != "ended":
+            log.info("Batch %s still in progress: %s", batch_id, batch.processing_status)
+            return []
+
+        # Load metadata to map custom_ids back to task context
+        meta_path = Path.home() / ".cortex" / "orchestration" / "batches" / f"{batch_id}.json"
+        item_meta: dict[str, dict] = {}
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text())
+            for entry in meta.get("items", []):
+                item_meta[entry["work_item_id"]] = entry
+
+        results: list[DispatchResult] = []
+        for entry in client.messages.batches.results(batch_id):
+            cid = entry.custom_id
+            meta_entry = item_meta.get(cid, {})
+
+            if entry.result.type == "succeeded":
+                msg = entry.result.message
+                text = "\n".join(b.text for b in msg.content if b.type == "text")
+                tokens = msg.usage.input_tokens + msg.usage.output_tokens
+                dr = DispatchResult(
+                    work_item_id=cid,
+                    success=True,
+                    output=text,
+                    model_used=meta_entry.get("model_id", ""),
+                    tokens_used=tokens,
+                    duration_seconds=0.0,
+                    task_type=meta_entry.get("task_type", ""),
+                )
+            else:
+                dr = DispatchResult(
+                    work_item_id=cid,
+                    success=False,
+                    output="",
+                    model_used=meta_entry.get("model_id", ""),
+                    tokens_used=0,
+                    duration_seconds=0.0,
+                    task_type=meta_entry.get("task_type", ""),
+                    error=f"Batch result: {entry.result.type}",
+                )
+
+            results.append(dr)
+
+            # Record outcome for router learning loop
+            if router is not None:
+                router.record_outcome(
+                    work_item_id=cid,
+                    model_tier=meta_entry.get("model_tier", "sonnet"),
+                    success=dr.success,
+                    quality_score=1.0 if dr.success else 0.0,
+                    task_type=dr.task_type,
+                )
+
+        log.info(
+            "Batch %s: %d results (%d succeeded)",
+            batch_id,
+            len(results),
+            sum(1 for r in results if r.success),
+        )
+        return results
+
+    # ------------------------------------------------------------------
     # Prompt construction
     # ------------------------------------------------------------------
 

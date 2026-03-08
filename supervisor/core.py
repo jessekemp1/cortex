@@ -286,7 +286,14 @@ class CortexSupervisor:
         """Check if GOALS.md has been modified since last check."""
         from pathlib import Path
 
-        goals_path = Path(os.environ.get("CORTEX_ROOT_DIR", ".")) / "GOALS.md"
+        from .intake import _find_repo_root
+
+        root = (
+            Path(os.environ.get("CORTEX_ROOT_DIR", ""))
+            if os.environ.get("CORTEX_ROOT_DIR")
+            else _find_repo_root()
+        )
+        goals_path = root / "GOALS.md"
         try:
             mtime = goals_path.stat().st_mtime
             if mtime > self._goals_mtime:
