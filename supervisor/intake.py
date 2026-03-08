@@ -2,7 +2,7 @@
 Work intake -- discovers and creates WorkItems from multiple sources.
 
 Sources:
-  - GOALS.md immediate actions
+  - GOALS.md immediate actions and priority sections
   - Cortex taskboard (~/.cortex/taskboard.json)
   - CLI freetext input
   - Cortex recommendation engine
@@ -12,12 +12,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
-
-import httpx
 
 from .models import WorkItem, WorkItemPriority
 
@@ -36,10 +35,15 @@ _TYPE_KEYWORDS: Dict[str, list[str]] = {
 }
 
 _TASKBOARD_PATH = Path.home() / ".cortex" / "taskboard.json"
-_BRIDGE_URL = "http://localhost:8765"
 
 _PRIORITY_MAP: Dict[str, WorkItemPriority] = {
     "critical": WorkItemPriority.CRITICAL,
+    "high": WorkItemPriority.HIGH,
+    "medium": WorkItemPriority.MEDIUM,
+    "low": WorkItemPriority.LOW,
+}
+
+_GOALS_PRIORITY_MAP: Dict[str, WorkItemPriority] = {
     "high": WorkItemPriority.HIGH,
     "medium": WorkItemPriority.MEDIUM,
     "low": WorkItemPriority.LOW,
@@ -87,38 +91,89 @@ def _similarity(a: str, b: str) -> float:
 
 
 class WorkIntake:
-    """Multi-source work item intake.
+    """Converts work from multiple sources into WorkItems for the supervisor.
 
     Discovers actionable work from GOALS.md, the Cortex taskboard,
     CLI input, and the Cortex recommendation engine.
     """
 
-    def from_goals(self, goals_path: Path) -> List[WorkItem]:
-        """Parse GOALS.md and extract work items from actionable sections.
+    def __init__(self, root_dir: Optional[Path] = None):
+        if root_dir is not None:
+            self.root_dir = root_dir
+        else:
+            env_root = os.environ.get("CORTEX_ROOT_DIR")
+            self.root_dir = Path(env_root) if env_root else Path.cwd()
 
-        Looks for bullet items (``- [ ]``, ``- ``, numbered) under
-        "Immediate Actions" or "Next phase" headings.
+    def from_cli(
+        self,
+        task_description: str,
+        project: Optional[str] = None,
+        priority: str = "medium",
+    ) -> WorkItem:
+        """Create a WorkItem from a CLI command.
+
+        Parses the description to infer task_type from keywords,
+        generates a unique id, and sets source='cli'.
         """
+        return WorkItem(
+            id=_make_id(),
+            source="cli",
+            task_type=_infer_task_type(task_description),
+            description=task_description,
+            project=project or _infer_project(task_description),
+            priority=_PRIORITY_MAP.get(priority.lower(), WorkItemPriority.MEDIUM),
+            confidence=0.9,
+        )
+
+    def from_goals(self, goals_path: Optional[Path] = None) -> List[WorkItem]:
+        """Parse GOALS.md and create WorkItems from active priorities.
+
+        Reads GOALS.md (default: root_dir/GOALS.md) and extracts work items
+        from priority sections (High/Medium/Low) and actionable sections
+        (Immediate Actions, Next Phase, This Week).
+
+        Priority mapping:
+          - High Priority → WorkItemPriority.HIGH
+          - Medium Priority → WorkItemPriority.MEDIUM
+          - Low Priority → WorkItemPriority.LOW
+          - Immediate Actions → WorkItemPriority.HIGH (always urgent)
+        """
+        if goals_path is None:
+            goals_path = self.root_dir / "GOALS.md"
+
         if not goals_path.exists():
             log.warning("GOALS.md not found at %s", goals_path)
             return []
 
         text = goals_path.read_text(encoding="utf-8")
         items: List[WorkItem] = []
-        in_section = False
+        in_actionable_section = False
+        in_priority_section: Optional[str] = None  # "high", "medium", or "low"
         current_header = ""
 
         for line in text.splitlines():
             # Detect section headers
-            if re.match(r"^#{1,3}\s+", line):
+            if re.match(r"^#{1,4}\s+", line):
                 header_lower = line.lower()
-                in_section = any(
+                current_header = line.lstrip("#").strip()
+
+                # Check for actionable sections (Immediate Actions, etc.)
+                in_actionable_section = any(
                     kw in header_lower for kw in ["immediate action", "next phase", "this week"]
                 )
-                current_header = line.lstrip("#").strip()
+
+                # Check for priority sections (High Priority, Medium Priority, etc.)
+                in_priority_section = None
+                if "high priority" in header_lower:
+                    in_priority_section = "high"
+                elif "medium priority" in header_lower:
+                    in_priority_section = "medium"
+                elif "low priority" in header_lower:
+                    in_priority_section = "low"
+
                 continue
 
-            if not in_section:
+            if not in_actionable_section and not in_priority_section:
                 continue
 
             # Match unchecked checkboxes, plain bullets, or numbered items
@@ -130,6 +185,13 @@ class WorkIntake:
             if not description:
                 continue
 
+            # Determine priority based on which section we're in
+            if in_priority_section:
+                priority = _GOALS_PRIORITY_MAP.get(in_priority_section, WorkItemPriority.MEDIUM)
+            else:
+                # Immediate actions are always HIGH
+                priority = WorkItemPriority.HIGH
+
             items.append(
                 WorkItem(
                     id=_make_id(),
@@ -137,7 +199,7 @@ class WorkIntake:
                     task_type=_infer_task_type(description),
                     description=description,
                     project=_infer_project(description, current_header),
-                    priority=WorkItemPriority.HIGH,
+                    priority=priority,
                     confidence=0.7,
                 )
             )
@@ -145,22 +207,34 @@ class WorkIntake:
         log.info("Parsed %d work items from GOALS.md", len(items))
         return items
 
-    def from_taskboard(self) -> List[WorkItem]:
-        """Read the Cortex taskboard JSON and return non-completed items."""
-        if not _TASKBOARD_PATH.exists():
-            log.info("Taskboard not found at %s", _TASKBOARD_PATH)
+    def from_taskboard(
+        self,
+        status: str = "pending",
+        taskboard_path: Optional[Path] = None,
+    ) -> List[WorkItem]:
+        """Read taskboard items and create WorkItems.
+
+        Reads from ~/.cortex/taskboard.json and filters by status.
+        Items with status='done' are always excluded. When status is
+        specified, only items matching that status are returned.
+        """
+        path = taskboard_path or _TASKBOARD_PATH
+        if not path.exists():
+            log.info("Taskboard not found at %s", path)
             return []
 
         try:
-            data = json.loads(_TASKBOARD_PATH.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             log.error("Failed to read taskboard: %s", exc)
             return []
 
         items: List[WorkItem] = []
         for entry in data:
-            status = entry.get("status", "")
-            if status == "done":
+            entry_status = entry.get("status", "pending")
+            if entry_status == "done":
+                continue
+            if status and entry_status != status:
                 continue
 
             priority_str = entry.get("priority", "medium").lower()
@@ -178,32 +252,48 @@ class WorkIntake:
                 )
             )
 
-        log.info("Loaded %d items from taskboard", len(items))
+        log.info("Loaded %d items from taskboard (status=%s)", len(items), status)
         return items
 
-    def from_cli(
-        self,
-        description: str,
-        project: str = "",
-        priority: str = "medium",
-    ) -> WorkItem:
-        """Create a single WorkItem from CLI freetext input."""
+    def from_recommendation(self, recommendation: dict) -> WorkItem:
+        """Convert a single Cortex recommendation dict into a WorkItem.
+
+        Expected fields in recommendation:
+          - title or description (str)
+          - priority (str, default 'medium')
+          - project (str, optional)
+          - confidence (float, default 0.6)
+          - id (str, optional)
+        """
+        description = recommendation.get("title") or recommendation.get("description", "")
+        priority_str = recommendation.get("priority", "medium").lower()
+
         return WorkItem(
             id=_make_id(),
-            source="cli",
+            source="recommendation",
             task_type=_infer_task_type(description),
             description=description,
-            project=project or _infer_project(description),
-            priority=_PRIORITY_MAP.get(priority.lower(), WorkItemPriority.MEDIUM),
-            confidence=0.9,
+            project=recommendation.get("project", ""),
+            priority=_PRIORITY_MAP.get(priority_str, WorkItemPriority.MEDIUM),
+            confidence=recommendation.get("confidence", 0.6),
+            metadata={"recommendation_id": recommendation.get("id", "")},
         )
 
-    def from_recommendations(self) -> List[WorkItem]:
-        """Query the Cortex bridge for recommendations and convert to WorkItems."""
+    def from_recommendations_api(self) -> List[WorkItem]:
+        """Query the Cortex bridge for recommendations and convert to WorkItems.
+
+        Requires httpx. Falls back to empty list if bridge is unavailable.
+        """
+        try:
+            import httpx
+        except ImportError:
+            log.warning("httpx not installed; skipping recommendations API")
+            return []
+
         items: List[WorkItem] = []
         try:
             resp = httpx.get(
-                f"{_BRIDGE_URL}/intelligence/recommendations",
+                "http://localhost:8765/intelligence/recommendations",
                 timeout=5.0,
             )
             resp.raise_for_status()
@@ -214,45 +304,29 @@ class WorkIntake:
 
         recs = data if isinstance(data, list) else data.get("recommendations", [])
         for rec in recs:
-            description = rec.get("title") or rec.get("description", "")
-            if not description:
-                continue
-
-            priority_str = rec.get("priority", "medium").lower()
-            items.append(
-                WorkItem(
-                    id=_make_id(),
-                    source="recommendations",
-                    task_type=_infer_task_type(description),
-                    description=description,
-                    project=rec.get("project", ""),
-                    priority=_PRIORITY_MAP.get(priority_str, WorkItemPriority.MEDIUM),
-                    confidence=rec.get("confidence", 0.6),
-                    metadata={"recommendation_id": rec.get("id", "")},
-                )
-            )
+            if rec.get("title") or rec.get("description"):
+                items.append(self.from_recommendation(rec))
 
         log.info("Fetched %d recommendations from bridge", len(items))
         return items
 
     def discover_all(self, goals_path: Optional[Path] = None) -> List[WorkItem]:
-        """Run all intake sources, deduplicate, and sort by priority.
+        """Discover work from ALL sources, deduplicated and priority-sorted.
 
-        Deduplication uses word-overlap similarity (threshold 0.7).
-        Sorting is by priority score descending, then confidence descending.
+        Collects from: goals, taskboard, recommendations API.
+        Deduplicates by description similarity (threshold 0.7).
+        Sorts by priority_score descending.
         """
         all_items: List[WorkItem] = []
 
         # Goals
-        if goals_path is None:
-            goals_path = Path.cwd() / "GOALS.md"
         all_items.extend(self.from_goals(goals_path))
 
-        # Taskboard
-        all_items.extend(self.from_taskboard())
+        # Taskboard (all non-done statuses)
+        all_items.extend(self.from_taskboard(status=""))
 
         # Recommendations (best-effort, don't block on failure)
-        all_items.extend(self.from_recommendations())
+        all_items.extend(self.from_recommendations_api())
 
         # Deduplicate by description similarity
         deduplicated: List[WorkItem] = []
@@ -264,14 +338,8 @@ class WorkIntake:
             if not is_dup:
                 deduplicated.append(item)
 
-        # Sort: priority descending, then confidence descending
-        deduplicated.sort(
-            key=lambda wi: (
-                _PRIORITY_SCORE.get(wi.priority, 0),
-                wi.confidence,
-            ),
-            reverse=True,
-        )
+        # Sort by priority_score descending (uses WorkItem.priority_score property)
+        deduplicated.sort(key=lambda wi: wi.priority_score, reverse=True)
 
         log.info(
             "Discovered %d items (%d after dedup)",

@@ -335,3 +335,192 @@ class TestOutcomeTracking:
         assert sonnet_perf["count"] == 1
         assert sonnet_perf["success_rate"] == 0.0
         assert sonnet_perf["avg_tokens"] == 3000.0
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: Tests for route() API with TASK_MODEL_MAP + complexity overrides
+# ---------------------------------------------------------------------------
+
+from cortex.supervisor.router import (
+    ModelAssignment,
+    ModelRouter as ActualModelRouter,
+)
+
+
+def _make_phase2_item(
+    task_type: str = "research",
+    description: str = "A moderate-length description for testing",
+    priority: WorkItemPriority = WorkItemPriority.MEDIUM,
+    tokens: int = 5_000,
+    files: int = 2,
+) -> WorkItem:
+    return WorkItem(
+        id="p2-test",
+        source="test",
+        task_type=task_type,
+        description=description,
+        priority=priority,
+        estimated_tokens=tokens,
+        files=[f"f{i}.py" for i in range(files)],
+    )
+
+
+@pytest.fixture
+def phase2_router(tmp_path: Path) -> ActualModelRouter:
+    """Router with no outcomes file (clean state)."""
+    return ActualModelRouter(outcomes_path=tmp_path / "nonexistent.jsonl")
+
+
+@pytest.fixture
+def phase2_router_with_outcomes(tmp_path: Path) -> ActualModelRouter:
+    """Router pre-loaded with outcome stats for testing adjustment logic."""
+    outcomes_file = tmp_path / "outcomes.jsonl"
+    # Build enough records (>=3) so adjustment logic triggers
+    records = []
+    # sonnet on "implement" fails a lot (1/5 = 20% success → should escalate)
+    for i in range(5):
+        records.append(
+            {
+                "work_item_id": f"w-impl-{i}",
+                "model_tier": "sonnet",
+                "task_type": "implement",
+                "success": i < 1,  # only first 1 succeeds
+                "quality_score": 0.8 if i < 1 else 0.1,
+                "timestamp": "2026-01-01T00:00:00",
+            }
+        )
+    # opus on "planning" succeeds a lot (5/5 = 100% → should downgrade)
+    for i in range(5):
+        records.append(
+            {
+                "work_item_id": f"w-plan-{i}",
+                "model_tier": "opus",
+                "task_type": "planning",
+                "success": True,
+                "quality_score": 0.95,
+                "timestamp": "2026-01-01T00:00:00",
+            }
+        )
+    outcomes_file.write_text("\n".join(json.dumps(r) for r in records) + "\n")
+    return ActualModelRouter(outcomes_path=outcomes_file)
+
+
+class TestPhase2Route:
+    """Tests for the Phase 2 route() API."""
+
+    def test_planning_routes_to_opus(self, phase2_router: ActualModelRouter) -> None:
+        item = _make_phase2_item(task_type="planning")
+        result = phase2_router.route(item)
+        assert result.model == "opus"
+
+    def test_implement_routes_to_sonnet(self, phase2_router: ActualModelRouter) -> None:
+        item = _make_phase2_item(task_type="implement")
+        result = phase2_router.route(item)
+        assert result.model == "sonnet"
+
+    def test_classify_routes_to_haiku(self, phase2_router: ActualModelRouter) -> None:
+        item = _make_phase2_item(task_type="classify")
+        result = phase2_router.route(item)
+        assert result.model == "haiku"
+
+    def test_unknown_task_defaults_to_sonnet(self, phase2_router: ActualModelRouter) -> None:
+        item = _make_phase2_item(task_type="unknown_task_xyz")
+        result = phase2_router.route(item)
+        assert result.model == "sonnet"
+
+    def test_simple_complexity_overrides_to_haiku(self, phase2_router: ActualModelRouter) -> None:
+        """A 'planning' task that is clearly simple should override to haiku."""
+        item = _make_phase2_item(
+            task_type="planning",  # normally opus
+            description="fix typo in readme",  # simple keyword
+            priority=WorkItemPriority.LOW,
+            files=0,
+        )
+        result = phase2_router.route(item)
+        assert result.model == "haiku"
+        assert "Complexity override" in result.rationale
+        assert "simple" in result.rationale
+
+    def test_complex_complexity_overrides_to_opus(self, phase2_router: ActualModelRouter) -> None:
+        """A 'classify' task that is clearly complex should override to opus."""
+        item = _make_phase2_item(
+            task_type="classify",  # normally haiku
+            description=(
+                "migrate the entire classification pipeline from legacy system "
+                + " ".join(f"word{i}" for i in range(120))
+            ),
+            priority=WorkItemPriority.CRITICAL,
+            files=10,
+        )
+        result = phase2_router.route(item)
+        assert result.model == "opus"
+        assert "Complexity override" in result.rationale
+        assert "complex" in result.rationale
+
+    def test_moderate_complexity_uses_task_map(self, phase2_router: ActualModelRouter) -> None:
+        """Moderate complexity should not override — uses TASK_MODEL_MAP."""
+        item = _make_phase2_item(
+            task_type="review",  # maps to opus
+            description="review the pull request changes for correctness",
+            priority=WorkItemPriority.MEDIUM,
+            files=3,
+        )
+        result = phase2_router.route(item)
+        # Should use task map (review → opus), not a complexity override
+        assert result.model == "opus"
+        assert "Complexity override" not in result.rationale
+
+    def test_outcome_adjustment_escalates(
+        self, phase2_router_with_outcomes: ActualModelRouter
+    ) -> None:
+        """When sonnet has <40% success on 'implement', escalate to opus."""
+        item = _make_phase2_item(task_type="implement")
+        result = phase2_router_with_outcomes.route(item)
+        assert result.model == "opus"
+        assert "Escalated" in result.rationale
+
+    def test_outcome_adjustment_downgrades(
+        self, phase2_router_with_outcomes: ActualModelRouter
+    ) -> None:
+        """When opus has >90% success on 'planning', downgrade to sonnet."""
+        item = _make_phase2_item(task_type="planning")
+        result = phase2_router_with_outcomes.route(item)
+        assert result.model == "sonnet"
+        assert "Downgraded" in result.rationale
+
+    def test_missing_outcomes_file_graceful(self, tmp_path: Path) -> None:
+        """Router should not crash when outcomes file doesn't exist."""
+        router = ActualModelRouter(outcomes_path=tmp_path / "does_not_exist" / "outcomes.jsonl")
+        item = _make_phase2_item(task_type="test")
+        result = router.route(item)
+        assert result.model == "sonnet"
+        assert result.confidence > 0.0
+
+    def test_update_from_outcome_records(self, tmp_path: Path) -> None:
+        """update_from_outcome should persist and update in-memory stats."""
+        outcomes_file = tmp_path / "outcomes.jsonl"
+        router = ActualModelRouter(outcomes_path=outcomes_file)
+
+        # Record several outcomes
+        for i in range(5):
+            router.update_from_outcome("test", "sonnet", success=True)
+
+        # Verify file was written
+        assert outcomes_file.exists()
+        lines = outcomes_file.read_text().strip().splitlines()
+        assert len(lines) == 5
+
+        # Verify in-memory stats updated
+        stats = router._outcome_stats.get("test", {}).get("sonnet", {})
+        assert stats["total"] == 5
+        assert stats["success"] == 5
+
+    def test_route_returns_model_assignment(self, phase2_router: ActualModelRouter) -> None:
+        """route() must return a ModelAssignment with correct fields."""
+        item = _make_phase2_item(task_type="research")
+        result = phase2_router.route(item)
+        assert isinstance(result, ModelAssignment)
+        assert result.model in ("opus", "sonnet", "haiku")
+        assert 0.0 <= result.confidence <= 1.0
+        assert isinstance(result.rationale, str)
+        assert len(result.rationale) > 0
