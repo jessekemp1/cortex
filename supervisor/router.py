@@ -67,6 +67,15 @@ _MODEL_MAP: Dict[str, str] = {
 
 
 @dataclass
+class ModelAssignment:
+    """Result of model routing (Phase 2 API)."""
+
+    model: str  # "opus", "sonnet", "haiku"
+    confidence: float  # 0.0-1.0
+    rationale: str  # Why this model was selected
+
+
+@dataclass
 class ModelSelection:
     """Result of model routing for a work item."""
 
@@ -96,9 +105,45 @@ class ModelRouter:
     to route tasks to the cheapest model that can handle them well.
     """
 
+    # Phase 2: Direct task-type → model mapping
+    TASK_MODEL_MAP: Dict[str, str] = {
+        # Opus: high-stakes reasoning
+        "planning": "opus",
+        "review": "opus",
+        "debate": "opus",
+        "architecture": "opus",
+        "security": "opus",
+        # Sonnet: balanced execution
+        "implement": "sonnet",
+        "research": "sonnet",
+        "test": "sonnet",
+        "analysis": "sonnet",
+        "investigation": "sonnet",
+        "refactor": "sonnet",
+        # Haiku: fast classification
+        "classify": "haiku",
+        "triage": "haiku",
+        "format": "haiku",
+        "validate": "haiku",
+        "cleanup": "haiku",
+    }
+
+    # Complexity overrides (simple/complex bypass TASK_MODEL_MAP)
+    COMPLEXITY_OVERRIDE: Dict[str, Optional[str]] = {
+        "simple": "haiku",
+        "complex": "opus",
+        "moderate": None,
+    }
+
+    # Keywords for complexity classification
+    _COMPLEX_KEYWORDS = {"refactor entire", "redesign", "migrate", "rewrite", "overhaul"}
+    _SIMPLE_KEYWORDS = {"fix typo", "rename", "update version", "bump", "formatting"}
+
     def __init__(self, outcomes_path: Optional[Path] = None) -> None:
         self._outcomes_path = outcomes_path or _DEFAULT_OUTCOMES_PATH
         self._outcomes: List[_OutcomeRecord] = self._load_outcomes()
+        self._outcome_stats: Dict[str, Dict[str, dict]] = {}
+        self._build_outcome_stats()
 
     def _load_outcomes(self) -> List[_OutcomeRecord]:
         """Load historical outcome records from JSONL."""
@@ -233,6 +278,167 @@ class ModelRouter:
             model_tier,
             "SUCCESS" if success else "FAILURE",
             quality_score,
+        )
+
+        # Update outcome stats cache
+        stats = self._outcome_stats.setdefault(task_type, {}).setdefault(
+            model_tier, {"success": 0, "total": 0}
+        )
+        stats["total"] += 1
+        if success:
+            stats["success"] += 1
+
+    # ------------------------------------------------------------------
+    # Phase 2: route() API with task-type mapping + complexity overrides
+    # ------------------------------------------------------------------
+
+    def route(self, work_item: WorkItem) -> ModelAssignment:
+        """Assign optimal model to a work item (Phase 2 API).
+
+        Routing priority:
+        1. Complexity override (simple → haiku, complex → opus)
+        2. Outcome-adjusted model (if historical data is available)
+        3. TASK_MODEL_MAP lookup (fallback: sonnet)
+        """
+        complexity = self._classify_complexity(work_item)
+
+        # 1. Check complexity override
+        override = self.COMPLEXITY_OVERRIDE.get(complexity)
+        if override:
+            return ModelAssignment(
+                model=override,
+                confidence=0.8,
+                rationale=f"Complexity override: {complexity} → {override}",
+            )
+
+        # 2. Get base model from task type map
+        base_model = self.TASK_MODEL_MAP.get(work_item.task_type, "sonnet")
+
+        # 3. Check outcome-adjusted model
+        return self._get_outcome_adjusted_model(work_item.task_type, base_model)
+
+    def _classify_complexity(self, work_item: WorkItem) -> str:
+        """Classify task complexity as simple/moderate/complex.
+
+        Heuristics:
+        - Description length: short (<20 words) = simple, long (>100) = complex
+        - Number of files referenced: 0-1 = simple, 5+ = complex
+        - Priority: CRITICAL = complex, LOW = simple
+        - Keywords in description
+        """
+        desc = work_item.description.lower()
+        word_count = len(desc.split())
+        file_count = len(work_item.files)
+        score = 0  # -2..+2 range, then map
+
+        # Word count signal
+        if word_count > 100:
+            score += 1
+        elif word_count < 20:
+            score -= 1
+
+        # File count signal
+        if file_count >= 5:
+            score += 1
+        elif file_count <= 1:
+            score -= 1
+
+        # Priority signal
+        if work_item.priority == WorkItemPriority.CRITICAL:
+            score += 1
+        elif work_item.priority == WorkItemPriority.LOW:
+            score -= 1
+
+        # Keyword signals
+        for kw in self._COMPLEX_KEYWORDS:
+            if kw in desc:
+                score += 2
+                break
+        for kw in self._SIMPLE_KEYWORDS:
+            if kw in desc:
+                score -= 2
+                break
+
+        if score >= 2:
+            return "complex"
+        elif score <= -2:
+            return "simple"
+        return "moderate"
+
+    def _get_outcome_adjusted_model(self, task_type: str, base_model: str) -> ModelAssignment:
+        """Adjust model selection based on historical outcome stats.
+
+        Rules:
+        - If success rate < 40% for base_model on this task_type → escalate
+        - If success rate > 90% for base_model on this task_type → consider downgrade
+        - Otherwise use base_model
+        """
+        tier_order = ["haiku", "sonnet", "opus"]
+        stats_for_type = self._outcome_stats.get(task_type, {})
+        model_stats = stats_for_type.get(base_model)
+
+        if not model_stats or model_stats["total"] < 3:
+            # Not enough data — use base model with lower confidence
+            return ModelAssignment(
+                model=base_model,
+                confidence=0.5,
+                rationale=f"Task map: {task_type} → {base_model} (insufficient outcome data)",
+            )
+
+        success_rate = model_stats["success"] / model_stats["total"]
+        base_idx = tier_order.index(base_model)
+
+        if success_rate < 0.4 and base_idx < 2:
+            # Escalate to next tier
+            escalated = tier_order[base_idx + 1]
+            return ModelAssignment(
+                model=escalated,
+                confidence=0.7,
+                rationale=(
+                    f"Escalated {base_model} → {escalated}: "
+                    f"{task_type} success rate {success_rate:.0%} < 40%"
+                ),
+            )
+
+        if success_rate > 0.9 and base_idx > 0:
+            # Downgrade to cheaper tier
+            downgraded = tier_order[base_idx - 1]
+            return ModelAssignment(
+                model=downgraded,
+                confidence=0.7,
+                rationale=(
+                    f"Downgraded {base_model} → {downgraded}: "
+                    f"{task_type} success rate {success_rate:.0%} > 90%"
+                ),
+            )
+
+        return ModelAssignment(
+            model=base_model,
+            confidence=0.6 + (success_rate * 0.3),
+            rationale=(f"Task map: {task_type} → {base_model} (success rate {success_rate:.0%})"),
+        )
+
+    def _build_outcome_stats(self) -> None:
+        """Build aggregated outcome statistics from loaded records."""
+        for outcome in self._outcomes:
+            stats = self._outcome_stats.setdefault(outcome.task_type, {}).setdefault(
+                outcome.model_tier, {"success": 0, "total": 0}
+            )
+            stats["total"] += 1
+            if outcome.success:
+                stats["success"] += 1
+
+    def update_from_outcome(self, task_type: str, model: str, success: bool) -> None:
+        """Record an outcome for future routing decisions (Phase 2 API).
+
+        Updates in-memory stats and appends to the outcomes JSONL file.
+        """
+        self.record_outcome(
+            work_item_id="",
+            model_tier=model,
+            success=success,
+            quality_score=1.0 if success else 0.0,
+            task_type=task_type,
         )
 
     def _compute_complexity(self, work_item: WorkItem) -> float:
