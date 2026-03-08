@@ -624,3 +624,593 @@ class TestRoutingIntegration:
         )
         prompt = dispatcher._build_system_prompt(item)
         assert "execution agent" in prompt
+
+
+# ── Phase 2: Tool-Use Dispatch Loop Tests ──
+
+
+class TestToolExecution:
+    """Tests for tool execution in the dispatch loop."""
+
+    @pytest.fixture
+    def dispatcher(self):
+        test_key = "test-key-not-real"  # pragma: allowlist secret
+        return AgentDispatcher(api_key=test_key, max_concurrent=2)
+
+    def test_tool_execution_read_file(self, dispatcher, tmp_path):
+        """read_file tool reads a file and returns contents."""
+        test_file = tmp_path / "hello.py"
+        test_file.write_text("print('hello world')")
+
+        result = dispatcher._execute_tool("read_file", {"path": str(test_file)}, str(tmp_path))
+        assert "print('hello world')" in result
+
+    def test_tool_execution_path_traversal_blocked(self, dispatcher, tmp_path):
+        """read_file blocks path traversal attacks."""
+        result = dispatcher._execute_tool("read_file", {"path": "../../etc/passwd"}, str(tmp_path))
+        assert "error" in result.lower() or "denied" in result.lower()
+
+    def test_tool_execution_read_file_not_found(self, dispatcher, tmp_path):
+        """read_file returns error for missing files."""
+        result = dispatcher._execute_tool(
+            "read_file", {"path": str(tmp_path / "nonexistent.py")}, str(tmp_path)
+        )
+        assert "error" in result.lower() or "not found" in result.lower()
+
+    def test_tool_execution_search_code(self, dispatcher, tmp_path):
+        """search_code finds pattern matches in files."""
+        (tmp_path / "a.py").write_text("def hello():\n    return 'world'")
+        (tmp_path / "b.py").write_text("x = 42")
+
+        result = dispatcher._execute_tool(
+            "search_code", {"pattern": "hello", "path": str(tmp_path)}, str(tmp_path)
+        )
+        assert "hello" in result
+        assert "a.py" in result
+
+    def test_tool_execution_list_files(self, dispatcher, tmp_path):
+        """list_files returns matching file paths."""
+        (tmp_path / "a.py").write_text("x")
+        (tmp_path / "b.py").write_text("y")
+        (tmp_path / "c.txt").write_text("z")
+
+        result = dispatcher._execute_tool(
+            "list_files", {"pattern": "*.py", "path": str(tmp_path)}, str(tmp_path)
+        )
+        assert "a.py" in result
+        assert "b.py" in result
+        assert "c.txt" not in result
+
+    def test_tool_execution_unknown_tool(self, dispatcher, tmp_path):
+        """Unknown tools return an error message."""
+        result = dispatcher._execute_tool("delete_everything", {}, str(tmp_path))
+        assert "unknown" in result.lower() or "error" in result.lower()
+
+    def test_tool_execution_search_path_traversal_blocked(self, dispatcher, tmp_path):
+        """search_code blocks path traversal."""
+        result = dispatcher._execute_tool(
+            "search_code", {"pattern": "secret", "path": "/etc"}, str(tmp_path)
+        )
+        assert "error" in result.lower() or "denied" in result.lower()
+
+
+class TestToolUseDispatchLoop:
+    """Tests for the multi-turn tool-use dispatch loop."""
+
+    @pytest.fixture
+    def dispatcher(self):
+        test_key = "test-key-not-real"  # pragma: allowlist secret
+        return AgentDispatcher(api_key=test_key, max_concurrent=2)
+
+    @pytest.fixture
+    def work_item(self):
+        return WorkItem(
+            id="wi_tool_test",
+            source="test",
+            task_type="research",
+            description="Analyze the router module",
+            project="cortex",
+        )
+
+    @pytest.fixture
+    def model_selection(self):
+        return DispatchModelSelection(
+            model_tier="sonnet",
+            model_id="claude-sonnet-4-6",
+            reasoning="Research task -> sonnet",
+            complexity_score=0.5,
+            confidence=0.7,
+        )
+
+    def _make_text_response(self, text, input_tokens=100, output_tokens=50):
+        """Create a mock response with only text blocks."""
+        mock_resp = MagicMock()
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = text
+        mock_resp.content = [text_block]
+        mock_resp.usage = MagicMock()
+        mock_resp.usage.input_tokens = input_tokens
+        mock_resp.usage.output_tokens = output_tokens
+        return mock_resp
+
+    def _make_tool_use_response(
+        self, tool_name, tool_input, tool_id="tool_1", input_tokens=100, output_tokens=50
+    ):
+        """Create a mock response with a tool_use block."""
+        mock_resp = MagicMock()
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.name = tool_name
+        tool_block.input = tool_input
+        tool_block.id = tool_id
+        mock_resp.content = [tool_block]
+        mock_resp.usage = MagicMock()
+        mock_resp.usage.input_tokens = input_tokens
+        mock_resp.usage.output_tokens = output_tokens
+        return mock_resp
+
+    def test_dispatch_no_tools_single_shot(self, dispatcher, work_item, model_selection):
+        """Single-shot dispatch (no tool use) still works — backward compatible."""
+        text_resp = self._make_text_response("Analysis complete: router is healthy")
+
+        with patch.object(dispatcher, "_get_client") as mock_client_fn:
+            mock_client = MagicMock()
+            mock_client.messages.create.return_value = text_resp
+            mock_client_fn.return_value = mock_client
+
+            result = dispatcher.dispatch(work_item, model_selection)
+
+        assert result.success is True
+        assert "router is healthy" in result.output
+        assert result.tokens_used == 150  # 100 + 50
+        # Only one API call (no tool loop)
+        assert mock_client.messages.create.call_count == 1
+
+    def test_dispatch_with_tool_use_read_file(
+        self, dispatcher, work_item, model_selection, tmp_path
+    ):
+        """Tool-use loop: model requests read_file, gets result, then responds."""
+        # Turn 1: model requests read_file
+        tool_resp = self._make_tool_use_response(
+            "read_file", {"path": str(tmp_path / "test.py")}, "tool_read_1"
+        )
+        # Turn 2: model responds with text
+        text_resp = self._make_text_response("The file contains a test function", 200, 100)
+
+        # Create the file for tool to read
+        (tmp_path / "test.py").write_text("def test_foo(): pass")
+
+        with patch.object(dispatcher, "_get_client") as mock_client_fn:
+            mock_client = MagicMock()
+            mock_client.messages.create.side_effect = [tool_resp, text_resp]
+            mock_client_fn.return_value = mock_client
+
+            # Need to set project_root for tool execution
+            work_item.metadata["project_root"] = str(tmp_path)
+            result = dispatcher.dispatch(work_item, model_selection)
+
+        assert result.success is True
+        assert "test function" in result.output
+        # Two API calls: initial + after tool result
+        assert mock_client.messages.create.call_count == 2
+        # Tokens sum both turns
+        assert result.tokens_used == 150 + 300  # (100+50) + (200+100)
+
+    def test_dispatch_max_turns_exceeded(self, dispatcher, work_item, model_selection):
+        """Dispatch stops after max_turns even if model keeps requesting tools."""
+        # Always return tool_use (infinite loop scenario)
+        tool_resp = self._make_tool_use_response("list_files", {"pattern": "*.py"}, "tool_inf")
+
+        with patch.object(dispatcher, "_get_client") as mock_client_fn:
+            mock_client = MagicMock()
+            mock_client.messages.create.return_value = tool_resp
+            mock_client_fn.return_value = mock_client
+
+            result = dispatcher.dispatch(work_item, model_selection)
+
+        assert result.success is True
+        # Should have stopped at max_turns (10)
+        assert mock_client.messages.create.call_count == 10
+        assert "max turns" in result.output.lower() or result.output != ""
+
+
+# ── Phase 2: Work Deduplication Tests ──
+
+
+class TestWorkDeduplication:
+    """Tests for work item dedup tracking across ticks."""
+
+    def _make_supervisor(self, tmp_path):
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            enable_work_discovery=True,
+            enable_ai_batching=True,
+            enable_self_healing=False,
+            work_discovery_interval_seconds=0,  # Always discover
+        )
+        supervisor = CortexSupervisor(config=config)
+        return supervisor
+
+    def test_dispatched_items_not_rediscovered(self, tmp_path):
+        """Items dispatched in tick 1 are skipped in tick 2."""
+        supervisor = self._make_supervisor(tmp_path)
+
+        item = WorkItem(
+            id="wi_dup1",
+            source="goals",
+            task_type="test",
+            description="Run unit tests for auth",
+            priority=WorkItemPriority.HIGH,
+        )
+
+        mock_result = DispatchResult(
+            work_item_id="wi_dup1",
+            success=True,
+            output="Tests passed",
+            model_used="claude-sonnet-4-6",
+            tokens_used=100,
+            duration_seconds=1.0,
+        )
+
+        with (
+            patch.object(supervisor, "_discover_work", return_value=[item]),
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_dispatcher.dispatch.return_value = mock_result
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=1,
+                succeeded=1,
+                failed=0,
+                total_tokens=100,
+                total_duration_seconds=1.0,
+                model_breakdown={"sonnet": 1},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            # Tick 1: should dispatch
+            result1 = supervisor.tick()
+            assert result1.ai_tasks_dispatched == 1
+
+            # Tick 2: same item rediscovered — should be skipped
+            result2 = supervisor.tick()
+            assert result2.ai_tasks_dispatched == 0
+
+    def test_similar_descriptions_deduped(self, tmp_path):
+        """Items with similar descriptions are treated as duplicates."""
+        supervisor = self._make_supervisor(tmp_path)
+
+        item1 = WorkItem(
+            id="wi_sim1",
+            source="goals",
+            task_type="test",
+            description="Run unit tests for auth module",
+        )
+        item2 = WorkItem(
+            id="wi_sim2",
+            source="goals",
+            task_type="test",
+            description="Run unit tests for authentication module",
+        )
+
+        mock_result = DispatchResult(
+            work_item_id="wi_sim1",
+            success=True,
+            output="OK",
+            model_used="claude-sonnet-4-6",
+            tokens_used=100,
+            duration_seconds=1.0,
+        )
+
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_dispatcher.dispatch.return_value = mock_result
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=1,
+                succeeded=1,
+                failed=0,
+                total_tokens=100,
+                total_duration_seconds=1.0,
+                model_breakdown={"sonnet": 1},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            # Tick 1: dispatch item1
+            with patch.object(supervisor, "_discover_work", return_value=[item1]):
+                supervisor.tick()
+
+            # Tick 2: discover item2 (similar description) — should be skipped
+            with patch.object(supervisor, "_discover_work", return_value=[item2]):
+                result = supervisor.tick()
+
+            assert result.ai_tasks_dispatched == 0
+
+    def test_different_items_not_blocked(self, tmp_path):
+        """Different work items are dispatched normally."""
+        supervisor = self._make_supervisor(tmp_path)
+
+        item1 = WorkItem(
+            id="wi_diff1",
+            source="goals",
+            task_type="test",
+            description="Run unit tests",
+        )
+        item2 = WorkItem(
+            id="wi_diff2",
+            source="goals",
+            task_type="deploy",
+            description="Deploy to production environment",
+        )
+
+        mock_result1 = DispatchResult(
+            work_item_id="wi_diff1",
+            success=True,
+            output="OK",
+            model_used="claude-sonnet-4-6",
+            tokens_used=100,
+            duration_seconds=1.0,
+        )
+        mock_result2 = DispatchResult(
+            work_item_id="wi_diff2",
+            success=True,
+            output="Deployed",
+            model_used="claude-haiku-4-5-20251001",
+            tokens_used=50,
+            duration_seconds=0.5,
+        )
+
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_dispatcher.dispatch.side_effect = [mock_result1, mock_result2]
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=1,
+                succeeded=1,
+                failed=0,
+                total_tokens=100,
+                total_duration_seconds=1.0,
+                model_breakdown={"sonnet": 1},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            with patch.object(supervisor, "_discover_work", return_value=[item1]):
+                supervisor.tick()
+
+            with patch.object(supervisor, "_discover_work", return_value=[item2]):
+                result = supervisor.tick()
+
+            # item2 is different — should dispatch
+            assert result.ai_tasks_dispatched == 1
+
+
+# ── Phase 3: Shell Routing Tests ──
+
+
+class TestShellRouting:
+    """Tests for routing work items with commands to shell executor."""
+
+    def test_work_item_with_command_routes_to_shell(self, tmp_path):
+        """WorkItems with command field route to shell queue, not AI."""
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            enable_work_discovery=False,
+            enable_ai_batching=True,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
+
+        item = WorkItem(
+            id="wi_shell1",
+            source="goals",
+            task_type="test",
+            description="Run pytest",
+            command="pytest tests/ -v",
+            priority=WorkItemPriority.HIGH,
+        )
+
+        supervisor._pending_work_items = [item]
+
+        # Mock the AI dispatcher — should NOT be called for shell items
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+            patch.object(supervisor.shell_queue, "add_task") as mock_add_task,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=0,
+                succeeded=0,
+                failed=0,
+                total_tokens=0,
+                total_duration_seconds=0,
+                model_breakdown={},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            supervisor._dispatch_work_items()
+
+        # Shell queue should have received the task
+        mock_add_task.assert_called_once()
+        call_kwargs = mock_add_task.call_args
+        # Check it was called with the right command
+        assert "pytest tests/ -v" in str(call_kwargs)
+        # AI dispatcher should NOT have been called
+        mock_dispatcher.dispatch.assert_not_called()
+
+    def test_work_item_without_command_routes_to_ai(self, tmp_path):
+        """WorkItems without command field route to AI dispatcher."""
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            enable_work_discovery=False,
+            enable_ai_batching=True,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
+
+        item = WorkItem(
+            id="wi_ai1",
+            source="goals",
+            task_type="research",
+            description="Analyze the authentication module",
+            priority=WorkItemPriority.MEDIUM,
+        )
+
+        supervisor._pending_work_items = [item]
+
+        mock_result = DispatchResult(
+            work_item_id="wi_ai1",
+            success=True,
+            output="Analysis done",
+            model_used="claude-sonnet-4-6",
+            tokens_used=500,
+            duration_seconds=2.0,
+        )
+
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+            patch.object(supervisor.shell_queue, "add_task") as mock_add_task,
+        ):
+            mock_dispatcher = MagicMock()
+            mock_dispatcher.dispatch.return_value = mock_result
+            mock_get_disp.return_value = mock_dispatcher
+
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=1,
+                succeeded=1,
+                failed=0,
+                total_tokens=500,
+                total_duration_seconds=2.0,
+                model_breakdown={"sonnet": 1},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            summary = supervisor._dispatch_work_items()
+
+        # AI dispatcher should have been called
+        mock_dispatcher.dispatch.assert_called_once()
+        # Shell queue should NOT have been used
+        mock_add_task.assert_not_called()
+        assert summary["dispatched"] == 1
+
+    def test_shell_routed_task_has_correct_metadata(self, tmp_path):
+        """Shell-routed tasks carry work_item_id in metadata."""
+        from supervisor.config import SupervisorConfig
+        from supervisor.core import CortexSupervisor
+
+        config = SupervisorConfig(
+            enable_work_discovery=False,
+            enable_ai_batching=True,
+            enable_self_healing=False,
+        )
+        supervisor = CortexSupervisor(config=config)
+
+        item = WorkItem(
+            id="wi_meta1",
+            source="goals",
+            task_type="deploy",
+            description="Deploy app",
+            command="./deploy.sh",
+            priority=WorkItemPriority.HIGH,
+        )
+
+        supervisor._pending_work_items = [item]
+
+        with (
+            patch.object(supervisor, "_get_dispatcher") as mock_get_disp,
+            patch.object(supervisor, "_get_collector") as mock_get_coll,
+            patch.object(supervisor.shell_queue, "add_task") as mock_add_task,
+        ):
+            mock_get_disp.return_value = MagicMock()
+            mock_collector = MagicMock()
+            mock_collector.get_summary.return_value = BatchSummary(
+                total=0,
+                succeeded=0,
+                failed=0,
+                total_tokens=0,
+                total_duration_seconds=0,
+                model_breakdown={},
+                errors=[],
+            )
+            mock_get_coll.return_value = mock_collector
+
+            supervisor._dispatch_work_items()
+
+        mock_add_task.assert_called_once()
+        call_kwargs = mock_add_task.call_args
+        assert "work_item_id" in str(call_kwargs)
+
+
+# ── Phase 4: Dry-Run Mode Tests ──
+
+
+class TestDryRunMode:
+    """Tests for dry-run mode that skips API calls."""
+
+    def test_dry_run_does_not_call_api(self):
+        """Dispatcher with dry_run=True returns synthetic result without API call."""
+        dispatcher = AgentDispatcher(dry_run=True)
+
+        item = WorkItem(
+            id="wi_dry1",
+            source="test",
+            task_type="research",
+            description="Analyze something",
+        )
+        selection = DispatchModelSelection(
+            model_tier="sonnet",
+            model_id="claude-sonnet-4-6",
+            reasoning="test",
+            complexity_score=0.5,
+            confidence=0.7,
+        )
+
+        with patch.object(dispatcher, "_get_client") as mock_client_fn:
+            result = dispatcher.dispatch(item, selection)
+
+        # Client should never have been created
+        mock_client_fn.assert_not_called()
+        assert result.success is True
+        assert "[DRY RUN]" in result.output
+        assert result.tokens_used == 0
+
+    def test_dry_run_flag_in_config(self):
+        """SupervisorConfig has dry_run flag."""
+        from supervisor.config import SupervisorConfig
+
+        config = SupervisorConfig(dry_run=True)
+        assert config.dry_run is True
+
+        default = SupervisorConfig()
+        assert default.dry_run is False
