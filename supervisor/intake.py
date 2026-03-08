@@ -158,25 +158,42 @@ class WorkIntake:
         in_priority_section: Optional[str] = None  # "high", "medium", or "low"
         current_header = ""
 
+        actionable_level = 0  # heading depth that triggered actionable mode
+        priority_level = 0
+
         for line in text.splitlines():
             # Detect section headers
-            if re.match(r"^#{1,4}\s+", line):
+            hm = re.match(r"^(#{1,4})\s+", line)
+            if hm:
+                level = len(hm.group(1))
                 header_lower = line.lower()
                 current_header = line.lstrip("#").strip()
 
                 # Check for actionable sections (Immediate Actions, etc.)
-                in_actionable_section = any(
+                if any(
                     kw in header_lower for kw in ["immediate action", "next phase", "this week"]
-                )
+                ):
+                    in_actionable_section = True
+                    actionable_level = level
+                elif level <= actionable_level:
+                    # Higher or same level header exits actionable section
+                    in_actionable_section = False
+                    actionable_level = 0
+                # Sub-headers within actionable section stay actionable
 
                 # Check for priority sections (High Priority, Medium Priority, etc.)
-                in_priority_section = None
                 if "high priority" in header_lower:
                     in_priority_section = "high"
+                    priority_level = level
                 elif "medium priority" in header_lower:
                     in_priority_section = "medium"
+                    priority_level = level
                 elif "low priority" in header_lower:
                     in_priority_section = "low"
+                    priority_level = level
+                elif level <= priority_level and in_priority_section:
+                    in_priority_section = None
+                    priority_level = 0
 
                 continue
 
