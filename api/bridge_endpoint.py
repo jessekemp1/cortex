@@ -2107,6 +2107,85 @@ async def conductor_templates() -> Dict[str, Any]:
     return {"templates": PROMPT_TEMPLATES}
 
 
+# ============================================================================
+# Meta Layer — Examined Engineer
+# ============================================================================
+
+
+@app.get("/meta/compounding")
+async def meta_compounding_project(
+    project: str = Query(..., description="Project name, e.g. 'vortex-backend'"),
+) -> Dict[str, Any]:
+    """
+    Compounding risk assessment for a project.
+
+    Returns 6-month trajectory, rate (low/medium/high/critical), and the
+    boring risk nobody is tracking. Part of the Examined Engineer meta layer.
+    """
+    try:
+        from cortex.intelligence.analysis.compounding_risk import CompoundingRiskAssessor
+
+        assessor = CompoundingRiskAssessor()
+        risk = assessor.assess_project(project)
+        return {
+            "meta_layer": "compounding_risk",
+            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            **risk.to_dict(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Compounding risk assessment failed: {e}")
+
+
+@app.get("/meta/compounding/portfolio")
+async def meta_compounding_portfolio() -> Dict[str, Any]:
+    """
+    Compounding risk assessment for all known projects, sorted by severity.
+
+    Surfaces the highest-risk project and any boring risks not tracked elsewhere.
+    """
+    try:
+        from cortex.intelligence.analysis.compounding_risk import CompoundingRiskAssessor
+
+        assessor = CompoundingRiskAssessor()
+        risks = assessor.assess_portfolio()
+        rate_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        risks_sorted = sorted(risks, key=lambda r: rate_order.get(r.rate, 0), reverse=True)
+        return {
+            "meta_layer": "compounding_risk_portfolio",
+            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            "highest_risk": risks_sorted[0].target if risks_sorted else None,
+            "projects": [r.to_dict() for r in risks_sorted],
+            "boring_risks": [
+                {"project": r.target, "risk": r.boring_risk} for r in risks_sorted if r.boring_risk
+            ],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Portfolio compounding assessment failed: {e}")
+
+
+@app.get("/meta/compounding/file")
+async def meta_compounding_file(
+    path: str = Query(..., description="File path relative to repo root"),
+) -> Dict[str, Any]:
+    """
+    Compounding risk assessment for a specific file.
+
+    Uses caller count, churn rate, and test coverage as signals.
+    """
+    try:
+        from cortex.intelligence.analysis.compounding_risk import CompoundingRiskAssessor
+
+        assessor = CompoundingRiskAssessor()
+        risk = assessor.assess_file(path)
+        return {
+            "meta_layer": "compounding_risk_file",
+            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            **risk.to_dict(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"File compounding assessment failed: {e}")
+
+
 @app.get("/conductor/history")
 async def conductor_prompt_history(
     limit: int = Query(default=20, ge=1, le=200, description="Number of recent entries to return"),
