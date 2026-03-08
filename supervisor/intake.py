@@ -22,6 +22,24 @@ from .models import WorkItem, WorkItemPriority
 
 log = logging.getLogger(__name__)
 
+# Directory containing this file: cortex/supervisor/
+_THIS_DIR = Path(__file__).resolve().parent
+
+
+def _find_repo_root() -> Path:
+    """Walk up from this module's directory to find the monorepo root (.git dir)."""
+    current = _THIS_DIR
+    for _ in range(10):  # safety limit
+        if (current / ".git").is_dir():
+            return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    # Fall back to cwd if we can't find a .git directory
+    return Path.cwd()
+
+
 # Keywords that map to task_type
 _TYPE_KEYWORDS: Dict[str, list[str]] = {
     # Opus-tier task types (high complexity)
@@ -109,7 +127,7 @@ class WorkIntake:
             self.root_dir = root_dir
         else:
             env_root = os.environ.get("CORTEX_ROOT_DIR")
-            self.root_dir = Path(env_root) if env_root else Path.cwd()
+            self.root_dir = Path(env_root) if env_root else _find_repo_root()
 
     def from_cli(
         self,
