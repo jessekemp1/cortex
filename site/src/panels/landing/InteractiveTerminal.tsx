@@ -138,7 +138,7 @@ const lineColors: Record<TerminalLine['type'], string> = {
 }
 
 export function InteractiveTerminal() {
-  const [activeScenario, setActiveScenario] = useState(SCENARIOS[0])
+  const [activeScenario, setActiveScenario] = useState<Scenario>(SCENARIOS[0]!)
   const [visibleLines, setVisibleLines] = useState<number>(0)
   const [isTyping, setIsTyping] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
