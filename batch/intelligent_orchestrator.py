@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Intelligent Batch Orchestrator
@@ -15,6 +14,7 @@ Key Features:
 """
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -510,6 +510,18 @@ def main():
         if args.dry_run:
             print("💡 This was a dry run. Use without --dry-run to actually submit jobs.")
         else:
+            # Cleanup old tasks before finishing
+            try:
+                from batch.orchestrator import BatchOrchestrator
+
+                bo = BatchOrchestrator()
+                cleanup = bo.cleanup_queue(max_age_days=7)
+                removed = cleanup.get("removed", 0)
+                if removed:
+                    print(f"🧹 Cleaned up {removed} old tasks (>7d)")
+            except Exception:
+                pass  # Non-critical
+
             print("✅ Batch queue submitted for overnight processing!")
             print("📊 Check status: cortex batch status")
             print("📥 Results available in morning briefing")
