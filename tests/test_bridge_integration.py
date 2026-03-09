@@ -17,6 +17,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# ── Bridge HTTP availability check ────────────────────────────────────────────
+# Checked once at import time. Tests that require a live bridge are skipped
+# gracefully when the server is not running.
+_BRIDGE_BASE = "http://localhost:8765"
+
+try:
+    import requests as _requests
+
+    _resp = _requests.get(f"{_BRIDGE_BASE}/health", timeout=2)
+    BRIDGE_AVAILABLE = _resp.status_code == 200
+except Exception:
+    BRIDGE_AVAILABLE = False
+
 
 class TestBridgeImports:
     """Test that AI Engineering imports work correctly."""
@@ -443,3 +456,125 @@ class TestFullContextPipeline:
             bridge.tiered_memory = original_tiered
             bridge.hybrid_retriever = original_hybrid
             bridge.implicit_feedback = original_feedback
+
+
+# ── HTTP endpoint tests: /meta/compounding/* ──────────────────────────────────
+
+_SKIP_BRIDGE = pytest.mark.skipif(
+    not BRIDGE_AVAILABLE,
+    reason="Bridge not running at localhost:8765 — start with `python -m cortex.api.bridge_endpoint`",
+)
+
+
+@_SKIP_BRIDGE
+class TestMetaCompoundingEndpoints:
+    """HTTP endpoint tests for the /meta/compounding/* routes."""
+
+    def test_compounding_project_returns_200(self):
+        """GET /meta/compounding?project=<name> returns HTTP 200."""
+        import requests
+
+        resp = requests.get(
+            f"{_BRIDGE_BASE}/meta/compounding",
+            params={"project": "cortex"},
+            timeout=15,
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+    def test_compounding_project_response_fields(self):
+        """GET /meta/compounding returns meta_layer, rate, and confidence."""
+        import requests
+
+        resp = requests.get(
+            f"{_BRIDGE_BASE}/meta/compounding",
+            params={"project": "vortex-backend"},
+            timeout=15,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("meta_layer") == "compounding_risk", (
+            f"meta_layer should be 'compounding_risk', got: {data.get('meta_layer')}"
+        )
+        assert "rate" in data, "Response missing 'rate' field"
+        assert data["rate"] in ("low", "medium", "high", "critical"), (
+            f"rate must be one of low/medium/high/critical, got: {data['rate']}"
+        )
+        assert "confidence" in data, "Response missing 'confidence' field"
+        assert isinstance(data["confidence"], int), (
+            f"confidence must be int, got: {type(data['confidence'])}"
+        )
+
+    def test_compounding_portfolio_returns_200(self):
+        """GET /meta/compounding/portfolio returns HTTP 200."""
+        import requests
+
+        resp = requests.get(f"{_BRIDGE_BASE}/meta/compounding/portfolio", timeout=30)
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+    def test_compounding_portfolio_projects_list_length(self):
+        """GET /meta/compounding/portfolio returns projects list with 4 entries."""
+        import requests
+
+        resp = requests.get(f"{_BRIDGE_BASE}/meta/compounding/portfolio", timeout=30)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "projects" in data, "Response missing 'projects' field"
+        assert isinstance(data["projects"], list), (
+            f"projects must be a list, got: {type(data['projects'])}"
+        )
+        assert len(data["projects"]) == 4, f"Expected 4 projects, got {len(data['projects'])}"
+
+    def test_compounding_portfolio_meta_layer(self):
+        """GET /meta/compounding/portfolio returns correct meta_layer value."""
+        import requests
+
+        resp = requests.get(f"{_BRIDGE_BASE}/meta/compounding/portfolio", timeout=30)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("meta_layer") == "compounding_risk_portfolio", (
+            f"meta_layer should be 'compounding_risk_portfolio', got: {data.get('meta_layer')}"
+        )
+
+    def test_compounding_file_returns_200(self):
+        """GET /meta/compounding/file?path=<path> returns HTTP 200."""
+        import requests
+
+        resp = requests.get(
+            f"{_BRIDGE_BASE}/meta/compounding/file",
+            params={"path": "cortex/bridge.py"},
+            timeout=15,
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+    def test_compounding_file_meta_layer(self):
+        """GET /meta/compounding/file returns meta_layer == 'compounding_risk_file'."""
+        import requests
+
+        resp = requests.get(
+            f"{_BRIDGE_BASE}/meta/compounding/file",
+            params={"path": "cortex/bridge.py"},
+            timeout=15,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("meta_layer") == "compounding_risk_file", (
+            f"meta_layer should be 'compounding_risk_file', got: {data.get('meta_layer')}"
+        )
+
+    def test_compounding_file_response_fields(self):
+        """GET /meta/compounding/file returns rate, confidence, and target fields."""
+        import requests
+
+        resp = requests.get(
+            f"{_BRIDGE_BASE}/meta/compounding/file",
+            params={"path": "cortex/bridge.py"},
+            timeout=15,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "rate" in data, "Response missing 'rate' field"
+        assert data["rate"] in ("low", "medium", "high", "critical"), (
+            f"rate must be one of low/medium/high/critical, got: {data['rate']}"
+        )
+        assert "confidence" in data, "Response missing 'confidence' field"
+        assert "target" in data, "Response missing 'target' field"
