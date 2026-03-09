@@ -527,6 +527,64 @@ Provide fix recommendations.""",
 
         return work_items
 
+    def scan_frontier(self) -> List[BatchWorkItem]:
+        """
+        Generate a frontier scout batch item if scan is due (>6 days old).
+
+        Uses cortex.engines.frontier_scout to check timing and produce
+        a research batch item covering AI models, frameworks, protocols,
+        tooling, and papers.
+
+        Returns:
+            List with 0 or 1 BatchWorkItem for frontier scanning
+        """
+        try:
+            from cortex.engines.frontier_scout import FrontierScout, SCAN_CATEGORIES
+
+            scout = FrontierScout()
+            if not scout.should_run():
+                return []
+
+            # Build category descriptions for the prompt
+            categories = "\n".join(
+                f"- {cat['label']}: search {cat['queries']}" for cat in SCAN_CATEGORIES.values()
+            )
+
+            return [
+                BatchWorkItem(
+                    id=_sanitize_batch_id(f"frontier-scout-{datetime.now().strftime('%Y%m%d')}"),
+                    title="Frontier Scout: Weekly AI engineering scan",
+                    description="Scan AI frontier for integration opportunities",
+                    prompt=f"""You are the Cortex Frontier Scout. Scan the AI engineering frontier
+for developments from the past 7 days.
+
+Categories to scan:
+{categories}
+
+For each finding, score:
+- Relevance to Cortex (1-5): Does it map to routing, memory, learning, plugins, agents, or batch?
+- Integration effort (1-5): 1=drop-in, 5=architectural change
+- Priority = Relevance × (6 - Effort). HIGH ≥12, MEDIUM 8-11, LOW <8.
+
+For HIGH items, specify:
+- Cortex subsystem affected
+- Specific files: conductor/router.py, supervisor/agents.py, learning.py, tiered_memory.py, plugins/registry.py
+- Hours estimate
+- Action: INTEGRATE / EVALUATE / MONITOR
+
+Output a structured markdown report with Executive Summary, HIGH/MEDIUM/LOW sections,
+Recommended Sprint Items (top 3), and Model Landscape Update.""",
+                    priority="medium",
+                    estimated_input_tokens=4_000,
+                    estimated_output_tokens=6_000,
+                    source="scheduled",
+                    deadline_hours=168,  # weekly
+                )
+            ]
+        except Exception as e:
+            print(f"Warning: Failed to generate frontier scan: {e}")
+            return []
+
 
 class CapacityAwareQueueFiller:
     """
@@ -1039,6 +1097,7 @@ def integrate_with_orchestrator(
     dynamic_work.extend(generator.scan_recent_commits(hours=24))
     dynamic_work.extend(generator.scan_todos_and_fixmes())
     dynamic_work.extend(generator.scan_test_failures())
+    dynamic_work.extend(generator.scan_frontier())
 
     # Get static work from orchestrator
     from intelligent_orchestrator import IntelligentBatchOrchestrator
