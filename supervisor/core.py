@@ -7,13 +7,14 @@ The supervisor unifies shell task execution and AI batch API calls with:
 - Daemon support (start/stop/status)
 """
 
+import json
 import logging
 import os
 import signal
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import psutil
@@ -147,6 +148,10 @@ class CortexSupervisor:
         self._last_ai_batch_submission = datetime.min
         self._pending_batch_ids: List[str] = []
 
+        # Overnight batch queue (deferred LOW-priority items for 50% cost savings)
+        self._overnight_queue: List[WorkItem] = []
+        self._load_overnight_state()
+
     def tick(self) -> TickResult:
         """
         Main supervisor cycle. Called every tick_interval_seconds.
@@ -198,10 +203,27 @@ class CortexSupervisor:
                     result.ai_tasks_dispatched = dispatch_summary["dispatched"]
                     result.ai_tasks_succeeded = dispatch_summary["succeeded"]
                     result.ai_tasks_failed = dispatch_summary["failed"]
+                    result.overnight_deferred = dispatch_summary.get("overnight_deferred", 0)
                     result.orchestration_errors = dispatch_summary.get("errors", [])
                 except Exception as e:
                     logger.error(f"Orchestration pipeline failed: {e}", exc_info=True)
                     result.orchestration_errors.append(str(e))
+
+            # 1d. Submit overnight batch if in overnight window with enough items
+            if self._should_submit_overnight_batch():
+                try:
+                    batch_id = self._submit_overnight_batch()
+                    if batch_id:
+                        result.overnight_batch_submitted = True
+                        result.ai_batch_submitted = True
+                        result.ai_batch_id = batch_id
+                        logger.info(
+                            f"Overnight batch submitted: {batch_id} "
+                            f"({len(self._overnight_queue)} items)"
+                        )
+                except Exception as e:
+                    logger.error(f"Overnight batch submission failed: {e}", exc_info=True)
+                    result.orchestration_errors.append(f"overnight_batch: {e}")
 
             # 2. Execute ready shell tasks IMMEDIATELY
             #    (ignoring scheduled_time - we run tasks as soon as dependencies are met)
@@ -411,14 +433,26 @@ class CortexSupervisor:
             and not self._is_recently_dispatched(wi.description)
         ]
 
-        # Split into shell vs AI items
+        # Split into shell vs AI vs overnight-deferred items
         shell_items: List[WorkItem] = []
         ai_items: List[WorkItem] = []
+        deferred_count = 0
         for work_item in batch:
             if self._should_route_to_shell(work_item):
                 shell_items.append(work_item)
+            elif self._should_defer_overnight(work_item):
+                self._overnight_queue.append(work_item)
+                self._mark_dispatched(work_item)
+                deferred_count += 1
+                logger.info(
+                    f"Deferred {work_item.id[:8]} to overnight batch "
+                    f"(priority={work_item.priority.value})"
+                )
             else:
                 ai_items.append(work_item)
+
+        if deferred_count:
+            self._save_overnight_state()
 
         # Route shell items to BatchExecutor
         for work_item in shell_items:
@@ -466,6 +500,7 @@ class CortexSupervisor:
                 try:
                     batch_id = dispatcher.submit_batch(batch_pairs)
                     self._pending_batch_ids.append(batch_id)
+                    self._save_batch_state()
                     dispatched += len(batch_pairs)
                     for wi, _ in batch_pairs:
                         self._mark_dispatched(wi)
@@ -540,6 +575,7 @@ class CortexSupervisor:
             "succeeded": succeeded,
             "failed": failed,
             "shell_routed": shell_routed,
+            "overnight_deferred": deferred_count,
             "errors": errors,
         }
 
@@ -583,7 +619,10 @@ class CortexSupervisor:
                 logger.error(f"Failed to retrieve batch {batch_id[:12]}: {e}")
                 still_pending.append(batch_id)  # Keep it for next tick
 
+        had_completions = len(still_pending) < len(self._pending_batch_ids)
         self._pending_batch_ids = still_pending
+        if had_completions:
+            self._save_batch_state()
 
         if total_received > 0:
             try:
@@ -593,6 +632,163 @@ class CortexSupervisor:
                 logger.error(f"Failed to persist batch results: {e}")
 
         return total_received
+
+    # ------------------------------------------------------------------
+    # Overnight batch queue (50% cost savings via Anthropic Batch API)
+    # ------------------------------------------------------------------
+
+    def _should_defer_overnight(self, work_item: WorkItem) -> bool:
+        """Determine if a work item should be deferred to the overnight batch.
+
+        Criteria: overnight enabled, item is LOW priority or explicitly flagged,
+        and we're NOT currently in the overnight window (if we are, dispatch now).
+        """
+        if not self.config.overnight_batch_enabled:
+            return False
+        if work_item.defer_to_batch:
+            return True
+        from .models import WorkItemPriority
+
+        if work_item.priority != WorkItemPriority.LOW:
+            return False
+        # Don't defer if we're in the overnight window — submit immediately
+        if self._in_overnight_window():
+            return False
+        return True
+
+    def _in_overnight_window(self) -> bool:
+        """Check if current UTC hour is within the overnight submission window."""
+        hour = datetime.now(timezone.utc).hour
+        return self.config.overnight_start_hour <= hour < self.config.overnight_end_hour
+
+    def _should_submit_overnight_batch(self) -> bool:
+        """Check if we should submit the overnight queue now."""
+        if not self.config.overnight_batch_enabled:
+            return False
+        if len(self._overnight_queue) < self.config.min_items_for_overnight_batch:
+            return False
+        return self._in_overnight_window()
+
+    def _submit_overnight_batch(self) -> Optional[str]:
+        """Submit all queued overnight items as a single Batch API call."""
+        if not self._overnight_queue:
+            return None
+
+        from .dispatch import ModelSelection as DispatchModelSelection
+        from .models import RoutedTask, TaskTarget
+
+        router = self._get_router()
+        dispatcher = self._get_dispatcher()
+
+        batch_pairs: list[tuple[WorkItem, Any]] = []
+        for work_item in self._overnight_queue:
+            try:
+                ms = router.select_model(work_item)
+                dispatch_ms = DispatchModelSelection(
+                    model_tier=ms.model_tier,
+                    model_id=ms.model_id,
+                    reasoning=ms.reasoning,
+                    complexity_score=ms.complexity_score,
+                    confidence=ms.confidence,
+                )
+                batch_pairs.append((work_item, dispatch_ms))
+            except Exception as e:
+                logger.error(f"Overnight routing failed for {work_item.id[:8]}: {e}")
+
+        if not batch_pairs:
+            return None
+
+        batch_id = dispatcher.submit_batch(batch_pairs)
+        self._pending_batch_ids.append(batch_id)
+
+        logger.info(
+            f"Overnight batch {batch_id[:12]}: {len(batch_pairs)} items submitted "
+            f"(~50% cost savings)"
+        )
+
+        # Clear the queue and persist
+        self._overnight_queue.clear()
+        self._save_overnight_state()
+        self._save_batch_state()
+
+        return batch_id
+
+    def _load_overnight_state(self):
+        """Load overnight queue and pending batch IDs from disk (survives restarts)."""
+        # Overnight queue
+        qf = self.config.overnight_queue_file
+        if qf.exists():
+            try:
+                data = json.loads(qf.read_text())
+                for item_dict in data.get("queue", []):
+                    try:
+                        from .models import WorkItemPriority
+
+                        wi = WorkItem(
+                            id=item_dict["id"],
+                            source=item_dict["source"],
+                            task_type=item_dict["task_type"],
+                            description=item_dict["description"],
+                            prompt=item_dict.get("prompt"),
+                            system_prompt=item_dict.get("system_prompt"),
+                            project=item_dict.get("project"),
+                            priority=WorkItemPriority(item_dict.get("priority", "low")),
+                            defer_to_batch=True,
+                        )
+                        self._overnight_queue.append(wi)
+                    except Exception:
+                        continue
+                logger.info(f"Loaded {len(self._overnight_queue)} overnight queue items")
+            except Exception as e:
+                logger.warning(f"Failed to load overnight queue: {e}")
+
+        # Pending batch IDs
+        batch_state = self.config.state_file.parent / "pending_batches.json"
+        if batch_state.exists():
+            try:
+                self._pending_batch_ids = json.loads(batch_state.read_text())
+                if self._pending_batch_ids:
+                    logger.info(f"Recovered {len(self._pending_batch_ids)} pending batch IDs")
+            except Exception as e:
+                logger.warning(f"Failed to load pending batches: {e}")
+
+    def _save_overnight_state(self):
+        """Persist overnight queue to disk."""
+        qf = self.config.overnight_queue_file
+        try:
+            qf.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "queue": [
+                    {
+                        "id": wi.id,
+                        "source": wi.source,
+                        "task_type": wi.task_type,
+                        "description": wi.description,
+                        "prompt": wi.prompt,
+                        "system_prompt": wi.system_prompt,
+                        "project": wi.project,
+                        "priority": wi.priority.value,
+                    }
+                    for wi in self._overnight_queue
+                ],
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            tmp = qf.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2))
+            tmp.rename(qf)
+        except Exception as e:
+            logger.error(f"Failed to save overnight queue: {e}")
+
+    def _save_batch_state(self):
+        """Persist pending batch IDs to survive restarts."""
+        batch_state = self.config.state_file.parent / "pending_batches.json"
+        try:
+            batch_state.parent.mkdir(parents=True, exist_ok=True)
+            tmp = batch_state.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self._pending_batch_ids))
+            tmp.rename(batch_state)
+        except Exception as e:
+            logger.error(f"Failed to save batch state: {e}")
 
     # ------------------------------------------------------------------
     # Work dedup helpers

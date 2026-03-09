@@ -40,6 +40,15 @@ class SupervisorConfig:
     dry_run: bool = False  # Log routing decisions without calling API
     watch_goals: bool = True  # Check GOALS.md for changes on every tick
 
+    # Overnight batch queue (50% cost savings via Anthropic Batch API)
+    overnight_batch_enabled: bool = True  # Defer LOW-priority AI tasks to overnight
+    overnight_start_hour: int = 2  # UTC hour to submit overnight batch (2 AM)
+    overnight_end_hour: int = 6  # UTC hour after which overnight window closes
+    overnight_queue_file: Path = field(
+        default_factory=lambda: Path.home() / ".cortex" / "overnight_queue.json"
+    )
+    min_items_for_overnight_batch: int = 3  # Minimum items before submitting
+
     def __post_init__(self):
         """Ensure directories exist."""
         self.pid_file.parent.mkdir(parents=True, exist_ok=True)

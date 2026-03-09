@@ -49,6 +49,9 @@ class WorkItem:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
 
+    # Overnight batch deferral
+    defer_to_batch: bool = False  # If True, queue for overnight batch instead of immediate dispatch
+
     @property
     def priority_score(self) -> float:
         """Numeric priority for sorting (higher = more important)."""
@@ -142,6 +145,10 @@ class TickResult:
     ai_results_received: int = 0
     orchestration_errors: List[str] = field(default_factory=list)
 
+    # Overnight batch
+    overnight_deferred: int = 0
+    overnight_batch_submitted: bool = False
+
     # Health
     tasks_healed: int = 0
     healed_task_ids: List[str] = field(default_factory=list)
@@ -165,6 +172,8 @@ class TickResult:
             "ai_batch_id": self.ai_batch_id,
             "ai_results_received": self.ai_results_received,
             "orchestration_errors": self.orchestration_errors,
+            "overnight_deferred": self.overnight_deferred,
+            "overnight_batch_submitted": self.overnight_batch_submitted,
             "tasks_healed": self.tasks_healed,
             "healed_task_ids": self.healed_task_ids,
             "errors": self.errors,
@@ -185,8 +194,12 @@ class TickResult:
             parts.append(f"failed={self.ai_tasks_failed}")
         if self.tasks_healed:
             parts.append(f"healed={self.tasks_healed}")
+        if self.overnight_deferred:
+            parts.append(f"overnight_deferred={self.overnight_deferred}")
         if self.ai_batch_submitted:
             parts.append(f"ai_batch={self.ai_batch_id[:8]}")
+        if self.overnight_batch_submitted:
+            parts.append("overnight_batch=submitted")
         if self.errors:
             parts.append(f"errors={len(self.errors)}")
         return " | ".join(parts) if parts else "no_action"
