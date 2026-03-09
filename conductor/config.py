@@ -137,6 +137,7 @@ PROVIDERS: Dict[str, dict] = {
         "timeout": 120.0,
         "supports_batch": True,
         "models": {
+            # NOTE: Verify model ID availability — may not be publicly released yet
             "gpt-5": {
                 "display_name": "GPT-5",
                 "input_cost": 2.50,
@@ -146,6 +147,7 @@ PROVIDERS: Dict[str, dict] = {
                 "speed": "medium",
                 "strengths": ["reasoning", "research", "architecture"],
             },
+            # NOTE: Verify model ID availability — may not be publicly released yet
             "gpt-5-nano": {
                 "display_name": "GPT-5 Nano",
                 "input_cost": 0.10,
