@@ -132,7 +132,7 @@ class CompoundingRiskAssessor:
                 "circular import risk (model_competition/ensemble_analyzer)",
                 "ON HOLD — strategy drift",
             ],
-            "boring_risk": "PaperExecutor has been 'wired' for weeks with no actual paper trades recorded",
+            "boring_risk": "PaperExecutor IS recording (20 trades, $100K equity, 6 positions) but ON HOLD — trades accumulate without review; signal quality unknown",
         },
         "pupil": {
             "test_count_target": 1260,
