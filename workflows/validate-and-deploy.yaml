@@ -1,0 +1,29 @@
+name: validate-and-deploy
+description: Run Vortex backend tests, deploy if green, summarize outcome
+project: vortex
+trigger: manual
+priority: high
+
+steps:
+  - id: test
+    type: shell
+    description: Run Vortex backend test suite
+    command: "cd Vortex/backend && python -m pytest tests/ -v --tb=short -q 2>&1 | tail -30"
+    timeout: 300
+    on_failure: stop
+
+  - id: deploy
+    type: shell
+    description: Deploy to production worktree
+    command: "python -m cortex.scripts.deploy_vortex --safe"
+    condition: "steps.test.success"
+    timeout: 120
+    on_failure: stop
+
+  - id: summarize
+    type: ai
+    model: sonnet
+    description: Summarize test + deploy results
+    prompt: "Summarize the test results and deployment outcome. Flag any regressions or warnings. Keep it under 5 lines."
+    context_from: [test, deploy]
+    timeout: 60
