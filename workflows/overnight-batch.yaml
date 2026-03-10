@@ -1,0 +1,37 @@
+name: overnight-batch
+description: Queue and monitor overnight batch processing
+project: cortex
+trigger: "schedule: 0 2 * * *"
+priority: low
+
+steps:
+  - id: queue-check
+    type: shell
+    description: Check what's in the overnight queue
+    command: "python -c \"from pathlib import Path; import json; q=Path.home()/'.cortex'/'overnight_queue.json'; print(q.read_text() if q.exists() else '[]')\""
+    timeout: 5
+    on_failure: stop
+
+  - id: submit-batch
+    type: shell
+    description: Submit queued items to Anthropic Batch API
+    command: "python -m cortex.supervisor.cli batch-submit --from-queue"
+    condition: "steps.queue_check.success"
+    timeout: 60
+    on_failure: stop
+
+  - id: monitor
+    type: shell
+    description: Poll batch status until complete or timeout
+    command: "python -m cortex.supervisor.cli batch-status --wait --timeout 14400"
+    condition: "steps.submit_batch.success"
+    timeout: 14400
+    on_failure: continue
+
+  - id: collect
+    type: shell
+    description: Retrieve and persist batch results
+    command: "python -m cortex.supervisor.cli batch-retrieve --latest"
+    condition: "steps.monitor.success"
+    timeout: 120
+    on_failure: continue

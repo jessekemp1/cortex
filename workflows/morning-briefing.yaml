@@ -1,0 +1,35 @@
+name: morning-briefing
+description: Collect overnight results and generate morning briefing
+project: cortex
+trigger: "schedule: 0 8 * * *"
+priority: medium
+
+steps:
+  - id: batch-status
+    type: shell
+    description: Check overnight batch job results
+    command: "python -c \"import json; from pathlib import Path; d=Path.home()/'.cortex'/'batch'; jobs=[json.loads(f.read_text()) for f in d.glob('*.json') if f.stat().st_size>0]; print(json.dumps({'total':len(jobs),'completed':sum(1 for j in jobs if j.get('status')=='completed'),'failed':sum(1 for j in jobs if j.get('status')=='failed'),'pending':sum(1 for j in jobs if j.get('status') in ('pending','queued','running'))}, indent=2))\""
+    timeout: 10
+    on_failure: continue
+
+  - id: service-health
+    type: shell
+    description: Quick health check on running services
+    command: "curl -sf http://127.0.0.1:8000/api/v2/health 2>/dev/null && echo 'vortex: UP' || echo 'vortex: DOWN'; curl -sf http://127.0.0.1:8765/health 2>/dev/null && echo 'cortex-bridge: UP' || echo 'cortex-bridge: DOWN'"
+    timeout: 10
+    on_failure: continue
+
+  - id: git-status
+    type: shell
+    description: Check for uncommitted work
+    command: "git -C ~/Dev status --short | head -20; echo '---'; git -C ~/Dev log --oneline -5"
+    timeout: 5
+    on_failure: continue
+
+  - id: briefing
+    type: ai
+    model: sonnet
+    description: Generate morning briefing from collected data
+    prompt: "Generate a concise morning briefing for a solo developer. Include: (1) overnight batch results, (2) service health, (3) git status. Highlight anything that needs immediate attention. Format as bullet points, max 10 lines."
+    context_from: [batch-status, service-health, git-status]
+    timeout: 60
