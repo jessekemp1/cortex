@@ -431,6 +431,93 @@ class WorkIntake:
         log.info("Fetched %d recommendations from bridge", len(items))
         return items
 
+    def from_workflow_definitions(
+        self,
+        workflows_dir: Optional[Path] = None,
+        triggers_dir: Optional[Path] = None,
+    ) -> List[WorkItem]:
+        """Scan cortex/workflows/*.yaml for workflow definitions and create WorkItems.
+
+        Only includes "manual" trigger workflows if a corresponding trigger file
+        exists at ~/.cortex/workflow_triggers/<workflow-name>.trigger.
+        Non-manual workflows (schedule, event, etc.) are always included.
+        Consumes trigger files after reading them.
+        """
+        try:
+            import yaml
+        except ImportError:
+            log.warning("PyYAML not installed; skipping workflow definitions")
+            return []
+
+        if workflows_dir is None:
+            workflows_dir = self.root_dir / "cortex" / "workflows"
+        if triggers_dir is None:
+            triggers_dir = Path.home() / ".cortex" / "workflow_triggers"
+
+        if not workflows_dir.is_dir():
+            log.info("Workflows directory not found at %s", workflows_dir)
+            return []
+
+        items: List[WorkItem] = []
+
+        for yaml_path in sorted(workflows_dir.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                log.warning("Failed to parse workflow %s: %s", yaml_path.name, exc)
+                continue
+
+            if not isinstance(data, dict):
+                continue
+
+            trigger = str(data.get("trigger", "")).strip()
+            workflow_name = data.get("name", yaml_path.stem)
+
+            # Manual-trigger workflows require a touch file to activate
+            if trigger == "manual":
+                trigger_file = triggers_dir / f"{workflow_name}.trigger"
+                if not trigger_file.exists():
+                    continue
+                # Consume the trigger file
+                try:
+                    trigger_file.unlink()
+                except OSError:
+                    pass
+
+            # Infer task_type from workflow steps
+            steps = data.get("steps", [])
+            step_descriptions = " ".join(
+                s.get("description", "") for s in steps if isinstance(s, dict)
+            )
+            task_type = _infer_task_type(step_descriptions or data.get("description", ""))
+
+            # Map priority
+            priority_str = str(data.get("priority", "medium")).lower()
+            priority = _PRIORITY_MAP.get(priority_str, WorkItemPriority.MEDIUM)
+
+            items.append(
+                WorkItem(
+                    id=_make_id(),
+                    source="workflow",
+                    task_type=task_type,
+                    command=f"python -m cortex.workflows.runner {yaml_path}",
+                    description=data.get("description", workflow_name),
+                    project=data.get(
+                        "project",
+                        _infer_project(
+                            data.get("description", ""),
+                            workflow_name,
+                        ),
+                    ),
+                    priority=priority,
+                    confidence=0.85,
+                    metadata={"workflow_file": yaml_path.name},
+                )
+            )
+
+        log.info("Found %d triggered workflows in %s", len(items), workflows_dir)
+        return items
+
     def discover_all(self, goals_path: Optional[Path] = None) -> List[WorkItem]:
         """Discover work from ALL sources, deduplicated and priority-sorted.
 
@@ -448,6 +535,9 @@ class WorkIntake:
 
         # Batch jobs from ~/.cortex/batch/
         all_items.extend(self.from_batch_jobs())
+
+        # Workflow definitions from cortex/workflows/*.yaml
+        all_items.extend(self.from_workflow_definitions())
 
         # Recommendations (best-effort, don't block on failure)
         all_items.extend(self.from_recommendations_api())
