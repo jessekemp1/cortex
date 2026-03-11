@@ -218,7 +218,10 @@ class TestPipelineDiscovery:
         goals = tmp_path / "GOALS.md"
         goals.write_text("# Goals\nNothing actionable here.")
 
-        with patch.object(WorkIntake, "from_taskboard", return_value=[]):
+        with (
+            patch.object(WorkIntake, "from_taskboard", return_value=[]),
+            patch.object(WorkIntake, "from_workflow_definitions", return_value=[]),
+        ):
             result = run_pipeline(
                 dry_run=True,
                 goals_path=goals,

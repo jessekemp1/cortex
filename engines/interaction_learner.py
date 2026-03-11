@@ -659,7 +659,77 @@ class InteractionLearner:
 def process_interaction_queue() -> Dict[str, Any]:
     """Convenience function to process the interaction queue."""
     learner = InteractionLearner()
-    return learner.process_queue()
+
+    # Telemetry: generate a run_id for this pipeline execution
+    telemetry = None
+    run_id = None
+    try:
+        import uuid as _uuid
+
+        from intelligence.learning_telemetry import LearningTelemetry, StageEvent
+
+        telemetry = LearningTelemetry()
+        run_id = _uuid.uuid4().hex[:8]
+    except Exception:
+        pass  # telemetry failures must never break the pipeline
+
+    def _record(name: str, status: str, **kwargs):
+        if telemetry and run_id:
+            try:
+                telemetry.record_stage(
+                    StageEvent(run_id=run_id, name=name, status=status, **kwargs)
+                )
+            except Exception:
+                pass
+
+    # Stage: capture
+    import time as _time
+
+    t0 = _time.time()
+    _record("capture", "running", started_at=datetime.now().isoformat())
+    result = learner.process_queue()
+    processed = result.get("processed", 0)
+    _record(
+        "capture",
+        "complete",
+        started_at=datetime.now().isoformat(),
+        completed_at=datetime.now().isoformat(),
+        items_in=processed,
+        items_out=processed,
+        duration_s=round(_time.time() - t0, 2),
+    )
+
+    # Stages extract/store/index are implicit inside process_queue;
+    # record them with the same item counts for visibility.
+    outcomes = result.get("outcomes_derived", 0)
+    insights = result.get("insights_generated", 0)
+
+    _record(
+        "extract",
+        "complete",
+        started_at=datetime.now().isoformat(),
+        completed_at=datetime.now().isoformat(),
+        items_in=processed,
+        items_out=outcomes + insights,
+    )
+    _record(
+        "store",
+        "complete",
+        started_at=datetime.now().isoformat(),
+        completed_at=datetime.now().isoformat(),
+        items_in=outcomes + insights,
+        items_out=outcomes + insights,
+    )
+    _record(
+        "index",
+        "complete",
+        started_at=datetime.now().isoformat(),
+        completed_at=datetime.now().isoformat(),
+        items_in=outcomes + insights,
+        items_out=outcomes + insights,
+    )
+
+    return result
 
 
 def get_interaction_learning_summary(days: int = 7) -> Dict[str, Any]:
