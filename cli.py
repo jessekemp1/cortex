@@ -4187,6 +4187,113 @@ Deep Mode (Phase 1):
     daemon_status_parser = daemon_subparsers.add_parser("status", help="Show daemon status")
     daemon_status_parser.set_defaults(func=cmd_batch_daemon_status)
 
+    # batch stats
+    def cmd_batch_stats(args):
+        """Calculate real batch API savings from actual job data."""
+        import json
+
+        batch_results_dir = Path.home() / ".cortex" / "batch" / "results"
+        if not batch_results_dir.exists():
+            print("  No batch data yet. Run cortex batch fill first.")
+            return
+
+        # Conductor pricing per million tokens (input + output)
+        INPUT_PRICING = {
+            "claude-opus-4-20250514": 15.0,
+            "claude-sonnet-4-20250514": 3.0,
+            "claude-haiku-4-5-20251001": 0.25,
+        }
+        OUTPUT_PRICING = {
+            "claude-opus-4-20250514": 75.0,
+            "claude-sonnet-4-20250514": 15.0,
+            "claude-haiku-4-5-20251001": 1.25,
+        }
+        BATCH_DISCOUNT = 0.50  # Anthropic batch = 50% of interactive
+
+        total_interactive = 0.0
+        total_batch = 0.0
+        job_count = 0
+        request_count = 0
+        models_seen = {}
+
+        for f in batch_results_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text())
+                results = data.get("results", [])
+                if not results:
+                    continue
+
+                job_counted = False
+                for r in results:
+                    msg = r.get("result", {}).get("message", {})
+                    usage = msg.get("usage", {})
+                    model = msg.get("model", "claude-sonnet-4-20250514")
+
+                    input_tokens = usage.get("input_tokens", 0)
+                    output_tokens = usage.get("output_tokens", 0)
+
+                    if input_tokens == 0 and output_tokens == 0:
+                        # Fallback to top-level tokens_used estimate
+                        tokens_used = data.get("tokens_used", 0)
+                        if tokens_used > 0:
+                            input_tokens = int(tokens_used * 0.3)
+                            output_tokens = int(tokens_used * 0.7)
+                        else:
+                            continue
+
+                    in_price = INPUT_PRICING.get(model, 3.0)
+                    out_price = OUTPUT_PRICING.get(model, 15.0)
+                    interactive_cost = (input_tokens / 1_000_000) * in_price + (
+                        output_tokens / 1_000_000
+                    ) * out_price
+                    batch_cost = interactive_cost * BATCH_DISCOUNT
+
+                    total_interactive += interactive_cost
+                    total_batch += batch_cost
+                    request_count += 1
+
+                    models_seen[model] = models_seen.get(model, 0) + 1
+                    if not job_counted:
+                        job_count += 1
+                        job_counted = True
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        savings = total_interactive - total_batch
+        pct = (savings / total_interactive * 100) if total_interactive > 0 else 0
+
+        print("+" + "=" * 54 + "+")
+        print("|          CORTEX - BATCH API SAVINGS REPORT           |")
+        print("+" + "=" * 54 + "+")
+        print("")
+        print(f"  Jobs analyzed:      {job_count}")
+        print(f"  Requests total:     {request_count}")
+        print(f"  Interactive cost:   ${total_interactive:.4f}")
+        print(f"  Batch cost:         ${total_batch:.4f}")
+        print(f"  Savings:            ${savings:.4f} ({pct:.0f}%)")
+        print(f"  Discount applied:   {BATCH_DISCOUNT * 100:.0f}% (Anthropic Batch API pricing)")
+        print("")
+
+        if models_seen:
+            print("  Models used:")
+            for model, count in sorted(models_seen.items(), key=lambda x: -x[1]):
+                short = (
+                    model.replace("claude-", "").replace("-20250514", "").replace("-20251001", "")
+                )
+                print(f"    {short:20} {count:>5} requests")
+            print("")
+
+        if job_count == 0:
+            print("  No completed batch jobs with token data.")
+            print("  The 50% savings is from Anthropic's published pricing:")
+            print("  https://docs.anthropic.com/en/docs/build-with-claude/batch-processing")
+            print("")
+
+    batch_stats_parser = batch_subparsers.add_parser(
+        "stats", help="Show batch API cost savings analysis"
+    )
+    batch_stats_parser.set_defaults(func=cmd_batch_stats)
+
     # === Work Absorber Commands ===
     def cmd_work_absorb(args):
         """Run work absorption cycle."""
