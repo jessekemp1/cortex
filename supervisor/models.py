@@ -3,7 +3,7 @@ Data models for the Cortex Supervisor.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -47,7 +47,7 @@ class WorkItem:
     # Context
     files: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
     # Overnight batch deferral
     defer_to_batch: bool = False  # If True, queue for overnight batch instead of immediate dispatch
