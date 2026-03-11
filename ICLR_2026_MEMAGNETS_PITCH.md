@@ -21,7 +21,7 @@ We present **Cortex**, a persistent memory layer designed for production LLM age
 
 The key technical contribution is an **implicit feedback loop**: Cortex monitors agent signals (time-on-task, repeated queries, outcome confirmations) to weight which memories surface proactively, without requiring explicit rating or annotation from the user. This enables the system to improve recall relevance over time without changing the agent's core workflow.
 
-We evaluate Cortex in a production deployment across a 6-project software portfolio, where it has accumulated 18 months of agent sessions. Measurable outcomes include: elimination of documented anti-pattern recurrences (0 after storage vs. 3.2/month baseline), 23% reduction in context-setting overhead per session (measured by token count of session preamble), and successful transfer of architectural knowledge across 5 distinct project codebases. Cortex is implemented in Python 3.11, exposes an MCP-compatible server interface, and ships with 600+ passing tests under Apache 2.0.
+We evaluate Cortex in a production deployment across a 6-project software portfolio, where it has accumulated 18 months of agent sessions. Measurable outcomes include: elimination of documented anti-pattern recurrences (0 after storage vs. 3.2/month baseline), context quality optimization with measured position quality score and deduplication savings (see `tests/benchmark/context_benchmark.py`), and successful transfer of architectural knowledge across 5 distinct project codebases. Cortex is implemented in Python 3.11, exposes an MCP-compatible server interface, and ships with 600+ passing tests under Apache 2.0.
 
 Our work suggests that the bottleneck for effective long-horizon LLM agents in software engineering is not model capability but **environmental continuity** — and that lightweight, structured persistent memory is sufficient to close a large fraction of this gap.
 
@@ -84,7 +84,7 @@ Over 18 months of production use, this feedback loop has produced measurable ran
 | Metric | Before Cortex | After 6 months |
 |--------|--------------|----------------|
 | Anti-pattern recurrences/month | 3.2 | 0 |
-| Session preamble tokens (median) | 2,847 | 2,198 (−23%) |
+| Context optimization | — | Measured position quality + dedup savings (see `tests/benchmark/context_benchmark.py`) |
 | Architectural re-arguments | Weekly | Eliminated |
 | Cross-project knowledge transfer | Manual | Automatic |
 

@@ -599,6 +599,49 @@ def cmd_feedback(args):
 
 def cmd_health(args):
     """Show system health check (Golden Spec: Dependency Transparency)."""
+    # Handle --providers flag
+    if getattr(args, "providers", False):
+        try:
+            from conductor.config import PROVIDERS
+        except ImportError:
+            print("Error: Conductor config not available", file=sys.stderr)
+            sys.exit(1)
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║           CORTEX - AI PROVIDER STATUS                ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        for provider_name, provider_info in PROVIDERS.items():
+            env_var = provider_info.get("env_var", "")
+            key_set = bool(os.environ.get(env_var, ""))
+            status_icon = "✅" if key_set else "❌"
+            api_type = provider_info.get("api_type", "unknown")
+            supports_batch = "Yes" if provider_info.get("supports_batch") else "No"
+
+            print(f"{status_icon} {provider_name.upper()}")
+            print(f"   Key: {env_var} {'(set)' if key_set else '(missing)'}")
+            print(f"   Type: {api_type} | Batch: {supports_batch}")
+
+            models = provider_info.get("models", {})
+            if models:
+                print("   Models:")
+                for model_id, model_info in models.items():
+                    display = model_info.get("display_name", model_id)
+                    input_cost = model_info.get("input_cost", 0)
+                    output_cost = model_info.get("output_cost", 0)
+                    speed = model_info.get("speed", "unknown")
+                    strengths = ", ".join(model_info.get("strengths", []))
+                    print(f"     {display} (${input_cost}/${output_cost} per MTok, {speed})")
+                    if strengths:
+                        print(f"       Strengths: {strengths}")
+            print("")
+
+        available = sum(1 for p in PROVIDERS.values() if os.environ.get(p.get("env_var", "")))
+        total = len(PROVIDERS)
+        print(f"Available: {available}/{total} providers configured")
+        return
+
     orchestrator = CortexOrchestrator(root_dir=Path(args.root))
 
     try:
@@ -648,6 +691,52 @@ def cmd_health(args):
 
 def cmd_briefing(args):
     """Generate and display daily briefing."""
+    # Handle --portfolio flag
+    if getattr(args, "portfolio", False):
+        try:
+            root = Path(args.root)
+            if not ProjectScanner:
+                print("Error: ProjectScanner not available", file=sys.stderr)
+                sys.exit(1)
+
+            scanner = ProjectScanner(str(root))
+            repos = scanner.find_git_repos()
+            activities = [scanner.analyze_project(repo) for repo in repos]
+
+            # Deduplicate by name (keep most active)
+            by_name = {}
+            for activity in activities:
+                existing = by_name.get(activity.name)
+                if existing is None or activity.commits_7d > existing.commits_7d:
+                    by_name[activity.name] = activity
+
+            print("╔══════════════════════════════════════════════════════╗")
+            print("║          CORTEX - PORTFOLIO HEALTH MATRIX            ║")
+            print("╚══════════════════════════════════════════════════════╝")
+            print("")
+            print(f"{'Project':<25} {'Commits/7d':>10} {'Tests':>8} {'Status':<12}")
+            print("─" * 60)
+
+            for name in sorted(by_name.keys()):
+                proj = by_name[name]
+                commits = proj.commits_7d
+                test_count = getattr(proj, "test_count", 0) or 0
+                if commits > 5:
+                    status = "Active"
+                elif commits > 0:
+                    status = "Low Activity"
+                else:
+                    status = "Dormant"
+                print(f"{name:<25} {commits:>10} {test_count:>8} {status:<12}")
+
+            print("")
+            active = sum(1 for a in by_name.values() if a.commits_7d > 0)
+            print(f"Total: {len(by_name)} projects ({active} active)")
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
     try:
         root = Path(args.root)
 
@@ -1429,6 +1518,14 @@ def cmd_orchestrate(args):
 
 def cmd_learn(args):
     """Show learning metrics and patterns."""
+    if getattr(args, "pipeline", False):
+        from intelligence.learning_telemetry import LearningTelemetry
+
+        telemetry = LearningTelemetry()
+        runs = telemetry.get_recent_runs(limit=5)
+        print(telemetry.format_pipeline_ascii(runs))
+        return
+
     learning = LearningSystem()
 
     try:
@@ -2359,6 +2456,460 @@ def cmd_tooling(args):
         sys.exit(1)
 
 
+def cmd_intelligence(args):
+    """Query Cortex intelligence for context, patterns, and recommendations."""
+    try:
+        from bridge import CortexBridge
+    except ImportError:
+        print("Error: CortexBridge not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge()
+        result = bridge.query_intelligence(
+            request=args.query,
+            project=args.project or "",
+            query_type=args.type or "spec",
+        )
+
+        if "error" in result:
+            print(f"Error: {result['error']}", file=sys.stderr)
+            sys.exit(1)
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║          CORTEX - INTELLIGENCE QUERY                 ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        # Overall confidence
+        confidence = result.get("overall_confidence", 0)
+        print(f"Confidence: {confidence:.0%}")
+        if result.get("reasoning"):
+            print(f"Reasoning: {result['reasoning']}")
+        print("")
+
+        # Similar work / related patterns
+        related = result.get("related_patterns", [])
+        if related:
+            print("📎 RELATED PATTERNS")
+            print("────────────────")
+            for pattern in related:
+                score = pattern.get("score", 0)
+                print(f"  [{score:.0%}] {pattern.get('title', 'Unknown')}")
+                if pattern.get("description"):
+                    print(f"       {pattern['description'][:80]}")
+            print("")
+
+        # Anti-patterns
+        anti_patterns = result.get("anti_patterns", [])
+        if anti_patterns:
+            print("⚠️  ANTI-PATTERNS")
+            print("────────────────")
+            for ap in anti_patterns:
+                if isinstance(ap, dict):
+                    print(f"  - {ap.get('pattern', ap.get('title', str(ap)))}")
+                else:
+                    print(f"  - {ap}")
+            print("")
+
+        # Recommendations
+        recommendations = result.get("recommendations", [])
+        if recommendations:
+            print("💡 RECOMMENDATIONS")
+            print("────────────────")
+            for rec in recommendations:
+                if isinstance(rec, dict):
+                    print(f"  - {rec.get('title', rec.get('recommendation', str(rec)))}")
+                else:
+                    print(f"  - {rec}")
+            print("")
+
+        # Results
+        results = result.get("results", [])
+        if results:
+            print("📄 RESULTS")
+            print("────────────────")
+            for r in results[:5]:
+                if isinstance(r, dict):
+                    title = r.get("title", r.get("source", "Result"))
+                    relevance = r.get("relevance", r.get("score", 0))
+                    print(f"  [{relevance:.0%}] {title}")
+                    content = r.get("content", r.get("snippet", ""))
+                    if content:
+                        print(f"       {str(content)[:100]}")
+                else:
+                    print(f"  - {r}")
+            print("")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_portfolio(args):
+    """Portfolio commands: patterns, switching cost."""
+    try:
+        from portfolio_memory import PortfolioMemory
+    except ImportError:
+        print("Error: PortfolioMemory not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        memory = PortfolioMemory()
+
+        if getattr(args, "switching_cost", False):
+            # Show context-switching cost analysis
+            print("╔══════════════════════════════════════════════════════╗")
+            print("║        CORTEX - CONTEXT SWITCHING COST               ║")
+            print("╚══════════════════════════════════════════════════════╝")
+            print("")
+
+            # Use session data if available
+            try:
+                from intelligence.session_manager import SessionManager
+
+                sm = SessionManager()
+                ctx = sm.load_session_context()
+                if ctx and hasattr(ctx, "project_switches"):
+                    switches = ctx.project_switches
+                else:
+                    switches = 0
+            except Exception:
+                switches = 0
+
+            from hooks.switch_tracker import SwitchTracker
+
+            tracker = SwitchTracker()
+            sstats = tracker.get_stats()
+
+            print("📊 SWITCHING COST METRICS")
+            print("────────────────")
+            if sstats.enough_data:
+                print(f"  Avg tokens/switch (with Cortex):    {sstats.avg_with_cortex:,}")
+                print(f"  Avg tokens/switch (without Cortex): {sstats.avg_without_cortex:,}")
+                print(f"  Savings per switch:                 {sstats.savings_per_switch:,} tokens")
+            else:
+                print(f"  Collecting data... {sstats.total_switches}/10 switches recorded")
+                print("  Switches are tracked automatically across sessions.")
+                if sstats.total_switches > 0:
+                    print(
+                        f"  Preliminary avg savings: ~{sstats.savings_per_switch:,} tokens/switch"
+                    )
+            print("")
+
+            if switches > 0:
+                print(f"  Session switches detected: {switches}")
+                if sstats.enough_data:
+                    print(
+                        f"  Estimated session savings: {switches * sstats.savings_per_switch:,} tokens"
+                    )
+            print("")
+
+            # Portfolio stats
+            stats = memory.get_stats(include_health=False)
+            total = stats.get("total_projects", 0)
+            active_val = stats.get("active_projects", [])
+            active = len(active_val) if isinstance(active_val, list) else int(active_val)
+            if total > 0:
+                print(f"  Portfolio: {active} active / {total} total projects")
+                print(f"  Estimated daily switches: ~{active * 2}")
+                print(
+                    f"  Estimated daily savings:  ~{active * 2 * sstats.savings_per_switch:,} tokens"
+                )
+            print("")
+            return
+
+        # Default: show cross-project patterns
+        patterns = memory.get_cross_project_patterns()
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║       CORTEX - CROSS-PROJECT PATTERNS                ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if not patterns:
+            print("No cross-project patterns found.")
+            print("Patterns are detected from portfolio project_index.json")
+            return
+
+        # Get all project names for propagation check
+        all_projects = set(memory.portfolio_data.get("projects", {}).keys())
+
+        for pattern in patterns:
+            name = pattern.get("pattern", "Unknown")
+            count = pattern.get("count", 0)
+            used_in = pattern.get("used_in", [])
+            project_names = {p.get("project") for p in used_in}
+
+            print(f"  {name} (used in {count} projects)")
+            for proj in used_in:
+                print(f"    ✅ {proj.get('project')} [{proj.get('priority', 'tier3')}]")
+
+            # Propagation: show which projects DON'T have this pattern
+            if getattr(args, "propagate", False):
+                missing = all_projects - project_names
+                if missing:
+                    for m in sorted(missing):
+                        print(f"    ❌ {m} (missing)")
+            print("")
+
+        print(f"Total patterns: {len(patterns)}")
+        if not getattr(args, "propagate", False):
+            print("Use --propagate to see which projects are missing patterns")
+        print("")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_deps(args):
+    """Dependency analysis for projects."""
+    try:
+        from bridge import CortexBridge
+    except ImportError:
+        print("Error: CortexBridge not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        bridge = CortexBridge()
+
+        if getattr(args, "cross_project", False) or not args.project:
+            # Portfolio-wide dependency analysis
+            result = bridge.analyze_portfolio_dependencies(project_filter=args.project)
+
+            if "error" in result:
+                print(f"Error: {result['error']}", file=sys.stderr)
+                sys.exit(1)
+
+            print("╔══════════════════════════════════════════════════════╗")
+            print("║       CORTEX - PORTFOLIO DEPENDENCY ANALYSIS         ║")
+            print("╚══════════════════════════════════════════════════════╝")
+            print("")
+
+            projects_analyzed = result.get("projects_analyzed", [])
+            print(f"Projects analyzed: {len(projects_analyzed)}")
+            print("")
+
+            # Shared dependencies
+            shared = result.get("shared_dependencies", [])
+            if shared:
+                print("📦 SHARED DEPENDENCIES")
+                print("────────────────")
+                for dep in shared[:15]:
+                    if isinstance(dep, dict):
+                        name = dep.get("name", str(dep))
+                        projects = dep.get("projects", [])
+                        print(f"  {name}: {', '.join(projects[:5])}")
+                    else:
+                        print(f"  {dep}")
+                print("")
+
+            # Version drift
+            drift = result.get("version_drift", [])
+            if drift:
+                print("⚠️  VERSION DRIFT")
+                print("────────────────")
+                for d in drift[:10]:
+                    if isinstance(d, dict):
+                        print(f"  {d.get('dependency', 'Unknown')}: {d.get('versions', {})}")
+                    else:
+                        print(f"  {d}")
+                print("")
+
+            # Circular dependencies
+            circular = result.get("circular_dependencies", [])
+            if circular:
+                print("🔄 CIRCULAR DEPENDENCIES")
+                print("────────────────")
+                for c in circular:
+                    print(f"  {c}")
+                print("")
+
+        else:
+            # Single project
+            result = bridge.get_dependency_analysis(args.project)
+
+            if "error" in result:
+                print(f"Error: {result['error']}", file=sys.stderr)
+                sys.exit(1)
+
+            print("╔══════════════════════════════════════════════════════╗")
+            print(f"║  CORTEX - DEPS: {args.project:<38}║")
+            print("╚══════════════════════════════════════════════════════╝")
+            print("")
+
+            # External deps
+            external = result.get("external_deps", result.get("dependencies", []))
+            if external:
+                print("📦 EXTERNAL DEPENDENCIES")
+                print("────────────────")
+                for dep in external[:20]:
+                    if isinstance(dep, dict):
+                        print(f"  {dep.get('name', 'Unknown')} {dep.get('version', '')}")
+                    else:
+                        print(f"  {dep}")
+                print("")
+
+            # Internal deps
+            internal = result.get("internal_deps", [])
+            if internal:
+                print("🔗 INTERNAL DEPENDENCIES")
+                print("────────────────")
+                for dep in internal[:10]:
+                    print(f"  {dep}")
+                print("")
+
+            # Health score
+            health = result.get("health_score")
+            if health is not None:
+                print(f"Health Score: {health}/100")
+                print("")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_watch(args):
+    """Watch command - list, run, and manage scheduled verification tasks."""
+    try:
+        from watches import (
+            format_results as format_watch_results,
+            list_completed,
+            list_pending,
+            run_watch,
+        )
+    except ImportError:
+        print("Error: watches module not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        if getattr(args, "autonomous", False):
+            # Dry-run: show what autonomous mode would do
+            pending = list_pending()
+            print("╔══════════════════════════════════════════════════════╗")
+            print("║         CORTEX - WATCH (AUTONOMOUS PREVIEW)          ║")
+            print("╚══════════════════════════════════════════════════════╝")
+            print("")
+
+            if not pending:
+                print("No pending watches. Nothing for autonomous mode to do.")
+            else:
+                print(f"Autonomous mode would process {len(pending)} watches:")
+                print("")
+                for w in pending:
+                    print(f"  📋 {w.get('name', 'Unknown')}")
+                    print(f"     Script: {w.get('script', 'N/A')}")
+                    print(f"     Run after: {w.get('run_after', 'N/A')}")
+                    print(f"     Context: {w.get('context', '')[:60]}")
+                    criteria = w.get("criteria", {})
+                    if criteria:
+                        print(f"     Criteria: {json.dumps(criteria)}")
+                    print("")
+            return
+
+        # Default: list pending and recently completed, optionally run
+        pending = list_pending()
+        completed = list_completed(hours=24)
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║             CORTEX - WATCH STATUS                    ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if pending:
+            print(f"📋 PENDING ({len(pending)})")
+            print("────────────────")
+            for w in pending:
+                print(f"  {w.get('name', 'Unknown')} — {w.get('context', '')[:50]}")
+                print(f"    Run after: {w.get('run_after', 'N/A')}")
+            print("")
+
+            # Run pending watches if --run flag
+            if getattr(args, "run", False):
+                from pathlib import Path as WatchPath
+
+                watches_dir = WatchPath.home() / ".cortex" / "watches" / "pending"
+                results = []
+                for watch_file in sorted(watches_dir.glob("*.json")):
+                    result = run_watch(watch_file)
+                    if result.get("status") != "skipped":
+                        results.append(result)
+                if results:
+                    print("🔄 RUN RESULTS")
+                    print("────────────────")
+                    print(format_watch_results(results))
+                else:
+                    print("No watches were ready to run (check run_after times).")
+                print("")
+        else:
+            print("No pending watches.")
+            print("")
+
+        if completed:
+            print(f"✅ RECENTLY COMPLETED ({len(completed)})")
+            print("────────────────")
+            for w in completed:
+                status = w.get("status", "unknown")
+                icon = "PASS" if status == "pass" else "FAIL"
+                print(f"  [{icon}] {w.get('name', 'Unknown')} — {w.get('context', '')[:50]}")
+            print("")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_batch_fill(args):
+    """Fill overnight batch queue intelligently."""
+    try:
+        from batch.intelligent_orchestrator import IntelligentBatchOrchestrator
+    except ImportError:
+        print("Error: IntelligentBatchOrchestrator not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        orchestrator = IntelligentBatchOrchestrator()
+        jobs = orchestrator.fill_overnight_queue(max_jobs=getattr(args, "max_jobs", None))
+
+        print("╔══════════════════════════════════════════════════════╗")
+        print("║       CORTEX - OVERNIGHT BATCH QUEUE FILL            ║")
+        print("╚══════════════════════════════════════════════════════╝")
+        print("")
+
+        if not jobs:
+            print("No jobs to queue. All work is up to date.")
+            return
+
+        total_tokens = 0
+        print(f"Queued {len(jobs)} jobs:")
+        print("")
+
+        for i, job in enumerate(jobs, 1):
+            description = getattr(job, "description", str(job))
+            tokens = getattr(job, "total_tokens", 0)
+            priority = getattr(job, "priority_score", 0)
+            total_tokens += tokens
+
+            print(f"  [{i}] {description}")
+            print(f"      Tokens: {tokens:,} | Priority: {priority:.1f}")
+
+        print("")
+        print(f"Total tokens: {total_tokens:,}")
+
+        # Estimate savings (batch API is ~50% cheaper)
+        estimated_cost = total_tokens * 3.0 / 1_000_000  # ~$3/MTok average
+        batch_cost = estimated_cost * 0.5
+        savings = estimated_cost - batch_cost
+        print(f"Estimated cost: ${batch_cost:.2f} (saving ~${savings:.2f} vs interactive)")
+        print("")
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -2422,6 +2973,9 @@ Deep Mode (Phase 1):
 
     # Health command
     health_parser = subparsers.add_parser("health", help="Show system health check")
+    health_parser.add_argument(
+        "--providers", action="store_true", help="Show AI provider status and pricing"
+    )
     health_parser.set_defaults(func=cmd_health)
 
     # Feedback command
@@ -2554,6 +3108,9 @@ Deep Mode (Phase 1):
 
     # Learn command
     learn_parser = subparsers.add_parser("learn", help="Show learning metrics and patterns")
+    learn_parser.add_argument(
+        "--pipeline", action="store_true", help="Show learning pipeline run visualization"
+    )
     learn_parser.set_defaults(func=cmd_learn)
 
     # Deep mode commands (Phase 1 Integration)
@@ -2692,6 +3249,9 @@ Deep Mode (Phase 1):
 
     # Briefing command
     briefing_parser = subparsers.add_parser("briefing", help="Generate daily briefing")
+    briefing_parser.add_argument(
+        "--portfolio", action="store_true", help="Show portfolio health matrix"
+    )
     briefing_parser.add_argument(
         "--format",
         type=str,
@@ -3585,6 +4145,15 @@ Deep Mode (Phase 1):
     batch_logs_parser.add_argument("task_id", help="Task ID")
     batch_logs_parser.set_defaults(func=cmd_batch_logs)
 
+    # batch fill (intelligent overnight queue)
+    batch_fill_parser = batch_subparsers.add_parser(
+        "fill", help="Fill overnight batch queue intelligently"
+    )
+    batch_fill_parser.add_argument(
+        "--max-jobs", type=int, default=None, help="Maximum jobs to queue"
+    )
+    batch_fill_parser.set_defaults(func=cmd_batch_fill)
+
     # batch daemon - nested subparser
     batch_daemon_parser = batch_subparsers.add_parser("daemon", help="Daemon management")
     daemon_subparsers = batch_daemon_parser.add_subparsers(
@@ -4398,6 +4967,67 @@ Deep Mode (Phase 1):
     )
     runtime_history_parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
     runtime_history_parser.set_defaults(func=cmd_runtime_history)
+
+    # === Intelligence command ===
+    intelligence_parser = subparsers.add_parser(
+        "intelligence", help="Query Cortex intelligence for context and patterns"
+    )
+    intelligence_parser.add_argument("query", help="Natural language query")
+    intelligence_parser.add_argument(
+        "--project", "-p", type=str, default=None, help="Filter by project name"
+    )
+    intelligence_parser.add_argument(
+        "--type",
+        "-t",
+        type=str,
+        default="spec",
+        choices=["spec", "impl", "analysis", "research"],
+        help="Query type (default: spec)",
+    )
+    intelligence_parser.set_defaults(func=cmd_intelligence)
+
+    # === Portfolio command ===
+    portfolio_parser = subparsers.add_parser(
+        "portfolio", help="Cross-project patterns and switching cost analysis"
+    )
+    portfolio_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["patterns"],
+        default="patterns",
+        help="Action to perform (default: patterns)",
+    )
+    portfolio_parser.add_argument(
+        "--propagate",
+        action="store_true",
+        help="Show which projects are missing patterns",
+    )
+    portfolio_parser.add_argument(
+        "--switching-cost",
+        action="store_true",
+        help="Show context-switching cost analysis",
+    )
+    portfolio_parser.set_defaults(func=cmd_portfolio)
+
+    # === Deps command ===
+    deps_parser = subparsers.add_parser("deps", help="Dependency analysis for projects")
+    deps_parser.add_argument("project", nargs="?", default=None, help="Project name (optional)")
+    deps_parser.add_argument(
+        "--cross-project",
+        action="store_true",
+        help="Show shared dependencies across all projects",
+    )
+    deps_parser.set_defaults(func=cmd_deps)
+
+    # === Watch command ===
+    watch_parser = subparsers.add_parser("watch", help="Scheduled verification tasks")
+    watch_parser.add_argument("--run", action="store_true", help="Run pending watches now")
+    watch_parser.add_argument(
+        "--autonomous",
+        action="store_true",
+        help="Preview what autonomous mode would do (dry-run)",
+    )
+    watch_parser.set_defaults(func=cmd_watch)
 
     args = parser.parse_args()
 

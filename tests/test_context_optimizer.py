@@ -15,6 +15,7 @@ from cortex.intelligence.context_optimizer import (
     CategoryType,
     ContextItem,
     ContextOptimizer,
+    OptimizationMetrics,
     OptimizationStrategy,
     optimize_prompt_context,
 )
@@ -535,3 +536,108 @@ class TestEdgeCases:
         assert optimizer.estimate_tokens("") == 0
         assert optimizer.estimate_tokens("test") == 1  # 4 chars / 4 = 1
         assert optimizer.estimate_tokens("a" * 100) == 25  # 100 / 4 = 25
+
+
+class TestOptimizationMetrics:
+    """Test measurement of optimization impact."""
+
+    def test_measure_optimization_returns_metrics(self):
+        """Optimizer produces OptimizationMetrics with all fields populated."""
+        items = [
+            ContextItem(f"Item {i}", importance=(10 - i) / 10.0, category=CategoryType.DATA)
+            for i in range(9)
+        ]
+
+        optimizer = ContextOptimizer()
+        optimized = optimizer.optimize_context(items)
+        metrics = optimizer.measure_optimization(items, optimized)
+
+        assert isinstance(metrics, OptimizationMetrics)
+        assert metrics.total_items == 9
+        assert metrics.total_tokens_before > 0
+        assert metrics.total_tokens_after > 0
+        assert metrics.items_in_optimal_position >= 0
+        assert metrics.dedup_savings_pct >= 0.0
+
+    def test_position_quality_score_range(self):
+        """Position quality score is between 0.0 and 1.0."""
+        items = [
+            ContextItem(f"Item {i}", importance=(12 - i) / 12.0, category=CategoryType.DATA)
+            for i in range(12)
+        ]
+
+        optimizer = ContextOptimizer()
+        optimized = optimizer.optimize_context(items)
+        metrics = optimizer.measure_optimization(items, optimized)
+
+        assert 0.0 <= metrics.position_quality_score <= 1.0
+
+    def test_measure_empty_context(self):
+        """Measuring empty context returns zero metrics."""
+        optimizer = ContextOptimizer()
+        metrics = optimizer.measure_optimization([], [])
+
+        assert metrics.total_items == 0
+        assert metrics.position_quality_score == 0.0
+
+
+class TestDeduplication:
+    """Test content deduplication."""
+
+    def test_dedup_removes_overlapping_items(self):
+        """Duplicate content gets merged, reducing item count."""
+        items = [
+            ContextItem("The quick brown fox jumps over the lazy dog", 0.8, CategoryType.DATA),
+            ContextItem("The quick brown fox jumps over the lazy dog", 0.5, CategoryType.DATA),
+            ContextItem("Something completely different about weather", 0.6, CategoryType.DATA),
+        ]
+
+        optimizer = ContextOptimizer()
+        deduped, tokens_saved = optimizer.deduplicate(items)
+
+        assert len(deduped) == 2
+        assert tokens_saved > 0
+
+    def test_dedup_keeps_higher_importance(self):
+        """When merging duplicates, keeps the higher-importance version."""
+        items = [
+            ContextItem("Exact same content here", 0.3, CategoryType.DATA, source="low"),
+            ContextItem("Exact same content here", 0.9, CategoryType.DATA, source="high"),
+        ]
+
+        optimizer = ContextOptimizer()
+        deduped, _ = optimizer.deduplicate(items)
+
+        assert len(deduped) == 1
+        assert deduped[0].importance == 0.9
+        assert deduped[0].source == "high"
+
+    def test_dedup_with_no_duplicates(self):
+        """No items removed when content is distinct."""
+        items = [
+            ContextItem("Alpha bravo charlie", 0.8, CategoryType.DATA),
+            ContextItem("Delta echo foxtrot", 0.6, CategoryType.DATA),
+            ContextItem("Golf hotel india", 0.4, CategoryType.DATA),
+        ]
+
+        optimizer = ContextOptimizer()
+        deduped, tokens_saved = optimizer.deduplicate(items)
+
+        assert len(deduped) == 3
+        assert tokens_saved == 0
+
+    def test_optimize_context_with_dedup_flag(self):
+        """optimize_context(dedup=True) removes duplicates before reordering."""
+        items = [
+            ContextItem("Unique item one about testing", 0.9, CategoryType.INSTRUCTION),
+            ContextItem("Unique item two about deployment", 0.7, CategoryType.DATA),
+            ContextItem("Unique item one about testing", 0.5, CategoryType.DATA),
+            ContextItem("Unique item three about monitoring", 0.6, CategoryType.DATA),
+            ContextItem("Unique item four about logging", 0.4, CategoryType.HISTORY),
+        ]
+
+        optimizer = ContextOptimizer()
+        result = optimizer.optimize_context(items, dedup=True)
+
+        # Duplicate removed, so 4 items remain
+        assert len(result) == 4

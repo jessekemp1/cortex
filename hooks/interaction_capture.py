@@ -66,6 +66,7 @@ logger = logging.getLogger(__name__)
 INTERACTION_QUEUE = Path.home() / ".cortex" / "interaction_queue.jsonl"
 HOOK_STATUS_FILE = Path.home() / ".cortex" / "interaction_hook_status.json"
 HOOK_ERROR_LOG = Path.home() / ".cortex" / "interaction_hook_errors.log"
+LAST_PROJECT_FILE = Path.home() / ".cortex" / "metrics" / "last_project.txt"
 
 
 def _write_hook_status(**kwargs) -> None:
@@ -131,6 +132,12 @@ def capture_prompt(hook_input: dict) -> None:
     prompt = hook_input.get("prompt", "")
     session_id = hook_input.get("session_id")
     cwd = hook_input.get("cwd", os.getcwd())
+
+    # Detect project switch for cost tracking
+    try:
+        _check_project_switch(cwd)
+    except Exception:
+        pass  # Never block on switch tracking
 
     # Detect and track slash commands
     command_info = None
@@ -331,6 +338,70 @@ def track_command_if_present(prompt: str, session_id: str, cwd: str) -> dict:
         logger.debug(f"Command tracking failed: {e}")
 
     return None
+
+
+def _detect_project(cwd: str) -> str | None:
+    """Derive project name from working directory."""
+    cwd_lower = cwd.lower()
+    if "vortex" in cwd_lower:
+        return "vortex"
+    if "alpha_arena" in cwd_lower:
+        return "alpha_arena"
+    if "cortex" in cwd_lower:
+        return "cortex"
+    if "pupil" in cwd_lower:
+        return "pupil"
+    if "dj-copilot" in cwd_lower or "dj_copilot" in cwd_lower:
+        return "dj-copilot"
+    if "kempion" in cwd_lower:
+        return "kempion"
+    return None
+
+
+def _estimate_baseline_tokens() -> int:
+    """Estimate raw token cost without Cortex filtering (chars // 4)."""
+    total_chars = 0
+    for name in ("CLAUDE.md", "GOALS.md"):
+        p = CORTEX_DIR.parent / name
+        if p.exists():
+            total_chars += len(p.read_text())
+    memory_path = (
+        Path.home() / ".claude" / "projects" / "-Users-jesse-kemp-Dev" / "memory" / "MEMORY.md"
+    )
+    if memory_path.exists():
+        total_chars += len(memory_path.read_text())
+    return total_chars // 4
+
+
+def _check_project_switch(cwd: str) -> None:
+    """Detect project switch and record cost if one occurred."""
+    try:
+        project = _detect_project(cwd)
+        if not project:
+            return
+
+        LAST_PROJECT_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        last_project = None
+        if LAST_PROJECT_FILE.exists():
+            last_project = LAST_PROJECT_FILE.read_text().strip()
+
+        LAST_PROJECT_FILE.write_text(project)
+
+        if last_project and last_project != project:
+            from hooks.switch_tracker import SwitchTracker
+
+            # "with cortex" = session cache size (CLAUDE.md filtered)
+            claude_md = CORTEX_DIR.parent / "CLAUDE.md"
+            preamble_tokens = len(claude_md.read_text()) // 4 if claude_md.exists() else 0
+
+            # "without cortex" = raw sum of all context files
+            context_tokens = _estimate_baseline_tokens()
+
+            tracker = SwitchTracker()
+            tracker.record_switch(last_project, project, preamble_tokens, context_tokens)
+    except Exception:
+        pass  # Never break interaction capture
 
 
 def get_contextual_hint(hook_input: dict) -> str:

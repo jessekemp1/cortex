@@ -10,7 +10,7 @@ Based on: "AI Engineering" by Chip Huyen, Chapter 4 (Prompt Engineering)
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class CategoryType(str, Enum):
@@ -46,6 +46,20 @@ class ContextItem:
     def _estimate_tokens(text: str) -> int:
         """Rough token estimation (4 chars per token average)."""
         return len(text) // 4
+
+
+@dataclass
+class OptimizationMetrics:
+    """Measured impact of context optimization."""
+
+    total_items: int
+    total_tokens_before: int  # Sum of all item tokens
+    total_tokens_after: int  # After dedup (if items share content)
+    position_quality_score: (
+        float  # 0-1, how well high-importance items are in high-attention positions
+    )
+    items_in_optimal_position: int  # Count of items where importance matches position attention
+    dedup_savings_pct: float  # Percentage of tokens saved by deduplication
 
 
 @dataclass
@@ -97,7 +111,73 @@ class ContextOptimizer:
         self.max_tokens = max_tokens
         self.strategy = strategy or OptimizationStrategy()
 
-    def optimize_context(self, items: List[ContextItem]) -> List[ContextItem]:
+    def deduplicate(
+        self, items: List[ContextItem], threshold: float = 0.8
+    ) -> Tuple[List[ContextItem], int]:
+        """
+        Remove items with overlapping content, keeping higher-importance versions.
+
+        Uses simple substring overlap: if the shorter content appears as ≥threshold
+        fraction within the longer content, they are considered duplicates.
+
+        Args:
+            items: List of context items to deduplicate
+            threshold: Overlap ratio (0-1) above which items are considered duplicates
+
+        Returns:
+            Tuple of (deduplicated items, tokens saved)
+        """
+        if not items:
+            return [], 0
+
+        # Sort by importance descending so we keep higher-importance versions
+        candidates = sorted(items, key=lambda x: x.importance, reverse=True)
+        kept: List[ContextItem] = []
+        tokens_saved = 0
+
+        for item in candidates:
+            is_duplicate = False
+            for existing in kept:
+                overlap = self._content_overlap(item.content, existing.content)
+                if overlap >= threshold:
+                    is_duplicate = True
+                    tokens_saved += item.tokens or 0
+                    break
+            if not is_duplicate:
+                kept.append(item)
+
+        return kept, tokens_saved
+
+    @staticmethod
+    def _content_overlap(a: str, b: str) -> float:
+        """
+        Compute simple overlap ratio between two strings.
+
+        Returns the fraction of the shorter string that appears as a substring
+        of the longer string. Falls back to word-level Jaccard if no substring match.
+
+        Returns:
+            Float 0-1 representing overlap.
+        """
+        if not a or not b:
+            return 0.0
+
+        shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+
+        # Direct substring check
+        if shorter in longer:
+            return 1.0
+
+        # Word-level Jaccard similarity as fallback
+        words_a = set(a.lower().split())
+        words_b = set(b.lower().split())
+        if not words_a or not words_b:
+            return 0.0
+        intersection = words_a & words_b
+        union = words_a | words_b
+        return len(intersection) / len(union)
+
+    def optimize_context(self, items: List[ContextItem], dedup: bool = False) -> List[ContextItem]:
         """
         Reorder context items for optimal LLM attention.
 
@@ -108,12 +188,17 @@ class ContextOptimizer:
 
         Args:
             items: List of context items to optimize
+            dedup: If True, deduplicate overlapping items before reordering
 
         Returns:
             Reordered list optimized for attention
         """
         if not items:
             return []
+
+        # Optional deduplication step
+        if dedup:
+            items, _ = self.deduplicate(items)
 
         # Too few items to optimize
         if len(items) <= 3:
@@ -146,6 +231,73 @@ class ContextOptimizer:
 
         # Combine: start + middle + end
         return start_items + middle_items + end_items
+
+    def measure_optimization(
+        self, original: List[ContextItem], optimized: List[ContextItem]
+    ) -> OptimizationMetrics:
+        """
+        Measure the impact of context optimization.
+
+        Position quality scoring:
+        - START (first third): items with importance >= 0.7 score a point
+        - END (last third): items with importance >= 0.4 score a point
+        - MIDDLE (middle third): items with importance < 0.7 score a point
+
+        Args:
+            original: Items before optimization
+            optimized: Items after optimization (and optional dedup)
+
+        Returns:
+            OptimizationMetrics with measured stats
+        """
+        total_tokens_before = sum(item.tokens or 0 for item in original)
+        total_tokens_after = sum(item.tokens or 0 for item in optimized)
+
+        n = len(optimized)
+        if n == 0:
+            return OptimizationMetrics(
+                total_items=0,
+                total_tokens_before=total_tokens_before,
+                total_tokens_after=0,
+                position_quality_score=0.0,
+                items_in_optimal_position=0,
+                dedup_savings_pct=0.0,
+            )
+
+        # Calculate position boundaries
+        third = max(n // 3, 1)
+        start_end = third
+        end_start = n - third
+
+        correct = 0
+        for i, item in enumerate(optimized):
+            if i < start_end:
+                # START zone: high importance items belong here
+                if item.importance >= 0.7:
+                    correct += 1
+            elif i >= end_start:
+                # END zone: medium+ importance items belong here
+                if item.importance >= 0.4:
+                    correct += 1
+            else:
+                # MIDDLE zone: lower importance items belong here
+                if item.importance < 0.7:
+                    correct += 1
+
+        position_quality_score = correct / n
+
+        dedup_savings_pct = 0.0
+        if total_tokens_before > 0:
+            dedup_savings_pct = (1.0 - total_tokens_after / total_tokens_before) * 100.0
+
+        return OptimizationMetrics(
+            total_items=n,
+            total_tokens_before=total_tokens_before,
+            total_tokens_after=total_tokens_after,
+            position_quality_score=position_quality_score,
+            items_in_optimal_position=correct,
+            dedup_savings_pct=dedup_savings_pct,
+        )
 
     def optimize_by_category(self, items: List[ContextItem]) -> List[ContextItem]:
         """
