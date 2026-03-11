@@ -22,6 +22,8 @@ from pathlib import Path
 import pytest
 import requests
 
+pytestmark = pytest.mark.integration
+
 # Colors for output
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -199,9 +201,9 @@ def test_skill_command():
 
 def main():
     """Run all tests."""
-    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"\n{BLUE}{'=' * 60}{RESET}")
     print(f"{BLUE}Moltbot-Cortex Integration Test Suite{RESET}")
-    print(f"{BLUE}{'='*60}{RESET}\n")
+    print(f"{BLUE}{'=' * 60}{RESET}\n")
 
     results = {}
 
@@ -236,9 +238,9 @@ def main():
         stop_api()
 
     # Summary
-    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"\n{BLUE}{'=' * 60}{RESET}")
     print(f"{BLUE}Test Results Summary{RESET}")
-    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}{'=' * 60}{RESET}")
 
     passed = sum(1 for v in results.values() if v)
     total = len(results)

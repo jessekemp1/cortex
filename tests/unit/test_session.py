@@ -1,4 +1,3 @@
-import os
 """Unit tests for Cortex Session Context Management.
 
 Tests the SessionManager class which creates and manages session context
@@ -6,8 +5,9 @@ from git history and project state.
 """
 
 import json
+import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -36,7 +36,10 @@ class TestSessionManagerInit:
 
         manager = SessionManager()
         assert manager.cache_dir.exists()
-        assert manager.cache_dir == Path.home() / ".claude" / "session"
+        assert (
+            manager.cache_dir
+            == Path(os.environ.get("CORTEX_HOME", str(Path.home() / ".cortex"))) / "session"
+        )
 
 
 class TestSessionManagerLoadContext:
@@ -69,7 +72,7 @@ class TestSessionManagerLoadContext:
                 "recent_work": [{"hash": "cached123", "summary": "Cached commit"}],
                 "active_goals": ["Cached goal"],
                 "current_focus": "Cached focus",
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             }
             cache_file.write_text(json.dumps(cached_data))
 

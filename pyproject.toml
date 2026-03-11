@@ -31,6 +31,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "psutil>=5.9.0",
     "pytz>=2024.1",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -55,12 +56,15 @@ dev = [
 ]
 
 [project.scripts]
-cortex = "cortex.cli:main"
-cx = "cortex.cli:main"
+cortex = "cli:main"
+cx = "cli:main"
 
 [project.urls]
 Homepage = "https://github.com/jessekemp1/cortex"
 Repository = "https://github.com/jessekemp1/cortex"
+
+[tool.setuptools]
+py-modules = ["cli", "bridge", "orchestrator", "formatter", "briefing", "feedback", "goal_parser", "learning"]
 
 [tool.setuptools.packages.find]
 exclude = [
@@ -88,4 +92,9 @@ exclude = [
     "automation*",
     "v2*",
     "v21*",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires running services or monorepo environment",
 ]
