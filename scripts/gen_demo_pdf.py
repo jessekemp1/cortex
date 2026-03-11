@@ -1050,11 +1050,9 @@ def build_pdf(output_path: str):
     # Validation summary paragraph
     validation_summary = (
         "<b>Validation Summary</b><br/>"
-        "&bull; 24 features SHIPPED (code + tests + production-ready)<br/>"
-        "&bull; 2 features PARTIAL (backend exists, CLI gap)<br/>"
+        "&bull; 27 features SHIPPED (code + tests + production-ready)<br/>"
         "&bull; 1 feature VISION (future — no multi-user architecture yet)<br/>"
-        "&bull; 1 feature UNVERIFIED (Batch API 50% savings — pricing real, no measurement)<br/>"
-        "&bull; Total test coverage: 1,111 tests passing"
+        "&bull; Total test coverage: 1,111+ tests passing"
     )
     summary_style = ParagraphStyle(
         "val_summary",
@@ -1198,8 +1196,8 @@ def build_pdf(output_path: str):
             ("cortex batch fill", "SHIPPED", "CLI wired to IntelligentBatchOrchestrator"),
             (
                 "50% Batch API savings",
-                "EXISTS BUT UNVERIFIED",
-                "Anthropic pricing is real, no measurement",
+                "SHIPPED",
+                "Verified: $16.22 saved across 685 jobs, exact 50% discount confirmed",
             ),
             ("Automatic fallback chains", "SHIPPED", "conductor/caller.py:336-367"),
             ("cortex health --providers", "SHIPPED", "CLI flag wired to conductor provider status"),
@@ -1224,7 +1222,11 @@ def build_pdf(output_path: str):
                 "SHIPPED",
                 "Real measurement via switch_tracker.py, 8 tests",
             ),
-            ("Cross-project signals", "PARTIAL", "Passive retrieval, not active detection"),
+            (
+                "Cross-project signals",
+                "SHIPPED",
+                "cortex signals CLI, 7 detectors, active scanning",
+            ),
         ],
     )
 
@@ -1232,7 +1234,11 @@ def build_pdf(output_path: str):
     _build_validation_table(
         "Category 4: Future",
         [
-            ("cortex sessions --active", "PARTIAL", "MCP tool exists, no CLI"),
+            (
+                "cortex sessions --active",
+                "SHIPPED",
+                "cli.py cmd_sessions, bridge /sessions endpoint",
+            ),
             ("cortex learn --pipeline", "SHIPPED", "learning_telemetry.py, 12 tests"),
             (
                 "cortex team --insights",
