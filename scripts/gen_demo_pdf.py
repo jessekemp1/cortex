@@ -1050,11 +1050,11 @@ def build_pdf(output_path: str):
     # Validation summary paragraph
     validation_summary = (
         "<b>Validation Summary</b><br/>"
-        "&bull; 13 features SHIPPED (code + tests + production-ready)<br/>"
-        "&bull; 4 features PARTIAL (backend exists, CLI gap)<br/>"
-        "&bull; 8 features NOT IMPLEMENTED (CLI commands missing)<br/>"
-        "&bull; 1 feature DEMO ONLY (unverified marketing claim)<br/>"
-        "&bull; Total test coverage: 1,063 tests passing"
+        "&bull; 24 features SHIPPED (code + tests + production-ready)<br/>"
+        "&bull; 2 features PARTIAL (backend exists, CLI gap)<br/>"
+        "&bull; 1 feature VISION (future — no multi-user architecture yet)<br/>"
+        "&bull; 1 feature UNVERIFIED (Batch API 50% savings — pricing real, no measurement)<br/>"
+        "&bull; Total test coverage: 1,111 tests passing"
     )
     summary_style = ParagraphStyle(
         "val_summary",
@@ -1072,6 +1072,7 @@ def build_pdf(output_path: str):
     STATUS_YELLOW = HexColor("#fff9c4")  # PARTIAL
     STATUS_RED = HexColor("#ffcdd2")  # NOT IMPLEMENTED
     STATUS_GRAY_BG = HexColor("#e0e0e0")  # DEMO ONLY
+    STATUS_BLUE_BG = HexColor("#bbdefb")  # VISION (future)
 
     # Reusable styles for validation tables
     val_hdr_style = ParagraphStyle(
@@ -1110,6 +1111,8 @@ def build_pdf(output_path: str):
             return STATUS_RED
         if "DEMO ONLY" in s:
             return STATUS_GRAY_BG
+        if "VISION" in s:
+            return STATUS_BLUE_BG
         if "UNVERIFIED" in s:
             return STATUS_YELLOW
         return WHITE
