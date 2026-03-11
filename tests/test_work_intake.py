@@ -165,7 +165,7 @@ class TestFromCli:
 
     def test_created_at_is_recent(self, intake):
         item = intake.from_cli("test task")
-        assert (datetime.now(timezone.utc) - item.created_at).total_seconds() < 5
+        assert (datetime.now(tz=timezone.utc) - item.created_at).total_seconds() < 5
 
 
 # ---------------------------------------------------------------------------
