@@ -108,9 +108,10 @@ def taskboard_file(tmp_path):
 
 
 class TestInit:
-    def test_default_root_dir_is_cwd(self):
+    def test_default_root_dir_finds_repo_root(self):
         wi = WorkIntake()
-        assert wi.root_dir == Path.cwd()
+        # _find_repo_root() walks up to find .git; verify it found a real repo root
+        assert (wi.root_dir / ".git").is_dir()
 
     def test_explicit_root_dir(self, tmp_path):
         wi = WorkIntake(root_dir=tmp_path)
