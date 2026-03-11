@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -108,6 +108,7 @@ def taskboard_file(tmp_path):
 
 
 class TestInit:
+    @pytest.mark.integration
     def test_default_root_dir_finds_repo_root(self):
         wi = WorkIntake()
         # _find_repo_root() walks up to find .git; verify it found a real repo root
@@ -164,7 +165,7 @@ class TestFromCli:
 
     def test_created_at_is_recent(self, intake):
         item = intake.from_cli("test task")
-        assert (datetime.now() - item.created_at).total_seconds() < 5
+        assert (datetime.now(timezone.utc) - item.created_at).total_seconds() < 5
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +330,7 @@ class TestFromRecommendation:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestDiscoverAll:
     def test_combines_sources(self, intake, goals_file, taskboard_file):
         with patch.object(intake, "from_recommendations_api", return_value=[]):

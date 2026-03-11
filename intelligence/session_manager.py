@@ -1,11 +1,11 @@
-import os
 """Session Manager - Creates and manages session context from git history."""
 
 import json
+import os
 import logging
 import subprocess
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -28,10 +28,14 @@ class SessionManager:
     """Manages session context derived from git history and project state."""
 
     def __init__(
-        self, root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))), enable_tiered_memory: bool = True
+        self,
+        root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))),
+        enable_tiered_memory: bool = True,
     ):
         self.root_dir = Path(root_dir)
-        self.cache_dir = Path.home() / ".claude" / "session"
+        # Use CORTEX_HOME or ~/.cortex for session cache (not ~/.claude which is Claude Code-specific)
+        cortex_home = Path(os.environ.get("CORTEX_HOME", str(Path.home() / ".cortex")))
+        self.cache_dir = cortex_home / "session"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = self.cache_dir / "context.json"
 
@@ -56,7 +60,7 @@ class SessionManager:
         """
         # Try to load from cache
         if self.cache_file.exists():
-            cache_age = datetime.now().timestamp() - self.cache_file.stat().st_mtime
+            cache_age = datetime.now(timezone.utc).timestamp() - self.cache_file.stat().st_mtime
             if cache_age < max_age_hours * 3600:
                 try:
                     data = json.loads(self.cache_file.read_text())
@@ -103,7 +107,7 @@ class SessionManager:
                 recent_work=recent_work,
                 active_goals=active_goals,
                 current_focus=current_focus,
-                last_updated=datetime.now().isoformat(),
+                last_updated=datetime.now(timezone.utc).isoformat(),
             )
 
             # Store keywords in context metadata (extend recent_work with keywords)
@@ -318,7 +322,7 @@ class SessionManager:
 
         try:
             item_id = f"{context_type}:{uuid.uuid4().hex[:8]}"
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
 
             item = MemoryItem(
                 id=item_id,
@@ -403,7 +407,7 @@ class SessionManager:
             Session summary with stats
         """
         summary = {
-            "session_ended": datetime.now().isoformat(),
+            "session_ended": datetime.now(timezone.utc).isoformat(),
             "tiered_memory_available": self.tiered_memory is not None,
         }
 

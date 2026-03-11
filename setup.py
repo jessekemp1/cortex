@@ -45,6 +45,16 @@ setup(
             "v21*",
         ]
     ),
+    py_modules=[
+        "cli",
+        "bridge",
+        "orchestrator",
+        "formatter",
+        "briefing",
+        "feedback",
+        "goal_parser",
+        "learning",
+    ],
     include_package_data=True,
     install_requires=[
         "anthropic>=0.40.0",
@@ -56,6 +66,7 @@ setup(
         "python-dotenv>=1.0.0",
         "psutil>=5.9.0",
         "pytz>=2024.1",
+        "numpy>=1.24.0",
         "setuptools>=75.6.0",
     ],
     extras_require={
@@ -82,7 +93,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "cortex=cortex.cli:main",
+            "cortex=cli:main",
         ],
     },
     classifiers=[

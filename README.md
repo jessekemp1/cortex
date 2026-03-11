@@ -84,12 +84,17 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 ## Quick Start
 
 ```bash
-pip install cortex-intelligence        # or: pip install -e . from source
+# 1. Install from source
+git clone https://github.com/jessekemp1/cortex && cd cortex
+pip install -e .
+
+# 2. Set your API key (required for intelligence features)
 export ANTHROPIC_API_KEY=sk-...
-cortex init                            # creates ~/.cortex/config.yaml
-cortex remember "Always use ruff for formatting in this project"
-cortex intelligence "What should I work on next?"
-cortex briefing                        # morning context briefing
+
+# 3. Try it out
+cortex status                              # see current session context
+cortex intelligence "What should I work on next?"   # query the intelligence system
+cortex briefing                            # daily context briefing
 ```
 
 Set `CORTEX_ROOT_DIR=/path/to/projects` to point Cortex at your workspace.
@@ -238,9 +243,9 @@ cortex status                             # current session context
 cortex briefing                           # daily intelligence briefing
 cortex health                             # system health check
 
-# Memory operations
-cortex remember "<fact>"                  # store a memory
+# Intelligence operations
 cortex intelligence "<query>"             # query the intelligence system
+cortex learn                              # show learning metrics and patterns
 
 # Portfolio (multi-project)
 python bridge.py portfolio stats          # cross-project statistics
