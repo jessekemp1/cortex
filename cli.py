@@ -5136,6 +5136,112 @@ Deep Mode (Phase 1):
     )
     watch_parser.set_defaults(func=cmd_watch)
 
+    # === Sessions command ===
+    def cmd_sessions(args):
+        """Show Claude Code sessions."""
+        from bridge import CortexBridge
+
+        bridge = CortexBridge()
+        active_only = getattr(args, "active", False)
+
+        try:
+            result = bridge._get(f"/sessions?active_only={'true' if active_only else 'false'}")
+        except Exception:
+            print("Bridge unavailable. Start with: python api/bridge_endpoint.py")
+            sys.exit(1)
+
+        sessions = result.get("sessions", [])
+        active = result.get("active_count", 0)
+        total = result.get("total", 0)
+
+        print("+" + "=" * 54 + "+")
+        print("|          CORTEX - SESSION MONITOR                     |")
+        print("+" + "=" * 54 + "+")
+        print("")
+        print(f"  Sessions: {active} active / {total} total")
+        print("")
+
+        for s in sessions[:10]:
+            state = s.get("state", "unknown").upper()
+            project = s.get("project", "unknown")
+            age = s.get("age_display", "?")
+            sid = s.get("session_id", "?")[:12]
+
+            icon = "*" if state == "ACTIVE" else "o" if state == "IDLE" else "."
+            print(f"  {icon} [{state:7}] {project:30} {age:>10}  {sid}")
+
+        if not sessions:
+            print("  No sessions found.")
+        print("")
+
+    sessions_parser = subparsers.add_parser("sessions", help="Show Claude Code sessions")
+    sessions_parser.add_argument("--active", action="store_true", help="Show only active sessions")
+    sessions_parser.set_defaults(func=cmd_sessions)
+
+    # === Signals command ===
+    def cmd_signals(args):
+        """Run active cross-project signal detection."""
+        try:
+            from intelligence.signals import SignalDetector
+        except ImportError:
+            print("Error: Signal detection not available", file=sys.stderr)
+            sys.exit(1)
+
+        severity_filter = getattr(args, "severity", None)
+
+        try:
+            detector = SignalDetector(root_dir=args.root)
+            signals = detector.detect_all()
+
+            print("+" + "=" * 54 + "+")
+            print("|      CORTEX - CROSS-PROJECT SIGNAL DETECTION          |")
+            print("+" + "=" * 54 + "+")
+            print("")
+
+            if not signals:
+                print("  No signals detected. All clear.")
+                print("")
+                return
+
+            by_severity = {}
+            for s in signals:
+                by_severity.setdefault(s.severity, []).append(s)
+
+            for sev in ["critical", "high", "medium", "low"]:
+                if severity_filter and sev != severity_filter:
+                    continue
+                items = by_severity.get(sev, [])
+                if not items:
+                    continue
+                print(f"  [{sev.upper()}] ({len(items)} signals)")
+                for s in items[:5]:
+                    print(f"    {s.type.value}: {s.title}")
+                    if s.evidence:
+                        print(f"      Evidence: {s.evidence[0]}")
+                print("")
+
+            displayed = sum(
+                len(by_severity.get(sev, []))
+                for sev in ["critical", "high", "medium", "low"]
+                if not severity_filter or sev == severity_filter
+            )
+            print(f"  Total: {displayed} signals across {len(by_severity)} severity levels")
+            print("")
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    signals_parser = subparsers.add_parser(
+        "signals", help="Run active cross-project signal detection"
+    )
+    signals_parser.add_argument(
+        "--severity",
+        choices=["critical", "high", "medium", "low"],
+        default=None,
+        help="Filter by severity level",
+    )
+    signals_parser.set_defaults(func=cmd_signals)
+
     args = parser.parse_args()
 
     if not hasattr(args, "func"):
