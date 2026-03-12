@@ -100,10 +100,13 @@ def test_absorb_deduplicates_signal_ids(tmp_bus):
 def test_absorb_does_not_raise_on_bad_content(tmp_bus):
     """Bus must not raise even with unusual content."""
     signal = make_signal(content="")
-    tmp_bus.absorb(signal)  # Should not raise
+    tmp_bus.absorb(signal)
 
-    signal2 = make_signal(content="x" * 2000)  # Very long content
-    tmp_bus.absorb(signal2)  # Should not raise
+    signal2 = make_signal(content="x" * 2000)
+    tmp_bus.absorb(signal2)
+
+    stats = tmp_bus.get_bus_stats()
+    assert stats["total_events"] >= 1
 
 
 def test_absorb_silences_engine_errors(tmp_bus, monkeypatch):
