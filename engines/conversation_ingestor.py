@@ -717,10 +717,26 @@ class ConversationIngestor:
         return self.extractor.extract(messages, session_id, path, timestamps)
 
     def _store_digest(self, digest: ConversationDigest) -> None:
-        """Append digest to JSONL storage."""
+        """Append digest to JSONL storage, replacing any existing entry for this session."""
         self.digests_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.digests_path, "a") as f:
-            f.write(json.dumps(digest.to_dict()) + "\n")
+
+        # Read existing, filter out old entry for this session_id
+        existing_lines = []
+        if self.digests_path.exists():
+            for line in self.digests_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("session_id") == digest.session_id:
+                        continue  # Replace with new digest
+                    existing_lines.append(line)
+                except json.JSONDecodeError:
+                    existing_lines.append(line)
+
+        existing_lines.append(json.dumps(digest.to_dict()))
+        self.digests_path.write_text("\n".join(existing_lines) + "\n")
 
     def get_digests(
         self,
