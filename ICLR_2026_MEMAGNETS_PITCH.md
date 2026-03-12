@@ -19,9 +19,9 @@ Large language models applied to software engineering tasks suffer from a fundam
 
 We present **Cortex**, a persistent memory layer designed for production LLM agent workflows in software development. Cortex implements a three-tier memory architecture — working memory (session context), episodic memory (past events and outcomes), and semantic memory (patterns and principles) — backed by a hybrid BM25 + embedding retrieval system. Unlike general-purpose vector stores, Cortex is purpose-built for agent behavior: it tracks anti-patterns (recurring failure modes with prevention context), architectural decisions (with rationale and outcome), and cross-session goal progress.
 
-The key technical contribution is an **implicit feedback loop**: Cortex monitors agent signals (time-on-task, repeated queries, outcome confirmations) to weight which memories surface proactively, without requiring explicit rating or annotation from the user. This enables the system to improve recall relevance over time without changing the agent's core workflow.
+The key technical contributions are: (1) an **outcome-aware retrieval system** that loads historical outcome data to boost patterns from projects with high success rates, closing a feedback loop between task execution and memory ranking; (2) an **implicit feedback pipeline** that derives correction/approval/failure signals from agent interactions without explicit user annotation; and (3) a **model complexity router** that learns from 1,000+ dispatched task outcomes to select the optimal model tier (haiku/sonnet/opus) per task type.
 
-We evaluate Cortex in a production deployment across a 6-project software portfolio, where it has accumulated 18 months of agent sessions. Measurable outcomes include: elimination of documented anti-pattern recurrences (0 after storage vs. 3.2/month baseline), context quality optimization with measured position quality score and deduplication savings (see `tests/benchmark/context_benchmark.py`), and successful transfer of architectural knowledge across 5 distinct project codebases. Cortex is implemented in Python 3.11, exposes an MCP-compatible server interface, and ships with 600+ passing tests under Apache 2.0.
+We evaluate Cortex in a production deployment across a 6-project software portfolio over 18 months. Measurable outcomes include: context quality optimization with 21.2% deduplication savings and 0.94 position quality score (see `tests/benchmark/context_benchmark.py`), cost-optimized model routing with verified $16.22 batch API savings, and successful transfer of architectural knowledge across 5 distinct project codebases. Cortex is implemented in Python 3.11, exposes an MCP-compatible server interface, and ships with 920+ passing tests under Apache 2.0.
 
 Our work suggests that the bottleneck for effective long-horizon LLM agents in software engineering is not model capability but **environmental continuity** — and that lightweight, structured persistent memory is sufficient to close a large fraction of this gap.
 
@@ -65,15 +65,17 @@ The anti-pattern subsystem is the highest-ROI component for software engineering
 
 On each session start, Cortex surfaces the top-K anti-patterns most semantically similar to the day's planned work. This proactive surfacing is the primary mechanism by which sessions gain value from past failures.
 
-### 2.2 Implicit Feedback Loop
+### 2.2 Outcome-Aware Retrieval
 
-Cortex monitors three signals to weight memory relevance without explicit annotation:
+Cortex closes a feedback loop between task execution and memory retrieval through two mechanisms:
 
-1. **Time-on-task**: Sessions that spend >2× expected time on a task generate a "difficulty" signal that raises retrieval weight for related anti-patterns.
-2. **Repeat queries**: Queries containing the same entity within a session indicate the agent failed to resolve an issue — increases episodic weight.
-3. **Outcome confirmation**: Explicit user confirmations ("that worked", commit messages marking tasks complete) increase retrieval weight for the associated patterns.
+1. **Implicit outcome derivation**: The interaction capture pipeline analyzes agent sessions to derive outcomes without explicit user annotation. Corrections ("no, that's wrong"), approvals ("looks good"), tool failure rates, and session completion signals are classified into success/partial/failed outcomes with associated confidence scores. Over 78,000 interactions have been processed, yielding 850+ implicit outcomes.
 
-Over 18 months of production use, this feedback loop has produced measurable ranking improvements: patterns relevant to current work surface in the top-3 results 71% of the time (up from 52% at initialization with uniform weights).
+2. **Outcome-based retrieval boosting**: The hybrid retriever (BM25 + embedding with reciprocal rank fusion) applies per-project boost factors computed from historical outcome data. Projects with >70% success rate receive a positive boost (up to +0.15); projects with <30% success rate receive a negative boost. This adjusts ranking without retraining embeddings.
+
+3. **Model routing learning**: A separate feedback loop tracks which model tier (haiku/sonnet/opus) succeeds on which task types. After 1,000+ dispatched tasks, the router adjusts complexity scores based on historical success rates, reducing cost by routing simple tasks to cheaper models.
+
+**Limitations**: The implicit feedback pipeline was disconnected from the active capture hook for approximately 4 days during a configuration migration (discovered and fixed during OSS preparation). The outcome-to-retrieval path is newly wired; long-term ranking improvement data is not yet available. We report infrastructure readiness, not mature learning curves.
 
 ---
 
@@ -81,14 +83,18 @@ Over 18 months of production use, this feedback loop has produced measurable ran
 
 **Deployment**: 6-project software portfolio (weather forecasting, marine nowcasting, trading strategy, educational tools). Single developer with Claude as primary agent.
 
-| Metric | Before Cortex | After 6 months |
-|--------|--------------|----------------|
-| Anti-pattern recurrences/month | 3.2 | 0 |
-| Context optimization | — | Measured position quality + dedup savings (see `tests/benchmark/context_benchmark.py`) |
-| Architectural re-arguments | Weekly | Eliminated |
-| Cross-project knowledge transfer | Manual | Automatic |
+| Metric | Value | Source |
+|--------|-------|--------|
+| Context deduplication savings | 21.2% | `tests/benchmark/context_benchmark.py` |
+| Position quality score | 0.94 / 1.0 | `tests/benchmark/context_benchmark.py` |
+| Batch API cost savings (verified) | $16.22 across 685 jobs | `cortex batch stats` CLI |
+| Model routing outcomes tracked | 1,048 | `~/.cortex/orchestration/model_outcomes.jsonl` |
+| Implicit outcomes derived | 853 from 78K interactions | `~/.cortex/interaction_learning_state.json` |
+| Test coverage | 920+ passing (strict assertions) | `pytest tests/ -v` |
 
-**Robustness**: 600+ passing tests. MCP server runs as a `launchd` daemon with auto-restart. SQLite backend with daily snapshots (no external infrastructure required).
+**Limitations**: Anti-pattern recurrence prevention is manual (stored patterns surfaced on query, not proactively). Cross-project transfer works within the monorepo but has not been tested across independent repositories. Learning curves over time are not yet measured.
+
+**Robustness**: 920+ passing tests. MCP server integrates with Claude Code. SQLite backend with daily snapshots (no external infrastructure required).
 
 ---
 
@@ -98,7 +104,7 @@ Cortex is a practitioner system built to solve a real production problem, not a 
 
 1. **Specificity of domain**: Most agent memory work targets question-answering or task completion in controlled environments. Cortex targets software engineering across multi-month, multi-project timescales — a substantially harder continuity challenge.
 
-2. **Implicit vs. explicit feedback**: Systems like MemGPT require the agent to explicitly decide what to remember. Cortex derives memory value from behavioral signals, reducing annotation burden to zero.
+2. **Implicit feedback + outcome-aware retrieval**: Systems like MemGPT require the agent to explicitly decide what to remember. Cortex derives outcomes from behavioral signals (corrections, approvals, tool failure rates) and feeds them back into retrieval ranking. Unlike Mem0 (49K stars) or Supermemory (17K stars), Cortex combines memory with task orchestration and cost-optimized model routing in a single system.
 
 3. **Anti-pattern as a memory primitive**: The anti-pattern record (failure mode + context + prevention + outcome tracking) is a memory primitive that does not appear in prior work but is highly effective for preventing known failure recurrences.
 
