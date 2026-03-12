@@ -1315,9 +1315,9 @@ class TestGoalsWatcher:
         # Initialize the mtime
         supervisor._goals_file_changed()
         # Set last discovery to now so interval hasn't elapsed
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        supervisor._last_work_discovery = datetime.now(tz=timezone.utc)
+        supervisor._last_work_discovery = datetime.now()  # noqa: DTZ005
 
         # Without goals change, should NOT trigger (interval is 9999s)
         assert supervisor._should_run_work_discovery() is False
