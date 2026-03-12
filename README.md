@@ -5,8 +5,8 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-600%2B%20passing-green.svg)](tests/)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](setup.py)
+[![Tests](https://img.shields.io/badge/tests-920%20passing-green.svg)](tests/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
 
@@ -74,10 +74,10 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 | Capability | What it does |
 |---|---|
 | **Three-tier memory** | Working (session) → episodic (past events) → semantic with hybrid BM25 + embedding retrieval |
-| **Anti-pattern database** | Stores learned mistakes with prevention context. Surfaces them before the bug repeats. |
-| **Proactive signal detection** | Background monitoring retrieves relevant patterns without being asked |
-| **Contract-based task management** | Tasks persist with full context between sessions |
-| **Implicit feedback loop** | Tracks signals (time-on-task, repeat queries) to weight what gets surfaced |
+| **Anti-pattern database** | Stores learned mistakes with prevention context. Surfaces them on relevant queries. |
+| **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by complexity. Learns from outcome data to adjust selection. |
+| **Goal-to-task pipeline** | Parses GOALS.md into prioritized work items. Discovers tasks from multiple sources. |
+| **Interaction capture** | Hooks capture prompts, tool outcomes, and session patterns. Derives implicit feedback signals (corrections, approvals, failure rates). |
 
 ---
 
@@ -181,21 +181,9 @@ Resolution: moved import inside get_current_user() function
 Prevent this? [y/N] y
 ```
 
-**The compound effect**: After 3 months using Cortex, your morning briefings evolve:
+**The compound effect**: Over time, your briefings accumulate real context from your project history. Anti-patterns you've documented get surfaced before you repeat them. Session context builds on previous sessions. The more you use it, the more relevant the context becomes.
 
-```bash
-🧠 CROSS-PROJECT PATTERNS (learned)
-  • Database migration strategy: always backup, run in transaction, test rollback
-  • Docker memory limits: 512MB minimum for FastAPI + Redis stack
-  • Test flakiness: 94% caused by async timing, fixed with pytest-asyncio strict mode
-
-📈 PORTFOLIO HEALTH
-  • 12 anti-patterns learned, 0 repeated in last 30 days
-  • Average debugging time: down 34% since November
-  • Test coverage: 89% average across all projects
-```
-
-Your LLM agent doesn't just get smarter. It gets educated about *your* codebase, *your* patterns, *your* lessons learned. Every session builds on the last. Every mistake teaches the next session. This is what persistent intelligence looks like.
+This is not magic — it is infrastructure. Cortex stores what you've learned so your LLM agent doesn't have to re-learn it every session.
 
 ---
 
@@ -282,15 +270,15 @@ Once registered, Claude can call `cortex_intelligence`, `cortex_recommendations`
 
 ## Comparison with Alternatives
 
-| Tool | Strength | Gap vs. Cortex |
+| Tool | Strength | Where Cortex differs |
 |---|---|---|
-| **LangGraph** | Intra-run checkpoints for workflow pipelines | No cross-session memory, no proactive signals |
-| **Mem0** | Multi-tenant user profile memory at scale | Built for SaaS apps with many users, not single-owner portfolio intelligence |
-| **MemGPT** | Research-grade recursive memory management | High latency, not production-oriented |
-| **OpenAI memory** | Zero-config cloud memory | Cloud-only, black box, no audit trail, no local ownership |
-| **Cortex** | Single-owner portfolio intelligence | Local, inspectable, sub-second retrieval, anti-pattern database |
+| **Mem0** (49K stars) | Universal memory layer, multi-tenant, great retrieval benchmarks | General-purpose. No developer-workflow primitives (anti-patterns, goal parsing, model routing). |
+| **claude-mem** (34K stars) | Claude Code plugin, auto-capture, citation system | Record/replay memory. No task orchestration, no implicit feedback analysis. |
+| **Supermemory** (17K stars) | #1 LongMemEval, temporal contradiction handling, auto-forget | Sophisticated retrieval. No work discovery, no cost-optimized model routing. |
+| **Windsurf** | Auto-generated memories during conversations | Workspace-isolated. No cross-project transfer, no learning from outcomes. |
+| **Cortex** | Developer-workflow-specific: goal parsing, model routing, anti-patterns, orchestration | Smaller community. Memory retrieval less benchmarked than Mem0/Supermemory. |
 
-Cortex is optimized for one use case: **a developer or small team using LLM agents across a multi-project portfolio over months or years.** For multi-tenant user memory, use Mem0. For intra-run pipeline state, use LangGraph. For persistent cross-session intelligence on your own work, Cortex is the right tool.
+Cortex is optimized for one use case: **a developer or small team using LLM agents across a multi-project portfolio over months or years.** It combines memory + orchestration in a single system. For multi-tenant user memory at scale, use Mem0. For best-in-class retrieval benchmarks, use Supermemory. For persistent developer intelligence with task routing and cost optimization, Cortex is the right tool.
 
 ---
 
@@ -334,7 +322,7 @@ pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
 pytest tests/ -v
 ```
 
-600+ tests covering memory retrieval accuracy, anti-pattern surfacing, hybrid BM25/embedding scoring, implicit feedback weighting, and the MCP server contract.
+920+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, and the MCP server contract.
 
 ---
 
