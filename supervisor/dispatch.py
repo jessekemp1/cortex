@@ -315,7 +315,7 @@ class AgentDispatcher:
 
         metadata = {
             "batch_id": batch_id,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),  # noqa: DTZ005
             "request_count": len(requests),
             "items": [
                 {
@@ -359,7 +359,7 @@ class AgentDispatcher:
         meta_path = Path.home() / ".cortex" / "orchestration" / "batches" / f"{batch_id}.json"
         item_meta: dict[str, dict] = {}
         if meta_path.exists():
-            meta = json.loads(meta_path.read_text())
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
             for entry in meta.get("items", []):
                 item_meta[entry["work_item_id"]] = entry
 

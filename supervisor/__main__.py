@@ -43,7 +43,7 @@ def cmd_status(_args):
     for run_dir in run_dirs:
         summary_file = run_dir / "summary.json"
         if summary_file.exists():
-            data = json.loads(summary_file.read_text())
+            data = json.loads(summary_file.read_text(encoding="utf-8"))
             total = data.get("total", 0)
             ok = data.get("succeeded", 0)
             fail = data.get("failed", 0)

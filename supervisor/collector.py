@@ -100,7 +100,7 @@ class ResultCollector:
             "duration_seconds": result.duration_seconds,
         }
         self._outcomes_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._outcomes_path.open("a") as fh:
+        with self._outcomes_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry) + "\n")
         log.debug("recorded outcome: work_item=%s model=%s", result.work_item_id, model_tier)
 

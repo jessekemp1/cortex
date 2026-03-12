@@ -159,7 +159,7 @@ class CortexSupervisor:
         Returns:
             TickResult with actions taken
         """
-        result = TickResult(timestamp=datetime.now())
+        result = TickResult(timestamp=datetime.now())  # noqa: DTZ005
         self._tick_count += 1
 
         try:
@@ -168,7 +168,7 @@ class CortexSupervisor:
                 healing_actions = self.health_monitor.check_and_heal()
                 result.tasks_healed = len([a for a in healing_actions if a.success])
                 result.healed_task_ids = [a.issue.target_id for a in healing_actions if a.success]
-                self._last_health_check = datetime.now()
+                self._last_health_check = datetime.now()  # noqa: DTZ005
 
             # 1a. Check pending AI batches for results
             if self._pending_batch_ids:
@@ -193,7 +193,7 @@ class CortexSupervisor:
                     and not self._is_recently_dispatched(item.description)
                 ]
                 self._pending_work_items.extend(new_items)
-                self._last_work_discovery = datetime.now()
+                self._last_work_discovery = datetime.now()  # noqa: DTZ005
 
             # 1c. Dispatch pending AI work items via orchestration pipeline
             if self._pending_work_items and self.config.enable_ai_batching:
@@ -299,7 +299,7 @@ class CortexSupervisor:
         """Check if it's time for a health check."""
         if not self.config.enable_self_healing:
             return False
-        elapsed = datetime.now() - self._last_health_check
+        elapsed = datetime.now() - self._last_health_check  # noqa: DTZ005
         return elapsed.total_seconds() >= self.config.health_check_interval_seconds
 
     def _should_run_work_discovery(self) -> bool:
@@ -311,7 +311,7 @@ class CortexSupervisor:
             logger.info("GOALS.md changed — triggering immediate work discovery")
             return True
         # Normal interval check
-        elapsed = datetime.now() - self._last_work_discovery
+        elapsed = datetime.now() - self._last_work_discovery  # noqa: DTZ005
         return elapsed.total_seconds() >= self.config.work_discovery_interval_seconds
 
     def _goals_file_changed(self) -> bool:
@@ -719,7 +719,7 @@ class CortexSupervisor:
         qf = self.config.overnight_queue_file
         if qf.exists():
             try:
-                data = json.loads(qf.read_text())
+                data = json.loads(qf.read_text(encoding="utf-8"))
                 for item_dict in data.get("queue", []):
                     try:
                         from .models import WorkItemPriority
@@ -746,7 +746,7 @@ class CortexSupervisor:
         batch_state = self.config.state_file.parent / "pending_batches.json"
         if batch_state.exists():
             try:
-                self._pending_batch_ids = json.loads(batch_state.read_text())
+                self._pending_batch_ids = json.loads(batch_state.read_text(encoding="utf-8"))
                 if self._pending_batch_ids:
                     logger.info(f"Recovered {len(self._pending_batch_ids)} pending batch IDs")
             except Exception as e:
@@ -862,7 +862,7 @@ class CortexSupervisor:
             interval_seconds: Override tick interval (uses config if None)
         """
         interval = interval_seconds or self.config.tick_interval_seconds
-        self._started_at = datetime.now()
+        self._started_at = datetime.now()  # noqa: DTZ005
 
         logger.info(f"Supervisor daemon starting (interval: {interval}s)")
 
@@ -926,7 +926,7 @@ class CortexSupervisor:
         if not self.config.pid_file.exists():
             return None
         try:
-            return int(self.config.pid_file.read_text().strip())
+            return int(self.config.pid_file.read_text(encoding="utf-8").strip())
         except (ValueError, IOError):
             return None
 
@@ -1103,7 +1103,7 @@ class CortexSupervisor:
         try:
             process = psutil.Process(pid)
             create_time = datetime.fromtimestamp(process.create_time())
-            uptime = datetime.now() - create_time
+            uptime = datetime.now() - create_time  # noqa: DTZ005
 
             # Get queue stats
             queue_stats = self.shell_queue.get_queue_stats()

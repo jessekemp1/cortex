@@ -1,4 +1,3 @@
-import os
 #!/usr/bin/env python3
 """
 Briefing Generator - Daily briefing system for cross-project status
@@ -12,6 +11,7 @@ Synthesizes:
 
 import inspect
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -109,7 +109,7 @@ def _load_briefing_style() -> Dict[str, Any]:
 
     try:
         if style_path.exists():
-            raw = json.loads(style_path.read_text())
+            raw = json.loads(style_path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 style.update({k: v for k, v in raw.items() if k in style})
                 if isinstance(raw.get("progress_bar"), dict):
@@ -468,7 +468,7 @@ class BriefingGenerator:
             git_status=git_status,
             work_progress=work_progress,
             project_snapshot=self._build_project_snapshot(project_activity),
-            generated_at=datetime.now(),
+            generated_at=datetime.now(),  # noqa: DTZ005
             # Enhanced intelligence fields
             intelligence_metrics=intelligence_metrics,
             strategic_alignment=strategic_alignment,
@@ -552,7 +552,7 @@ class BriefingGenerator:
             return 0
 
         total = 0
-        now = datetime.now()
+        now = datetime.now()  # noqa: DTZ005
 
         for project in projects:
             if not project.last_commit_date:
@@ -890,7 +890,7 @@ class BriefingGenerator:
     def _get_temporal_context(self) -> Optional[Dict[str, Any]]:
         """Get temporal context: day patterns, session continuity."""
         try:
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005
             day_of_week = now.strftime("%A")
             hour = now.hour
 
@@ -1197,7 +1197,7 @@ class BriefingGenerator:
             potential_savings = optimization.get("potential_additional_savings", 0)
 
             # Weekly projection
-            days_remaining = 7 - datetime.now().weekday()  # Days until week reset
+            days_remaining = 7 - datetime.now().weekday()  # Days until week reset  # noqa: DTZ005
             projected_weekly = daily_hours * 7
             will_hit_limit = projected_weekly > weekly_limit
 
@@ -1751,7 +1751,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         status_color = (
             GREEN
             if pacing.get("status") == "under_budget"
-            else YELLOW if pacing.get("status") in ["on_track", "elevated"] else RED
+            else YELLOW
+            if pacing.get("status") in ["on_track", "elevated"]
+            else RED
         )
         lines.append(
             f"  {emoji} {BOLD}Pacing:{RESET} {status_color}{status}{RESET} ({daily_hrs:.1f}h/day vs {target_hrs:.1f}h target)"
@@ -1985,7 +1987,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         mem_color = (
             RED
             if rs["memory_usage_percent"] > 80
-            else YELLOW if rs["memory_usage_percent"] > 60 else GREEN
+            else YELLOW
+            if rs["memory_usage_percent"] > 60
+            else GREEN
         )
 
         lines.append(
@@ -2003,7 +2007,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
         alerts_color = (
             RED
             if rs.get("critical_alerts", 0) > 0
-            else YELLOW if rs.get("alerts_count", 0) > 5 else ""
+            else YELLOW
+            if rs.get("alerts_count", 0) > 5
+            else ""
         )
         waste_color = YELLOW if rs.get("waste_items", 0) > 10 else ""
 
@@ -2051,7 +2057,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                     if task.started_at:
                         from datetime import datetime
 
-                        elapsed_sec = (datetime.now() - task.started_at).total_seconds()
+                        elapsed_sec = (datetime.now() - task.started_at).total_seconds()  # noqa: DTZ005
                         if elapsed_sec < 60:
                             elapsed = f" ({elapsed_sec:.0f}s elapsed)"
                         else:
@@ -2075,7 +2081,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
                     if task.scheduled_time:
                         from datetime import datetime
 
-                        now = datetime.now()
+                        now = datetime.now()  # noqa: DTZ005
                         time_until = (task.scheduled_time - now).total_seconds()
 
                         if time_until < 0:
@@ -2305,7 +2311,9 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
             priority_color = (
                 RED
                 if action["priority"] == "HIGH"
-                else YELLOW if action["priority"] == "MEDIUM" else GREEN
+                else YELLOW
+                if action["priority"] == "MEDIUM"
+                else GREEN
             )
 
             # Title with project inline
@@ -2683,7 +2691,7 @@ def get_executive_summary(briefing: BriefingData) -> str:
     parts = []
 
     # Greeting based on time with day context
-    hour = datetime.now().hour
+    hour = datetime.now().hour  # noqa: DTZ005
     greeting = "Morning" if 5 <= hour < 12 else "Afternoon" if 12 <= hour < 17 else "Evening"
     day_suffix = ""
     if briefing.temporal_context:

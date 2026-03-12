@@ -98,7 +98,7 @@ class GoalParser:
         if not self.action_plan_path.exists():
             return []
 
-        content = self.action_plan_path.read_text()
+        content = self.action_plan_path.read_text(encoding="utf-8")
         goals = []
 
         # Parse Priority A goals
@@ -340,7 +340,7 @@ class GoalParser:
         if not goals_md_path.exists():
             return []
 
-        content = goals_md_path.read_text()
+        content = goals_md_path.read_text(encoding="utf-8")
         goals = []
         current_priority = "B"  # Default to medium priority
 

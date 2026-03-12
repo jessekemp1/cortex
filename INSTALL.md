@@ -16,6 +16,9 @@ git clone https://github.com/jessekemp1/cortex && cd cortex
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 
+# Initialize data directories and config
+cortex init --root-dir /path/to/your/projects
+
 # Verify the CLI works
 cortex status
 ```
