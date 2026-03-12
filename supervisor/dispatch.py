@@ -121,6 +121,8 @@ class DispatchResult:
     task_type: str = ""  # Propagated from WorkItem for outcome recording
     error: Optional[str] = None
     checkpoint_id: Optional[str] = None  # For resume
+    provider: str = "anthropic"  # Which provider handled this dispatch
+    cost_usd: float = 0.0  # Estimated cost in USD
 
 
 class AgentDispatcher:

@@ -98,6 +98,8 @@ class ResultCollector:
             "quality_score": quality_score,
             "tokens_used": result.tokens_used,
             "duration_seconds": result.duration_seconds,
+            "provider": getattr(result, "provider", "anthropic"),
+            "cost_usd": getattr(result, "cost_usd", 0.0),
         }
         self._outcomes_path.parent.mkdir(parents=True, exist_ok=True)
         with self._outcomes_path.open("a", encoding="utf-8") as fh:

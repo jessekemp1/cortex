@@ -40,6 +40,30 @@ class SupervisorConfig:
     dry_run: bool = False  # Log routing decisions without calling API
     watch_goals: bool = True  # Check GOALS.md for changes on every tick
 
+    # Multi-provider routing (Phase 1)
+    enable_multi_provider: bool = False  # Route to non-Anthropic providers
+    providers_config_path: Path = field(
+        default_factory=lambda: Path.home() / ".cortex" / "providers.yaml"
+    )
+    fallback_provider: str = "anthropic"  # Always-available fallback
+
+    # Offline / local LLM support
+    offline_mode: str = "auto"  # "auto" | "force_offline" | "force_online"
+    offline_check_interval_seconds: int = 300  # Re-check connectivity every 5min
+    local_model_quality_floor: float = 0.3  # Lower quality floor for local models
+
+    # Distributed dispatch (Phase 3)
+    enable_distributed: bool = False  # Enable worker API
+    worker_api_port: int = 8766
+    worker_api_auth_token: str = ""  # Required for distributed mode
+    heartbeat_timeout_seconds: int = 90
+    max_remote_workers: int = 10
+
+    # Team orchestration (Phase 4)
+    enable_teams: bool = False  # Enable team-of-teams decomposition
+    enable_ai_quality_judge: bool = False  # Use AI judge for quality evaluation
+    enable_routing_analytics: bool = True  # Cost/quality reporting
+
     # Approval gates (see cortex.supervisor.approval)
     approval_policy: str = "gate_high"  # "auto_all", "gate_high", "gate_all"
     approval_dir: Path = field(default_factory=lambda: Path.home() / ".cortex" / "approvals")

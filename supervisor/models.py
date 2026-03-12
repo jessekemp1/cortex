@@ -114,10 +114,24 @@ class TaskResult:
     duration_seconds: float = 0.0
     error: Optional[str] = None
 
+    _quality_score: float = 0.0  # Set by QualityEvaluator; defaults to heuristic
+
     @property
     def quality_score(self) -> float:
-        """Simple binary quality score (1.0 if success, 0.0 otherwise)."""
-        return 1.0 if self.success else 0.0
+        """Quality score from evaluator. Falls back to heuristic if not set."""
+        if self._quality_score > 0.0:
+            return self._quality_score
+        # Heuristic fallback (better than binary 1.0/0.0)
+        if not self.success:
+            return 0.0
+        if not self.output or len(self.output.strip()) < 50:
+            return 0.2
+        return 0.6  # Default moderate quality for successful outputs
+
+    @quality_score.setter
+    def quality_score(self, value: float) -> None:
+        """Allow external evaluators to set quality score."""
+        self._quality_score = value
 
 
 @dataclass

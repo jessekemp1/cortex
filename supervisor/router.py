@@ -91,6 +91,7 @@ class ModelSelection:
     reasoning: str
     complexity_score: float
     confidence: float
+    provider: str = "anthropic"  # Target provider for dispatch
 
 
 @dataclass
@@ -254,6 +255,35 @@ class ModelRouter:
             complexity_score=complexity,
             confidence=confidence,
         )
+
+    def select_model_with_provider(
+        self,
+        work_item: WorkItem,
+        registry: "Optional[ProviderRegistry]" = None,
+    ) -> ModelSelection:
+        """Select model and provider, preferring cheapest in tier.
+
+        If registry is provided, selects the cheapest healthy provider
+        for the chosen tier. Otherwise falls back to Anthropic.
+        """
+        selection = self.select_model(work_item)
+
+        if registry is None:
+            return selection
+
+        candidates = registry.get_models_for_tier(selection.model_tier)
+        if candidates:
+            provider_name, spec = candidates[0]  # Cheapest healthy
+            return ModelSelection(
+                model_tier=selection.model_tier,
+                model_id=spec.model_id,
+                reasoning=selection.reasoning + f". Provider: {provider_name} (cheapest)",
+                complexity_score=selection.complexity_score,
+                confidence=selection.confidence,
+                provider=provider_name,
+            )
+
+        return selection
 
     def record_outcome(
         self,
