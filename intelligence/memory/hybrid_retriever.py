@@ -4,18 +4,26 @@ Hybrid Retriever - BM25 + Embedding hybrid retrieval with reciprocal rank fusion
 
 Combines keyword-based (BM25) and semantic (embedding) search for improved
 pattern retrieval. Uses Reciprocal Rank Fusion (RRF) to merge results.
+
+Outcome-aware: loads historical outcome data to boost patterns associated
+with successful outcomes and demote those associated with failures.
 """
 
+import json
 import logging
 import pickle
+from collections import defaultdict
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from intelligence.embeddings_client import EmbeddingsClient
 from intelligence.memory.pattern_indexer import Pattern, PatternSearcher
 
 logger = logging.getLogger(__name__)
+
+# Outcome data path
+_OUTCOMES_PATH = Path.home() / ".cortex" / "outcomes.jsonl"
 
 
 class HybridRetriever:
@@ -51,9 +59,62 @@ class HybridRetriever:
         self.pattern_embeddings: Optional[np.ndarray] = None
         self.embedding_dimension = 768  # Default
 
+        # Outcome-based boosting
+        self._outcome_boosts: Dict[str, float] = {}
+        self._load_outcome_boosts()
+
         if self.embeddings_available:
             self.embedding_dimension = self.embeddings_client.get_embedding_dimension()
             self._load_or_generate_embeddings()
+
+    def _load_outcome_boosts(self) -> None:
+        """Load outcome data and compute per-project success rate boosts.
+
+        Reads outcomes.jsonl and computes a boost factor for each project:
+        - Projects with >70% success rate get a positive boost (up to +0.15)
+        - Projects with <30% success rate get a negative boost (down to -0.10)
+        - Projects with insufficient data (< 5 outcomes) get no boost
+
+        These boosts are applied during RRF merge to close the feedback loop:
+        patterns from projects where outcomes were successful rank higher.
+        """
+        if not _OUTCOMES_PATH.exists():
+            return
+
+        project_outcomes: Dict[str, list] = defaultdict(list)
+        try:
+            with open(_OUTCOMES_PATH) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        project = (
+                            entry.get("context", {}).get("project", "")
+                            if entry.get("context")
+                            else ""
+                        )
+                        if not project or project == "unknown":
+                            continue
+                        outcome = entry.get("outcome", "")
+                        project_outcomes[project].append(outcome == "success")
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
+            for project, results in project_outcomes.items():
+                if len(results) < 5:
+                    continue
+                success_rate = sum(results) / len(results)
+                if success_rate > 0.7:
+                    self._outcome_boosts[project] = 0.15 * (success_rate - 0.5)
+                elif success_rate < 0.3:
+                    self._outcome_boosts[project] = -0.10 * (0.5 - success_rate)
+
+            if self._outcome_boosts:
+                logger.info(f"Loaded outcome boosts for {len(self._outcome_boosts)} projects")
+        except Exception as e:
+            logger.warning(f"Failed to load outcome boosts: {e}")
 
     def _load_or_generate_embeddings(self):
         """Load embeddings from cache or generate new ones."""
@@ -268,6 +329,13 @@ class HybridRetriever:
         # Get all unique pattern IDs
         all_pattern_ids = set(bm25_ranks.keys()) | set(embedding_ranks.keys())
 
+        # Build project lookup for outcome boosting
+        project_by_id: Dict[str, str] = {}
+        for pattern, _ in bm25_results:
+            project_by_id[pattern.id] = pattern.project
+        for pattern, _ in embedding_results:
+            project_by_id[pattern.id] = pattern.project
+
         # Calculate RRF scores
         rrf_scores = {}
         for pattern_id in all_pattern_ids:
@@ -281,10 +349,14 @@ class HybridRetriever:
                 embedding_score = 1.0 / (k + embedding_ranks[pattern_id])
 
             # Weight by alpha
-            # alpha = 0: BM25 only
-            # alpha = 1: embedding only
-            # alpha = 0.5: equal weight
-            rrf_scores[pattern_id] = (1.0 - alpha) * bm25_score + alpha * embedding_score
+            base_score = (1.0 - alpha) * bm25_score + alpha * embedding_score
+
+            # Apply outcome-based boost (feedback loop closes here)
+            if self._outcome_boosts:
+                project = project_by_id.get(pattern_id, "")
+                base_score += self._outcome_boosts.get(project, 0.0)
+
+            rrf_scores[pattern_id] = base_score
 
         # Build pattern map
         pattern_map = {}
@@ -328,4 +400,6 @@ class HybridRetriever:
             "embeddings_cached": self.pattern_embeddings is not None,
             "embedding_dimension": self.embedding_dimension,
             "cache_dir": str(self.cache_dir),
+            "outcome_boosts": len(self._outcome_boosts),
+            "outcome_boost_projects": list(self._outcome_boosts.keys()),
         }
