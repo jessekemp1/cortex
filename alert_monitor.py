@@ -2,9 +2,9 @@
 """
 Alert Monitor — surfaces critical failures and auto-restarts Tier 1 services.
 
-Checks every invocation (called by LaunchAgent every 5 minutes):
+Checks every invocation (called by LaunchAgent/systemd timer every 5 minutes):
   1. Service health: HTTP GET to all operational endpoints
-  2. Auto-restart: Tier 1 services get launchctl kickstart on failure
+  2. Auto-restart: Tier 1 services via launchctl (macOS) or systemctl (Linux)
   3. Scheduler failures: errors in ~/.cortex/metrics/scheduler_jobs.jsonl (last 5 min)
   4. Test regression: project test counts vs persisted baseline (>2% drop = alert)
 
@@ -15,6 +15,7 @@ Suppressed for 1h by: touch ~/.cortex/alert_silence_<service>
 from __future__ import annotations
 
 import json
+import platform
 import subprocess
 import sys
 import urllib.request
@@ -32,21 +33,36 @@ RESTART_LOG = CORTEX_DIR / "restart_history.jsonl"
 # === Tier 2: Supporting services ===
 SERVICES = [
     ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
-    ("cortex-runtime", "http://127.0.0.1:8003/docs"),
-    ("cortex-bridge", "http://127.0.0.1:8765/health"),
+    ("cortex-runtime", "http://127.0.0.1:8765/docs"),
     ("cortex-site", "http://127.0.0.1:3001/"),
     ("alpha-arena", "http://127.0.0.1:8502/_stcore/health"),
     ("navigator", "http://127.0.0.1:8000/api/v2/navigator/health"),
 ]
 
-# Map service names to their launchd labels for auto-restart
-TIER1_LAUNCHD_LABELS = {
-    "vortex-backend": "com.vortexv2.backend",
-    "cortex-runtime": "com.cortex.runtime",
-    "cortex-bridge": "com.cortex.bridge",
-    "cortex-site": "com.cortex.site",
-    "alpha-arena": "com.alphaarena.dashboard",
+
+def _detect_platform() -> str:
+    """Return 'macos' or 'linux' based on the current OS."""
+    return "macos" if platform.system() == "Darwin" else "linux"
+
+
+# Platform-specific restart configuration.
+# macOS uses launchd labels, Linux uses systemd unit names.
+TIER1_RESTART_CONFIG: dict[str, dict[str, str]] = {
+    "macos": {
+        "vortex-backend": "com.vortexv2.backend",
+        "cortex-runtime": "com.cortex.runtime",
+        "cortex-site": "com.cortex.site",
+        "alpha-arena": "com.alphaarena.dashboard",
+    },
+    "linux": {
+        "vortex-backend": "vortexv2-backend",
+        "cortex-runtime": "cortex-runtime",
+        "cortex-site": "cortex-site",
+    },
 }
+
+# Backwards compat: expose macOS labels as the old name for any external consumers
+TIER1_LAUNCHD_LABELS = TIER1_RESTART_CONFIG["macos"]
 
 # Per-service consecutive failure thresholds (default: 2)
 CONSECUTIVE_THRESHOLD = 2
@@ -142,23 +158,33 @@ def _recent_restart_count(service: str) -> int:
 
 
 def _attempt_restart(service: str) -> bool:
-    """Attempt to restart a Tier 1 service via launchctl kickstart."""
-    label = TIER1_LAUNCHD_LABELS.get(service)
+    """Attempt to restart a Tier 1 service via platform-appropriate init system.
+
+    macOS: launchctl kickstart -k gui/<uid>/<label>
+    Linux: systemctl --user restart <unit>
+    """
+    plat = _detect_platform()
+    config = TIER1_RESTART_CONFIG.get(plat, {})
+    label = config.get(service)
     if not label:
         return False
 
     # Rate limit: max N restarts per hour
     if _recent_restart_count(service) >= MAX_RESTARTS_PER_HOUR:
         print(
-            f"⚠️  RESTART SUPPRESSED: {service} hit {MAX_RESTARTS_PER_HOUR} restarts/hour limit",
+            f"RESTART SUPPRESSED: {service} hit {MAX_RESTARTS_PER_HOUR} restarts/hour limit",
             file=sys.stderr,
         )
         return False
 
     try:
-        # Force-restart via launchctl kickstart -k (kill + restart)
+        if plat == "macos":
+            cmd = ["launchctl", "kickstart", "-k", f"gui/502/{label}"]
+        else:
+            cmd = ["systemctl", "--user", "restart", label]
+
         result = subprocess.run(
-            ["launchctl", "kickstart", "-k", f"gui/502/{label}"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10,
@@ -166,16 +192,16 @@ def _attempt_restart(service: str) -> bool:
         success = result.returncode == 0
         _log_restart(service, label, success)
         if success:
-            print(f"🔄 AUTO-RESTART: {service} ({label}) restarted", file=sys.stderr)
+            print(f"AUTO-RESTART: {service} ({label}) restarted via {plat}", file=sys.stderr)
         else:
             print(
-                f"❌ RESTART FAILED: {service} ({label}): {result.stderr.strip()}",
+                f"RESTART FAILED: {service} ({label}): {result.stderr.strip()}",
                 file=sys.stderr,
             )
         return success
     except Exception as e:
         _log_restart(service, label, False)
-        print(f"❌ RESTART ERROR: {service}: {e}", file=sys.stderr)
+        print(f"RESTART ERROR: {service}: {e}", file=sys.stderr)
         return False
 
 
@@ -226,7 +252,8 @@ def check_services() -> list[dict]:
             consec[name] = consec.get(name, 0) + 1
 
             # Auto-restart Tier 1 services after threshold
-            if consec[name] >= AUTO_RESTART_THRESHOLD and name in TIER1_LAUNCHD_LABELS:
+            plat_config = TIER1_RESTART_CONFIG.get(_detect_platform(), {})
+            if consec[name] >= AUTO_RESTART_THRESHOLD and name in plat_config:
                 restarted = _attempt_restart(name)
                 if restarted:
                     # Reset counter — give it a chance to come back
