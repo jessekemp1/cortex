@@ -40,6 +40,10 @@ class SupervisorConfig:
     dry_run: bool = False  # Log routing decisions without calling API
     watch_goals: bool = True  # Check GOALS.md for changes on every tick
 
+    # Approval gates (see cortex.supervisor.approval)
+    approval_policy: str = "gate_high"  # "auto_all", "gate_high", "gate_all"
+    approval_dir: Path = field(default_factory=lambda: Path.home() / ".cortex" / "approvals")
+
     # Overnight batch queue (50% cost savings via Anthropic Batch API)
     overnight_batch_enabled: bool = True  # Defer LOW-priority AI tasks to overnight
     overnight_start_hour: int = 2  # UTC hour to submit overnight batch (2 AM)

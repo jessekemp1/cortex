@@ -332,11 +332,16 @@ class TestSupervisorOrchestrate:
     """Test the full pipeline: discover -> route -> dispatch -> collect."""
 
     @patch("cortex.supervisor.dispatch.ANTHROPIC_SDK_AVAILABLE", False)
-    def test_orchestrate_with_work_items(self):
+    def test_orchestrate_with_work_items(self, tmp_path):
         """orchestrate() with explicit work items routes and dispatches them."""
+        from supervisor.config import SupervisorConfig
         from supervisor.core import CortexSupervisor
 
-        supervisor = CortexSupervisor()
+        config = SupervisorConfig(
+            approval_policy="auto_all",
+            state_file=tmp_path / "state.json",
+        )
+        supervisor = CortexSupervisor(config=config)
 
         items = [
             WorkItem(
@@ -830,6 +835,8 @@ class TestWorkDeduplication:
             enable_ai_batching=True,
             enable_self_healing=False,
             work_discovery_interval_seconds=0,  # Always discover
+            approval_policy="auto_all",
+            state_file=tmp_path / "state.json",
         )
         supervisor = CortexSupervisor(config=config)
         return supervisor
@@ -1248,6 +1255,7 @@ class TestGoalsWatcher:
             enable_self_healing=False,
             watch_goals=True,
             work_discovery_interval_seconds=9999,  # Never trigger by interval
+            state_file=goals_dir / "supervisor_state.json",
         )
         return CortexSupervisor(config=config)
 
@@ -1307,9 +1315,9 @@ class TestGoalsWatcher:
         # Initialize the mtime
         supervisor._goals_file_changed()
         # Set last discovery to now so interval hasn't elapsed
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        supervisor._last_work_discovery = datetime.now()
+        supervisor._last_work_discovery = datetime.now(tz=timezone.utc)
 
         # Without goals change, should NOT trigger (interval is 9999s)
         assert supervisor._should_run_work_discovery() is False

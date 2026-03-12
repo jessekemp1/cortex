@@ -152,6 +152,12 @@ class CortexSupervisor:
         self._overnight_queue: List[WorkItem] = []
         self._load_overnight_state()
 
+        # Approval gate (lazy-initialized)
+        self._approval_gate = None
+
+        # Restore persisted state (dispatched IDs, batch IDs, tick count)
+        self._load_state()
+
     def tick(self) -> TickResult:
         """
         Main supervisor cycle. Called every tick_interval_seconds.
@@ -257,6 +263,9 @@ class CortexSupervisor:
         # Log summary
         if result.shell_tasks_started or result.tasks_healed or result.errors:
             logger.info(f"Tick #{self._tick_count}: {result.summary()}")
+
+        # Persist state for crash recovery
+        self._save_state()
 
         return result
 
@@ -453,6 +462,17 @@ class CortexSupervisor:
 
         if deferred_count:
             self._save_overnight_state()
+
+        # Approval gate: filter AI items through policy
+        gate = self._get_approval_gate()
+        approved_ai_items: List[WorkItem] = []
+        for work_item in ai_items:
+            ok, reason = gate.check(work_item)
+            if ok:
+                approved_ai_items.append(work_item)
+            else:
+                logger.info(f"Gated {work_item.id[:8]}: {reason}")
+        ai_items = approved_ai_items
 
         # Route shell items to BatchExecutor
         for work_item in shell_items:
@@ -789,6 +809,73 @@ class CortexSupervisor:
             tmp.rename(batch_state)
         except Exception as e:
             logger.error(f"Failed to save batch state: {e}")
+
+    # ------------------------------------------------------------------
+    # Approval gate
+    # ------------------------------------------------------------------
+
+    def _get_approval_gate(self):
+        """Lazy-initialize the ApprovalGate from config."""
+        if self._approval_gate is None:
+            from .approval import ApprovalGate, ApprovalPolicy
+
+            try:
+                policy = ApprovalPolicy(self.config.approval_policy)
+            except ValueError:
+                logger.warning(
+                    f"Unknown approval_policy '{self.config.approval_policy}', "
+                    "falling back to gate_high"
+                )
+                policy = ApprovalPolicy.GATE_HIGH
+
+            self._approval_gate = ApprovalGate(
+                policy=policy,
+                approval_dir=self.config.approval_dir,
+            )
+        return self._approval_gate
+
+    # ------------------------------------------------------------------
+    # Full state persistence (crash recovery)
+    # ------------------------------------------------------------------
+
+    def _save_state(self):
+        """Persist all transient state to disk for crash recovery."""
+        from pathlib import Path
+
+        state = {
+            "dispatched_ids": list(self._dispatched_ids),
+            "dispatched_descriptions": self._dispatched_descriptions,
+            "pending_batch_ids": self._pending_batch_ids,
+            "tick_count": self._tick_count,
+            "goals_mtime": self._goals_mtime,
+            "saved_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            self.config.state_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = Path(str(self.config.state_file) + ".tmp")
+            tmp.write_text(json.dumps(state, indent=2))
+            tmp.rename(self.config.state_file)
+        except Exception as e:
+            logger.error(f"Failed to save state: {e}")
+
+    def _load_state(self):
+        """Restore transient state from disk after restart."""
+        if not self.config.state_file.exists():
+            return
+        try:
+            state = json.loads(self.config.state_file.read_text())
+            self._dispatched_ids = set(state.get("dispatched_ids", []))
+            self._dispatched_descriptions = state.get("dispatched_descriptions", {})
+            self._pending_batch_ids = state.get("pending_batch_ids", [])
+            self._tick_count = state.get("tick_count", 0)
+            self._goals_mtime = state.get("goals_mtime", 0.0)
+            logger.info(
+                f"Restored state: {len(self._dispatched_ids)} dispatched IDs, "
+                f"{len(self._pending_batch_ids)} pending batches, "
+                f"tick #{self._tick_count}"
+            )
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to restore state: {e} — starting fresh")
 
     # ------------------------------------------------------------------
     # Work dedup helpers
