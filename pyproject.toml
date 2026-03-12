@@ -47,8 +47,12 @@ analytics = [
     "shap>=0.44.0",
     "openai>=1.0.0",
 ]
+orchestration = [
+    "litellm>=1.0",
+    "httpx>=0.25.0",
+]
 all = [
-    "cortex-intelligence[server,analytics]",
+    "cortex-intelligence[server,analytics,orchestration]",
 ]
 dev = [
     "pytest>=7.0",
