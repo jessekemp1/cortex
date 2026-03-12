@@ -101,25 +101,22 @@ class TestActionCorrelation:
         """Test detecting override with medium similarity."""
         collector.track_recommendation_shown("rec_001", sample_recommendation)
 
-        # Similar but different action (override)
         collector.track_action_taken(
             action="Skip failing tests and investigate later",
             files=["cortex/tests/test_data_quality.py"],
         )
 
-        # Should be tracked as override (similarity between 0.3 and 0.7)
-        # Note: This depends on text similarity calculation
-        # May or may not be in followed_ids depending on similarity score
+        # Action was recorded regardless of correlation outcome
+        assert len(collector.session_actions) == 1
 
     def test_no_match_low_similarity(self, collector, sample_recommendation):
         """Test no correlation with low similarity."""
         collector.track_recommendation_shown("rec_001", sample_recommendation)
 
-        # Completely different action
         collector.track_action_taken(action="Update README documentation", files=["README.md"])
 
-        # Should not be marked as followed
-        # (Will be marked as ignored during session_end)
+        # Completely different action should not be marked as followed
+        assert "rec_001" not in collector.followed_ids
 
 
 class TestSessionManagement:
@@ -387,14 +384,13 @@ class TestEdgeCases:
 
     def test_corrupt_jsonl_handling(self, collector, temp_storage):
         """Test handling corrupt JSONL data."""
-        # Write some corrupt data
         with open(temp_storage, "w") as f:
             f.write("not valid json\n")
             f.write('{"valid": "json"}\n')
 
-        # Should skip corrupt lines
-        collector.load_signals()
-        # May have 0 signals if schema doesn't match ImplicitSignal
+        # Should skip corrupt lines without crashing
+        signals = collector.load_signals()
+        assert isinstance(signals, list)
 
 
 if __name__ == "__main__":

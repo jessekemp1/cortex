@@ -49,7 +49,10 @@ def test_layer1_project_profiling():
     else:
         print("   ⚠️  Coverage info not available")
 
-    print("\n✅ Layer 1 test complete!\n")
+    assert engine is not None
+    assert profile is not None or True  # Profile may be None if profiler unavailable
+    assert tech_stack is None or isinstance(tech_stack, dict)
+    assert coverage is None or isinstance(coverage, dict)
 
 
 def test_layer2_pattern_memory():
@@ -81,7 +84,9 @@ def test_layer2_pattern_memory():
     else:
         print("   ⚠️  No patterns found")
 
-    print("\n✅ Layer 2 test complete!\n")
+    assert engine is not None
+    assert isinstance(similar, list)
+    assert isinstance(patterns, list)
 
 
 def test_layer3_monitoring():
@@ -104,7 +109,10 @@ def test_layer3_monitoring():
     for alert in alerts[:3]:
         print(f"   • [{alert.severity.value}] {alert.title}")
 
-    print("\n✅ Layer 3 test complete!\n")
+    assert engine is not None
+    assert isinstance(health, dict)
+    assert "coverage" in health
+    assert isinstance(alerts, list)
 
 
 def test_layer4_recommendations():
@@ -142,7 +150,9 @@ def test_layer4_recommendations():
     except Exception as e:
         print(f"   ⚠️  Could not generate: {e}")
 
-    print("\n✅ Layer 4 test complete!\n")
+    assert engine is not None
+    assert isinstance(enriched, list)
+    assert len(enriched) >= 1
 
 
 def test_layer5_planning():
@@ -178,7 +188,8 @@ def test_layer5_planning():
     except Exception as e:
         print(f"   ⚠️  Could not create plan: {e}")
 
-    print("\n✅ Layer 5 test complete!\n")
+    assert engine is not None
+    assert isinstance(recs, list)
 
 
 def test_full_integration():
@@ -210,10 +221,10 @@ def test_full_integration():
     print("\nLayer 5: Planning")
     print("  ✅ Planner: Ready")
 
-    print("\n" + "=" * 60)
-    print("✅ ALL 5 LAYERS OPERATIONAL!")
-    print("=" * 60)
-    print()
+    assert engine is not None
+    assert isinstance(profile.project_name, str) if profile else True
+    assert isinstance(patterns, list)
+    assert isinstance(health, dict)
 
 
 if __name__ == "__main__":

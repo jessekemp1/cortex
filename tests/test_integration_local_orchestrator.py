@@ -16,23 +16,24 @@ from integration.local_orchestrator import (
 
 
 def test_adapter_import():
-    """Test that adapter can be imported"""
-    assert RecommendationToAgentAdapter is not None
-    assert CortexLocalOrchestratorIntegration is not None
+    """Test that adapter can be imported and has expected interface."""
+    assert callable(RecommendationToAgentAdapter)
+    assert callable(CortexLocalOrchestratorIntegration)
+    assert callable(getattr(CortexLocalOrchestratorIntegration, "is_available", None))
 
 
 def test_integration_initialization():
-    """Test integration can be initialized"""
+    """Test integration can be initialized and reports availability."""
     if not LOCAL_ORCHESTRATOR_AVAILABLE:
         pytest.skip("local-orchestrator not available")
 
     integration = CortexLocalOrchestratorIntegration()
-    # Should not raise exception
-    assert integration is not None
+    assert integration.is_available() is True
 
 
 def test_integration_availability_check():
-    """Test availability check"""
+    """Test availability reflects LOCAL_ORCHESTRATOR_AVAILABLE flag."""
     integration = CortexLocalOrchestratorIntegration()
-    # Should return boolean
-    assert isinstance(integration.is_available(), bool)
+    available = integration.is_available()
+    assert isinstance(available, bool)
+    assert available == LOCAL_ORCHESTRATOR_AVAILABLE

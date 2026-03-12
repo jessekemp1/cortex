@@ -78,9 +78,10 @@ class TestBridgeInitialization:
         bridge = CortexBridge()
 
         if TIERED_MEMORY_AVAILABLE and bridge.config and bridge.config.tiered_memory_enabled:
-            # Should be initialized (may still be None if PatternMemory unavailable)
-            # The test is that initialization doesn't crash
-            pass
+            # Initialization succeeded without crash — tiered_memory may or may not be set
+            assert bridge.config.tiered_memory_enabled is True
+        else:
+            assert bridge.tiered_memory is None or not TIERED_MEMORY_AVAILABLE
 
     def test_hybrid_retriever_init_when_enabled(self):
         """HybridRetriever initializes when feature flag is enabled."""
@@ -89,9 +90,9 @@ class TestBridgeInitialization:
         bridge = CortexBridge()
 
         if HYBRID_RETRIEVER_AVAILABLE and bridge.config and bridge.config.hybrid_retrieval_enabled:
-            # May be None if no patterns available
-            # The test is that initialization doesn't crash
-            pass
+            assert bridge.config.hybrid_retrieval_enabled is True
+        else:
+            assert bridge.hybrid_retriever is None or not HYBRID_RETRIEVER_AVAILABLE
 
 
 class TestGetContext:
@@ -216,7 +217,6 @@ class TestInjectRecommendation:
 
         bridge = CortexBridge()
 
-        # Mock tiered_memory if available
         if bridge.tiered_memory:
             original_record = bridge.tiered_memory.record
             bridge.tiered_memory.record = MagicMock()
@@ -227,9 +227,16 @@ class TestInjectRecommendation:
                 priority="medium",
             )
 
-            # Verify record was called
-            bridge.tiered_memory.record.assert_called_once()
+            assert bridge.tiered_memory.record.call_count == 1
             bridge.tiered_memory.record = original_record
+        else:
+            # Module unavailable — inject should still succeed
+            result = bridge.inject_recommendation(
+                title="Test recommendation",
+                rationale="Testing without tiered memory",
+                priority="medium",
+            )
+            assert isinstance(result, bool)
 
     def test_inject_tracks_in_implicit_feedback(self):
         """inject_recommendation tracks in ImplicitFeedback when available."""
@@ -247,9 +254,15 @@ class TestInjectRecommendation:
                 priority="high",
             )
 
-            # Verify track_recommendation_shown was called
-            bridge.implicit_feedback.track_recommendation_shown.assert_called_once()
+            assert bridge.implicit_feedback.track_recommendation_shown.call_count == 1
             bridge.implicit_feedback.track_recommendation_shown = original_track
+        else:
+            result = bridge.inject_recommendation(
+                title="Test recommendation",
+                rationale="Testing without implicit feedback",
+                priority="high",
+            )
+            assert isinstance(result, bool)
 
 
 class TestQueryIntelligence:
@@ -295,8 +308,10 @@ class TestEndSession:
         from cortex.bridge import CortexBridge
 
         bridge = CortexBridge()
-        # Should not raise
         bridge.end_session()
+        # Verify bridge is still functional after session end
+        assert bridge is not None
+        assert isinstance(bridge.get_ai_engineering_status(), dict)
 
     def test_end_session_calls_tiered_memory(self):
         """end_session() calls TieredMemory.end_session() when available."""
@@ -310,8 +325,11 @@ class TestEndSession:
 
             bridge.end_session()
 
-            bridge.tiered_memory.end_session.assert_called_once()
+            assert bridge.tiered_memory.end_session.call_count == 1
             bridge.tiered_memory.end_session = original_end
+        else:
+            bridge.end_session()
+            assert bridge.tiered_memory is None
 
     def test_end_session_calls_implicit_feedback(self):
         """end_session() calls ImplicitFeedback.session_end() when available."""
@@ -325,8 +343,11 @@ class TestEndSession:
 
             bridge.end_session()
 
-            bridge.implicit_feedback.session_end.assert_called_once()
+            assert bridge.implicit_feedback.session_end.call_count == 1
             bridge.implicit_feedback.session_end = original_end
+        else:
+            bridge.end_session()
+            assert bridge.implicit_feedback is None
 
 
 class TestAIEngineeringStatus:

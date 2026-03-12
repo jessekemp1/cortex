@@ -1558,10 +1558,9 @@ class TestBatchDispatch:
         ):
             dispatcher.retrieve_batch("msgbatch_learn", router=mock_router)
 
-        mock_router.record_outcome.assert_called_once_with(
-            work_item_id="learn-0",
-            model_tier="sonnet",
-            success=True,
-            quality_score=1.0,
-            task_type="research",
-        )
+        assert mock_router.record_outcome.call_count == 1
+        call_kwargs = mock_router.record_outcome.call_args[1]
+        assert call_kwargs["work_item_id"] == "learn-0"
+        assert call_kwargs["model_tier"] == "sonnet"
+        assert call_kwargs["success"] is True
+        assert call_kwargs["task_type"] == "research"

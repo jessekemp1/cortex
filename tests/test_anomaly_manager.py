@@ -461,7 +461,7 @@ class TestDetectAll:
 
     def test_detect_all_saves_to_database(self, manager, mock_db):
         manager.detect_all({"active_projects": 16})
-        mock_db.save_anomalies.assert_called_once()
+        assert mock_db.save_anomalies.call_count == 1
 
     def test_detect_all_handles_detector_errors_gracefully(self, manager, mock_db):
         """A failing detector should not crash the whole run."""
@@ -608,7 +608,7 @@ class TestAlertDispatch:
         """Manager with enable_alerts=False should not attempt alerts."""
         manager._alert_manager = MagicMock()
         manager.detect_all({"active_projects": 26})
-        manager._alert_manager.send_alert.assert_not_called()
+        assert manager._alert_manager.send_alert.call_count == 0
 
     def test_alert_failure_does_not_crash_detection(self, mock_db):
         """If AlertManager.send_alert raises, detect_all still returns results."""
