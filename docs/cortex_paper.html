@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Jesse Kemp" />
+  <title>Cortex: Persistent Intelligence Architecture for LLM-Powered Development Agents</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="/dev/null" />
+
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Cortex: Persistent Intelligence Architecture for
+LLM-Powered Development Agents</h1>
+<p class="author">Jesse Kemp</p>
+<p class="date">March 2026</p>
+<div class="abstract">
+<div class="abstract-title">Abstract</div>
+<p>Large language models exhibit session amnesia — each new conversation
+discards all prior context, forcing developers to repeatedly re-explain
+decisions, rediscover bugs, and re-establish architectural
+understanding. We present Cortex, a persistent intelligence layer that
+compensates for this limitation by maintaining structured memory,
+learning from implicit feedback signals, and routing tasks to
+cost-appropriate model tiers. Deployed across a six-project portfolio
+for eight weeks, Cortex achieves 21.2% context deduplication savings,
+0.94 position quality score on retrieved context, and 50% cost reduction
+via intelligent batch routing. The system processes 958+ validated tests
+with behavioral assertions enforced by AST-based meta-testing. We
+describe the three-tier memory architecture, hybrid BM25/embedding
+retrieval, quality-weighted learning from 557+ tracked outcomes, and
+autonomous operations including platform-agnostic monitoring, approval
+gates, and crash-resilient state persistence.</p>
+</div>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#introduction" id="toc-introduction"><span
+class="toc-section-number">1</span> Introduction</a>
+<ul>
+<li><a href="#contributions" id="toc-contributions"><span
+class="toc-section-number">1.1</span> Contributions</a></li>
+</ul></li>
+<li><a href="#system-architecture" id="toc-system-architecture"><span
+class="toc-section-number">2</span> System Architecture</a>
+<ul>
+<li><a href="#layer-1-entry-points" id="toc-layer-1-entry-points"><span
+class="toc-section-number">2.1</span> Layer 1: Entry Points</a></li>
+<li><a href="#layer-2-safety" id="toc-layer-2-safety"><span
+class="toc-section-number">2.2</span> Layer 2: Safety</a></li>
+<li><a href="#layer-3-retrieval-and-memory"
+id="toc-layer-3-retrieval-and-memory"><span
+class="toc-section-number">2.3</span> Layer 3: Retrieval and Memory</a>
+<ul>
+<li><a href="#three-tier-memory" id="toc-three-tier-memory"><span
+class="toc-section-number">2.3.1</span> Three-Tier Memory</a></li>
+<li><a href="#hybrid-retrieval" id="toc-hybrid-retrieval"><span
+class="toc-section-number">2.3.2</span> Hybrid Retrieval</a></li>
+</ul></li>
+<li><a href="#layer-4-learning" id="toc-layer-4-learning"><span
+class="toc-section-number">2.4</span> Layer 4: Learning</a>
+<ul>
+<li><a href="#implicit-feedback-collection"
+id="toc-implicit-feedback-collection"><span
+class="toc-section-number">2.4.1</span> Implicit Feedback
+Collection</a></li>
+<li><a href="#ai-as-a-judge-evaluation"
+id="toc-ai-as-a-judge-evaluation"><span
+class="toc-section-number">2.4.2</span> AI-as-a-Judge
+Evaluation</a></li>
+<li><a href="#data-quality-framework"
+id="toc-data-quality-framework"><span
+class="toc-section-number">2.4.3</span> Data Quality Framework</a></li>
+</ul></li>
+</ul></li>
+<li><a href="#orchestration-system" id="toc-orchestration-system"><span
+class="toc-section-number">3</span> Orchestration System</a>
+<ul>
+<li><a href="#task-queue" id="toc-task-queue"><span
+class="toc-section-number">3.1</span> Task Queue</a></li>
+<li><a href="#intelligent-model-routing"
+id="toc-intelligent-model-routing"><span
+class="toc-section-number">3.2</span> Intelligent Model Routing</a></li>
+<li><a href="#batch-api-integration"
+id="toc-batch-api-integration"><span
+class="toc-section-number">3.3</span> Batch API Integration</a></li>
+</ul></li>
+<li><a href="#autonomous-operations"
+id="toc-autonomous-operations"><span class="toc-section-number">4</span>
+Autonomous Operations</a>
+<ul>
+<li><a href="#platform-agnostic-alert-monitor"
+id="toc-platform-agnostic-alert-monitor"><span
+class="toc-section-number">4.1</span> Platform-Agnostic Alert
+Monitor</a></li>
+<li><a href="#approval-gates" id="toc-approval-gates"><span
+class="toc-section-number">4.2</span> Approval Gates</a></li>
+<li><a href="#crash-resilient-state-snapshots"
+id="toc-crash-resilient-state-snapshots"><span
+class="toc-section-number">4.3</span> Crash-Resilient State
+Snapshots</a></li>
+</ul></li>
+<li><a href="#testing-and-quality-assurance"
+id="toc-testing-and-quality-assurance"><span
+class="toc-section-number">5</span> Testing and Quality Assurance</a>
+<ul>
+<li><a href="#test-suite" id="toc-test-suite"><span
+class="toc-section-number">5.1</span> Test Suite</a></li>
+<li><a href="#ast-based-meta-testing"
+id="toc-ast-based-meta-testing"><span
+class="toc-section-number">5.2</span> AST-Based Meta-Testing</a></li>
+</ul></li>
+<li><a href="#production-results" id="toc-production-results"><span
+class="toc-section-number">6</span> Production Results</a>
+<ul>
+<li><a href="#measured-outcomes" id="toc-measured-outcomes"><span
+class="toc-section-number">6.1</span> Measured Outcomes</a></li>
+<li><a href="#deployment-scale" id="toc-deployment-scale"><span
+class="toc-section-number">6.2</span> Deployment Scale</a></li>
+</ul></li>
+<li><a href="#related-work" id="toc-related-work"><span
+class="toc-section-number">7</span> Related Work</a></li>
+<li><a href="#conclusion" id="toc-conclusion"><span
+class="toc-section-number">8</span> Conclusion</a></li>
+<li><a href="#appendix-performance-characteristics"
+id="toc-appendix-performance-characteristics"><span
+class="toc-section-number">9</span> Appendix: Performance
+Characteristics</a></li>
+</ul>
+</nav>
+<h1 data-number="1" id="introduction"><span
+class="header-section-number">1</span> Introduction</h1>
+<p>The adoption of LLM-powered development agents (Claude Code, GitHub
+Copilot, Cursor) has introduced a systematic productivity tax:
+<strong>session amnesia</strong>. Every new conversation starts from
+zero. Decisions made last week, bugs debugged last month, and
+architectural patterns validated over months are invisible to the
+agent.</p>
+<p>This is not an intelligence problem — it is an infrastructure
+problem. The LLM’s reasoning capability is unchanged between sessions;
+what changes is the quality and completeness of the context it
+receives.</p>
+<p>Cortex addresses this by providing a persistent intelligence layer
+that:</p>
+<ol type="1">
+<li><strong>Maintains structured memory</strong> across sessions with
+three-tier promotion (working → episodic → semantic)</li>
+<li><strong>Learns from outcomes</strong> via implicit feedback signals
+(10–100x more signal than explicit rating)</li>
+<li><strong>Routes tasks</strong> to cost-appropriate model tiers
+(haiku/sonnet/opus) based on complexity analysis</li>
+<li><strong>Discovers work</strong> by parsing goal files, git history,
+and anomaly detection</li>
+<li><strong>Operates autonomously</strong> with platform-agnostic
+monitoring, approval gates, and crash-resilient state</li>
+</ol>
+<h2 data-number="1.1" id="contributions"><span
+class="header-section-number">1.1</span> Contributions</h2>
+<ul>
+<li>A three-tier memory architecture with weighted retrieval and
+evidence-based promotion criteria</li>
+<li>An implicit feedback system that derives learning signals from user
+behavior without explicit annotation</li>
+<li>A hybrid BM25 + embedding retrieval pipeline with reciprocal rank
+fusion</li>
+<li>Measured production results: 21.2% dedup savings, 0.94 position
+quality, 50% batch cost savings</li>
+<li>AST-based meta-testing that enforces assertion quality across the
+test suite</li>
+<li>Autonomous operations: platform-agnostic alert monitoring
+(macOS/Linux), 3-policy approval gates, atomic state snapshots</li>
+</ul>
+<h1 data-number="2" id="system-architecture"><span
+class="header-section-number">2</span> System Architecture</h1>
+<p>Cortex is organized into four layers: Entry Points, Safety,
+Retrieval/Memory, and Learning.</p>
+<h2 data-number="2.1" id="layer-1-entry-points"><span
+class="header-section-number">2.1</span> Layer 1: Entry Points</h2>
+<p>Five entry points serve different interaction patterns:</p>
+<table>
+<thead>
+<tr>
+<th>Entry Point</th>
+<th>Purpose</th>
+<th>Latency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bridge.py</code></td>
+<td>Universal CLI interface</td>
+<td>6.8ms init</td>
+</tr>
+<tr>
+<td><code>cli.py</code></td>
+<td>Full command suite (40+ commands)</td>
+<td>varies</td>
+</tr>
+<tr>
+<td><code>mcp_server.py</code></td>
+<td>Model Context Protocol for Claude Desktop</td>
+<td>&lt;100ms</td>
+</tr>
+<tr>
+<td>Plugins</td>
+<td>Custom extensions</td>
+<td>varies</td>
+</tr>
+<tr>
+<td>FastAPI server</td>
+<td>Dashboard and API</td>
+<td>&lt;50ms</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>CortexBridge</code> class provides the universal
+interface:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CortexBridge:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> read_context(<span class="va">self</span>, project: <span class="bu">str</span>) <span class="op">-&gt;</span> Dict</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> query_intelligence(<span class="va">self</span>, request: <span class="bu">str</span>, project: <span class="bu">str</span>) <span class="op">-&gt;</span> IntelligenceResult</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> get_portfolio_stats(<span class="va">self</span>) <span class="op">-&gt;</span> Dict</span></code></pre></div>
+<h2 data-number="2.2" id="layer-2-safety"><span
+class="header-section-number">2.2</span> Layer 2: Safety</h2>
+<p>All queries pass through a defensive prompting pipeline before
+reaching intelligence layers:</p>
+<ol type="1">
+<li><strong>Input Validation</strong> — length checks, scope
+verification, encoding normalization</li>
+<li><strong>Injection Detection</strong> — 28 compiled regex patterns
+across 4 severity levels (CRITICAL/HIGH/MEDIUM/LOW). Performance:
+&lt;0.5ms per query, 0% false positive rate on legitimate queries</li>
+<li><strong>Output Validation</strong> — format verification, confidence
+thresholds, hallucination marker detection</li>
+<li><strong>Guardrails</strong> — query templates that constrain
+response scope</li>
+</ol>
+<h2 data-number="2.3" id="layer-3-retrieval-and-memory"><span
+class="header-section-number">2.3</span> Layer 3: Retrieval and
+Memory</h2>
+<h3 data-number="2.3.1" id="three-tier-memory"><span
+class="header-section-number">2.3.1</span> Three-Tier Memory</h3>
+<p>Items are stored and promoted through three tiers based on access
+patterns and outcome data:</p>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Retention</th>
+<th>Storage</th>
+<th>Weight</th>
+<th>Promotion Criteria</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Short-term</td>
+<td>Session</td>
+<td>In-memory (50 items, LRU)</td>
+<td>1.5x</td>
+<td>Entry point for all new items</td>
+</tr>
+<tr>
+<td>Working</td>
+<td>7 days</td>
+<td>SQLite</td>
+<td>1.2x</td>
+<td>3+ accesses OR has outcome</td>
+</tr>
+<tr>
+<td>Long-term</td>
+<td>Permanent</td>
+<td>JSON file</td>
+<td>1.0x</td>
+<td>10+ accesses AND consistent success</td>
+</tr>
+</tbody>
+</table>
+<p>The weighting scheme is counterintuitive: short-term items receive
+the <em>highest</em> weight (1.5x). This reflects the recency bias that
+is appropriate for development work — the pattern you discovered 10
+minutes ago is more likely relevant than one from last month.</p>
+<h3 data-number="2.3.2" id="hybrid-retrieval"><span
+class="header-section-number">2.3.2</span> Hybrid Retrieval</h3>
+<p>Queries are processed through a dual-pipeline retrieval system:</p>
+<ol type="1">
+<li><strong>BM25 Search</strong> — keyword matching for exact
+terminology (function names, error codes)</li>
+<li><strong>Embedding Search</strong> — semantic similarity for
+conceptual queries (“how do we handle auth?”)</li>
+<li><strong>Reciprocal Rank Fusion</strong> — merges both ranked lists
+with configurable alpha (default 0.5)</li>
+</ol>
+<p>The alpha parameter tunes the balance: 0.0 = pure BM25, 1.0 = pure
+embeddings. In practice, the balanced default captures both exact
+matches and semantic near-misses.</p>
+<h2 data-number="2.4" id="layer-4-learning"><span
+class="header-section-number">2.4</span> Layer 4: Learning</h2>
+<h3 data-number="2.4.1" id="implicit-feedback-collection"><span
+class="header-section-number">2.4.1</span> Implicit Feedback
+Collection</h3>
+<p>Rather than requiring explicit ratings, Cortex derives learning
+signals from observable user behavior:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Detection Method</th>
+<th>Weight</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Followed</strong></td>
+<td>Similarity &gt; 0.7 between recommendation and action</td>
+<td>+1</td>
+</tr>
+<tr>
+<td><strong>Overridden</strong></td>
+<td>Similarity 0.3–0.7 (modified but influenced)</td>
+<td>0 (neutral)</td>
+</tr>
+<tr>
+<td><strong>Ignored</strong></td>
+<td>Similarity &lt; 0.3 or no action within session</td>
+<td>-1</td>
+</tr>
+</tbody>
+</table>
+<p>This produces 10–100x more signal than explicit feedback because
+every recommendation-action pair generates a data point
+automatically.</p>
+<h3 data-number="2.4.2" id="ai-as-a-judge-evaluation"><span
+class="header-section-number">2.4.2</span> AI-as-a-Judge Evaluation</h3>
+<p>For quality assessment, Claude Haiku scores responses on five
+dimensions (1–5 scale):</p>
+<ol type="1">
+<li>Relevance — does it address the query?</li>
+<li>Clarity — is it understandable?</li>
+<li>Accuracy — is it factually correct?</li>
+<li>Actionability — can the user act on it?</li>
+<li>Timeliness — is the information current?</li>
+</ol>
+<h3 data-number="2.4.3" id="data-quality-framework"><span
+class="header-section-number">2.4.3</span> Data Quality Framework</h3>
+<p>Six dimensions are tracked continuously:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Score</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Completeness</td>
+<td>100%</td>
+<td>Required fields always present</td>
+</tr>
+<tr>
+<td>Consistency</td>
+<td>100%</td>
+<td>No contradictions detected</td>
+</tr>
+<tr>
+<td>Accuracy</td>
+<td>100%</td>
+<td>Factual verification via outcomes</td>
+</tr>
+<tr>
+<td>Timeliness</td>
+<td>15% → improved</td>
+<td>Addressed by three-tier memory weighting</td>
+</tr>
+<tr>
+<td>Uniqueness</td>
+<td>91%</td>
+<td>21.2% deduplication savings measured</td>
+</tr>
+<tr>
+<td>Validity</td>
+<td>100%</td>
+<td>Schema validation enforced</td>
+</tr>
+</tbody>
+</table>
+<p>Overall quality: <strong>86.4%</strong> measured on 57 production
+outcomes.</p>
+<h1 data-number="3" id="orchestration-system"><span
+class="header-section-number">3</span> Orchestration System</h1>
+<h2 data-number="3.1" id="task-queue"><span
+class="header-section-number">3.1</span> Task Queue</h2>
+<p>Tasks are managed in a SQLite-backed priority queue with three
+levels:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Behavior</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A (Critical)</td>
+<td>Always realtime execution</td>
+<td>Security fix, production bug</td>
+</tr>
+<tr>
+<td>B (Important)</td>
+<td>Batch if deadline &gt; 4h</td>
+<td>Feature implementation</td>
+</tr>
+<tr>
+<td>C (Background)</td>
+<td>Always batch (50% cost savings)</td>
+<td>Research, analysis</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="3.2" id="intelligent-model-routing"><span
+class="header-section-number">3.2</span> Intelligent Model Routing</h2>
+<p>The supervisor routes tasks to the cheapest capable model tier:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Model</th>
+<th>Use Case</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Haiku</td>
+<td>claude-haiku-4-5</td>
+<td>Ops tasks, git, formatting</td>
+<td>$0.25/MTok</td>
+</tr>
+<tr>
+<td>Sonnet</td>
+<td>claude-sonnet-4-6</td>
+<td>Code edits, test writing</td>
+<td>$3/MTok</td>
+</tr>
+<tr>
+<td>Opus</td>
+<td>claude-opus-4-6</td>
+<td>Architecture, research</td>
+<td>$15/MTok</td>
+</tr>
+</tbody>
+</table>
+<p>The router learns from outcome data: if sonnet-tier tasks
+consistently succeed, they stay at sonnet. If they fail and require opus
+retry, the router adjusts thresholds.</p>
+<h2 data-number="3.3" id="batch-api-integration"><span
+class="header-section-number">3.3</span> Batch API Integration</h2>
+<p>LOW-priority tasks are deferred to the Anthropic Batch API:</p>
+<ul>
+<li><strong>Submission window</strong>: 2–6 AM UTC (off-peak)</li>
+<li><strong>Cost savings</strong>: 50% vs realtime API calls</li>
+<li><strong>State persistence</strong>: Queue survives process restarts
+via SQLite</li>
+<li><strong>Measured throughput</strong>: 685 jobs verified in first
+deployment</li>
+</ul>
+<h1 data-number="4" id="autonomous-operations"><span
+class="header-section-number">4</span> Autonomous Operations</h1>
+<h2 data-number="4.1" id="platform-agnostic-alert-monitor"><span
+class="header-section-number">4.1</span> Platform-Agnostic Alert
+Monitor</h2>
+<p>The alert monitor detects anomalies and routes restart commands based
+on platform:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _detect_platform() <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sys.platform <span class="op">==</span> <span class="st">&quot;darwin&quot;</span>:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;macos&quot;</span>  <span class="co"># launchctl</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">&quot;linux&quot;</span>  <span class="co"># systemctl</span></span></code></pre></div>
+<p>On macOS, services are managed via <code>launchctl</code>. On Linux
+(Hetzner production), via <code>systemctl</code>. The monitor checks
+service health on a configurable interval and dispatches alerts through
+the approval gate before taking action.</p>
+<h2 data-number="4.2" id="approval-gates"><span
+class="header-section-number">4.2</span> Approval Gates</h2>
+<p>Three policies govern autonomous actions:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Policy</th>
+<th>Scope</th>
+<th>Approval</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>auto_approve</code></td>
+<td>Low-risk ops (status checks, reads)</td>
+<td>Automatic</td>
+</tr>
+<tr>
+<td><code>human_approval</code></td>
+<td>Destructive ops (restarts, deployments)</td>
+<td>Requires human confirmation</td>
+</tr>
+<tr>
+<td><code>deny</code></td>
+<td>Disallowed ops (force push, data deletion)</td>
+<td>Always blocked</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="4.3" id="crash-resilient-state-snapshots"><span
+class="header-section-number">4.3</span> Crash-Resilient State
+Snapshots</h2>
+<p>State is persisted via atomic writes:</p>
+<ol type="1">
+<li>Serialize state to temporary file</li>
+<li><code>fsync()</code> the temporary file</li>
+<li>Atomic <code>os.rename()</code> to final path</li>
+</ol>
+<p>This guarantees either the old state or the new state is on disk —
+never a partial write. Recovery on startup reads the snapshot and
+resumes from the last consistent state.</p>
+<h1 data-number="5" id="testing-and-quality-assurance"><span
+class="header-section-number">5</span> Testing and Quality
+Assurance</h1>
+<h2 data-number="5.1" id="test-suite"><span
+class="header-section-number">5.1</span> Test Suite</h2>
+<p>958+ tests across the Cortex codebase, organized by component:</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Tests</th>
+<th>Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tiered Memory</td>
+<td>31</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Context Optimizer</td>
+<td>26</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Hybrid Retriever</td>
+<td>17</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Quality Judge</td>
+<td>23</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Implicit Feedback</td>
+<td>28</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Data Quality</td>
+<td>28</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Safety</td>
+<td>22</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Prompts</td>
+<td>32</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Orchestration</td>
+<td>50+</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Autonomous Ops</td>
+<td>34</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>Integration</td>
+<td>30+</td>
+<td>100%</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="5.2" id="ast-based-meta-testing"><span
+class="header-section-number">5.2</span> AST-Based Meta-Testing</h2>
+<p>A novel contribution is the assertion quality gate — tests that test
+the tests. Three meta-tests scan the entire suite using Python’s
+<code>ast</code> module:</p>
+<ol type="1">
+<li><strong>No Trivial-Only Test Files</strong> — flags files where
+&gt;50% of test functions use only <code>isinstance()</code>,
+<code>is not None</code>, or <code>in (True, False)</code>
+assertions</li>
+<li><strong>Integration Tests Have Behavioral Calls</strong> — verifies
+that integration tests actually call system methods
+(<code>.get_context()</code>, <code>.learn()</code>,
+<code>.dispatch()</code>) rather than just testing imports</li>
+<li><strong>No Empty Test Bodies</strong> — catches
+<code>pass</code>-only test functions that inflate test counts</li>
+</ol>
+<p>A subtle implementation detail:
+<code>mock.assert_called_once()</code> is a <em>method call</em>, not a
+Python <code>assert</code> statement. The AST parser sees it as
+<code>ast.Call</code>, not <code>ast.Assert</code>. We convert these to
+explicit <code>assert mock.call_count == 1</code> to satisfy the quality
+gate while preserving the same verification logic.</p>
+<h1 data-number="6" id="production-results"><span
+class="header-section-number">6</span> Production Results</h1>
+<h2 data-number="6.1" id="measured-outcomes"><span
+class="header-section-number">6.1</span> Measured Outcomes</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context deduplication</td>
+<td>21.2% savings</td>
+<td>A/B comparison on 100 queries</td>
+</tr>
+<tr>
+<td>Position quality score</td>
+<td>0.94 / 1.00</td>
+<td>Relevance ranking of retrieved context</td>
+</tr>
+<tr>
+<td>Batch cost savings</td>
+<td>50% ($16.22 saved)</td>
+<td>Batch vs realtime API comparison</td>
+</tr>
+<tr>
+<td>Test assertion quality</td>
+<td>1.8% trivial</td>
+<td>AST meta-test measurement</td>
+</tr>
+<tr>
+<td>Learning outcomes tracked</td>
+<td>557+</td>
+<td>Implicit + explicit feedback</td>
+</tr>
+<tr>
+<td>Anti-patterns stored</td>
+<td>12+</td>
+<td>With full prevention context</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="6.2" id="deployment-scale"><span
+class="header-section-number">6.2</span> Deployment Scale</h2>
+<ul>
+<li><strong>6 projects</strong> in active portfolio (Vortex weather API,
+Alpha Arena trading, Pupil simulation, Cortex itself, DJ-CoPilot,
+Kempion research site)</li>
+<li><strong>5,660+ tests</strong> across the portfolio</li>
+<li><strong>8 weeks</strong> of continuous production use</li>
+<li><strong>2 platforms</strong>: macOS (development), Linux (Hetzner
+production)</li>
+</ul>
+<h1 data-number="7" id="related-work"><span
+class="header-section-number">7</span> Related Work</h1>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>System</th>
+<th>Approach</th>
+<th>Difference from Cortex</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mem0</td>
+<td>Universal memory layer, multi-tenant</td>
+<td>General-purpose; no developer-workflow primitives</td>
+</tr>
+<tr>
+<td>claude-mem</td>
+<td>Claude Code plugin, auto-capture</td>
+<td>Record/replay; no task orchestration or implicit feedback</td>
+</tr>
+<tr>
+<td>Supermemory</td>
+<td>Temporal contradiction handling</td>
+<td>Sophisticated retrieval; no work discovery or model routing</td>
+</tr>
+<tr>
+<td>Windsurf</td>
+<td>Auto-generated workspace memories</td>
+<td>Workspace-isolated; no cross-project transfer</td>
+</tr>
+</tbody>
+</table>
+<p>Cortex is optimized for one use case: a developer or small team using
+LLM agents across a multi-project portfolio over months. It combines
+memory + orchestration in a single system with quality-weighted
+learning.</p>
+<h1 data-number="8" id="conclusion"><span
+class="header-section-number">8</span> Conclusion</h1>
+<p>Session amnesia is the dominant bottleneck in LLM-powered development
+workflows. Cortex demonstrates that structured memory, implicit feedback
+learning, and intelligent task routing can compensate for this
+limitation with measurable impact: 21.2% deduplication savings, 0.94
+position quality, and 50% batch cost reduction.</p>
+<p>The system’s self-awareness mechanisms — AST-based meta-testing, data
+quality tracking, and autonomous monitoring — ensure that quality
+compounds rather than degrades over time. 958+ tests with behavioral
+assertion enforcement prevent the common failure mode of inflated test
+counts masking shallow coverage.</p>
+<p>Future work includes temporal contradiction handling (detecting when
+stored patterns conflict with new evidence), cross-portfolio transfer
+learning, and integration with additional LLM providers beyond
+Anthropic.</p>
+<h1 data-number="9" id="appendix-performance-characteristics"><span
+class="header-section-number">9</span> Appendix: Performance
+Characteristics</h1>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Latency</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bridge initialization</td>
+<td>6.8ms</td>
+<td>99.5% faster than 1s target</td>
+</tr>
+<tr>
+<td>Portfolio stats query</td>
+<td>&lt;1ms</td>
+<td>99.1% faster than target</td>
+</tr>
+<tr>
+<td>Hybrid retrieval (cached)</td>
+<td>0.05ms</td>
+<td>First search ~100ms</td>
+</tr>
+<tr>
+<td>Tiered memory query</td>
+<td>&lt;50ms</td>
+<td>Weighted merge across 3 tiers</td>
+</tr>
+<tr>
+<td>Input validation</td>
+<td>&lt;1ms</td>
+<td>Compiled regex</td>
+</tr>
+<tr>
+<td>Injection detection</td>
+<td>&lt;0.5ms</td>
+<td>28 patterns</td>
+</tr>
+<tr>
+<td>AI-as-Judge evaluation</td>
+<td>&lt;500ms</td>
+<td>Claude Haiku</td>
+</tr>
+<tr>
+<td>Quality assessment</td>
+<td>~1ms</td>
+<td>Per item</td>
+</tr>
+<tr>
+<td>Task enqueue</td>
+<td>~50ms</td>
+<td>SQLite-backed</td>
+</tr>
+<tr>
+<td>Intelligence query</td>
+<td>125ms–4s</td>
+<td>Depends on sources queried</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
