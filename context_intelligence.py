@@ -243,7 +243,7 @@ class ContextIntelligence:
     def _create_doc_prediction(self, doc_path: Path, project: str) -> ContextPrediction:
         """Create a context prediction from a documentation file."""
         try:
-            content = doc_path.read_text()[:500]
+            content = doc_path.read_text(encoding="utf-8")[:500]
             # Extract first meaningful line as snippet
             lines = [l.strip() for l in content.split("\n") if l.strip() and not l.startswith("#")]
             snippet = lines[0] if lines else ""
@@ -409,7 +409,7 @@ class ContextIntelligence:
                         # Search doc files for keywords
                         for doc_file in doc_dir.glob("*.md"):
                             try:
-                                content = doc_file.read_text().lower()
+                                content = doc_file.read_text(encoding="utf-8").lower()
                                 # Check if any keywords appear in content
                                 keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
                                 if keyword_matches > 0:
@@ -433,7 +433,7 @@ class ContextIntelligence:
                     doc_file = item / doc_pattern
                     if doc_file.exists():
                         try:
-                            content = doc_file.read_text().lower()
+                            content = doc_file.read_text(encoding="utf-8").lower()
                             keyword_matches = sum(1 for kw in keywords if kw.lower() in content)
                             if keyword_matches > 0:
                                 relevance = min(keyword_matches / len(keywords), 1.0)

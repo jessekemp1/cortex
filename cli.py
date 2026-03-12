@@ -203,7 +203,7 @@ def _goal_counts_from_parser(root: Path) -> Optional[Tuple[int, int]]:
         if not action_plan.exists():
             return (0, 0)
 
-        text = action_plan.read_text()
+        text = action_plan.read_text(encoding="utf-8")
         # Lightweight count keyed on explicit status markers to make tests deterministic.
         in_progress = len([m for m in re.finditer(r"in_progress", text, re.IGNORECASE)])
         pending = len([m for m in re.finditer(r"pending", text, re.IGNORECASE)])
@@ -280,6 +280,67 @@ def cmd_next(args):
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_init(args):
+    """Initialize Cortex configuration and data directories."""
+    from state_paths import get_cortex_dir
+    from security import secure_create_directory, secure_create_file
+
+    cortex_dir = get_cortex_dir()
+    created = []
+    existed = []
+
+    # Create subdirectories
+    for subdir in ["memories", "anti_patterns", "metrics", "batch", "logs", "session"]:
+        d = cortex_dir / subdir
+        if d.exists():
+            existed.append(subdir)
+        else:
+            secure_create_directory(d)
+            created.append(subdir)
+
+    # Create config.yaml if missing
+    config_file = cortex_dir / "config.yaml"
+    config_created = False
+    root_hint = getattr(args, "root_dir", None) or ""
+    if not config_file.exists():
+        root_line = (
+            f"root_dir: {root_hint}"
+            if root_hint
+            else "# root_dir: ~/projects  # Path to your workspace"
+        )
+        secure_create_file(
+            config_file,
+            content=f"""# Cortex Configuration
+{root_line}
+learning_enabled: true
+default_limit: 3
+
+# AI Engineering Features
+tiered_memory_enabled: true
+context_optimizer_enabled: true
+hybrid_retrieval_enabled: true
+implicit_feedback_enabled: true
+""",
+        )
+        config_created = True
+
+    # Print summary
+    print("Cortex initialized.\n")
+    print(f"  Config:  {config_file}" + (" (created)" if config_created else " (exists)"))
+    print(f"  Data:    {cortex_dir}/")
+    if created:
+        print(f"  Created: {', '.join(created)}")
+    if existed:
+        print(f"  Existed: {', '.join(existed)}")
+
+    print("\nNext steps:")
+    print("  export ANTHROPIC_API_KEY=sk-ant-...")
+    if not root_hint:
+        print("  # Edit root_dir in config.yaml to point at your workspace")
+    print("  cortex status    # verify session context")
+    print("  cortex health    # check subsystems")
 
 
 def cmd_status(args):
@@ -895,7 +956,7 @@ def cmd_statusline(args):
         # Read cache first unless explicitly refreshed
         if not args.refresh and cache_path.exists():
             try:
-                data = json.loads(cache_path.read_text())
+                data = json.loads(cache_path.read_text(encoding="utf-8"))
                 age = time.time() - float(data.get("ts", 0))
                 if age <= max_age:
                     if args.json:
@@ -2123,7 +2184,7 @@ def cmd_bandwidth(args):
 
         elif action == "record-prediction":
             # Record a new prediction
-            prediction_id = args.prediction_id or f"pred_{int(datetime.now().timestamp())}"
+            prediction_id = args.prediction_id or f"pred_{int(datetime.now().timestamp())}"  # noqa: DTZ005
             prediction = record_prediction(
                 prediction_id=prediction_id,
                 confidence=args.confidence,
@@ -2966,6 +3027,15 @@ Deep Mode (Phase 1):
         help="Number of alternative actions to show (default: 3)",
     )
     next_parser.set_defaults(func=cmd_next)
+
+    # Init command
+    init_parser = subparsers.add_parser(
+        "init", help="Initialize Cortex configuration and directories"
+    )
+    init_parser.add_argument(
+        "--root-dir", type=str, default="", help="Set workspace root directory in config"
+    )
+    init_parser.set_defaults(func=cmd_init)
 
     # Status command
     status_parser = subparsers.add_parser("status", help="Show current state")
@@ -4218,7 +4288,7 @@ Deep Mode (Phase 1):
 
         for f in batch_results_dir.glob("*.json"):
             try:
-                data = json.loads(f.read_text())
+                data = json.loads(f.read_text(encoding="utf-8"))
                 results = data.get("results", [])
                 if not results:
                     continue
@@ -4312,7 +4382,7 @@ Deep Mode (Phase 1):
                 # Try days ago format
                 try:
                     days = int(args.since.rstrip("d"))
-                    since = datetime.now() - timedelta(days=days)
+                    since = datetime.now() - timedelta(days=days)  # noqa: DTZ005
                 except ValueError:
                     print(f"Invalid date format: {args.since}")
                     sys.exit(1)
@@ -4465,7 +4535,7 @@ Deep Mode (Phase 1):
         from work_absorber import WorkAbsorber
 
         absorber = WorkAbsorber()
-        datetime.now() - timedelta(days=args.days)
+        datetime.now() - timedelta(days=args.days)  # noqa: DTZ005
 
         items = absorber.get_recent_work(days=args.days)
         drifts = absorber.storage.get_unresolved_drifts()

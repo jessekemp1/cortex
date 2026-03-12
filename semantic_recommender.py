@@ -35,7 +35,7 @@ class SemanticRecommender:
         if not plan_path.exists():
             return []
 
-        content = plan_path.read_text()
+        content = plan_path.read_text(encoding="utf-8")
         return self._parse_markdown_plan(content)
 
     def _parse_markdown_plan(self, content: str) -> List[Dict[str, Any]]:

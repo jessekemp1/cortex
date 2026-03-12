@@ -1,4 +1,3 @@
-import os
 """
 Reflection Synthesizer - Weekly progress summary from actual work artifacts.
 
@@ -7,6 +6,7 @@ No monitoring overhead - just synthesizes what already happened.
 """
 
 import json
+import os
 import re
 import subprocess
 from datetime import datetime, timedelta
@@ -59,7 +59,7 @@ class ReflectionSynthesizer:
 
     def _get_recent_commits(self, days: int) -> List[Dict[str, str]]:
         """Get commits from last N days across all branches."""
-        since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")  # noqa: DTZ005
 
         try:
             result = subprocess.run(
@@ -106,7 +106,7 @@ class ReflectionSynthesizer:
         if not batch_dir.exists():
             return []
 
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now() - timedelta(days=days)  # noqa: DTZ005
         results = []
 
         # Check for result files
@@ -155,7 +155,7 @@ class ReflectionSynthesizer:
             return {"total": 0, "in_progress": 0, "completed": 0}
 
         try:
-            content = goals_file.read_text()
+            content = goals_file.read_text(encoding="utf-8")
 
             # Count goals by status
             in_progress = len(re.findall(r"\[IN PROGRESS\]", content, re.IGNORECASE))

@@ -63,7 +63,7 @@ class SessionManager:
             cache_age = datetime.now(timezone.utc).timestamp() - self.cache_file.stat().st_mtime
             if cache_age < max_age_hours * 3600:
                 try:
-                    data = json.loads(self.cache_file.read_text())
+                    data = json.loads(self.cache_file.read_text(encoding="utf-8"))
                     return SessionContext(**data)
                 except Exception:
                     pass  # Fall through to regenerate
@@ -193,7 +193,7 @@ class SessionManager:
         plan_file = project_path / "PLAN.md"
         if plan_file.exists():
             try:
-                content = plan_file.read_text()
+                content = plan_file.read_text(encoding="utf-8")
                 lines = content.split("\n")
 
                 # Track which section we're in
