@@ -65,6 +65,7 @@ def normalize_claude_event(command: str, hook_input: Dict[str, Any]) -> Dict[str
             hook_input.get("cwd"),
         )
         event["reason"] = hook_input.get("reason", "unknown")
+        event["transcript_path"] = hook_input.get("transcript_path")
         return event
 
     event = _base_event("unknown", "claude", hook_input.get("session_id"), hook_input.get("cwd"))

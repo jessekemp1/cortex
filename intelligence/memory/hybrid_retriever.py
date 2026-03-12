@@ -13,6 +13,7 @@ import json
 import logging
 import pickle
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -25,6 +26,86 @@ logger = logging.getLogger(__name__)
 # Outcome data path
 _OUTCOMES_PATH = Path.home() / ".cortex" / "outcomes.jsonl"
 
+# Conversation digests path
+_DIGESTS_PATH = Path.home() / ".cortex" / "conversation_digests.jsonl"
+
+
+def _load_digest_patterns() -> List[Pattern]:
+    """
+    Load conversation digests and convert them to Pattern objects.
+
+    This allows conversation history to participate in the same BM25+embedding
+    search pipeline as git-derived patterns. Digest patterns use a "conversation:"
+    prefix in their ID to distinguish them from commit-based patterns.
+    """
+    if not _DIGESTS_PATH.exists():
+        return []
+
+    patterns = []
+    try:
+        for line in _DIGESTS_PATH.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+                session_id = d.get("session_id", "unknown")
+                project = d.get("project", "unknown")
+                topics = d.get("topics", [])
+                files_written = d.get("files_written", [])
+                slash_cmds = d.get("slash_commands", [])
+
+                # Build description from digest fields
+                desc_parts = []
+                if d.get("outcome"):
+                    desc_parts.append(f"outcome:{d['outcome']}")
+                if slash_cmds:
+                    desc_parts.append(f"commands: {' '.join(slash_cmds)}")
+                if d.get("correction_count", 0) > 0:
+                    desc_parts.append(
+                        f"{d['correction_count']} corrections in "
+                        f"{d.get('user_prompt_count', 0)} prompts"
+                    )
+                desc_parts.append(
+                    f"{d.get('tool_use_count', 0)} tool uses, {d.get('duration_minutes', 0):.0f}min"
+                )
+
+                # Build keywords from topics + file basenames
+                keywords = set(topics)
+                for f in files_written[:10]:
+                    # Extract filename without extension
+                    basename = f.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+                    if basename:
+                        keywords.add(basename)
+                keywords.update(slash_cmds)
+
+                # Parse date
+                started = d.get("started_at", "")
+                try:
+                    commit_date = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    commit_date = datetime.now()
+
+                patterns.append(
+                    Pattern(
+                        id=f"conversation:{session_id}",
+                        project=project,
+                        commit_hash=session_id[:8],
+                        commit_date=commit_date,
+                        title=f"Session: {' '.join(topics[:5])}",
+                        description=" | ".join(desc_parts),
+                        files_changed=files_written[:20],
+                        keywords=keywords,
+                        pattern_type="conversation",
+                    )
+                )
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    except Exception as e:
+        logger.warning(f"Failed to load digest patterns: {e}")
+
+    return patterns
+
 
 class HybridRetriever:
     """BM25 + Embedding hybrid retrieval with reciprocal rank fusion."""
@@ -34,6 +115,7 @@ class HybridRetriever:
         patterns: List[Pattern],
         embeddings_client: Optional[EmbeddingsClient] = None,
         cache_dir: Optional[Path] = None,
+        include_conversation_digests: bool = True,
     ):
         """
         Initialize hybrid retriever.
@@ -42,7 +124,16 @@ class HybridRetriever:
             patterns: List of patterns to index
             embeddings_client: Client for generating embeddings
             cache_dir: Directory for embedding cache (default: ~/.cortex/patterns)
+            include_conversation_digests: Whether to include conversation history
+                patterns from ~/.cortex/conversation_digests.jsonl (default: True)
         """
+        # Merge git patterns with conversation digest patterns
+        if include_conversation_digests:
+            digest_patterns = _load_digest_patterns()
+            if digest_patterns:
+                logger.info(f"Loaded {len(digest_patterns)} conversation digest patterns")
+                patterns = list(patterns) + digest_patterns
+
         self.patterns = patterns
         self.bm25_searcher = PatternSearcher(patterns)
 
@@ -394,8 +485,11 @@ class HybridRetriever:
 
     def get_stats(self) -> dict:
         """Get retriever statistics."""
+        conversation_count = sum(1 for p in self.patterns if p.id.startswith("conversation:"))
         return {
             "pattern_count": len(self.patterns),
+            "conversation_pattern_count": conversation_count,
+            "git_pattern_count": len(self.patterns) - conversation_count,
             "embeddings_available": self.embeddings_available,
             "embeddings_cached": self.pattern_embeddings is not None,
             "embedding_dimension": self.embedding_dimension,
