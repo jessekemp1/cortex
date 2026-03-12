@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-920%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-958%20passing-green.svg)](tests/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
@@ -322,16 +322,16 @@ pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
 pytest tests/ -v
 ```
 
-920+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, and the MCP server contract.
+958+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
 
 ---
 
 ## Paper
 
-**Cortex: Persistent Intelligence Architecture for LLM-Powered Agents**
-*(Technical paper — DOI pending Zenodo upload)*
+**Cortex: Persistent Intelligence Architecture for LLM-Powered Development Agents**
+[PDF](docs/cortex_paper.pdf) *(DOI pending Zenodo upload)*
 
-Covers the three-tier memory architecture, implicit feedback weighting, and measured outcomes from production use across a multi-project portfolio.
+9-page technical paper covering three-tier memory architecture, hybrid BM25/embedding retrieval, implicit feedback weighting, autonomous operations, AST-based meta-testing, and measured production outcomes (21.2% dedup, 0.94 PQS, 50% batch savings).
 
 ---
 

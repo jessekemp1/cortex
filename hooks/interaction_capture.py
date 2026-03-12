@@ -212,6 +212,7 @@ def capture_session_end(hook_input: dict) -> None:
     {
         "session_id": "abc123",
         "hook_event_name": "SessionEnd",
+        "transcript_path": "/path/to/session.jsonl",
         "reason": "exit"
     }
     """
@@ -232,6 +233,14 @@ def capture_session_end(hook_input: dict) -> None:
     event["session_id"] = session_id or event.get("session_id")
     event["cwd"] = hook_input.get("cwd", os.getcwd())
     queue_interaction(event)
+
+    # Ingest the full conversation transcript into digests
+    try:
+        transcript_path = hook_input.get("transcript_path")
+        if transcript_path:
+            trigger_conversation_ingestion(transcript_path)
+    except Exception as e:
+        logger.warning(f"Failed to trigger conversation ingestion: {e}")
 
     # Trigger async learning processing
     try:
@@ -413,6 +422,36 @@ def get_contextual_hint(hook_input: dict) -> str:
     """
     # DEAD: engines module archived — ClaudeSessionSource no longer available
     return ""
+
+
+def trigger_conversation_ingestion(transcript_path: str) -> None:
+    """
+    Trigger async conversation ingestion for the completed session.
+
+    Runs in a detached subprocess so the hook returns immediately.
+    """
+    cmd = (
+        f"from engines.conversation_ingestor import ingest_conversation; "
+        f"ingest_conversation({transcript_path!r})"
+    )
+    try:
+        env = os.environ.copy()
+        parent = str(CORTEX_DIR.parent)
+        env["PYTHONPATH"] = (
+            f"{CORTEX_DIR}{os.pathsep}{parent}{os.pathsep}{env.get('PYTHONPATH', '')}"
+        )
+        subprocess.Popen(
+            [sys.executable, "-c", cmd],
+            cwd=str(CORTEX_DIR),
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            text=True,
+        )
+        _write_hook_status(last_ingest="spawned", transcript=transcript_path)
+    except Exception as e:
+        _append_hook_error(f"trigger_conversation_ingestion error={e}")
 
 
 def trigger_learning_pipeline() -> None:
