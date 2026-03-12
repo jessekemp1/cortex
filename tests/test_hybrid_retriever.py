@@ -16,6 +16,12 @@ from intelligence.embeddings_client import EmbeddingsClient
 from intelligence.memory.hybrid_retriever import HybridRetriever
 from intelligence.memory.pattern_indexer import Pattern
 
+# Disable conversation digest loading in all tests in this module.
+# Tests here verify BM25/embedding mechanics, not digest integration.
+import intelligence.memory.hybrid_retriever as _hr_module
+
+_hr_module._DIGESTS_PATH = Path("/nonexistent/digests.jsonl")
+
 
 # Fixtures
 @pytest.fixture

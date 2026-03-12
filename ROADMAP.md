@@ -302,8 +302,10 @@ Beyond just discovering papers, Cortex needs to evolve its own capabilities:
 |------|----------|--------|------------|
 | OSS launch (subtree, DOI, HN) | P0 | 80% done | None |
 | Learning pipeline verified (outcomes flowing) | P0 | Just fixed | None |
+| **Conversation history ingestion** | P0 | ✅ SHIPPED | None |
 | External benchmark (AMA-Bench or LongMemEval) | P1 | Not started | OSS launch |
 | First 3 beta users with feedback | P1 | Not started | OSS launch |
+| **Batch API deep conversation analysis** | P2 | Not started | Conversation ingestion validated |
 
 **Success criteria:** 5+ GitHub stars from non-Jesse users. 1 external person runs `cortex status` successfully.
 
