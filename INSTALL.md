@@ -1,6 +1,6 @@
-# Cortex — Private Beta Install Guide
+# Cortex — Install Guide
 
-Thanks for testing Cortex! This guide gets you from zero to working in ~5 minutes.
+This guide gets you from zero to working in ~5 minutes.
 
 ## Prerequisites
 
@@ -108,11 +108,9 @@ The more you use it, the more context it builds. This is the compound intelligen
 
 ## Feedback
 
-This is a private beta. I want honest feedback on:
-
 1. **Install friction** — anything confusing or broken in setup?
 2. **First impressions** — does the value prop click within 5 minutes?
 3. **Missing features** — what would make this 10x more useful for your workflow?
 4. **Bugs** — anything that crashes, hangs, or returns garbage?
 
-File issues at https://github.com/jessekemp1/cortex/issues or message me directly.
+File issues at https://github.com/jessekemp1/cortex/issues.
