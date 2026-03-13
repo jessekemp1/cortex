@@ -113,6 +113,8 @@ Cortex currently learns from *user interactions* (implicit feedback, model outco
 | arxiv cs.AI, cs.CL, cs.SE | RSS + semantic filter | Daily | High (but noisy) |
 | GitHub Trending (agent, memory, MCP) | API scrape | Weekly | Medium |
 | Anthropic changelog/blog | Web fetch | Weekly | Very high |
+| **Anthropic developer docs (memory/native API signals)** | Web fetch | Weekly | **Very high (existential)** |
+| **Mem0 GitHub releases + changelog** | GitHub API | Weekly | **Very high (existential)** |
 | Papers With Code (agent-memory) | API | Weekly | High |
 | HN front page (filtered) | API | Daily | Low (but early signal) |
 | MCP server registry | API | Weekly | High for integrations |
@@ -464,9 +466,13 @@ class CortexMemoryBackend:
 | Trajectory-Informed Memory | 2603.10600 | +14.3pp improvement. Directly maps to Cortex's interaction capture | Phase 2 (April) |
 | Adaptive Memory Admission | 2603.04549 | 5-factor admission scoring. Cortex stores everything — needs curation | Phase 2 (April) |
 | AutoSkill | 2603.01145 | Skills from traces = anti-patterns generalized | Phase 2 (April) |
+| **MACLA** | 2512.18950 | Hierarchical procedural memory + Bayesian selection, 90.3% ALFWorld, 56s build. Frozen LLM + external memory = Cortex's exact architecture. Near-real-time trajectory extraction viable | Phase 2 (April) |
+| **A-Mem** | 2502.12110 | 85-93% token reduction (~1,200 tok/op). Doubles multi-hop reasoning. Benchmark target for Cortex memory efficiency | Phase 2 (April) |
 | AMA-Bench | 2602.22769 | First real benchmark for agent memory | Phase 4 (June) |
 | RetroAgent | 2603.08561 | Dual intrinsic feedback without external reward | Phase 3 (May) |
 | Memory Survey (5 mechanisms) | 2603.07670 | Taxonomy to validate our architecture decisions | Read immediately |
+| **MAGMA** | — | Multi-graph agent memory. Cross-domain knowledge linking via graph structures. Validates Cortex's graph anti-pattern direction | Phase 2 (April) |
+| **EverMemOS** | — | Memory operating system for structured long-horizon reasoning. Architecturally close to Cortex — assess for convergent patterns | Phase 3 (May) |
 | TA-Mem | 2603.09297 | Agent autonomously explores memory via tools | Phase 5 (Jul+) |
 
 ---
@@ -479,6 +485,7 @@ class CortexMemoryBackend:
 | **Mem0 adds task orchestration** | 20% | HIGH — direct competitor | Ship faster. 49K stars + orchestration = game over for us |
 | **Context windows reach 10M tokens** | 40% by Dec 2026 | MEDIUM — reduces need for memory | Memory still needed for curation, not just storage. 10M tokens of noise < 1K tokens of curated context |
 | **Claude Code gets built-in learning** | 30% by Sep 2026 | VERY HIGH — our exact use case | Pivot to cross-tool layer (not Claude-specific) |
+| **Cursor ships cross-session memory** | 15% by Sep 2026 | MEDIUM — commoditizes orchestration+memory combo | Monitor Cursor's agent mode evolution. If they add persistent memory across worktree sessions, our "orchestration+memory in one system" moat narrows. Hedge: ensure Cortex's anti-pattern + outcome learning layers remain unique |
 
 **Hedging strategy:** Every Cortex feature should work with ANY LLM agent, not just Claude Code. MCP is the right abstraction layer. If any provider ships native memory, Cortex becomes the intelligence layer on top.
 
