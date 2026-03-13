@@ -12,11 +12,14 @@ Exposes Cortex intelligence for:
 Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
+import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
-from datetime import datetime
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -117,6 +120,21 @@ class StatusResponse(BaseModel):
     version: str
     available_projects: List[str]
     anomaly_count: int
+
+
+class DecisionRecordRequest(BaseModel):
+    """Request to record a user decision from the Co-Navigator UI."""
+
+    prediction_id: str = Field(..., description="ID of the prediction this decision responds to")
+    scenario_chosen: str = Field(..., description="Scenario label (e.g., 'A', 'B', 'C')")
+    scenario_name: str = Field(..., description="Scenario description")
+    domain: str = Field(
+        ...,
+        description="Prediction domain: dev, architecture, product, qa, release, research",
+    )
+    override_reason: Optional[str] = Field(
+        default=None, description="Reason if user overrode all scenarios"
+    )
 
 
 # ============================================================================
@@ -1040,7 +1058,7 @@ def _read_briefing_executions(limit: int = 20) -> List[Dict[str, Any]]:
 async def record_briefing_execution(payload: BriefingExecutionRequest) -> Dict[str, Any]:
     """Record a briefing recommendation execution event."""
     try:
-        recorded_at = datetime.utcnow().isoformat() + "Z"
+        recorded_at = datetime.now(tz=timezone.utc).isoformat()
         record = {
             "execution_id": payload.execution_id,
             "recommendation_id": payload.recommendation_id,
@@ -2035,7 +2053,7 @@ async def conductor_compose_prompt(req: PromptComposeRequest) -> Dict[str, Any]:
         history_dir.mkdir(parents=True, exist_ok=True)
         history_file = history_dir / "prompt_history.jsonl"
         entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             "intent": req.intent,
             "project_id": req.project_id,
             "intent_level": req.intent_level,
@@ -2129,7 +2147,7 @@ async def meta_compounding_project(
         risk = assessor.assess_project(project)
         return {
             "meta_layer": "compounding_risk",
-            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            "assessed_at": datetime.now(tz=timezone.utc).isoformat(),
             **risk.to_dict(),
         }
     except Exception as e:
@@ -2152,7 +2170,7 @@ async def meta_compounding_portfolio() -> Dict[str, Any]:
         risks_sorted = sorted(risks, key=lambda r: rate_order.get(r.rate, 0), reverse=True)
         return {
             "meta_layer": "compounding_risk_portfolio",
-            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            "assessed_at": datetime.now(tz=timezone.utc).isoformat(),
             "highest_risk": risks_sorted[0].target if risks_sorted else None,
             "projects": [r.to_dict() for r in risks_sorted],
             "boring_risks": [
@@ -2179,7 +2197,7 @@ async def meta_compounding_file(
         risk = assessor.assess_file(path)
         return {
             "meta_layer": "compounding_risk_file",
-            "assessed_at": datetime.utcnow().isoformat() + "Z",
+            "assessed_at": datetime.now(tz=timezone.utc).isoformat(),
             **risk.to_dict(),
         }
     except Exception as e:
@@ -2219,6 +2237,623 @@ async def conductor_prompt_history(
     entries = entries[:limit]
 
     return {"entries": entries, "total": total}
+
+
+# ============================================================================
+# Co-Navigator Endpoints
+# ============================================================================
+
+_docs_tree_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
+_predictions_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
+_heatmap_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
+
+DOCS_INDEX = Path.home() / "Dev" / "DOCS_INDEX.md"
+OUTCOMES_FILE = Path.home() / ".cortex" / "outcomes.jsonl"
+DECISIONS_FILE = Path.home() / ".cortex" / "decisions.jsonl"
+
+
+@app.get("/docs/tree")
+async def get_docs_tree() -> Dict[str, Any]:
+    """Parse ~/Dev/DOCS_INDEX.md into a JSON tree of project documentation."""
+    import re
+
+    now = time.time()
+    if _docs_tree_cache["data"] and (now - _docs_tree_cache["timestamp"]) < 300:
+        result = _docs_tree_cache["data"].copy()
+        result["cached"] = True
+        return result
+
+    try:
+        if not DOCS_INDEX.exists():
+            raise HTTPException(status_code=404, detail="DOCS_INDEX.md not found")
+
+        content = DOCS_INDEX.read_text(encoding="utf-8")
+        projects: List[Dict[str, Any]] = []
+        current_project: Optional[Dict[str, Any]] = None
+        total_docs = 0
+
+        for line in content.split("\n"):
+            # Match project headers (### or ##)
+            header_match = re.match(r"^#{2,3}\s+(.+)$", line.strip())
+            if header_match:
+                if current_project:
+                    projects.append(current_project)
+                current_project = {"name": header_match.group(1).strip(), "docs": []}
+                continue
+
+            # Match table rows: | Doc | Location | Purpose |
+            if current_project and line.strip().startswith("|") and "---" not in line:
+                cols = [c.strip() for c in line.strip().strip("|").split("|")]
+                if len(cols) >= 2 and cols[0] and not cols[0].lower().startswith("doc"):
+                    doc_entry: Dict[str, Any] = {
+                        "title": cols[0],
+                        "path": cols[1] if len(cols) > 1 else "",
+                    }
+                    if len(cols) > 2:
+                        doc_entry["location"] = cols[2]
+                    current_project["docs"].append(doc_entry)
+                    total_docs += 1
+
+        if current_project:
+            projects.append(current_project)
+
+        result = {
+            "projects": projects,
+            "total_docs": total_docs,
+            "cached": False,
+        }
+        _docs_tree_cache["data"] = result
+        _docs_tree_cache["timestamp"] = now
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to parse docs tree: {e}")
+
+
+@app.get("/docs/content")
+async def get_docs_content(
+    path: str = Query(..., description="File path relative to ~/Dev/"),
+) -> Dict[str, Any]:
+    """Read a markdown file and return content + metadata."""
+    try:
+        base = Path.home() / "Dev"
+        resolved = (base / path).resolve()
+
+        # Security: ensure resolved path is under ~/Dev/
+        if not str(resolved).startswith(str(base.resolve())):
+            raise HTTPException(status_code=403, detail="Path escapes workspace boundary")
+
+        if not resolved.exists():
+            raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+        if not resolved.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
+
+        stat = resolved.stat()
+        size = stat.st_size
+
+        # Limit content to 100KB
+        if size > 100 * 1024:
+            content = resolved.read_text(encoding="utf-8")[: 100 * 1024]
+        else:
+            content = resolved.read_text(encoding="utf-8")
+
+        return {
+            "path": str(resolved.relative_to(base)),
+            "content": content,
+            "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "size": size,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+
+def _check_health(name: str, url: str) -> Dict[str, Any]:
+    """Check HTTP health of a service."""
+    try:
+        req = urllib.request.Request(url, method="GET")
+        start = time.time()
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            return {
+                "name": name,
+                "url": url,
+                "status": resp.status,
+                "latency_ms": round((time.time() - start) * 1000),
+                "healthy": True,
+            }
+    except Exception:
+        return {
+            "name": name,
+            "url": url,
+            "status": 0,
+            "latency_ms": 0,
+            "healthy": False,
+        }
+
+
+@app.get("/services/status")
+async def get_services_status() -> Dict[str, Any]:
+    """Aggregate service status from launchctl, crontab, and HTTP health checks."""
+    try:
+        # LaunchD services
+        launchd_entries: List[Dict[str, Any]] = []
+        try:
+            result = subprocess.run(
+                ["launchctl", "list"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n")[1:]:  # skip header
+                    parts = line.split("\t")
+                    if len(parts) >= 3:
+                        label = parts[2]
+                        if any(
+                            label.startswith(prefix)
+                            for prefix in (
+                                "com.cortex.",
+                                "com.vortex.",
+                                "com.alphaarena.",
+                            )
+                        ):
+                            launchd_entries.append(
+                                {
+                                    "label": label,
+                                    "pid": parts[0] if parts[0] != "-" else None,
+                                    "exit_code": parts[1] if parts[1] != "-" else None,
+                                    "running": parts[0] != "-",
+                                }
+                            )
+        except Exception:
+            pass
+
+        # Crontab entries
+        cron_entries: List[Dict[str, Any]] = []
+        try:
+            result = subprocess.run(
+                ["crontab", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        parts = line.split(None, 5)
+                        if len(parts) >= 6:
+                            schedule = " ".join(parts[:5])
+                            command = parts[5]
+                            # Derive project from command path
+                            project = "unknown"
+                            if "/Dev/" in command:
+                                seg = command.split("/Dev/")[1].split("/")[0]
+                                project = seg
+                            cron_entries.append(
+                                {
+                                    "schedule": schedule,
+                                    "command": command,
+                                    "project": project,
+                                }
+                            )
+                        else:
+                            cron_entries.append(
+                                {
+                                    "schedule": line,
+                                    "command": line,
+                                    "project": "unknown",
+                                }
+                            )
+        except Exception:
+            pass
+
+        # HTTP health checks
+        health_checks = [
+            _check_health("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
+            # Bridge marks itself as healthy (can't self-check without deadlock)
+            {
+                "name": "cortex-bridge",
+                "url": "http://127.0.0.1:8765/health",
+                "status": 200,
+                "latency_ms": 0,
+                "healthy": True,
+            },
+            _check_health("cortex-site", "http://127.0.0.1:3001/"),
+        ]
+
+        return {
+            "launchd": launchd_entries,
+            "cron": cron_entries,
+            "health": health_checks,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get service status: {e}")
+
+
+@app.get("/predictions/current")
+async def get_predictions_current() -> Dict[str, Any]:
+    """Aggregate predictions from existing data sources."""
+    now = time.time()
+    if _predictions_cache["data"] and (now - _predictions_cache["timestamp"]) < 60:
+        return _predictions_cache["data"]
+
+    try:
+        predictions: List[Dict[str, Any]] = []
+
+        # --- Read outcomes for pattern analysis ---
+        recent_outcomes: List[Dict[str, Any]] = []
+        if OUTCOMES_FILE.exists():
+            try:
+                lines = OUTCOMES_FILE.read_text(encoding="utf-8").strip().split("\n")
+                for line in lines[-100:]:
+                    try:
+                        recent_outcomes.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+            except Exception:
+                pass
+
+        # --- Read GOALS.md for active priorities ---
+        goals_content = ""
+        goals_file = WORKSPACE / "GOALS.md"
+        if goals_file.exists():
+            try:
+                goals_content = goals_file.read_text(encoding="utf-8")[:5000]
+            except Exception:
+                pass
+
+        # --- Git status for uncommitted files ---
+        uncommitted_files: List[str] = []
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                cwd=str(WORKSPACE),
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    if line.strip():
+                        uncommitted_files.append(line.strip())
+        except Exception:
+            pass
+
+        # --- Recent git activity for hot files ---
+        hot_files: Dict[str, int] = {}
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "log",
+                    "--stat",
+                    "--since=7 days ago",
+                    "--format=|COMMIT|%H",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                cwd=str(WORKSPACE),
+            )
+            if result.returncode == 0:
+                for line in result.stdout.strip().split("\n"):
+                    line = line.strip()
+                    if (
+                        "|" in line
+                        and ("+" in line or "-" in line)
+                        and not line.startswith("|COMMIT|")
+                    ):
+                        file_part = line.split("|")[0].strip()
+                        if file_part:
+                            hot_files[file_part] = hot_files.get(file_part, 0) + 1
+        except Exception:
+            pass
+
+        # --- Check batch queue ---
+        batch_dir = Path.home() / ".cortex" / "batch"
+        batch_count = 0
+        if batch_dir.exists():
+            batch_count = len(list(batch_dir.glob("*.json")))
+
+        # --- Generate predictions ---
+
+        # 1. QA prediction: uncommitted files + outcome patterns
+        if uncommitted_files:
+            failed_files = set()
+            for outcome in recent_outcomes:
+                if outcome.get("success") is False:
+                    for f in outcome.get("files", []):
+                        failed_files.add(f)
+
+            at_risk = [f for f in uncommitted_files if any(ff in f for ff in failed_files)]
+            confidence = 0.72 if at_risk else 0.55
+            pred_text = f"{len(uncommitted_files)} uncommitted files detected" + (
+                f", {len(at_risk)} overlap with past failures" if at_risk else ""
+            )
+            pred_id = f"pred_{hashlib.md5(f'qa_{pred_text}'.encode()).hexdigest()[:12]}"
+            predictions.append(
+                {
+                    "id": pred_id,
+                    "domain": "qa",
+                    "prediction": pred_text,
+                    "confidence": confidence,
+                    "evidence": [
+                        f"{len(uncommitted_files)} uncommitted changes",
+                        f"{len(recent_outcomes)} recent outcomes analyzed",
+                    ]
+                    + ([f"{len(at_risk)} files overlap with prior failures"] if at_risk else []),
+                    "scenarios": [
+                        {
+                            "name": "A: Safe",
+                            "description": "Run full test suite before committing",
+                            "risk": "low",
+                            "effort": "20m",
+                        },
+                        {
+                            "name": "B: Fast",
+                            "description": "Commit with targeted tests only",
+                            "risk": "medium",
+                            "effort": "5m",
+                        },
+                        {
+                            "name": "C: Thorough",
+                            "description": "Run tests + review each changed file manually",
+                            "risk": "low",
+                            "effort": "45m",
+                        },
+                    ],
+                }
+            )
+
+        # 2. Release prediction: batch queue + EMOS status
+        pred_text = f"Batch queue: {batch_count} pending jobs"
+        pred_id = f"pred_{hashlib.md5(f'release_{batch_count}'.encode()).hexdigest()[:12]}"
+        predictions.append(
+            {
+                "id": pred_id,
+                "domain": "release",
+                "prediction": pred_text,
+                "confidence": 0.65 if batch_count == 0 else 0.50,
+                "evidence": [
+                    f"{batch_count} batch jobs pending",
+                    "Check EMOS calibration status before release",
+                ],
+                "scenarios": [
+                    {
+                        "name": "A: Safe",
+                        "description": "Wait for batch queue to drain, then release",
+                        "risk": "low",
+                        "effort": "30m",
+                    },
+                    {
+                        "name": "B: Fast",
+                        "description": "Release now, batch jobs run post-deploy",
+                        "risk": "medium",
+                        "effort": "5m",
+                    },
+                    {
+                        "name": "C: Thorough",
+                        "description": "Drain queue, run validation suite, then release",
+                        "risk": "low",
+                        "effort": "60m",
+                    },
+                ],
+            }
+        )
+
+        # 3. Architecture prediction: GOALS.md active items
+        if goals_content:
+            active_lines = [
+                l.strip()
+                for l in goals_content.split("\n")
+                if l.strip().startswith("- [") and "[ ]" in l
+            ]
+            pred_text = f"{len(active_lines)} active goals in GOALS.md"
+            pred_id = f"pred_{hashlib.md5(f'arch_{len(active_lines)}'.encode()).hexdigest()[:12]}"
+            predictions.append(
+                {
+                    "id": pred_id,
+                    "domain": "architecture",
+                    "prediction": pred_text,
+                    "confidence": 0.60,
+                    "evidence": [
+                        f"{len(active_lines)} unchecked goals",
+                        "Cross-reference with project health metrics",
+                    ],
+                    "scenarios": [
+                        {
+                            "name": "A: Safe",
+                            "description": "Prioritize top 3 goals, defer the rest",
+                            "risk": "low",
+                            "effort": "15m",
+                        },
+                        {
+                            "name": "B: Fast",
+                            "description": "Pick highest-impact goal and execute",
+                            "risk": "medium",
+                            "effort": "0m",
+                        },
+                        {
+                            "name": "C: Thorough",
+                            "description": "Review all goals against current capacity",
+                            "risk": "low",
+                            "effort": "45m",
+                        },
+                    ],
+                }
+            )
+
+        # 4. Dev prediction: hot files from git activity
+        if hot_files:
+            sorted_hot = sorted(hot_files.items(), key=lambda x: x[1], reverse=True)[:5]
+            hottest = sorted_hot[0] if sorted_hot else ("unknown", 0)
+            pred_text = f"Hot file: {hottest[0]} ({hottest[1]} changes in 7d)"
+            pred_id = f"pred_{hashlib.md5(f'dev_{hottest[0]}'.encode()).hexdigest()[:12]}"
+            predictions.append(
+                {
+                    "id": pred_id,
+                    "domain": "dev",
+                    "prediction": pred_text,
+                    "confidence": 0.70,
+                    "evidence": [
+                        f"{len(hot_files)} files changed in last 7 days",
+                        f"Top: {', '.join(f[0] for f in sorted_hot[:3])}",
+                    ],
+                    "scenarios": [
+                        {
+                            "name": "A: Safe",
+                            "description": "Add tests for hot files before next change",
+                            "risk": "low",
+                            "effort": "30m",
+                        },
+                        {
+                            "name": "B: Fast",
+                            "description": "Continue development, test later",
+                            "risk": "medium",
+                            "effort": "0m",
+                        },
+                        {
+                            "name": "C: Thorough",
+                            "description": "Refactor hot files to reduce churn",
+                            "risk": "low",
+                            "effort": "60m",
+                        },
+                    ],
+                }
+            )
+
+        result = {
+            "predictions": predictions,
+            "generated_at": datetime.now().isoformat(),
+        }
+        _predictions_cache["data"] = result
+        _predictions_cache["timestamp"] = now
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate predictions: {e}")
+
+
+@app.post("/decisions/record")
+async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
+    """Record a user decision from the Co-Navigator UI."""
+    try:
+        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        decision_id = f"dec_{int(time.time())}_{req.prediction_id[:8]}"
+        entry = {
+            "decision_id": decision_id,
+            "prediction_id": req.prediction_id,
+            "scenario_chosen": req.scenario_chosen,
+            "scenario_name": req.scenario_name,
+            "domain": req.domain,
+            "override_reason": req.override_reason,
+            "timestamp": datetime.now().isoformat(),
+        }
+        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return {
+            "recorded": True,
+            "decision_id": decision_id,
+            "timestamp": entry["timestamp"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
+
+
+@app.get("/activity/heatmap")
+async def get_activity_heatmap() -> Dict[str, Any]:
+    """Codebase activity visualization data - file change frequency over 30 days."""
+    now = time.time()
+    if _heatmap_cache["data"] and (now - _heatmap_cache["timestamp"]) < 300:
+        return _heatmap_cache["data"]
+
+    try:
+        file_changes: Dict[str, Dict[str, Any]] = {}
+
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "--name-only",
+                "--since=30 days ago",
+                "--format=|COMMIT|%ai",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(WORKSPACE),
+        )
+
+        if result.returncode == 0:
+            current_date = ""
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("|COMMIT|"):
+                    current_date = line.split("|")[2].strip() if len(line.split("|")) >= 3 else ""
+                    continue
+
+                # Each non-empty, non-COMMIT line is a file path
+                file_part = line
+                if file_part:
+                    if file_part not in file_changes:
+                        project = file_part.split("/")[0] if "/" in file_part else "root"
+                        file_changes[file_part] = {
+                            "path": file_part,
+                            "changes_30d": 0,
+                            "last_changed": current_date,
+                            "project": project,
+                        }
+                    file_changes[file_part]["changes_30d"] += 1
+                    if current_date and (
+                        not file_changes[file_part]["last_changed"]
+                        or current_date > file_changes[file_part]["last_changed"]
+                    ):
+                        file_changes[file_part]["last_changed"] = current_date
+
+        # Sort by change count, take top 50
+        sorted_files = sorted(file_changes.values(), key=lambda x: x["changes_30d"], reverse=True)[
+            :50
+        ]
+
+        # Hotspots = files with > 5 changes
+        hotspots = [f for f in sorted_files if f["changes_30d"] > 5]
+
+        # Cross-reference with batch targets
+        batch_dir = Path.home() / ".cortex" / "batch"
+        batch_targets: List[str] = []
+        if batch_dir.exists():
+            for bf in batch_dir.glob("*.json"):
+                try:
+                    data = json.loads(bf.read_text(encoding="utf-8"))
+                    if "target" in data:
+                        batch_targets.append(data["target"])
+                except Exception:
+                    continue
+
+        result_data = {
+            "files": sorted_files,
+            "hotspots": hotspots,
+            "period_days": 30,
+            "batch_targets": batch_targets,
+        }
+        _heatmap_cache["data"] = result_data
+        _heatmap_cache["timestamp"] = now
+        return result_data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate activity heatmap: {e}")
 
 
 # ============================================================================

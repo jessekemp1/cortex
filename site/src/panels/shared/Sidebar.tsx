@@ -10,17 +10,17 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/conductor', label: 'CONDUCTOR', icon: '▷' },
-  { path: '/', label: 'OVERVIEW', icon: '◈' },
-  { path: '/anomalies', label: 'ANOMALIES', icon: '⚠' },
-  { path: '/intelligence', label: 'INTEL', icon: '◉' },
-  { path: '/recommendations', label: 'ACTIONS', icon: '▶' },
-  { path: '/batch', label: 'BATCH OPS', icon: '⬡' },
-  { path: '/metrics', label: 'METRICS', icon: '▦' },
-  { path: '/vortex', label: 'VORTEX', icon: '◎' },
-  { path: '/sessions', label: 'SESSIONS', icon: '⊚' },
-  { path: '/taskboard', label: 'TASKS', icon: '⬢' },
-  { path: '/infrastructure', label: 'INFRA', icon: '⬡' },
+  { path: '/legacy/conductor', label: 'CONDUCTOR', icon: '▷' },
+  { path: '/legacy', label: 'OVERVIEW', icon: '◈' },
+  { path: '/legacy/anomalies', label: 'ANOMALIES', icon: '⚠' },
+  { path: '/legacy/intelligence', label: 'INTEL', icon: '◉' },
+  { path: '/legacy/recommendations', label: 'ACTIONS', icon: '▶' },
+  { path: '/legacy/batch', label: 'BATCH OPS', icon: '⬡' },
+  { path: '/legacy/metrics', label: 'METRICS', icon: '▦' },
+  { path: '/legacy/vortex', label: 'VORTEX', icon: '◎' },
+  { path: '/legacy/sessions', label: 'SESSIONS', icon: '⊚' },
+  { path: '/legacy/taskboard', label: 'TASKS', icon: '⬢' },
+  { path: '/legacy/infrastructure', label: 'INFRA', icon: '⬡' },
 ]
 
 export function Sidebar() {
@@ -54,9 +54,23 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-2 overflow-y-auto">
+        {/* Co-Navigator link */}
+        <NavLink
+          to="/"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 mx-1 mb-2 rounded text-sm transition-colors',
+            'bg-cortex-cyan-muted/50 text-cortex-cyan hover:bg-cortex-cyan-muted border border-cortex-cyan/20'
+          )}
+        >
+          <span className="text-base w-5 text-center">&#9671;</span>
+          {!sidebarCollapsed && (
+            <span className="font-data text-xs tracking-wider truncate">CO-NAV</span>
+          )}
+        </NavLink>
+
         {navItems.map((item) => {
-          const isActive = item.path === '/'
-            ? location.pathname === '/'
+          const isActive = item.path === '/legacy'
+            ? location.pathname === '/legacy'
             : location.pathname.startsWith(item.path)
 
           return (
