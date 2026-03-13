@@ -24,64 +24,20 @@ from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
 from .config import SupervisorConfig
 from .health import HealthMonitor
 from .models import TickResult, WorkItem
+from .quality_evaluator import QualityEvaluator
 
 logger = logging.getLogger(__name__)
 
+# Module-level evaluator instance (lazy init via _get_quality_evaluator)
+_quality_evaluator: Optional[QualityEvaluator] = None
 
-def _estimate_quality(result: Any) -> float:
-    """Heuristic quality score for a dispatch result (0.0-1.0).
 
-    Replaces the previous hardcoded 1.0/0.0 binary with signals from
-    the actual output to give the router real learning signal:
-    - Failed dispatch → 0.0
-    - Very short output (<50 chars) → 0.2 (likely "I need more context")
-    - Contains refusal signals → 0.3
-    - Contains structured output (code blocks, JSON, tables) → 0.9
-    - Medium-length substantive output → 0.7
-    """
-    if not result.success:
-        return 0.0
-
-    output = result.output.strip()
-    length = len(output)
-
-    lower = output.lower()
-
-    # Very short AND no structured content = low quality
-    if length < 50 and "```" not in output:
-        return 0.2
-
-    # Refusal / inability signals
-    refusal_phrases = [
-        "cannot complete",
-        "need more context",
-        "need additional information",
-        "unable to",
-        "please provide",
-        "i need clarification",
-        "insufficient input",
-    ]
-    if any(phrase in lower for phrase in refusal_phrases):
-        return 0.3
-
-    # Structured output signals (code, JSON, tables, headings)
-    structured_signals = 0
-    if "```" in output:
-        structured_signals += 1
-    if output.count("#") >= 2:
-        structured_signals += 1
-    if any(c in output for c in ["{", "[", "|---"]):
-        structured_signals += 1
-    if length > 500:
-        structured_signals += 1
-
-    if structured_signals >= 2:
-        return 0.9
-    if structured_signals == 1:
-        return 0.7
-
-    # Default: moderate quality
-    return 0.6
+def _get_quality_evaluator() -> QualityEvaluator:
+    """Lazy-init singleton QualityEvaluator."""
+    global _quality_evaluator
+    if _quality_evaluator is None:
+        _quality_evaluator = QualityEvaluator(use_ai_judge=False)
+    return _quality_evaluator
 
 
 class CortexSupervisor:
@@ -154,6 +110,9 @@ class CortexSupervisor:
 
         # Approval gate (lazy-initialized)
         self._approval_gate = None
+
+        # Orchestration metrics (Phase 5)
+        self._metrics = self._init_metrics()
 
         # Restore persisted state (dispatched IDs, batch IDs, tick count)
         self._load_state()
@@ -354,19 +313,50 @@ class CortexSupervisor:
         return self._intake
 
     def _get_router(self):
-        """Lazy-initialize ModelRouter."""
+        """Lazy-initialize ModelRouter (or AdvancedModelRouter when multi-provider enabled)."""
         if self._router is None:
-            from .router import ModelRouter
+            if self.config.enable_multi_provider:
+                try:
+                    from .providers import ProviderRegistry
+                    from .router import AdvancedModelRouter
 
-            self._router = ModelRouter()
+                    registry = ProviderRegistry(config_path=self.config.providers_config_path)
+                    self._router = AdvancedModelRouter(registry=registry)
+                    logger.info("Initialized AdvancedModelRouter with multi-provider support")
+                except Exception as exc:
+                    logger.warning("AdvancedModelRouter init failed (%s), falling back", exc)
+                    from .router import ModelRouter
+
+                    self._router = ModelRouter()
+            else:
+                from .router import ModelRouter
+
+                self._router = ModelRouter()
         return self._router
 
     def _get_dispatcher(self):
-        """Lazy-initialize AgentDispatcher, respecting config.dry_run."""
+        """Lazy-initialize AgentDispatcher (or MultiProviderDispatcher when enabled)."""
         if self._dispatcher is None:
             from .dispatch import AgentDispatcher
 
-            self._dispatcher = AgentDispatcher(dry_run=self.config.dry_run)
+            base_dispatcher = AgentDispatcher(dry_run=self.config.dry_run)
+
+            if self.config.enable_multi_provider:
+                try:
+                    from .multi_dispatch import MultiProviderDispatcher
+                    from .providers import ProviderRegistry
+
+                    registry = ProviderRegistry(config_path=self.config.providers_config_path)
+                    self._dispatcher = MultiProviderDispatcher(
+                        registry=registry,
+                        anthropic_dispatcher=base_dispatcher,
+                    )
+                    logger.info("Initialized MultiProviderDispatcher")
+                except Exception as exc:
+                    logger.warning("MultiProviderDispatcher init failed (%s), falling back", exc)
+                    self._dispatcher = base_dispatcher
+            else:
+                self._dispatcher = base_dispatcher
         return self._dispatcher
 
     def _get_collector(self):
@@ -376,6 +366,27 @@ class CortexSupervisor:
 
             self._collector = ResultCollector()
         return self._collector
+
+    def _get_team_orchestrator(self):
+        """Get TeamOrchestrator if enable_teams is on, else None."""
+        if not self.config.enable_teams:
+            return None
+        try:
+            from .teams import TeamOrchestrator
+
+            return TeamOrchestrator(enabled=True)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _init_metrics():
+        """Initialize OrchestrationMetrics if enable_routing_analytics is on."""
+        try:
+            from .metrics import OrchestrationMetrics
+
+            return OrchestrationMetrics()
+        except Exception:
+            return None
 
     def _discover_work(self) -> List[WorkItem]:
         """Discover actionable work from all sources."""
@@ -531,34 +542,87 @@ class CortexSupervisor:
                     errors.append(f"batch_submit: {e}")
         else:
             # Single-dispatch path (1 item or batching disabled)
+            team_orchestrator = self._get_team_orchestrator()
+
             for work_item in ai_items:
                 try:
-                    model_selection = router.select_model(work_item)
+                    # Use AdvancedModelRouter.route_advanced() when available
+                    if hasattr(router, "route_advanced"):
+                        model_selection = router.route_advanced(work_item)
+                    else:
+                        model_selection = router.select_model(work_item)
                     logger.info(
                         f"Routed {work_item.id[:8]} → {model_selection.model_tier} "
                         f"({model_selection.reasoning[:60]})"
                     )
 
-                    dispatch_selection = DispatchModelSelection(
-                        model_tier=model_selection.model_tier,
-                        model_id=model_selection.model_id,
-                        reasoning=model_selection.reasoning,
-                        complexity_score=model_selection.complexity_score,
-                        confidence=model_selection.confidence,
-                    )
-                    result = dispatcher.dispatch(work_item, dispatch_selection)
+                    # Check if team decomposition would benefit this task
+                    team_name = None
+                    if team_orchestrator is not None:
+                        team_name = team_orchestrator.should_use_team(
+                            work_item,
+                            complexity_score=model_selection.complexity_score,
+                        )
+
+                    if team_name:
+                        # Team execution path
+                        import asyncio
+
+                        logger.info(f"Team dispatch: {work_item.id[:8]} → {team_name}")
+                        team_result = asyncio.run(
+                            team_orchestrator.execute_with_team(work_item, team_name)
+                        )
+                        # Convert team result to dispatch-compatible format
+                        from .dispatch import DispatchResult as DR
+
+                        result = DR(
+                            work_item_id=work_item.id,
+                            success=team_result.success,
+                            output=team_result.synthesized_output,
+                            model_used=model_selection.model_id,
+                            tokens_used=team_result.total_tokens,
+                            duration_seconds=0.0,
+                            task_type=work_item.task_type,
+                            provider=getattr(model_selection, "provider", "anthropic"),
+                            cost_usd=team_result.total_cost_usd,
+                        )
+                    else:
+                        # Standard single dispatch
+                        dispatch_selection = DispatchModelSelection(
+                            model_tier=model_selection.model_tier,
+                            model_id=model_selection.model_id,
+                            reasoning=model_selection.reasoning,
+                            complexity_score=model_selection.complexity_score,
+                            confidence=model_selection.confidence,
+                        )
+                        result = dispatcher.dispatch(work_item, dispatch_selection)
 
                     collector.collect(result)
                     collector.record_outcome(result)
 
-                    quality = _estimate_quality(result)
+                    evaluation = _get_quality_evaluator().evaluate_heuristic(
+                        work_item,
+                        result,
+                    )
                     router.record_outcome(
                         work_item_id=work_item.id,
                         model_tier=model_selection.model_tier,
                         success=result.success,
-                        quality_score=quality,
+                        quality_score=evaluation.overall_score,
                         task_type=work_item.task_type,
                     )
+
+                    # Record metrics if available
+                    if self._metrics is not None:
+                        self._metrics.record_dispatch(
+                            provider=getattr(result, "provider", "anthropic"),
+                            model=model_selection.model_id,
+                            tier=model_selection.model_tier,
+                            cost=getattr(result, "cost_usd", 0.0),
+                            tokens=result.tokens_used,
+                            latency=result.duration_seconds,
+                            quality=evaluation.overall_score,
+                        )
 
                     dispatched += 1
                     self._mark_dispatched(work_item)

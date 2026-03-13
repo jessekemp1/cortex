@@ -454,11 +454,11 @@ class TestSupervisorOrchestrate:
         assert result.work_discovered == 0
 
 
-# ── Quality Estimator Tests ──
+# ── Quality Evaluator Tests ──
 
 
-class TestEstimateQuality:
-    """Test heuristic quality scoring for dispatch results."""
+class TestQualityEvaluator:
+    """Test QualityEvaluator heuristic scoring (replaces _estimate_quality)."""
 
     def _make_result(self, success=True, output=""):
         return DispatchResult(
@@ -470,29 +470,40 @@ class TestEstimateQuality:
             duration_seconds=1.0,
         )
 
-    def test_failed_result_scores_zero(self):
-        from supervisor.core import _estimate_quality
+    def _make_work_item(self, task_type="implement"):
+        from unittest.mock import MagicMock
 
+        wi = MagicMock()
+        wi.task_type = task_type
+        wi.description = "Fix the authentication module"
+        return wi
+
+    def _evaluate(self, result, task_type="implement"):
+        from supervisor.core import _get_quality_evaluator
+
+        return _get_quality_evaluator().evaluate_heuristic(
+            self._make_work_item(task_type),
+            result,
+        )
+
+    def test_failed_result_scores_zero(self):
         result = self._make_result(success=False, output="Error occurred")
-        assert _estimate_quality(result) == 0.0
+        evaluation = self._evaluate(result)
+        assert evaluation.overall_score == 0.0
 
     def test_short_output_scores_low(self):
-        from supervisor.core import _estimate_quality
-
         result = self._make_result(output="OK")
-        assert _estimate_quality(result) == 0.2
+        evaluation = self._evaluate(result)
+        assert evaluation.overall_score < 0.4
 
     def test_refusal_output_scores_low(self):
-        from supervisor.core import _estimate_quality
-
         result = self._make_result(
             output="I cannot complete this task. Please provide more context and clarification."
         )
-        assert _estimate_quality(result) == 0.3
+        evaluation = self._evaluate(result)
+        assert evaluation.overall_score < 0.5
 
     def test_structured_output_scores_high(self):
-        from supervisor.core import _estimate_quality
-
         output = """# Analysis Report
 
 ## Findings
@@ -507,22 +518,21 @@ def fix_bug():
 | Tests  | 42    |
 """
         result = self._make_result(output=output)
-        assert _estimate_quality(result) == 0.9
+        evaluation = self._evaluate(result)
+        assert evaluation.overall_score >= 0.6
 
     def test_moderate_output_scores_medium(self):
-        from supervisor.core import _estimate_quality
-
         result = self._make_result(
             output="The authentication module has a race condition in the token refresh logic. "
             "When two requests arrive simultaneously, both attempt to refresh the token."
         )
-        assert _estimate_quality(result) == 0.6
+        evaluation = self._evaluate(result)
+        assert 0.3 <= evaluation.overall_score <= 0.8
 
     def test_output_with_one_structured_signal(self):
-        from supervisor.core import _estimate_quality
-
         result = self._make_result(output="Here is the fix:\n```python\nprint('hello')\n```")
-        assert _estimate_quality(result) == 0.7
+        evaluation = self._evaluate(result)
+        assert evaluation.overall_score >= 0.4
 
 
 # ── Routing Integration Tests ──

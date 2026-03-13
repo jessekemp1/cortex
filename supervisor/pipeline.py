@@ -212,9 +212,13 @@ def run_pipeline(
                     result.errors.append(f"{rd.work_item.id[:8]}: {dispatch_result.error}")
 
             # Record outcome for future routing optimization
-            from .core import _estimate_quality
+            from .core import _get_quality_evaluator
 
-            quality = _estimate_quality(dispatch_result)
+            evaluation = _get_quality_evaluator().evaluate_heuristic(
+                rd.work_item,
+                dispatch_result,
+            )
+            quality = evaluation.overall_score
             router.record_outcome(
                 work_item_id=rd.work_item.id,
                 model_tier=rd.model_tier,
