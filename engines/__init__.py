@@ -40,6 +40,7 @@ try:
         SynthesisCore,
     )
     from cortex.engines.universal_signal_bus import UniversalSignalBus
+    from cortex.engines.research_agent import CortexResearchAgent, Discovery, Assessment
     from cortex.engines.workstream_orchestrator import (
         WorkspaceSignal,
         WorkstreamOrchestrator,
@@ -66,6 +67,7 @@ except ImportError:
     from .pattern_surfacer import PatternSurfacer, SurfacedPattern
     from .synthesis import ContextGraph, Edge, EdgeType, Node, NodeType, SynthesisCore
     from .universal_signal_bus import UniversalSignalBus
+    from .research_agent import CortexResearchAgent, Discovery, Assessment
     from .workstream_orchestrator import (
         WorkspaceSignal,
         WorkstreamOrchestrator,
@@ -108,6 +110,10 @@ __all__ = [
     # Sprint 2: Pattern Surfacer
     "PatternSurfacer",
     "SurfacedPattern",
+    # Cortex Research Agent (CRA)
+    "CortexResearchAgent",
+    "Discovery",
+    "Assessment",
     # Workstream Orchestrator (re-exported for convenience)
     "WorkspaceSignal",
     "WorkstreamOrchestrator",

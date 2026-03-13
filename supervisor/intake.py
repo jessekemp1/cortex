@@ -518,10 +518,61 @@ class WorkIntake:
         log.info("Found %d triggered workflows in %s", len(items), workflows_dir)
         return items
 
+    def from_research_agent(
+        self,
+        research_dir: Optional[Path] = None,
+    ) -> List[WorkItem]:
+        """Read CRA (Cortex Research Agent) findings and convert to WorkItems.
+
+        Scans assessments with 'adopt' recommendation and converts them
+        into research/feature WorkItems for the supervisor pipeline.
+        Urgent threats (high disruption + achievable effort) get HIGH priority.
+        """
+        try:
+            from cortex.engines.research_agent import CortexResearchAgent
+        except ImportError:
+            try:
+                from engines.research_agent import CortexResearchAgent
+            except ImportError:
+                log.warning("CRA engine not available; skipping research discovery")
+                return []
+
+        agent = CortexResearchAgent(research_dir=research_dir)
+        adopt_recs = agent.get_adopt_recommendations()
+
+        items: List[WorkItem] = []
+        for assessment in adopt_recs:
+            # Urgent threats get HIGH priority
+            priority = WorkItemPriority.HIGH if assessment.is_urgent else WorkItemPriority.MEDIUM
+
+            items.append(
+                WorkItem(
+                    id=_make_id(),
+                    source="research_agent",
+                    task_type="research",
+                    description=f"Research integration: {assessment.title} — {assessment.integration_approach[:120]}",
+                    project="cortex",
+                    priority=priority,
+                    confidence=min(assessment.priority_score / 4.0, 0.95),
+                    defer_to_batch=True,  # Research integrations go to overnight batch
+                    metadata={
+                        "discovery_id": assessment.discovery_id,
+                        "disruption_risk": assessment.disruption_risk,
+                        "adoption_effort": assessment.adoption_effort,
+                        "expected_impact": assessment.expected_impact,
+                        "affected_modules": assessment.affected_modules,
+                        "source_url": assessment.source_url,
+                    },
+                )
+            )
+
+        log.info("CRA surfaced %d adopt recommendations as work items", len(items))
+        return items
+
     def discover_all(self, goals_path: Optional[Path] = None) -> List[WorkItem]:
         """Discover work from ALL sources, deduplicated and priority-sorted.
 
-        Collects from: goals, taskboard, recommendations API.
+        Collects from: goals, taskboard, recommendations API, research agent.
         Deduplicates by description similarity (threshold 0.7).
         Sorts by priority_score descending.
         """
@@ -538,6 +589,9 @@ class WorkIntake:
 
         # Workflow definitions from cortex/workflows/*.yaml
         all_items.extend(self.from_workflow_definitions())
+
+        # Research agent findings (CRA)
+        all_items.extend(self.from_research_agent())
 
         # Recommendations (best-effort, don't block on failure)
         all_items.extend(self.from_recommendations_api())
