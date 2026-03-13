@@ -593,6 +593,20 @@ Please provide a comprehensive implementation plan and any code changes needed."
 
                 logger.info(f"Stats: {stats}")
 
+                # Drain SQLite queue (BatchSubmitter path — replaces legacy JSON submission)
+                try:
+                    from batch.submitter import BatchSubmitter
+
+                    sqlite_stats = BatchSubmitter().submit_pending()
+                    if sqlite_stats.tasks_submitted > 0 or sqlite_stats.tasks_pending > 0:
+                        logger.info(
+                            f"SQLite queue: {sqlite_stats.tasks_pending} pending, "
+                            f"{sqlite_stats.tasks_submitted} submitted, "
+                            f"{sqlite_stats.batches_created} batches created"
+                        )
+                except Exception as e:
+                    logger.warning(f"SQLite submitter error (non-fatal): {e}")
+
                 # Check if we should stop
                 if duration_hours:
                     elapsed = (time.time() - start_time) / 3600
