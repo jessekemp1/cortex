@@ -377,3 +377,174 @@ Format as markdown with clear sections."""
                 # in portfolio_memory if such a method exists
         except Exception as e:
             logger.warning(f"Failed to store results in portfolio: {e}")
+
+
+class CRABatcher:
+    """Submits CRA discoveries for LLM-scored assessment via Batch API.
+
+    Reads unassessed discoveries from ~/.cortex/research/cra/discoveries.jsonl,
+    generates assessment prompts using CortexResearchAgent.get_assess_prompt(),
+    and submits them as a batch. Results are parsed back into Assessment objects
+    and written to assessments.jsonl.
+
+    Cost: ~21 discoveries × ~2K tokens × sonnet × 0.5 batch = ~$0.06/week.
+    """
+
+    CRA_ASSESS_SYSTEM_PROMPT = """You are an AI research analyst evaluating findings for
+integration into Cortex, an agent memory + orchestration system.
+
+Return ONLY valid JSON (no markdown fences, no commentary) matching this schema:
+{
+    "disruption_risk": 0.0-1.0,
+    "adoption_effort": "trivial|small|medium|large|rewrite",
+    "expected_impact": "incremental|significant|transformative",
+    "affected_modules": ["list of file paths"],
+    "integration_approach": "1-paragraph plan",
+    "risks": ["risk 1", "risk 2"],
+    "recommendation": "adopt|monitor|dismiss",
+    "reasoning": "1-2 sentence justification"
+}"""
+
+    def __init__(self):
+        self.batch_client = BatchAPIClient()
+
+    def build_assessment_batch(self) -> tuple[list[BatchRequest], list]:
+        """Build batch requests for unassessed CRA discoveries.
+
+        Returns:
+            Tuple of (batch_requests, corresponding_discoveries) for tracking.
+        """
+        try:
+            from engines.research_agent import CortexResearchAgent
+        except ImportError:
+            from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+        discoveries = agent.load_discoveries(days=30)
+        assessed_ids = {a.discovery_id for a in agent.load_assessments(days=9999)}
+        dismissed_ids = agent.get_dismissed_ids()
+
+        # Filter to unassessed, non-dismissed discoveries with meaningful relevance
+        pending = [
+            d
+            for d in discoveries
+            if d.id not in assessed_ids and d.id not in dismissed_ids and d.max_relevance > 0.2
+        ]
+
+        if not pending:
+            logger.info("CRA: No unassessed discoveries to batch")
+            return [], []
+
+        requests = []
+        for discovery in pending:
+            prompt = agent.get_assess_prompt(discovery)
+            requests.append(
+                BatchRequest(
+                    custom_id=f"cra_assess_{discovery.id}",
+                    params={
+                        "model": "claude-sonnet-4-6-20250514",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "system": self.CRA_ASSESS_SYSTEM_PROMPT,
+                        "max_tokens": 2048,
+                    },
+                )
+            )
+
+        logger.info(f"CRA: Built {len(requests)} assessment batch requests")
+        return requests, pending
+
+    def submit_assessment_batch(self) -> dict:
+        """Submit unassessed discoveries as a batch job.
+
+        Returns:
+            {"batch_id": str, "submitted_count": int} or {"error": str}
+        """
+        requests, discoveries = self.build_assessment_batch()
+        if not requests:
+            return {"submitted_count": 0, "message": "No unassessed discoveries"}
+
+        try:
+            batch_id = self.batch_client.submit_batch(
+                requests,
+                description=f"CRA assessment: {len(requests)} discoveries",
+            )
+            logger.info(f"CRA: Submitted assessment batch {batch_id}")
+            return {
+                "batch_id": batch_id,
+                "submitted_count": len(requests),
+                "discovery_ids": [d.id for d in discoveries],
+            }
+        except Exception as e:
+            logger.error(f"CRA: Batch submission failed: {e}")
+            return {"error": str(e)}
+
+    def process_assessment_results(self, batch_id: str) -> dict:
+        """Poll for batch results and write assessments to CRA storage.
+
+        Args:
+            batch_id: The batch ID returned from submit_assessment_batch.
+
+        Returns:
+            {"processed": int, "errors": int}
+        """
+        try:
+            from engines.research_agent import Assessment, CortexResearchAgent
+        except ImportError:
+            from cortex.engines.research_agent import Assessment, CortexResearchAgent
+
+        results = self.batch_client.poll_results(batch_id)
+        agent = CortexResearchAgent()
+
+        processed = 0
+        errors = 0
+        now_iso = datetime.now().isoformat()
+
+        for result in results:
+            discovery_id = result.custom_id.replace("cra_assess_", "")
+
+            if result.status != "succeeded":
+                logger.warning(f"CRA: Assessment failed for {discovery_id}: {result.status}")
+                errors += 1
+                continue
+
+            # Extract JSON from response
+            message = result.result.get("message", {})
+            content_list = message.get("content", [{}])
+            raw_text = content_list[0].get("text", "") if content_list else ""
+
+            try:
+                data = json.loads(raw_text)
+            except json.JSONDecodeError:
+                logger.warning(f"CRA: Invalid JSON in assessment for {discovery_id}")
+                errors += 1
+                continue
+
+            # Find the original discovery for title/URL
+            discoveries = agent.load_discoveries(days=9999)
+            orig = next((d for d in discoveries if d.id == discovery_id), None)
+
+            assessment = Assessment(
+                discovery_id=discovery_id,
+                title=orig.title if orig else discovery_id,
+                source_url=orig.url if orig else "",
+                disruption_risk=float(data.get("disruption_risk", 0.0)),
+                adoption_effort=data.get("adoption_effort", "medium"),
+                expected_impact=data.get("expected_impact", "incremental"),
+                affected_modules=data.get("affected_modules", []),
+                integration_approach=data.get("integration_approach", ""),
+                risks=data.get("risks", []),
+                recommendation=data.get("recommendation", "monitor"),
+                reasoning=data.get("reasoning", ""),
+                assessed_at=now_iso,
+                relevance_scores=orig.relevance_scores if orig else {},
+            )
+
+            agent.ingest_assessment(assessment)
+            processed += 1
+
+            # Auto-dismiss low-value findings
+            if assessment.recommendation == "dismiss":
+                agent.dismiss(discovery_id, assessment.reasoning)
+
+        logger.info(f"CRA: Processed {processed} assessments, {errors} errors")
+        return {"processed": processed, "errors": errors, "batch_id": batch_id}
