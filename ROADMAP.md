@@ -302,9 +302,11 @@ Beyond just discovering papers, Cortex needs to evolve its own capabilities:
 
 | Item | Priority | Status | Dependency |
 |------|----------|--------|------------|
-| OSS launch (subtree, DOI, HN) | P0 | 80% done | None |
-| Learning pipeline verified (outcomes flowing) | P0 | Just fixed | None |
+| OSS launch (subtree, DOI, HN) | P0 | 80% done (audit: LAUNCH READY) | None |
+| Learning pipeline verified (outcomes flowing) | P0 | ✅ SHIPPED | None |
 | **Conversation history ingestion** | P0 | ✅ SHIPPED | None |
+| **CRA discovery engine** | P1 | ✅ SHIPPED (21 discoveries ingested, 35 tests) | None |
+| **CRA batch assessment pipeline** | P1 | ✅ SHIPPED (CRABatcher in research_batcher.py) | CRA discovery |
 | External benchmark (AMA-Bench or LongMemEval) | P1 | Not started | OSS launch |
 | First 3 beta users with feedback | P1 | Not started | OSS launch |
 | **Batch API deep conversation analysis** | P2 | Not started | Conversation ingestion validated |
@@ -528,18 +530,23 @@ class CortexMemoryBackend:
 ### Implementation Priority (Next 2 Weeks)
 
 ```
-Week of Mar 12-14 (SHIP WEEK):
-  ├── [x] Outcome-aware retrieval wired (done today)
-  ├── [ ] git subtree push → standalone repo
+Week of Mar 12-13 (SHIP WEEK):
+  ├── [x] Outcome-aware retrieval wired
+  ├── [x] CRA discovery engine (engines/research_agent.py, 35 tests)
+  ├── [x] CRA → supervisor intake wired (from_research_agent in discover_all)
+  ├── [x] CRA batch assessment pipeline (CRABatcher in research_batcher.py)
+  ├── [x] ROADMAP updated: 4 papers, 2 threat sources, 1 disruption scenario
+  ├── [x] OSS audit: LAUNCH READY (all 14 categories pass)
+  ├── [ ] git push cortex-oss main:main
   ├── [ ] Zenodo DOI
   ├── [ ] Show HN post
   └── [ ] Share with beta users
 
 Week of Mar 17-21 (RESEARCH AGENT FOUNDATION):
   ├── [ ] Read survey paper (2603.07670) — inform all decisions
-  ├── [ ] Prototype CRA discovery engine (arxiv RSS + semantic filter)
-  ├── [ ] Wire CRA output into cortex briefing
-  ├── [ ] Design trajectory memory data model
+  ├── [x] Prototype CRA discovery engine (arxiv RSS + semantic filter) — DONE early
+  ├── [ ] Wire CRA output into cortex briefing (weekly_digest → briefing.py)
+  ├── [ ] Design trajectory memory data model (informed by MACLA paper)
   └── [ ] CLI decomposition (cli.py → commands/)
 ```
 
