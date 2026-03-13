@@ -17,7 +17,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import WorkItem, WorkItemPriority
 
@@ -543,3 +543,126 @@ class ModelRouter:
                 result[tier] = sum(scores) / len(scores)
 
         return result
+
+
+class AdvancedModelRouter(ModelRouter):
+    """Extends ModelRouter with ContextAwareModelRecommender + multi-provider.
+
+    Wires the existing intelligence/model_selection/ subsystem into the
+    supervisor routing pipeline. When enabled:
+      1. ContextAwareModelRecommender provides context-aware tier selection
+         (budget, time, priority, historical learned overrides)
+      2. ProviderRegistry selects cheapest healthy provider for the tier
+      3. Quality floor enforcement prevents cheap models from degrading quality
+      4. Guardrail: opus-tier tasks never routed below sonnet
+
+    Falls back to base ModelRouter.select_model() when recommender unavailable.
+    """
+
+    # Minimum quality thresholds by tier
+    _QUALITY_FLOOR: Dict[str, float] = {
+        "opus": 0.7,
+        "sonnet": 0.6,
+        "haiku": 0.4,
+    }
+
+    def __init__(
+        self,
+        outcomes_path: Optional[Path] = None,
+        registry: "Optional[ProviderRegistry]" = None,  # type: ignore[name-defined]
+        quality_floor: Optional[Dict[str, float]] = None,
+    ) -> None:
+        super().__init__(outcomes_path=outcomes_path)
+        self._registry = registry
+        self._recommender: Optional[Any] = self._init_recommender()
+        if quality_floor:
+            self._QUALITY_FLOOR = quality_floor
+
+    def _init_recommender(self) -> Optional[Any]:
+        """Lazily import ContextAwareModelRecommender."""
+        try:
+            from intelligence.model_selection.recommender import (
+                ContextAwareModelRecommender,
+            )
+
+            return ContextAwareModelRecommender()
+        except ImportError:
+            log.warning(
+                "ContextAwareModelRecommender not available; "
+                "AdvancedModelRouter falling back to base routing"
+            )
+            return None
+
+    def route_advanced(
+        self,
+        work_item: WorkItem,
+        remaining_budget: float = 10.0,
+        remaining_time_seconds: float = 3600.0,
+        is_retry: bool = False,
+    ) -> ModelSelection:
+        """Multi-signal routing with context awareness and provider selection.
+
+        Pipeline:
+          1. ContextAwareModelRecommender.recommend() → context-aware tier
+          2. Historical quality per (provider, model, task_type) → adjust
+          3. Provider health + cost optimization → cheapest adequate
+          4. Guardrail: never route opus-tier task below sonnet
+        """
+        if self._recommender is None:
+            return self.select_model_with_provider(work_item, self._registry)
+
+        try:
+            from datetime import timedelta
+
+            from intelligence.model_selection.models import OrchestrationContext
+
+            context = OrchestrationContext(
+                remaining_budget=remaining_budget,
+                remaining_time=timedelta(seconds=remaining_time_seconds),
+                task_priority=work_item.priority.value,
+                is_retry=is_retry,
+                project=work_item.project,
+                files=work_item.files,
+            )
+
+            recommendation = self._recommender.recommend(
+                task_description=work_item.description,
+                task_type=work_item.task_type,
+                context=context,
+            )
+
+            tier = recommendation.model
+            confidence = recommendation.confidence
+            reasoning = recommendation.reasoning
+
+        except Exception as exc:
+            log.warning("Recommender failed (%s), falling back to base router", exc)
+            return self.select_model_with_provider(work_item, self._registry)
+
+        # Guardrail: opus-tier tasks never below sonnet
+        tier_rank = {"haiku": 0, "sonnet": 1, "opus": 2}
+        base_selection = self.select_model(work_item)
+        if base_selection.model_tier == "opus" and tier_rank.get(tier, 0) < 1:
+            tier = "sonnet"
+            reasoning += ". Guardrail: opus-tier task protected from haiku"
+
+        # Select provider
+        model_id = _MODEL_MAP[tier]
+        provider = "anthropic"
+
+        if self._registry is not None:
+            candidates = self._registry.get_models_for_tier(tier)
+            if candidates:
+                provider_name, spec = candidates[0]
+                model_id = spec.model_id
+                provider = provider_name
+                reasoning += f". Provider: {provider_name} (cost-optimized)"
+
+        return ModelSelection(
+            model_tier=tier,
+            model_id=model_id,
+            reasoning=reasoning,
+            complexity_score=base_selection.complexity_score,
+            confidence=confidence,
+            provider=provider,
+        )

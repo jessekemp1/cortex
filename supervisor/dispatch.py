@@ -254,12 +254,19 @@ class AgentDispatcher:
         outcome to the router's learning store.  Useful for ad-hoc dispatches
         outside the main ``tick()`` loop.
         """
-        from supervisor.core import _estimate_quality
+        from supervisor.core import _get_quality_evaluator
 
         result = self.dispatch(work_item, model_selection)
 
         if router is not None:
-            quality = _estimate_quality(result)
+            quality = (
+                _get_quality_evaluator()
+                .evaluate_heuristic(
+                    work_item,
+                    result,
+                )
+                .overall_score
+            )
             router.record_outcome(
                 work_item_id=work_item.id,
                 model_tier=model_selection.model_tier,

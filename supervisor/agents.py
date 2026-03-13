@@ -26,6 +26,8 @@ class AgentProfile:
     system_prompt_template: str
     max_concurrent: int = 3
     timeout_seconds: int = 300
+    can_decompose: bool = False  # Can this agent act as a team lead?
+    max_sub_tasks: int = 5  # Max sub-tasks when decomposing
 
     def can_handle(self, task_type: str) -> bool:
         return task_type in self.task_types
@@ -48,6 +50,7 @@ AGENT_REGISTRY: Dict[str, AgentProfile] = {
             "Focus on design decisions, trade-offs, and implementation strategy. "
             "Be specific about file paths and interfaces."
         ),
+        can_decompose=True,
     ),
     "code_reviewer": AgentProfile(
         name="code_reviewer",
@@ -90,6 +93,7 @@ AGENT_REGISTRY: Dict[str, AgentProfile] = {
             "You are an implementation specialist for {project}. {context} "
             "Write clean, tested code. Follow existing patterns. Type hints required."
         ),
+        can_decompose=True,
     ),
     "classifier": AgentProfile(
         name="classifier",
