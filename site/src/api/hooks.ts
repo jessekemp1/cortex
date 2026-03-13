@@ -15,6 +15,10 @@ import {
   vortexHealthApi,
   vortexSchedulerApi,
   vortexModelsApi,
+  docsApi,
+  servicesApi,
+  predictionsApi,
+  activityApi,
 } from './client'
 import type { PendingTask } from './types'
 import type { IntelligenceQuery } from '@/types/cortex'
@@ -37,6 +41,11 @@ export const queryKeys = {
   vortexHealth: ['vortex', 'health'] as const,
   vortexScheduler: ['vortex', 'scheduler'] as const,
   vortexModels: ['vortex', 'models'] as const,
+  docsTree: ['docs', 'tree'] as const,
+  docContent: (path: string) => ['docs', 'content', path] as const,
+  servicesStatus: ['services', 'status'] as const,
+  predictions: ['predictions'] as const,
+  activityHeatmap: ['activity', 'heatmap'] as const,
 }
 
 // ── Cortex: Health ──
@@ -320,5 +329,70 @@ export function useDecomposeTaskMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.taskboard })
     },
+  })
+}
+
+// ── Co-Navigator: Docs ──
+export function useDocsTreeQuery() {
+  return useQuery({
+    queryKey: queryKeys.docsTree,
+    queryFn: docsApi.getTree,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 5,
+    retry: 1,
+  })
+}
+
+export function useDocContentQuery(path: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.docContent(path),
+    queryFn: () => docsApi.getContent(path),
+    enabled: enabled && !!path,
+    staleTime: 1000 * 60,
+    retry: 1,
+  })
+}
+
+// ── Co-Navigator: Services ──
+export function useServicesStatusQuery() {
+  return useQuery({
+    queryKey: queryKeys.servicesStatus,
+    queryFn: servicesApi.getStatus,
+    staleTime: 1000 * 10,
+    refetchInterval: 1000 * 10,
+    retry: 1,
+    refetchOnWindowFocus: true,
+  })
+}
+
+// ── Co-Navigator: Predictions ──
+export function usePredictionsQuery() {
+  return useQuery({
+    queryKey: queryKeys.predictions,
+    queryFn: predictionsApi.getCurrent,
+    staleTime: 1000 * 60,
+    refetchInterval: 1000 * 60,
+    retry: 1,
+  })
+}
+
+export function useRecordDecisionMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: predictionsApi.recordDecision,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.predictions })
+    },
+  })
+}
+
+// ── Co-Navigator: Activity ──
+export function useActivityHeatmapQuery() {
+  return useQuery({
+    queryKey: queryKeys.activityHeatmap,
+    queryFn: activityApi.getHeatmap,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 5,
+    retry: 1,
   })
 }

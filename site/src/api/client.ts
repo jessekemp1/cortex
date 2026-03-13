@@ -10,6 +10,7 @@ import type { AnomalyResponse, RecommendationResponse, IntelligenceQuery, Intell
 import type { VortexHealth, SchedulerStatusRaw, ModelPerformance } from '@/types/vortex'
 import type { SessionsResponse } from '@/types/session'
 import type { TaskBoardResponse, Task, DecomposeResponse } from '@/types/task'
+import type { DocsTreeResponse, DocContentResponse, ServicesStatusResponse, PredictionsResponse, DecisionRecord, ActivityHeatmapResponse } from '@/types/navigator'
 
 const API_BASE_URL = import.meta.env.VITE_CORTEX_API_URL || '/api'
 
@@ -321,6 +322,52 @@ export const conductorApi = {
   },
 }
 
+// ── Co-Navigator: Docs ──
+export const docsApi = {
+  getTree: async (): Promise<DocsTreeResponse> => {
+    const response = await cortexApi.get('/docs/tree')
+    return response.data
+  },
+  getContent: async (path: string): Promise<DocContentResponse> => {
+    const response = await cortexApi.get('/docs/content', { params: { path } })
+    return response.data
+  },
+}
+
+// ── Co-Navigator: Services ──
+export const servicesApi = {
+  getStatus: async (): Promise<ServicesStatusResponse> => {
+    const response = await cortexApi.get('/services/status')
+    return response.data
+  },
+}
+
+// ── Co-Navigator: Predictions ──
+export const predictionsApi = {
+  getCurrent: async (): Promise<PredictionsResponse> => {
+    const response = await cortexApi.get('/predictions/current')
+    return response.data
+  },
+  recordDecision: async (decision: {
+    prediction_id: string
+    scenario_chosen: string
+    scenario_name: string
+    domain: string
+    override_reason?: string
+  }): Promise<DecisionRecord> => {
+    const response = await cortexApi.post('/decisions/record', decision)
+    return response.data
+  },
+}
+
+// ── Co-Navigator: Activity ──
+export const activityApi = {
+  getHeatmap: async (): Promise<ActivityHeatmapResponse> => {
+    const response = await cortexApi.get('/activity/heatmap')
+    return response.data
+  },
+}
+
 export default {
   health: healthApi,
   serviceHealth: serviceHealthApi,
@@ -338,4 +385,8 @@ export default {
   vortexHealth: vortexHealthApi,
   vortexScheduler: vortexSchedulerApi,
   vortexModels: vortexModelsApi,
+  docs: docsApi,
+  services: servicesApi,
+  predictions: predictionsApi,
+  activity: activityApi,
 }
