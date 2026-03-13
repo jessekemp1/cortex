@@ -135,6 +135,28 @@ Source: [Agent Memory Paper List](https://github.com/Shichun-Liu/Agent-Memory-Pa
 
 ---
 
+## Threat Monitor — Disruption Scenarios
+
+**⚠️ Anthropic ships native memory — FREE for all users (March 2, 2026)**
+What: Claude memory is now free-tier. Memory import tool lets users bring conversations from other AI providers. Skills API launched with pre-built document skills. Web search + web fetch now GA with dynamic filtering via code execution.
+Impact: THIS IS YOUR #1 DISRUPTION SCENARIO MATERIALIZING. Anthropic is building the memory + tools + skills stack that Cortex provides independently. Free-tier memory lowers the barrier to "good enough" for casual users. The Skills API is the most concerning — it's provider-side orchestration of document workflows.
+Action: Assess immediately: where does Cortex memory exceed what Anthropic's native memory provides? The differentiators are likely cross-session trajectory learning, graph-based knowledge linking, and multi-model support. If those gaps close, Cortex's memory layer becomes redundant. Monitor the [Claude developer changelog](https://platform.claude.com/docs/en/release-notes/overview) weekly.
+Source: [MacRumors - Claude Memory Free](https://www.macrumors.com/2026/03/02/anthropic-memory-import-tool/), [Dataconomy - Claude Memory](https://dataconomy.com/2026/03/04/anthropic-makes-claude-memory-feature-free-for-all-users/)
+
+**Mem0 v1.0.5 — Stable, funded, but no orchestration yet**
+What: Mem0 raised $24M Series A. Current at v1.0.5 (March 3, 2026). Recent updates: timestamp params on update(), project settings (inclusion/exclusion prompts, memory depth), graph memory for agents. CrewAI integration is production-ready. No standalone orchestration layer shipped.
+Impact: Mem0 remains memory-only, not memory+orchestration. Your "Mem0 adds orchestration (20%, game over)" scenario has NOT triggered. But the $24M and CrewAI integration mean they're building toward it. Graph memory (January 2026 blog) closes the gap on Cortex's graph-based approach.
+Action: Track [Mem0 changelog](https://docs.mem0.ai/changelog) weekly. The signal to watch: any announcement of agent routing, task planning, or workflow orchestration. That's when the 20% scenario activates.
+Source: [Mem0 Series A](https://mem0.ai/series-a), [Mem0 Graph Memory](https://mem0.ai/blog/graph-memory-solutions-ai-agents)
+
+**EverMemOS: Memory OS with production SDK — closer to Cortex than expected**
+What: Three-phase memory lifecycle: Episodic Trace Formation → Semantic Consolidation → Reconstructive Recollection. Outperforms full-context LLMs on LoCoMo and LongMemEval benchmarks while using drastically fewer tokens. OpenClaw plugin launched March 8, 2026. Key insight: high-quality memory requires precise forgetting.
+Impact: EverMemOS is architecturally the closest competitor to Cortex's memory design. The MemCell → MemScene hierarchy mirrors Cortex's episodic → semantic consolidation. The "precise forgetting" mechanism is something Cortex's admission control should study.
+Action: Read the [full paper (arXiv:2601.02163)](https://arxiv.org/pdf/2601.02163). Evaluate MemCell/MemScene architecture against Cortex Phase 2 trajectory memory design. The forgetting mechanism may be more important than the remembering mechanism for production quality.
+Source: [EverMemOS Paper](https://www.emergentmind.com/papers/2601.02163), [EverMind AI](https://evermind.ai/), [PR Newswire](https://www.prnewswire.com/news-releases/evermemos-redefines-efficiency-in-ai-memory-surpassing-llm-full-context-perfomances-with-far-fewer-tokens-in-open-evaluation-302645884.html)
+
+---
+
 ## Cortex-Relevant Flags
 
 | Finding | Cortex Component |
@@ -148,6 +170,9 @@ Source: [Agent Memory Paper List](https://github.com/Shichun-Liu/Agent-Memory-Pa
 | Gemini 3.1 Pro 1M context | VortexV2 weather data ingestion |
 | Sonnet 4.6 cost/performance ratio | Cortex default coding model |
 | LangGraph + CrewAI mesh pattern | Cortex orchestration layer |
+| EverMemOS MemCell/MemScene + forgetting | Cortex memory design competitor |
+| Anthropic native memory (FREE, March 2) | **DISRUPTION #1 — ACTIVE** |
+| Mem0 v1.0.5 + $24M + graph memory | Disruption #2 — monitoring |
 
 ---
 
