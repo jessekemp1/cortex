@@ -46,21 +46,15 @@ class JSONLStorage(OutcomeStorage):
         self.workflow_outcomes_file = self.storage_dir / "workflow_outcomes.jsonl"
         self.session_outcomes_file = self.storage_dir / "session_outcomes.jsonl"
 
-        # Ensure files exist
-        self._ensure_files_exist()
-
-    def _ensure_files_exist(self):
-        """Create storage files if they don't exist."""
-        for file in [
-            self.model_outcomes_file,
-            self.workflow_outcomes_file,
-            self.session_outcomes_file,
-        ]:
-            if not file.exists():
-                file.touch()
+    def _ensure_file_exists(self, file: Path):
+        """Create a storage file if it doesn't exist (called lazily on first write)."""
+        if not file.exists():
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.touch()
 
     def log_model_outcome(self, entry: ModelOutcomeEntry) -> None:
         """Log a model outcome entry."""
+        self._ensure_file_exists(self.model_outcomes_file)
         with open(self.model_outcomes_file, "a") as f:
             f.write(json.dumps(entry.to_dict()) + "\n")
 
@@ -109,6 +103,7 @@ class JSONLStorage(OutcomeStorage):
 
     def log_workflow_outcome(self, entry: WorkflowOutcomeEntry) -> None:
         """Log a workflow outcome entry."""
+        self._ensure_file_exists(self.workflow_outcomes_file)
         with open(self.workflow_outcomes_file, "a") as f:
             f.write(json.dumps(entry.to_dict()) + "\n")
 
@@ -143,6 +138,7 @@ class JSONLStorage(OutcomeStorage):
 
     def log_session_outcome(self, entry: SessionOutcomeEntry) -> None:
         """Log a session outcome entry."""
+        self._ensure_file_exists(self.session_outcomes_file)
         with open(self.session_outcomes_file, "a") as f:
             f.write(json.dumps(entry.to_dict()) + "\n")
 

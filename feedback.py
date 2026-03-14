@@ -70,8 +70,6 @@ class FeedbackLogger:
 
         self.log_file = log_file
         self.outcomes_file = outcomes_file if outcomes_file else get_cortex_dir() / "outcomes.jsonl"
-        self._ensure_log_exists()
-        self._ensure_outcomes_exists()
 
         # Initialize quality tracker
         self.quality_tracker = DataQualityTracker() if DataQualityTracker else None
@@ -114,6 +112,9 @@ class FeedbackLogger:
             notes=notes,
             actual_outcome=actual_outcome,
         )
+
+        # Ensure files exist on first write (lazy init)
+        self._ensure_log_exists()
 
         # Read existing entries
         entries = self._load_entries()
@@ -220,6 +221,7 @@ class FeedbackLogger:
             entry.context = context
 
         # Append to JSONL file (one entry per line)
+        self._ensure_outcomes_exists()
         with open(self.outcomes_file, "a") as f:
             f.write(json.dumps(asdict(entry)) + "\n")
 

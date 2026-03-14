@@ -371,6 +371,20 @@ def check_anti_pattern_mechanisms() -> dict:
                         is_implemented = True
                         break
 
+        if "end-to-end" in mechanism or "round-trip" in mechanism or "e2e" in mechanism:
+            # Check for E2E/round-trip tests (e.g., batch submission pipeline)
+            test_dir = REPO_ROOT / "cortex" / "tests"
+            if test_dir.exists():
+                for test_file in test_dir.glob("test_batch*.py"):
+                    try:
+                        content = test_file.read_text()
+                        if "submit_pending" in content and "assert_called" in content:
+                            checks.append(f"{test_file.name} has E2E submission test")
+                            is_implemented = True
+                            break
+                    except Exception:
+                        continue
+
         if is_implemented:
             implemented_count += 1
 

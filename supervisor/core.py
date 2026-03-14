@@ -368,13 +368,18 @@ class CortexSupervisor:
         return self._collector
 
     def _get_team_orchestrator(self):
-        """Get TeamOrchestrator if enable_teams is on, else None."""
+        """Get TeamOrchestrator if enable_teams is on, else None.
+
+        Passes the dispatcher so the team lead (Opus) can make real LLM calls
+        for decomposition and synthesis.
+        """
         if not self.config.enable_teams:
             return None
         try:
             from .teams import TeamOrchestrator
 
-            return TeamOrchestrator(enabled=True)
+            dispatcher = self._get_dispatcher()
+            return TeamOrchestrator(enabled=True, dispatcher=dispatcher)
         except Exception:
             return None
 
@@ -548,7 +553,10 @@ class CortexSupervisor:
                 try:
                     # Use AdvancedModelRouter.route_advanced() when available
                     if hasattr(router, "route_advanced"):
-                        model_selection = router.route_advanced(work_item)
+                        model_selection = router.route_advanced(
+                            work_item,
+                            ab_baseline_ratio=self.config.ab_baseline_ratio,
+                        )
                     else:
                         model_selection = router.select_model(work_item)
                     logger.info(
@@ -598,7 +606,10 @@ class CortexSupervisor:
                         result = dispatcher.dispatch(work_item, dispatch_selection)
 
                     collector.collect(result)
-                    collector.record_outcome(result)
+                    collector.record_outcome(
+                        result,
+                        is_baseline=getattr(model_selection, "is_baseline", False),
+                    )
 
                     evaluation = _get_quality_evaluator().evaluate_heuristic(
                         work_item,
@@ -1033,6 +1044,14 @@ class CortexSupervisor:
         logger.info("Shutdown requested")
         self._shutdown_event.set()
         self.shell_executor.shutdown()
+
+        # Persist orchestration metrics to disk
+        if self._metrics is not None:
+            try:
+                self._metrics.persist()
+                logger.info("Orchestration metrics persisted")
+            except Exception as exc:
+                logger.warning("Failed to persist metrics: %s", exc)
 
     # ==================== Daemon Lifecycle ====================
 

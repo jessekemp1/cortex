@@ -17,11 +17,15 @@ from feedback import FeedbackLogger
 
 
 def test_feedback_logger_initialization():
-    """Test feedback logger can be initialized."""
+    """Test feedback logger can be initialized (lazy — file created on first write)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         log_file = Path(tmpdir) / "feedback.json"
         logger = FeedbackLogger(log_file=log_file)
         assert logger.log_file == log_file
+        # File is NOT created eagerly — only on first write
+        assert not log_file.exists()
+        # After a write, file should exist
+        logger.log_feedback(action_title="Init test", useful=True)
         assert log_file.exists()
 
 

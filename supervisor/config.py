@@ -64,6 +64,9 @@ class SupervisorConfig:
     enable_ai_quality_judge: bool = False  # Use AI judge for quality evaluation
     enable_routing_analytics: bool = True  # Cost/quality reporting
 
+    # A/B baseline (Phase 5)
+    ab_baseline_ratio: float = 0.10  # 10% of tasks route Anthropic-only for quality comparison
+
     # Approval gates (see cortex.supervisor.approval)
     approval_policy: str = "gate_high"  # "auto_all", "gate_high", "gate_all"
     approval_dir: Path = field(default_factory=lambda: Path.home() / ".cortex" / "approvals")
