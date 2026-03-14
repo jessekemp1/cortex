@@ -222,9 +222,9 @@ class BatchAPIClient:
                 retry_count = 0  # Reset retry count on successful status check
                 current_poll_interval = poll_interval_seconds  # Reset poll interval
 
-                if status["status"] == "completed":
+                if status["status"] in ("completed", "ended"):
                     # Batch completed, retrieve results
-                    logger.info(f"Batch {batch_id} completed")
+                    logger.info(f"Batch {batch_id} completed (status={status['status']})")
                     results = self._retrieve_batch_results(batch_id)
                     return results
 

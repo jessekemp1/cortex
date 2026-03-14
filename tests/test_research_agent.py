@@ -723,3 +723,189 @@ class TestExperimentLoop:
         baseline = agent.get_baseline_score()
         # Baseline should be the score of the last kept experiment
         assert baseline > 0.5
+
+
+class TestLiveExperiment:
+    """Tests for _execute_live_experiment with mocked subprocess."""
+
+    def test_parses_pytest_all_pass(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        # Create a proposal file so the method can read it
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_test_integration.md"
+        spec_file.write_text(
+            "## Research Integration: Test\n\nMemory retrieval improvement using hybrid search.\n"
+        )
+
+        proposal = {
+            "title": "test integration",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "57 passed in 0.18s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 57
+        assert result.tests_total == 57
+        assert result.test_pass_rate == 1.0
+        assert result.error == ""
+        assert result.capability_score_delta > 0.0  # Spec has relevant keywords
+
+    def test_parses_pytest_with_failures(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal = {"title": "failing integration"}
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "45 passed, 3 failed, 1 error in 2.5s\n",
+                "stderr": "",
+                "returncode": 1,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 45
+        assert result.tests_total == 49  # 45 + 3 + 1
+        assert result.test_pass_rate == pytest.approx(45 / 49)
+        assert result.error != ""  # returncode=1 means error captured
+
+    def test_handles_timeout(self, agent, cra_dir):
+        import subprocess
+        from unittest.mock import patch
+
+        proposal = {"title": "slow integration"}
+
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="pytest", timeout=300),
+        ):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 0
+        assert result.tests_total == 0
+        assert "timed out" in result.error
+
+    def test_threat_detection_from_spec(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_threat_response.md"
+        spec_file.write_text(
+            "## Threat Response: Anthropic native memory API\n\n"
+            "Pivot Cortex to intelligence layer on top of native memory.\n"
+        )
+
+        proposal = {
+            "title": "threat response",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "100 passed in 1.0s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.addresses_threat is True
+
+    def test_no_threat_when_spec_unrelated(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_minor_improvement.md"
+        spec_file.write_text(
+            "## Minor: Add logging to retriever\n\nImproved debug output for hybrid search.\n"
+        )
+
+        proposal = {
+            "title": "minor improvement",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "50 passed in 0.5s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.addresses_threat is False
+
+    def test_score_integrates_correctly(self, agent, cra_dir):
+        """Full integration: live experiment → adoption_outcome_score."""
+        from unittest.mock import patch
+
+        from engines.research_agent import adoption_outcome_score
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_full_test.md"
+        spec_file.write_text(
+            "## Research Integration: Trajectory Memory\n\n"
+            "Memory retrieval improvement using trajectory pattern matching.\n"
+            "Responds to Anthropic native memory API threat.\n"
+        )
+
+        proposal = {
+            "title": "full test",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "95 passed, 5 failed in 3.0s\n",
+                "stderr": "",
+                "returncode": 1,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        score = adoption_outcome_score(result)
+        # 0.5 * (95/100) + 0.3 * capability_delta + 0.2 * 1.0(threat)
+        assert 0.5 < score < 1.0
+        assert result.addresses_threat is True
+        assert result.capability_score_delta > 0.0

@@ -442,7 +442,7 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching this schema:
                 BatchRequest(
                     custom_id=f"cra_assess_{discovery.id}",
                     params={
-                        "model": "claude-sonnet-4-6-20250514",
+                        "model": "claude-sonnet-4-6",
                         "messages": [{"role": "user", "content": prompt}],
                         "system": self.CRA_ASSESS_SYSTEM_PROMPT,
                         "max_tokens": 2048,
