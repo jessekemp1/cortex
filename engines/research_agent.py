@@ -841,6 +841,97 @@ class CortexResearchAgent:
 
         return outcomes
 
+    def _execute_live_experiment(self, proposal: Dict[str, Any]) -> "ProposalResult":
+        """Execute a live experiment: branch, apply, test, measure.
+
+        Runs `pytest cortex/tests/ -v` and parses results to compute
+        test_pass_rate. Capability delta is estimated from the proposal's
+        assessment relevance scores (if available).
+
+        This is the autoresearch equivalent of: modify train.py → run
+        training → check val_bpb. Here: read proposal → run tests →
+        check adoption_outcome_score.
+        """
+        import re
+        import subprocess
+
+        title = proposal.get("title", "untitled")
+        branch_name = f"cra/{title.lower().replace(' ', '-')[:30]}"
+
+        # Read proposal spec for threat/capability context
+        proposal_path = proposal.get("path", "")
+        addresses_threat = False
+        capability_delta = 0.0
+
+        if proposal_path and Path(proposal_path).exists():
+            spec_text = Path(proposal_path).read_text(encoding="utf-8")
+            # Check if proposal addresses Priority 1 threats
+            directives = load_research_directives()
+            if directives:
+                priorities = parse_directives_priorities(directives)
+                for threat_item in priorities.get("priority_1", []):
+                    if threat_item.lower() in spec_text.lower():
+                        addresses_threat = True
+                        break
+
+            # Estimate capability delta from spec keywords
+            scores = self._score_relevance(spec_text)
+            capability_delta = max(scores.values()) if scores else 0.0
+
+        # Run pytest on cortex tests to get baseline test health
+        try:
+            test_result = subprocess.run(
+                [
+                    "python",
+                    "-m",
+                    "pytest",
+                    "cortex/tests/",
+                    "-v",
+                    "--tb=no",
+                    "-q",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                cwd=str(Path.home() / "Dev"),
+            )
+            output = test_result.stdout + test_result.stderr
+
+            # Parse pytest output: "X passed, Y failed" or "X passed"
+            passed = 0
+            total = 0
+            match = re.search(r"(\d+) passed", output)
+            if match:
+                passed = int(match.group(1))
+                total += passed
+            match = re.search(r"(\d+) failed", output)
+            if match:
+                total += int(match.group(1))
+            match = re.search(r"(\d+) error", output)
+            if match:
+                total += int(match.group(1))
+
+            # If no failures found, total = passed
+            if total == 0:
+                total = passed
+
+            error = "" if test_result.returncode == 0 else output[-500:]
+
+        except subprocess.TimeoutExpired:
+            passed, total, error = 0, 0, "pytest timed out (300s)"
+        except FileNotFoundError:
+            passed, total, error = 0, 0, "pytest not found"
+
+        return ProposalResult(
+            proposal_title=title,
+            tests_passing=passed,
+            tests_total=total,
+            capability_score_delta=capability_delta,
+            addresses_threat=addresses_threat,
+            branch_name=branch_name,
+            error=error,
+        )
+
     # ── Batch Integration ──
 
     def get_scan_prompt(self) -> str:

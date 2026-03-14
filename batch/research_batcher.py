@@ -497,6 +497,7 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching this schema:
 
         processed = 0
         errors = 0
+        adopt_count = 0
         now_iso = datetime.now().isoformat()
 
         for result in results:
@@ -546,5 +547,68 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching this schema:
             if assessment.recommendation == "dismiss":
                 agent.dismiss(discovery_id, assessment.reasoning)
 
-        logger.info(f"CRA: Processed {processed} assessments, {errors} errors")
-        return {"processed": processed, "errors": errors, "batch_id": batch_id}
+            # Auto-generate proposal for "adopt" recommendations
+            if assessment.recommendation == "adopt":
+                spec = self._generate_proposal_spec(assessment)
+                agent.save_proposal(assessment.title, spec)
+                adopt_count += 1
+
+        # Run experiment loop over new proposals if any were generated
+        experiment_results = []
+        if adopt_count > 0:
+            proposals = agent.get_pending_proposals()
+            if proposals:
+                experiment_results = agent.run_experiment_loop(proposals, dry_run=True)
+                kept = sum(1 for o in experiment_results if o["decision"] == "keep")
+                logger.info(
+                    "CRA: Experiment loop: %d/%d proposals kept (baseline=%.3f)",
+                    kept,
+                    len(experiment_results),
+                    agent.get_baseline_score(),
+                )
+
+        logger.info(f"CRA: Processed {processed} assessments, {errors} errors, {adopt_count} adopt")
+        return {
+            "processed": processed,
+            "errors": errors,
+            "batch_id": batch_id,
+            "adopt_count": adopt_count,
+            "experiment_results": experiment_results,
+        }
+
+    @staticmethod
+    def _generate_proposal_spec(assessment: "Assessment") -> str:
+        """Generate a Golden Spec-format proposal from an assessment."""
+        modules = ", ".join(assessment.affected_modules) if assessment.affected_modules else "TBD"
+        risks = (
+            "\n".join(f"- {r}" for r in assessment.risks)
+            if assessment.risks
+            else "- None identified"
+        )
+        return f"""# Integration: {assessment.title}
+
+## Objective
+{assessment.integration_approach}
+
+## Source
+{assessment.source_url}
+
+## Impact
+- Expected: {assessment.expected_impact}
+- Effort: {assessment.adoption_effort}
+- Disruption risk: {assessment.disruption_risk:.1f}
+
+## Affected Modules
+{modules}
+
+## Risks
+{risks}
+
+## Acceptance Criteria
+- [ ] All existing tests pass (no regressions)
+- [ ] Capability score delta > 0 for target capability
+- [ ] adoption_outcome_score > baseline ({assessment.disruption_risk:.2f} disruption weight)
+
+## Reasoning
+{assessment.reasoning}
+"""
