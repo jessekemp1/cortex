@@ -8,6 +8,9 @@ Tests:
 - Intake integration (from_research_agent)
 - Relevance scoring against capability vectors
 - Dismissed findings exclusion
+- ProposalResult + adoption_outcome_score (autoresearch-inspired)
+- Research directives loading and parsing
+- Experiment loop runner
 """
 
 import json
@@ -422,3 +425,301 @@ class TestCLI:
         prompt = agent.get_assess_prompt(sample_discovery)
         assert "Trajectory Memory" in prompt
         assert "CORTEX CAPABILITIES" in prompt
+
+
+class TestProposalResult:
+    """Tests for ProposalResult dataclass and adoption_outcome_score."""
+
+    def test_perfect_result_scores_high(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="Perfect integration",
+            tests_passing=100,
+            tests_total=100,
+            capability_score_delta=1.0,
+            addresses_threat=True,
+        )
+        score = adoption_outcome_score(result)
+        assert score == 1.0
+
+    def test_all_tests_fail_scores_low(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="Broken integration",
+            tests_passing=0,
+            tests_total=100,
+            capability_score_delta=1.0,
+            addresses_threat=True,
+        )
+        score = adoption_outcome_score(result)
+        # 0.5*0 + 0.3*1.0 + 0.2*1.0 = 0.5
+        assert score == pytest.approx(0.5)
+
+    def test_zero_tests_scores_zero_test_weight(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="No tests",
+            tests_passing=0,
+            tests_total=0,
+            capability_score_delta=0.0,
+            addresses_threat=False,
+        )
+        score = adoption_outcome_score(result)
+        assert score == 0.0
+
+    def test_test_pass_rate(self):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Partial",
+            tests_passing=75,
+            tests_total=100,
+            capability_score_delta=0.0,
+            addresses_threat=False,
+        )
+        assert result.test_pass_rate == 0.75
+
+    def test_test_pass_rate_zero_total(self):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Empty",
+            tests_passing=0,
+            tests_total=0,
+            capability_score_delta=0.0,
+            addresses_threat=False,
+        )
+        assert result.test_pass_rate == 0.0
+
+    def test_capability_delta_clamped(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="Over-promising",
+            tests_passing=100,
+            tests_total=100,
+            capability_score_delta=5.0,  # > 1.0, should clamp
+            addresses_threat=False,
+        )
+        score = adoption_outcome_score(result)
+        # 0.5*1.0 + 0.3*1.0(clamped) + 0.2*0.0 = 0.8
+        assert score == pytest.approx(0.8)
+
+    def test_negative_delta_clamped(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="Regression",
+            tests_passing=100,
+            tests_total=100,
+            capability_score_delta=-0.5,  # Negative, should clamp to 0
+            addresses_threat=False,
+        )
+        score = adoption_outcome_score(result)
+        # 0.5*1.0 + 0.3*0.0 + 0.2*0.0 = 0.5
+        assert score == pytest.approx(0.5)
+
+    def test_threat_bonus(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        no_threat = ProposalResult(
+            proposal_title="No threat",
+            tests_passing=80,
+            tests_total=100,
+            capability_score_delta=0.5,
+            addresses_threat=False,
+        )
+        with_threat = ProposalResult(
+            proposal_title="With threat",
+            tests_passing=80,
+            tests_total=100,
+            capability_score_delta=0.5,
+            addresses_threat=True,
+        )
+        assert adoption_outcome_score(with_threat) > adoption_outcome_score(no_threat)
+        assert adoption_outcome_score(with_threat) - adoption_outcome_score(
+            no_threat
+        ) == pytest.approx(0.2)
+
+    def test_typical_good_result(self):
+        from engines.research_agent import ProposalResult, adoption_outcome_score
+
+        result = ProposalResult(
+            proposal_title="Typical",
+            tests_passing=95,
+            tests_total=100,
+            capability_score_delta=0.4,
+            addresses_threat=True,
+        )
+        score = adoption_outcome_score(result)
+        # 0.5*0.95 + 0.3*0.4 + 0.2*1.0 = 0.475 + 0.12 + 0.2 = 0.795
+        assert score == pytest.approx(0.795)
+
+
+class TestResearchDirectives:
+    """Tests for research_directives.md loading and parsing."""
+
+    def test_load_directives_from_file(self):
+        from engines.research_agent import load_research_directives
+
+        directives = load_research_directives()
+        # Should load the actual research_directives.md we created
+        assert len(directives) > 100
+        assert "Cortex Research Directives" in directives
+
+    def test_load_directives_missing_file(self):
+        from engines.research_agent import load_research_directives
+
+        result = load_research_directives(Path("/nonexistent/directives.md"))
+        assert result == ""
+
+    def test_parse_priorities_from_real_file(self):
+        from engines.research_agent import (
+            load_research_directives,
+            parse_directives_priorities,
+        )
+
+        directives = load_research_directives()
+        if not directives:
+            pytest.skip("research_directives.md not available")
+        priorities = parse_directives_priorities(directives)
+        assert len(priorities["priority_1"]) >= 3
+        assert len(priorities["priority_2"]) >= 3
+        assert len(priorities["priority_3"]) >= 1
+
+    def test_parse_priorities_extracts_bold_names(self):
+        from engines.research_agent import parse_directives_priorities
+
+        test_md = """
+### Priority 1: Existential Threat Monitoring
+1. **Anthropic native memory API** — If Claude gets built-in persistent memory
+2. **Mem0 adds orchestration** — If Mem0 ships task routing
+
+### Priority 2: Capability Amplification
+1. **Trajectory memory** — Learn from HOW tasks were solved
+2. **Memory admission control** — Decide what NOT to remember
+
+## Constraints
+"""
+        priorities = parse_directives_priorities(test_md)
+        assert priorities["priority_1"] == [
+            "Anthropic native memory API",
+            "Mem0 adds orchestration",
+        ]
+        assert priorities["priority_2"] == [
+            "Trajectory memory",
+            "Memory admission control",
+        ]
+        assert priorities["priority_3"] == []
+
+    def test_parse_empty_directives(self):
+        from engines.research_agent import parse_directives_priorities
+
+        priorities = parse_directives_priorities("")
+        assert priorities == {
+            "priority_1": [],
+            "priority_2": [],
+            "priority_3": [],
+        }
+
+    def test_scan_prompt_includes_directives(self, agent):
+        prompt = agent.get_scan_prompt()
+        assert "HUMAN RESEARCH DIRECTIVES" in prompt
+        # Should include actual priority items from file
+        assert "Priority 1" in prompt or "priority_1" in prompt.lower()
+
+    def test_scan_prompt_includes_autoresearch_source(self, agent):
+        sources = agent.get_sources()
+        assert "autoresearch_ecosystem" in sources
+        assert "karpathy autoresearch" in sources["autoresearch_ecosystem"]["queries"]
+
+
+class TestExperimentLoop:
+    """Tests for the CRA experiment loop runner (autoresearch-inspired)."""
+
+    def test_evaluate_proposal_keep(self, agent, cra_dir):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Good integration",
+            tests_passing=98,
+            tests_total=100,
+            capability_score_delta=0.6,
+            addresses_threat=False,
+            branch_name="cra/good-integration",
+        )
+        outcome = agent.evaluate_experiment(result, baseline_score=0.5)
+        assert outcome["decision"] == "keep"
+        assert outcome["score"] > 0.5
+
+    def test_evaluate_proposal_discard(self, agent, cra_dir):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Bad integration",
+            tests_passing=40,
+            tests_total=100,
+            capability_score_delta=0.1,
+            addresses_threat=False,
+            branch_name="cra/bad-integration",
+        )
+        outcome = agent.evaluate_experiment(result, baseline_score=0.5)
+        assert outcome["decision"] == "discard"
+        assert outcome["score"] <= 0.5
+
+    def test_evaluate_proposal_with_error(self, agent, cra_dir):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Errored integration",
+            tests_passing=0,
+            tests_total=0,
+            capability_score_delta=0.0,
+            addresses_threat=False,
+            error="ImportError: no module named 'foo'",
+        )
+        outcome = agent.evaluate_experiment(result, baseline_score=0.5)
+        assert outcome["decision"] == "discard"
+        assert "error" in outcome
+
+    def test_experiment_log_persists(self, agent, cra_dir):
+        from engines.research_agent import ProposalResult
+
+        result = ProposalResult(
+            proposal_title="Logged integration",
+            tests_passing=100,
+            tests_total=100,
+            capability_score_delta=0.8,
+            addresses_threat=True,
+        )
+        agent.evaluate_experiment(result, baseline_score=0.3)
+        log_path = cra_dir / "experiment_log.jsonl"
+        assert log_path.exists()
+        entries = log_path.read_text().strip().splitlines()
+        assert len(entries) == 1
+        entry = json.loads(entries[0])
+        assert entry["decision"] == "keep"
+        assert entry["proposal_title"] == "Logged integration"
+
+    def test_get_baseline_score_default(self, agent):
+        baseline = agent.get_baseline_score()
+        assert baseline == 0.5  # Default when no experiments logged
+
+    def test_get_baseline_score_from_log(self, agent, cra_dir):
+        from engines.research_agent import ProposalResult
+
+        # Run a successful experiment to establish baseline
+        result = ProposalResult(
+            proposal_title="Baseline setter",
+            tests_passing=90,
+            tests_total=100,
+            capability_score_delta=0.5,
+            addresses_threat=False,
+        )
+        agent.evaluate_experiment(result, baseline_score=0.5)
+        baseline = agent.get_baseline_score()
+        # Baseline should be the score of the last kept experiment
+        assert baseline > 0.5

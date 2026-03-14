@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 RESEARCH_DIR = Path.home() / ".cortex" / "research" / "cra"
 BRIEFS_DIR = Path.home() / "Dev" / "cortex" / "research_briefs"
+DIRECTIVES_PATH = Path.home() / "Dev" / "cortex" / "research_directives.md"
 
 # Cortex capability vectors — discoveries are scored against these
 CAPABILITY_VECTORS: Dict[str, str] = {
@@ -122,6 +123,16 @@ SOURCES = {
         "signal_quality": "high",
         "frequency": "weekly",
     },
+    "autoresearch_ecosystem": {
+        "label": "Karpathy autoresearch & Autonomous Experiment Loops",
+        "queries": [
+            "karpathy autoresearch",
+            "autonomous ML experiment agent",
+            "autoresearch fork extension",
+        ],
+        "signal_quality": "high",
+        "frequency": "weekly",
+    },
 }
 
 
@@ -196,6 +207,90 @@ class Assessment:
         return (impact * effort) + self.disruption_risk
 
 
+@dataclass
+class ProposalResult:
+    """Result of a CRA experiment loop iteration (autoresearch-inspired).
+
+    Each proposal that enters the experiment loop produces one of these,
+    which feeds into adoption_outcome_score() for keep/discard decision.
+    """
+
+    proposal_title: str
+    tests_passing: int
+    tests_total: int
+    capability_score_delta: float  # 0-1: improvement in target capability
+    addresses_threat: bool  # Does this address a Priority 1 threat?
+    branch_name: str = ""
+    error: str = ""
+
+    @property
+    def test_pass_rate(self) -> float:
+        if self.tests_total == 0:
+            return 0.0
+        return self.tests_passing / self.tests_total
+
+
+def adoption_outcome_score(result: ProposalResult) -> float:
+    """Single scalar metric for the CRA experiment loop.
+
+    Inspired by Karpathy's autoresearch val_bpb — one number to
+    decide keep/discard. Higher is better. Range: 0.0-1.0.
+
+    Weights:
+      50% test pass rate — nothing ships if tests break
+      30% capability gain — did this actually improve something?
+      20% threat response — existential threats get priority
+    """
+    test_weight = 0.5 * result.test_pass_rate
+    capability_weight = 0.3 * min(max(result.capability_score_delta, 0.0), 1.0)
+    threat_weight = 0.2 * (1.0 if result.addresses_threat else 0.0)
+    return test_weight + capability_weight + threat_weight
+
+
+def load_research_directives(path: Optional[Path] = None) -> str:
+    """Load human-authored research directives (Karpathy program.md pattern).
+
+    Returns the directives content, or empty string if file doesn't exist.
+    """
+    directives_path = path or DIRECTIVES_PATH
+    if directives_path.exists():
+        return directives_path.read_text(encoding="utf-8")
+    logger.warning("research_directives.md not found at %s, using defaults", directives_path)
+    return ""
+
+
+def parse_directives_priorities(directives_text: str) -> Dict[str, List[str]]:
+    """Extract priority tiers and items from research_directives.md.
+
+    Returns {"priority_1": [...], "priority_2": [...], "priority_3": [...]}.
+    """
+    priorities: Dict[str, List[str]] = {
+        "priority_1": [],
+        "priority_2": [],
+        "priority_3": [],
+    }
+    current_priority = ""
+
+    for line in directives_text.splitlines():
+        if "### Priority 1" in line:
+            current_priority = "priority_1"
+        elif "### Priority 2" in line:
+            current_priority = "priority_2"
+        elif "### Priority 3" in line:
+            current_priority = "priority_3"
+        elif line.startswith("## Constraints") or line.startswith("## Evaluation"):
+            current_priority = ""
+        elif current_priority and line.strip().startswith(("1.", "2.", "3.", "4.", "5.")):
+            item = line.strip()
+            if "**" in item:
+                bold_start = item.index("**") + 2
+                bold_end = item.index("**", bold_start)
+                item = item[bold_start:bold_end]
+            priorities[current_priority].append(item)
+
+    return priorities
+
+
 class CortexResearchAgent:
     """
     CRA: Discovers, assesses, and proposes research integrations for Cortex.
@@ -204,6 +299,10 @@ class CortexResearchAgent:
     1. Batch queue (overnight, 50% cost savings)
     2. CLI command (cortex research scan/assess/propose)
     3. Slash command (/frontier-scout extended mode)
+
+    Experiment loop (autoresearch-inspired):
+      read research_directives.md -> propose integration -> batch prototype ->
+      evaluate adoption_outcome_score -> keep/discard -> repeat
     """
 
     def __init__(self, research_dir: Optional[Path] = None):
@@ -620,21 +719,161 @@ class CortexResearchAgent:
         except (json.JSONDecodeError, KeyError, ValueError):
             return True
 
+    # ── Experiment Loop (autoresearch-inspired) ──
+
+    def evaluate_experiment(
+        self,
+        result: "ProposalResult",
+        baseline_score: float = 0.5,
+    ) -> Dict[str, Any]:
+        """Evaluate a single experiment iteration and decide keep/discard.
+
+        This is the core of the autoresearch-inspired loop:
+        run proposal → evaluate score → keep if better → log everything.
+
+        Returns dict with decision, score, and metadata.
+        """
+        score = adoption_outcome_score(result)
+        decision = "keep" if score > baseline_score and not result.error else "discard"
+
+        entry = {
+            "proposal_title": result.proposal_title,
+            "score": round(score, 4),
+            "baseline": round(baseline_score, 4),
+            "decision": decision,
+            "test_pass_rate": round(result.test_pass_rate, 4),
+            "capability_delta": round(result.capability_score_delta, 4),
+            "addresses_threat": result.addresses_threat,
+            "branch": result.branch_name,
+            "evaluated_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+
+        if result.error:
+            entry["error"] = result.error
+
+        # Persist to experiment log
+        log_path = self.research_dir / "experiment_log.jsonl"
+        with open(log_path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+        logger.info(
+            "Experiment [%s]: %s (score=%.3f, baseline=%.3f)",
+            decision.upper(),
+            result.proposal_title,
+            score,
+            baseline_score,
+        )
+
+        return entry
+
+    def get_baseline_score(self) -> float:
+        """Get the current baseline score from the last kept experiment.
+
+        If no experiments have been kept, returns 0.5 as default.
+        """
+        log_path = self.research_dir / "experiment_log.jsonl"
+        if not log_path.exists():
+            return 0.5
+
+        last_kept_score = 0.5
+        for line in log_path.read_text().strip().splitlines():
+            try:
+                entry = json.loads(line)
+                if entry.get("decision") == "keep":
+                    last_kept_score = entry.get("score", 0.5)
+            except json.JSONDecodeError:
+                continue
+
+        return last_kept_score
+
+    def run_experiment_loop(
+        self,
+        proposals: List[Dict[str, Any]],
+        dry_run: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Run the full experiment loop over a list of proposals.
+
+        In dry_run mode (default), simulates the loop without creating
+        branches or running tests. Set dry_run=False for actual execution.
+
+        Returns list of experiment outcomes.
+        """
+        baseline = self.get_baseline_score()
+        outcomes: List[Dict[str, Any]] = []
+
+        logger.info(
+            "Starting experiment loop: %d proposals, baseline=%.3f",
+            len(proposals),
+            baseline,
+        )
+
+        for proposal in proposals:
+            title = proposal.get("title", "untitled")
+            logger.info("Evaluating proposal: %s", title)
+
+            if dry_run:
+                # Simulate: assume tests pass, no capability delta measured
+                result = ProposalResult(
+                    proposal_title=title,
+                    tests_passing=0,
+                    tests_total=0,
+                    capability_score_delta=0.0,
+                    addresses_threat=False,
+                    branch_name=f"cra/{title.lower().replace(' ', '-')[:30]}",
+                )
+                outcome = self.evaluate_experiment(result, baseline_score=baseline)
+                outcome["dry_run"] = True
+            else:
+                result = self._execute_live_experiment(proposal)
+                outcome = self.evaluate_experiment(result, baseline_score=baseline)
+
+            outcomes.append(outcome)
+
+            # Update baseline if kept
+            if outcome["decision"] == "keep":
+                baseline = outcome["score"]
+
+        logger.info(
+            "Experiment loop complete: %d/%d kept",
+            sum(1 for o in outcomes if o["decision"] == "keep"),
+            len(outcomes),
+        )
+
+        return outcomes
+
     # ── Batch Integration ──
 
     def get_scan_prompt(self) -> str:
-        """Return prompt for batch API submission (discovery scan)."""
+        """Return prompt for batch API submission (discovery scan).
+
+        Reads research_directives.md (human-authored, Karpathy program.md pattern)
+        to steer scan priorities. Falls back to hardcoded threats if missing.
+        """
         threat_sources = self.get_threat_sources()
         threat_section = "\n".join(
             f"- **{v['label']}**: {', '.join(v['queries'])}" for v in threat_sources.values()
         )
+
+        # Load human-authored directives for priority steering
+        directives = load_research_directives()
+        directives_section = ""
+        if directives:
+            priorities = parse_directives_priorities(directives)
+            if any(priorities.values()):
+                directives_section = "\nHUMAN RESEARCH DIRECTIVES (from research_directives.md):\n"
+                for tier, items in priorities.items():
+                    if items:
+                        tier_label = tier.replace("_", " ").title()
+                        directives_section += f"\n{tier_label}:\n"
+                        for item in items:
+                            directives_section += f"  - {item}\n"
 
         return f"""You are the Cortex Research Agent (CRA). Scan the AI engineering frontier
 for developments relevant to an agent memory + orchestration system.
 
 PRIORITY THREAT MONITORING (check these FIRST):
 {threat_section}
-
+{directives_section}
 CAPABILITY VECTORS (score each finding against these):
 {json.dumps(CAPABILITY_VECTORS, indent=2)}
 
@@ -740,9 +979,42 @@ def main():
         print(f"Proposals:    {len(proposals)}")
         print(f"Scan due:     {agent.should_scan()}")
 
+    elif command == "experiment":
+        # Run experiment loop over pending proposals (dry-run by default)
+        proposals = agent.get_pending_proposals()
+        if not proposals:
+            print("No pending proposals to experiment with.")
+            return
+        dry_run = "--live" not in sys.argv
+        outcomes = agent.run_experiment_loop(proposals, dry_run=dry_run)
+        for o in outcomes:
+            status = "KEEP" if o["decision"] == "keep" else "DISCARD"
+            flag = " [DRY RUN]" if o.get("dry_run") else ""
+            print(f"  [{status}] {o['proposal_title']} (score={o['score']:.3f}){flag}")
+        kept = sum(1 for o in outcomes if o["decision"] == "keep")
+        print(f"\nResults: {kept}/{len(outcomes)} kept (baseline={agent.get_baseline_score():.3f})")
+
+    elif command == "baseline":
+        print(f"Current baseline score: {agent.get_baseline_score():.3f}")
+
+    elif command == "directives":
+        directives = load_research_directives()
+        if directives:
+            priorities = parse_directives_priorities(directives)
+            for tier, items in priorities.items():
+                if items:
+                    print(f"\n{tier.replace('_', ' ').title()}:")
+                    for item in items:
+                        print(f"  - {item}")
+        else:
+            print("No research_directives.md found.")
+
     else:
         print(f"Unknown command: {command}")
-        print("Usage: python -m cortex.engines.research_agent [ingest-brief|digest|threats|status]")
+        print(
+            "Usage: python -m cortex.engines.research_agent "
+            "[ingest-brief|digest|threats|status|experiment|baseline|directives]"
+        )
 
 
 if __name__ == "__main__":

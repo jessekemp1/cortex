@@ -363,13 +363,76 @@ class TrajectoryMemory:
 
 #### Phase 3: Auto-Research Agent (May 1 — May 21)
 
+**Reference architecture:** [Karpathy's autoresearch](https://github.com/karpathy/autoresearch) (33.5K★, 2026-03-06).
+Key pattern to adopt: `program.md → agent edits code → train 5min → evaluate val_bpb → keep/discard → repeat`.
+Cortex adaptation: `research_directives.md → CRA proposes integration → batch prototype → evaluate metric → keep/discard → repeat`.
+Critical constraint borrowed: **one scalar metric per experiment cycle** (autoresearch uses val_bpb; CRA uses `adoption_outcome_score`).
+
 | Item | Priority | Effort | Impact |
 |------|----------|--------|--------|
-| **Discovery engine** (arxiv, GitHub, MCP registry) | P1 | 1 week | Foundation for everything |
-| **Analysis engine** (relevance scoring, disruption detection) | P1 | 1 week | Filter signal from noise |
+| **Discovery engine** (arxiv, GitHub, MCP registry) | P1 | ✅ SHIPPED | Foundation for everything |
+| **Analysis engine** (relevance scoring, disruption detection) | P1 | ✅ SHIPPED | Filter signal from noise |
 | **Proposal engine** (integration specs) | P2 | 3 days | Actionable output |
 | **Weekly research digest** (in `cortex briefing`) | P1 | 2 days | User-facing value |
-| **Batch API integration** (overnight research scans) | P2 | 2 days | Cost-efficient |
+| **Batch API integration** (overnight research scans) | P2 | ✅ SHIPPED | Cost-efficient |
+| **Autoresearch-style experiment loop** | P1 | 1 week | Autonomous validate/discard cycle for CRA proposals |
+| **research_directives.md** (human-authored CRA program) | P1 | 2 days | Karpathy's program.md pattern — human steers, agent executes |
+
+**Autoresearch-inspired experiment loop (NEW — from Karpathy's autoresearch):**
+
+The current CRA pipeline is: discover → assess → propose → (human decides). The missing piece is
+**autonomous validation** — the agent should be able to prototype an integration, evaluate it against
+a single metric, and keep/discard without human intervention.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│         CRA EXPERIMENT LOOP (autoresearch-adapted)               │
+│                                                                   │
+│  research_directives.md ──→ CRA Agent ──→ Propose integration    │
+│  (human steers)               │               │                   │
+│                                │    ┌──────────▼──────────────┐  │
+│                                │    │ Batch prototype          │  │
+│                                │    │ (branch, implement,      │  │
+│                                │    │  run tests)              │  │
+│                                │    └──────────┬──────────────┘  │
+│                                │               │                  │
+│                                │    ┌──────────▼──────────────┐  │
+│                                │    │ Evaluate single metric:  │  │
+│                                │    │ adoption_outcome_score   │  │
+│                                │    │ (test_pass_rate ×        │  │
+│                                │    │  capability_coverage ×   │  │
+│                                │    │  disruption_addressed)   │  │
+│                                │    └──────────┬──────────────┘  │
+│                                │               │                  │
+│                           ┌────▼───────────────▼────┐            │
+│                           │  Score improved?         │            │
+│                           │  YES → merge to staging  │            │
+│                           │  NO  → discard + log why │            │
+│                           └─────────────────────────┘            │
+│                                    │                              │
+│                                    └──── REPEAT overnight ───────│
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Key constraint from autoresearch:** One scalar metric (`adoption_outcome_score`) keeps the loop
+tractable. Multi-dimensional evaluation causes the agent to hedge — autoresearch proved that
+constraining to `val_bpb` alone was sufficient for the agent to independently rediscover RMSNorm
+and tied embeddings. CRA's equivalent:
+
+```python
+def adoption_outcome_score(proposal_result) -> float:
+    """Single scalar metric for CRA experiment loop.
+
+    Mirrors autoresearch's val_bpb — lower is better there,
+    higher is better here. Range: 0.0–1.0.
+    """
+    test_pass = proposal_result.tests_passing / proposal_result.tests_total
+    capability_gain = proposal_result.capability_score_delta  # 0-1
+    disruption_addressed = 1.0 if proposal_result.addresses_threat else 0.0
+
+    # Weighted: tests matter most, then capability, then threat response
+    return (0.5 * test_pass) + (0.3 * capability_gain) + (0.2 * disruption_addressed)
+```
 
 **Cowork integration assessment:**
 
