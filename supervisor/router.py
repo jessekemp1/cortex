@@ -92,6 +92,7 @@ class ModelSelection:
     complexity_score: float
     confidence: float
     provider: str = "anthropic"  # Target provider for dispatch
+    is_baseline: bool = False  # True = A/B baseline (forced Anthropic for quality comparison)
 
 
 @dataclass
@@ -599,15 +600,32 @@ class AdvancedModelRouter(ModelRouter):
         remaining_budget: float = 10.0,
         remaining_time_seconds: float = 3600.0,
         is_retry: bool = False,
+        ab_baseline_ratio: float = 0.10,
     ) -> ModelSelection:
         """Multi-signal routing with context awareness and provider selection.
 
         Pipeline:
+          0. A/B baseline gate: 10% of tasks bypass multi-provider → Anthropic-only
           1. ContextAwareModelRecommender.recommend() → context-aware tier
           2. Historical quality per (provider, model, task_type) → adjust
           3. Provider health + cost optimization → cheapest adequate
           4. Guardrail: never route opus-tier task below sonnet
         """
+        # A/B baseline: force Anthropic-only for quality comparison
+        import random
+
+        if ab_baseline_ratio > 0 and random.random() < ab_baseline_ratio:
+            base = self.select_model(work_item)
+            return ModelSelection(
+                model_tier=base.model_tier,
+                model_id=base.model_id,
+                reasoning=base.reasoning + ". A/B baseline: forced Anthropic-only",
+                complexity_score=base.complexity_score,
+                confidence=base.confidence,
+                provider="anthropic",
+                is_baseline=True,
+            )
+
         if self._recommender is None:
             return self.select_model_with_provider(work_item, self._registry)
 
@@ -621,8 +639,8 @@ class AdvancedModelRouter(ModelRouter):
                 remaining_time=timedelta(seconds=remaining_time_seconds),
                 task_priority=work_item.priority.value,
                 is_retry=is_retry,
-                project=work_item.project,
-                files=work_item.files,
+                project=work_item.project or "",
+                files=work_item.files or [],
             )
 
             recommendation = self._recommender.recommend(

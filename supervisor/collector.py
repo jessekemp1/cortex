@@ -81,11 +81,16 @@ class ResultCollector:
         self,
         result: DispatchResult,
         quality_score: float | None = None,
+        is_baseline: bool = False,
     ) -> None:
         """Append an outcome entry to ``model_outcomes.jsonl``.
 
         This feeds the routing optimiser so future dispatches can learn which
         model tier works best for each task type.
+
+        Args:
+            is_baseline: True if this task was part of the A/B baseline
+                (forced Anthropic-only for quality comparison).
         """
         model_tier = _tier_from_model_id(result.model_used)
         entry = {
@@ -100,6 +105,7 @@ class ResultCollector:
             "duration_seconds": result.duration_seconds,
             "provider": getattr(result, "provider", "anthropic"),
             "cost_usd": getattr(result, "cost_usd", 0.0),
+            "is_baseline": is_baseline,
         }
         self._outcomes_path.parent.mkdir(parents=True, exist_ok=True)
         with self._outcomes_path.open("a", encoding="utf-8") as fh:
