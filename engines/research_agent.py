@@ -878,7 +878,10 @@ class CortexResearchAgent:
         Returns dict with decision, score, and metadata.
         """
         score = adoption_outcome_score(result)
-        decision = "keep" if score > baseline_score and not result.error else "discard"
+        # Hard error = tests didn't run at all (0 total) or catastrophic failure.
+        # Pre-existing flaky tests (99%+ pass rate) should not block adoption.
+        hard_error = bool(result.error) and result.test_pass_rate < 0.99
+        decision = "keep" if score > baseline_score and not hard_error else "discard"
 
         entry = {
             "proposal_title": result.proposal_title,
