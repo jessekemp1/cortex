@@ -881,7 +881,15 @@ class CortexResearchAgent:
         # Hard error = tests didn't run at all (0 total) or catastrophic failure.
         # Pre-existing flaky tests (99%+ pass rate) should not block adoption.
         hard_error = bool(result.error) and result.test_pass_rate < 0.99
-        decision = "keep" if score > baseline_score and not hard_error else "discard"
+        # Urgency bypass: existential threats (addresses_threat=True) skip the
+        # baseline ratchet — they must still pass tests but don't need to beat
+        # the current quality floor. Rationale: an existential threat with
+        # disruption_risk=0.8 shouldn't be blocked by a higher-scoring
+        # incremental improvement that set the baseline.
+        if result.addresses_threat and not hard_error and score > 0.5:
+            decision = "keep"
+        else:
+            decision = "keep" if score > baseline_score and not hard_error else "discard"
 
         entry = {
             "proposal_title": result.proposal_title,
