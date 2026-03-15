@@ -346,6 +346,96 @@ def cortex_orchestrate(
         return json.dumps({"error": str(e)})
 
 
+# ── CRA Research Tools ──
+
+
+@mcp.tool()
+def cortex_research_status() -> str:
+    """Get CRA (Cortex Research Agent) pipeline status: discovery, assessment, proposal counts, and baseline score."""
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+        discoveries = agent.load_discoveries()
+        assessments = agent.load_assessments()
+        adopt = agent.get_adopt_recommendations()
+        threats = agent.get_urgent_threats()
+        proposals = agent.get_pending_proposals()
+        statuses = agent.status_tracker.get_all()
+
+        status_counts = {}
+        for _file, data in statuses.items():
+            s = data.get("status", "draft")
+            status_counts[s] = status_counts.get(s, 0) + 1
+
+        result = {
+            "discoveries": len(discoveries),
+            "assessments": len(assessments),
+            "adopt_recommendations": len(adopt),
+            "urgent_threats": len(threats),
+            "pending_proposals": len(proposals),
+            "baseline_score": round(agent.get_baseline_score(), 4),
+            "scan_due": agent.should_scan(),
+            "proposal_statuses": status_counts,
+        }
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def cortex_research_digest() -> str:
+    """Get the CRA weekly research digest — discoveries, assessments, urgent threats, and pending proposals."""
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+        return agent.weekly_digest()
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def cortex_research_proposals(action: str = "list") -> str:
+    """Manage CRA research proposals. List pending proposals or approve one for live execution.
+
+    Args:
+        action: "list" to show all proposals with status, or "approve:<filename>" to approve a proposal.
+    """
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+
+        if action.startswith("approve:"):
+            proposal_file = action.split(":", 1)[1].strip()
+            agent.approve_proposal(proposal_file)
+            return json.dumps(
+                {
+                    "approved": proposal_file,
+                    "new_status": agent.status_tracker.get_status(proposal_file),
+                },
+                indent=2,
+            )
+
+        # Default: list proposals with status
+        proposals = agent.get_pending_proposals()
+        result = []
+        for p in proposals:
+            status = agent.status_tracker.get_status(p["file"])
+            result.append(
+                {
+                    "file": p["file"],
+                    "title": p["title"],
+                    "created": p["created"],
+                    "status": status,
+                }
+            )
+        return json.dumps({"proposals": result, "count": len(result)}, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 # ── Resources ──
 
 
