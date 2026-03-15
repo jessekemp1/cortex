@@ -324,6 +324,11 @@ class TestTier1Report:
 
         print("└─────────────────────────────────────────────────────────────┘")
 
+        # Smoke-check: benchmark must return valid structure with results
+        assert summary.total_queries > 0, "Benchmark produced zero queries"
+        assert 0.0 <= summary.recall_at_10 <= 1.0
+        assert 0.0 <= summary.mean_reciprocal_rank <= 1.0
+
         # Write results to JSON for Tier 2 consumption
         results_path = Path.home() / ".cortex" / "metrics" / "retrieval_benchmark.json"
         results_path.parent.mkdir(parents=True, exist_ok=True)
