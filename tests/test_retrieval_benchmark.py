@@ -226,12 +226,26 @@ def retriever():
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from intelligence.embeddings_client import EmbeddingsClient
     from intelligence.memory.hybrid_retriever import HybridRetriever
     from intelligence.memory.pattern_indexer import PatternIndexer
 
     indexer = PatternIndexer(root_dir=Path.home() / "Dev")
     patterns = indexer.load_patterns()
-    return HybridRetriever(patterns)
+
+    # Enable embeddings only if real embedding API is available.
+    # Hash-based fallback degrades BM25 quality via RRF noise.
+    embeddings_client = None
+    try:
+        client = EmbeddingsClient()
+        # Test if real embeddings work (not just hash fallback)
+        test_vec = client.generate_embedding("test")
+        if len(test_vec) == 768:
+            embeddings_client = client
+    except (ImportError, ValueError, Exception):
+        pass
+
+    return HybridRetriever(patterns, embeddings_client=embeddings_client)
 
 
 # ---------------------------------------------------------------------------
