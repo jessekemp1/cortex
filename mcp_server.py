@@ -25,13 +25,15 @@ Resources:
   - cortex://prompts/patterns: Learned prompt patterns and category hints
 """
 
+from __future__ import annotations
+
 import json
 import os
 import urllib.request
 import urllib.error
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
@@ -506,22 +508,14 @@ for _name in _DEFERRED_TOOL_NAMES:
         pass  # Tool may not exist if registration order changes
 
 
-@mcp.tool()
-def cortex_enable_tools(group: str = "all") -> str:
-    """Enable deferred tool groups that were not loaded at startup.
-
-    Available groups: 'research' (CRA status/digest/proposals),
-    'conductor' (compose/startup), or 'all'.
-
-    Args:
-        group: Tool group to enable — 'research', 'conductor', or 'all'.
-    """
+def _enable_tool_group(group: str) -> dict:
+    """Enable deferred tools by group name. Returns result dict."""
     if group == "all":
         groups_to_enable = list(_DEFERRED_TOOL_GROUPS.keys())
     elif group in _DEFERRED_TOOL_GROUPS:
         groups_to_enable = [group]
     else:
-        return json.dumps({"error": f"Unknown group '{group}'. Valid: research, conductor, all"})
+        return {"error": f"Unknown group '{group}'. Valid: research, conductor, all"}
 
     enabled = []
     for g in groups_to_enable:
@@ -532,7 +526,29 @@ def cortex_enable_tools(group: str = "all") -> str:
             mcp.add_tool(tool_fn, name=tool_name)
             enabled.append(tool_name)
 
-    return json.dumps({"enabled": enabled, "group": group})
+    return {"enabled": enabled, "group": group}
+
+
+@mcp.tool()
+async def cortex_enable_tools(group: str = "all", ctx: Context | None = None) -> str:
+    """Enable deferred tool groups that were not loaded at startup.
+
+    Available groups: 'research' (CRA status/digest/proposals),
+    'conductor' (compose/startup), or 'all'.
+
+    Args:
+        group: Tool group to enable — 'research', 'conductor', or 'all'.
+    """
+    result = _enable_tool_group(group)
+
+    # Notify client that the tool list changed (MCP spec compliance)
+    if result.get("enabled") and ctx is not None:
+        try:
+            await ctx.session.send_tool_list_changed()
+        except Exception:
+            pass  # Best-effort — session may not support notifications
+
+    return json.dumps(result)
 
 
 def main():

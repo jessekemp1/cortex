@@ -214,12 +214,9 @@ class TestDeferredToolLoading:
         assert leaked == set(), f"Deferred tools still in initial list: {leaked}"
 
     def test_enable_tools_registers_research(self):
-        from cortex.mcp_server import (
-            cortex_enable_tools,
-            mcp as mcp_instance,
-        )
+        from cortex.mcp_server import _enable_tool_group, mcp as mcp_instance
 
-        result = json.loads(cortex_enable_tools(group="research"))
+        result = _enable_tool_group("research")
         registered = set(mcp_instance._tool_manager._tools.keys())
 
         assert "cortex_research_status" in registered
@@ -228,14 +225,14 @@ class TestDeferredToolLoading:
         assert len(result["enabled"]) >= 1
 
     def test_enable_tools_invalid_group(self):
-        from cortex.mcp_server import cortex_enable_tools
+        from cortex.mcp_server import _enable_tool_group
 
-        result = json.loads(cortex_enable_tools(group="nonexistent"))
+        result = _enable_tool_group("nonexistent")
         assert "error" in result
 
     def test_enable_all_registers_both_groups(self):
         from cortex.mcp_server import (
-            cortex_enable_tools,
+            _enable_tool_group,
             mcp as mcp_instance,
             _DEFERRED_TOOL_NAMES,
         )
@@ -247,7 +244,7 @@ class TestDeferredToolLoading:
             except Exception:
                 pass
 
-        result = json.loads(cortex_enable_tools(group="all"))
+        result = _enable_tool_group("all")
         registered = set(mcp_instance._tool_manager._tools.keys())
 
         for name in _DEFERRED_TOOL_NAMES:
