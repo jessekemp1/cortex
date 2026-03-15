@@ -476,6 +476,65 @@ def prompt_patterns_resource() -> str:
     )
 
 
+# ── Deferred Tool Loading ──
+#
+# Low-frequency tools (research, conductor) are removed at import time
+# and re-registered on demand via cortex_enable_tools(). This reduces
+# the initial tools/list payload sent to clients — fewer tokens per session.
+
+_DEFERRED_TOOL_GROUPS = {
+    "research": {
+        "cortex_research_status": cortex_research_status,
+        "cortex_research_digest": cortex_research_digest,
+        "cortex_research_proposals": cortex_research_proposals,
+    },
+    "conductor": {
+        "cortex_conductor_compose": cortex_conductor_compose,
+        "cortex_conductor_startup": cortex_conductor_startup,
+    },
+}
+
+_DEFERRED_TOOL_NAMES = set()
+for _group_tools in _DEFERRED_TOOL_GROUPS.values():
+    _DEFERRED_TOOL_NAMES.update(_group_tools.keys())
+
+# Remove deferred tools from initial registration
+for _name in _DEFERRED_TOOL_NAMES:
+    try:
+        mcp.remove_tool(_name)
+    except Exception:
+        pass  # Tool may not exist if registration order changes
+
+
+@mcp.tool()
+def cortex_enable_tools(group: str = "all") -> str:
+    """Enable deferred tool groups that were not loaded at startup.
+
+    Available groups: 'research' (CRA status/digest/proposals),
+    'conductor' (compose/startup), or 'all'.
+
+    Args:
+        group: Tool group to enable — 'research', 'conductor', or 'all'.
+    """
+    if group == "all":
+        groups_to_enable = list(_DEFERRED_TOOL_GROUPS.keys())
+    elif group in _DEFERRED_TOOL_GROUPS:
+        groups_to_enable = [group]
+    else:
+        return json.dumps({"error": f"Unknown group '{group}'. Valid: research, conductor, all"})
+
+    enabled = []
+    for g in groups_to_enable:
+        for tool_name, tool_fn in _DEFERRED_TOOL_GROUPS[g].items():
+            # Skip if already registered
+            if tool_name in {t for t in mcp._tool_manager._tools}:
+                continue
+            mcp.add_tool(tool_fn, name=tool_name)
+            enabled.append(tool_name)
+
+    return json.dumps({"enabled": enabled, "group": group})
+
+
 def main():
     """Entry point for cortex-mcp console script."""
     mcp.run()

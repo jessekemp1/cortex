@@ -9,6 +9,7 @@ Tests:
 - Weekly digest returns markdown with header
 - Proposal list returns proposals with status
 - Proposal approve transitions status correctly
+- Deferred tools not in initial tools/list
 """
 
 import json
@@ -195,3 +196,60 @@ class TestMCPResearchProposals:
         data = json.loads(serialized)
         assert data["count"] >= 1
         assert "proposals" in data
+
+
+class TestDeferredToolLoading:
+    """Deferred tools should not appear in initial tool list."""
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_no_mcp(self):
+        """Skip if MCP SDK is not installed."""
+        pytest.importorskip("mcp")
+
+    def test_deferred_tools_not_in_initial_list(self):
+        from cortex.mcp_server import mcp as mcp_instance, _DEFERRED_TOOL_NAMES
+
+        registered = set(mcp_instance._tool_manager._tools.keys())
+        leaked = _DEFERRED_TOOL_NAMES & registered
+        assert leaked == set(), f"Deferred tools still in initial list: {leaked}"
+
+    def test_enable_tools_registers_research(self):
+        from cortex.mcp_server import (
+            cortex_enable_tools,
+            mcp as mcp_instance,
+        )
+
+        result = json.loads(cortex_enable_tools(group="research"))
+        registered = set(mcp_instance._tool_manager._tools.keys())
+
+        assert "cortex_research_status" in registered
+        assert "cortex_research_digest" in registered
+        assert "cortex_research_proposals" in registered
+        assert len(result["enabled"]) >= 1
+
+    def test_enable_tools_invalid_group(self):
+        from cortex.mcp_server import cortex_enable_tools
+
+        result = json.loads(cortex_enable_tools(group="nonexistent"))
+        assert "error" in result
+
+    def test_enable_all_registers_both_groups(self):
+        from cortex.mcp_server import (
+            cortex_enable_tools,
+            mcp as mcp_instance,
+            _DEFERRED_TOOL_NAMES,
+        )
+
+        # Re-remove to reset state for this test
+        for name in _DEFERRED_TOOL_NAMES:
+            try:
+                mcp_instance.remove_tool(name)
+            except Exception:
+                pass
+
+        result = json.loads(cortex_enable_tools(group="all"))
+        registered = set(mcp_instance._tool_manager._tools.keys())
+
+        for name in _DEFERRED_TOOL_NAMES:
+            assert name in registered, f"{name} not registered after enable all"
+        assert len(result["enabled"]) == len(_DEFERRED_TOOL_NAMES)

@@ -388,13 +388,14 @@ class TestDiscoverAll:
 
         with patch.object(intake, "from_recommendations_api", return_value=[]):
             with patch.object(intake, "from_taskboard", return_value=[]):
-                items = intake.discover_all(goals_path=goals)
-                assert len(items) == 3
-                scores = [i.priority_score for i in items]
-                assert scores == sorted(scores, reverse=True)
-                assert items[0].priority == WorkItemPriority.HIGH
-                assert items[1].priority == WorkItemPriority.MEDIUM
-                assert items[2].priority == WorkItemPriority.LOW
+                with patch.object(intake, "from_research_agent", return_value=[]):
+                    items = intake.discover_all(goals_path=goals)
+                    assert len(items) == 3
+                    scores = [i.priority_score for i in items]
+                    assert scores == sorted(scores, reverse=True)
+                    assert items[0].priority == WorkItemPriority.HIGH
+                    assert items[1].priority == WorkItemPriority.MEDIUM
+                    assert items[2].priority == WorkItemPriority.LOW
 
     def test_includes_recommendations(self, intake, tmp_path):
         """Recommendations are included when available."""
@@ -407,9 +408,10 @@ class TestDiscoverAll:
 
         with patch.object(intake, "from_recommendations_api", return_value=[rec_item]):
             with patch.object(intake, "from_taskboard", return_value=[]):
-                items = intake.discover_all(goals_path=goals)
-                assert len(items) == 1
-                assert items[0].source == "recommendation"
+                with patch.object(intake, "from_research_agent", return_value=[]):
+                    items = intake.discover_all(goals_path=goals)
+                    assert len(items) == 1
+                    assert items[0].source == "recommendation"
 
 
 # ---------------------------------------------------------------------------
