@@ -784,6 +784,54 @@ class SystemMixin:
         except Exception as e:
             return {"error": str(e)}
 
+    def submit_intelligence_briefing(self, tracks: Optional[List[Dict]] = None) -> Dict[str, Any]:
+        """
+        Submit intelligence briefing research batch (7 tracks by default).
+
+        Uses BriefingResearcher to research AI engineering, agent orchestration,
+        Claude ecosystem, and Cortex-competitive landscape via Batch API.
+
+        Args:
+            tracks: Optional custom track list. Defaults to BRIEFING_TRACKS.
+
+        Returns:
+            {"batch_id": str, "submitted_count": int, "tracks": [str]}
+
+        Example:
+            >>> bridge = CortexBridge()
+            >>> result = bridge.submit_intelligence_briefing()
+            >>> # Later: bridge.collect_intelligence_briefing(result["batch_id"])
+        """
+        try:
+            from cortex.batch.briefing_researcher import BriefingResearcher
+
+            researcher = BriefingResearcher(tracks=tracks)
+            return researcher.submit_briefing_batch()
+        except ImportError as e:
+            return {"error": f"BriefingResearcher not available: {e}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def collect_intelligence_briefing(self, batch_id: str) -> Dict[str, Any]:
+        """
+        Collect completed intelligence briefing and synthesize into markdown.
+
+        Args:
+            batch_id: From submit_intelligence_briefing().
+
+        Returns:
+            {"briefing_file": str, "tracks_completed": int, "summary": str}
+        """
+        try:
+            from cortex.batch.briefing_researcher import BriefingResearcher
+
+            researcher = BriefingResearcher()
+            return researcher.collect_and_synthesize(batch_id)
+        except ImportError as e:
+            return {"error": f"BriefingResearcher not available: {e}"}
+        except Exception as e:
+            return {"error": str(e)}
+
     def get_batch_status(self, batch_id: str) -> Dict[str, Any]:
         """
         Get status of a batch operation.
