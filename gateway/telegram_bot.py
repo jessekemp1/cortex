@@ -90,6 +90,25 @@ def _bridge_get(path: str) -> dict:
         return {"error": str(e)}
 
 
+def _portfolio_json() -> dict:
+    """Run portfolio_status.py --json for ground-truth project data."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["/opt/homebrew/bin/python3", "scripts/portfolio_status.py", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd="/Users/jesse.kemp/Dev",
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception as e:
+        return {"error": str(e)}
+    return {"error": "portfolio_status.py failed"}
+
+
 def _bridge_post(path: str, body: dict) -> dict:
     """POST request to Bridge API."""
     try:
@@ -174,91 +193,81 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_briefing(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Assemble morning briefing from multiple Bridge endpoints."""
+    """Assemble morning briefing from real portfolio data."""
     await update.message.reply_text("⏳ Assembling briefing...")
 
-    health = _bridge_get("/service-health")
+    portfolio = _portfolio_json()
     recs = _bridge_get("/intelligence/recommendations")
-    anomalies = _bridge_get("/anomalies")
-    projects = _bridge_get("/projects")
 
     lines = ["╔═══════════════════════════════════╗"]
-    lines.append("║       CORTEX MORNING BRIEFING     ║")
+    lines.append("║     CORTEX MORNING BRIEFING       ║")
     lines.append("╠═══════════════════════════════════╣")
 
-    # Health summary
-    if "error" not in health:
-        bridge_ok = health.get("bridge", {}).get("status", "unknown")
-        lines.append(f"║  Bridge:  {bridge_ok:<24}║")
-        vortex = health.get("vortex", {})
-        if vortex:
-            v_status = vortex.get("status", "unknown")
-            lines.append(f"║  Vortex:  {v_status:<24}║")
-    else:
-        lines.append(f"║  ⚠ Bridge: {health['error'][:22]:<22}║")
-
-    lines.append("╠═══════════════════════════════════╣")
-
-    # Projects
-    if "error" not in projects:
-        proj_list = projects if isinstance(projects, list) else projects.get("projects", [])
-        for p in proj_list[:6]:
+    if "error" not in portfolio:
+        for p in portfolio.get("projects", []):
             name = p.get("name", "?")[:14]
-            tests = p.get("test_count", "?")
-            health_str = p.get("health", "?")
-            lines.append(f"║  {name:<14} {str(tests):>5} tests  {str(health_str)[:4]:>4} ║")
+            tests = p.get("tests", "—")[:6]
+            uncommit = p.get("uncommitted", "?")[:8]
+            flag = "⚠" if p.get("has_changes") else " "
+            lines.append(f"║ {flag}{name:<13} {tests:>6} {uncommit:>8} ║")
+
+        gate = portfolio.get("gate", {})
+        if gate:
+            verdict = gate.get("verdict", "?")
+            icon = "✅" if verdict == "SHIP" else "❌"
+            lines.append(f"║  Gate: {icon} {verdict:<25}║")
+    else:
+        lines.append(f"║  ⚠ {portfolio['error'][:30]:<30}║")
 
     lines.append("╠═══════════════════════════════════╣")
+    lines.append("║  ACTIONS                          ║")
 
-    # Recommendations
-    lines.append("║  RECOMMENDED ACTIONS              ║")
-    lines.append("║  ─────────────────────────────    ║")
     if "error" not in recs:
-        rec_items = (
+        items = (
             recs if isinstance(recs, list) else recs.get("recommendations", recs.get("items", []))
         )
-        if isinstance(rec_items, list):
-            for i, r in enumerate(rec_items[:3], 1):
+        if isinstance(items, list):
+            for i, r in enumerate(items[:3], 1):
                 title = r.get("title", r.get("action", "?"))[:30]
                 lines.append(f"║  {i}. {title:<30}║")
-        elif isinstance(recs, dict) and "next_action" in recs:
-            action = recs["next_action"]
-            if isinstance(action, dict):
-                lines.append(f"║  → {action.get('action', '?')[:30]:<30}║")
 
-    lines.append("╠═══════════════════════════════════╣")
-
-    # Anomalies
-    if "error" not in anomalies:
-        anom_list = anomalies if isinstance(anomalies, list) else anomalies.get("anomalies", [])
-        if anom_list:
-            lines.append(f"║  ⚠ {len(anom_list)} anomalies detected         ║")
-            for a in anom_list[:2]:
-                desc = a.get("description", a.get("message", "?"))[:30]
-                lines.append(f"║    {desc:<30}║")
-        else:
-            lines.append("║  ✅ No anomalies                  ║")
-    else:
-        lines.append("║  ? Anomaly check unavailable     ║")
+    goals = portfolio.get("goals", []) if "error" not in portfolio else []
+    if goals:
+        lines.append("╠═══════════════════════════════════╣")
+        lines.append("║  GOALS                            ║")
+        for g in goals[:3]:
+            title = g.get("title", "?")[:30]
+            lines.append(f"║  • {title:<30}║")
 
     lines.append("╚═══════════════════════════════════╝")
-
     await _send(update, "\n".join(lines))
 
 
 async def cmd_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    data = _bridge_get("/service-health")
-    if "error" in data:
-        await _send(update, f"⚠ {data['error']}")
-        return
+    portfolio = _portfolio_json()
+    health = _bridge_get("/service-health")
 
-    lines = ["SERVICE HEALTH", "─" * 35]
-    for key, val in data.items():
-        if isinstance(val, dict):
-            status = val.get("status", "unknown")
-            lines.append(f"  {key:<16} {status}")
-        else:
-            lines.append(f"  {key:<16} {val}")
+    lines = ["SERVICE HEALTH", "─" * 38]
+
+    if "error" not in health:
+        services = health.get("services", health)
+        for key, val in services.items():
+            if isinstance(val, dict):
+                status = val.get("status", "?")
+                port = val.get("port", "")
+                p = f":{port}" if port else ""
+                lines.append(f"  {key:<18} {status:<10} {p}")
+
+    if "error" not in portfolio:
+        lines.append("")
+        lines.append("PROJECTS")
+        lines.append("─" * 38)
+        for p in portfolio.get("projects", []):
+            name = p.get("name", "?")[:14]
+            tests = p.get("tests", "—")[:6]
+            uncommit = p.get("uncommitted", "?")[:8]
+            last = p.get("last_commit", "?")[:10]
+            lines.append(f"  {name:<14} {tests:>6} {uncommit:>8} {last}")
 
     await _send(update, "\n".join(lines))
 
@@ -295,23 +304,24 @@ async def cmd_next(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_projects(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    data = _bridge_get("/projects")
-    if "error" in data:
-        await _send(update, f"⚠ {data['error']}")
+    portfolio = _portfolio_json()
+    if "error" in portfolio:
+        await _send(update, f"⚠ {portfolio['error']}")
         return
 
-    proj_list = data if isinstance(data, list) else data.get("projects", [])
     lines = [
         "PROJECTS",
-        "─" * 40,
-        f"{'Name':<16} {'Tests':>6}  {'Health':>6}",
-        "─" * 40,
+        "─" * 38,
+        f"{'Name':<14} {'Tests':>6} {'Uncommit':>8} {'Last'}",
+        "─" * 38,
     ]
-    for p in proj_list:
-        name = p.get("name", "?")[:15]
-        tests = str(p.get("test_count", "?"))
-        health = str(p.get("health", "?"))[:6]
-        lines.append(f"{name:<16} {tests:>6}  {health:>6}")
+    for p in portfolio.get("projects", []):
+        name = p.get("name", "?")[:13]
+        tests = p.get("tests", "—")[:6]
+        uncommit = p.get("uncommitted", "?")[:8]
+        last = p.get("last_commit", "?")[:10]
+        flag = "⚠" if p.get("has_changes") else " "
+        lines.append(f"{flag}{name:<13} {tests:>6} {uncommit:>8} {last}")
 
     await _send(update, "\n".join(lines))
 

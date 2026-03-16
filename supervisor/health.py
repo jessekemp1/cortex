@@ -176,7 +176,7 @@ class HealthMonitor:
                         target_id=task.task_id,
                         description=f"Task running for {hours_running:.1f}h with no process",
                         severity="warning" if can_retry else "critical",
-                        auto_healable=can_retry,
+                        auto_healable=True,  # Always healable: retry if possible, force-fail if exhausted
                         metadata={
                             "task_type": task.task_type,
                             "retry_count": task.retry_count,
@@ -283,8 +283,10 @@ class HealthMonitor:
         )
 
     def _heal_stuck_shell_task(self, issue: HealthIssue) -> HealingAction:
-        """Heal a stuck shell task by marking it failed and retrying."""
+        """Heal a stuck shell task — retry if possible, force-fail if retries exhausted."""
         task_id = issue.target_id
+        retry_count = issue.metadata.get("retry_count", 0)
+        can_retry = retry_count < self.max_retries
 
         try:
             # Mark as failed
@@ -294,17 +296,27 @@ class HealthMonitor:
                 error_message=f"Auto-healed: {issue.description}",
             )
 
-            # Retry the task
-            self.shell_queue.retry_task(task_id)
-
-            logger.info(f"Healed stuck task {task_id[:8]}: marked failed and retried")
-
-            return HealingAction(
-                issue=issue,
-                action="retried",
-                success=True,
-                message=f"Marked as failed and queued for retry ({issue.metadata.get('retry_count', 0) + 1}/{self.max_retries})",
-            )
+            if can_retry:
+                self.shell_queue.retry_task(task_id)
+                logger.info(
+                    f"Healed stuck task {task_id[:8]}: retrying ({retry_count + 1}/{self.max_retries})"
+                )
+                return HealingAction(
+                    issue=issue,
+                    action="retried",
+                    success=True,
+                    message=f"Marked as failed and queued for retry ({retry_count + 1}/{self.max_retries})",
+                )
+            else:
+                logger.info(
+                    f"Force-failed stuck task {task_id[:8]}: retries exhausted ({retry_count}/{self.max_retries})"
+                )
+                return HealingAction(
+                    issue=issue,
+                    action="force_failed",
+                    success=True,
+                    message=f"Retries exhausted ({retry_count}/{self.max_retries}) — permanently marked as failed",
+                )
 
         except Exception as e:
             logger.error(f"Failed to heal task {task_id[:8]}: {e}")
@@ -314,6 +326,20 @@ class HealthMonitor:
                 success=False,
                 message=f"Healing failed: {str(e)}",
             )
+
+    def force_fail_task(self, task_id: str, reason: str = "Manually cancelled") -> bool:
+        """Force-fail a task regardless of retry count. For manual cleanup."""
+        try:
+            self.shell_queue.update_task_state(
+                task_id,
+                TaskState.FAILED,
+                error_message=reason,
+            )
+            logger.info(f"Force-failed task {task_id[:8]}: {reason}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to force-fail task {task_id[:8]}: {e}")
+            return False
 
     def _was_recently_healed(self, target_id: str, cooldown_minutes: int = 30) -> bool:
         """Check if a target was recently healed (to avoid healing loops)."""

@@ -113,38 +113,73 @@ def _api_get(path: str) -> dict:
         return {"error": str(e)}
 
 
+def _portfolio_json() -> dict:
+    """Run portfolio_status.py --json for ground-truth project data."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["/opt/homebrew/bin/python3", "scripts/portfolio_status.py", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd="/Users/jesse.kemp/Dev",
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception as e:
+        return {"error": str(e)}
+    return {"error": "portfolio_status.py failed"}
+
+
 def _build_briefing(bridge) -> str:
+    portfolio = _portfolio_json()
+    health = _api_get("/service-health")
+    recs = _api_get("/intelligence/recommendations")
+
     lines = []
     lines.append("╔═══════════════════════════════════════════════════════╗")
     lines.append("║              CORTEX MORNING BRIEFING                  ║")
     lines.append("╠═══════════════════════════════════════════════════════╣")
+    lines.append("║  PROJECT          TESTS    UNCOMMIT    LAST COMMIT   ║")
+    lines.append("║  ─────────────────────────────────────────────────── ║")
 
-    health = _api_get("/service-health")
-    if "error" not in health:
-        for key, val in health.items():
-            if isinstance(val, dict):
-                status = val.get("status", "?")
-                lines.append(f"║  {str(key):<16} {str(status):<36}║")
+    if "error" not in portfolio:
+        for p in portfolio.get("projects", []):
+            name = p.get("name", "?")[:16]
+            tests = p.get("tests", "—")[:7]
+            uncommit = p.get("uncommitted", "?")[:10]
+            last = p.get("last_commit", "?")[:13]
+            lines.append(f"║  {name:<16} {tests:>7}  {uncommit:<10}  {last:<13}║")
+
+        gate = portfolio.get("gate", {})
+        if gate:
+            verdict = gate.get("verdict", "?")
+            commit = str(gate.get("commit", "?"))[:8]
+            icon = "✅" if verdict == "SHIP" else "❌"
+            lines.append("║                                                       ║")
+            lines.append(f"║  Release Gate: {icon} {verdict} ({commit})                       ║")
     else:
-        lines.append(f"║  ⚠ {str(health.get('error', '?'))[:50]:<50} ║")
+        lines.append(f"║  ⚠ Portfolio: {portfolio['error'][:38]:<38}║")
 
+    # Services
     lines.append("╠═══════════════════════════════════════════════════════╣")
+    if "error" not in health:
+        services = health.get("services", health)
+        svc_parts = []
+        for svc_name, info in services.items():
+            if isinstance(info, dict):
+                st = info.get("status", "?")
+                icon = "✅" if st == "healthy" else "❌" if st == "offline" else "⚠"
+                short = svc_name.replace("vortex_", "v-").replace("_", "")[:10]
+                svc_parts.append(f"{icon}{short}")
+        if svc_parts:
+            lines.append(f"║  {' '.join(svc_parts[:6]):<53}║")
 
-    projects = _api_get("/projects")
-    if "error" not in projects:
-        proj_list = projects if isinstance(projects, list) else projects.get("projects", [])
-        for p in proj_list[:6]:
-            if isinstance(p, dict):
-                name = str(p.get("name", "?"))[:14]
-                tests = str(p.get("test_count", "?"))
-                health_v = str(p.get("health", "?"))[:6]
-                lines.append(f"║  {name:<14} {tests:>6} tests  {health_v:>6}      ║")
-
+    # Recommendations
     lines.append("╠═══════════════════════════════════════════════════════╣")
     lines.append("║  RECOMMENDED ACTIONS                                  ║")
     lines.append("║  ─────────────────────────────────────────────────── ║")
-
-    recs = _api_get("/intelligence/recommendations")
     if "error" not in recs:
         items = (
             recs if isinstance(recs, list) else recs.get("recommendations", recs.get("items", []))
@@ -153,27 +188,50 @@ def _build_briefing(bridge) -> str:
             for i, r in enumerate(items[:5], 1):
                 title = r.get("title", r.get("action", "?"))[:48]
                 lines.append(f"║  {i}. {title:<50}║")
-        if isinstance(recs, dict):
-            next_act = recs.get("next_action")
-            if isinstance(next_act, dict):
-                lines.append(f"║  → {next_act.get('action', '?')[:50]:<50}║")
+
+    # Goals
+    goals = portfolio.get("goals", []) if "error" not in portfolio else []
+    if goals:
+        lines.append("╠═══════════════════════════════════════════════════════╣")
+        lines.append("║  ACTIVE GOALS                                        ║")
+        for g in goals[:5]:
+            title = g.get("title", "?")[:50]
+            lines.append(f"║  • {title:<50}║")
 
     lines.append("╚═══════════════════════════════════════════════════════╝")
     return "\n".join(lines)
 
 
 def _build_status(bridge) -> str:
-    data = _api_get("/service-health")
-    if "error" in data:
-        return f"⚠ {data['error']}"
+    portfolio = _portfolio_json()
+    health = _api_get("/service-health")
 
     lines = ["SERVICE HEALTH", "─" * 55]
-    for key, val in data.items():
-        if isinstance(val, dict):
-            status = val.get("status", "unknown")
-            lines.append(f"  {str(key):<20} {str(status)}")
-        else:
-            lines.append(f"  {str(key):<20} {val}")
+
+    if "error" not in health:
+        services = health.get("services", health)
+        for svc_name, info in services.items():
+            if isinstance(info, dict):
+                status = info.get("status", "?")
+                port = info.get("port", "")
+                port_str = f":{port}" if port else ""
+                lines.append(f"  {svc_name:<20} {status:<12} {port_str}")
+            else:
+                lines.append(f"  {svc_name:<20} {info}")
+
+    if "error" not in portfolio:
+        lines.append("")
+        lines.append("PROJECT STATUS")
+        lines.append("─" * 55)
+        lines.append(f"  {'Name':<16} {'Tests':>7}  {'Uncommit':<10}  {'Last Commit'}")
+        lines.append("─" * 55)
+        for p in portfolio.get("projects", []):
+            name = p.get("name", "?")[:15]
+            tests = p.get("tests", "—")[:7]
+            uncommit = p.get("uncommitted", "?")[:10]
+            last = p.get("last_commit", "?")[:15]
+            lines.append(f"  {name:<16} {tests:>7}  {uncommit:<10}  {last}")
+
     return "\n".join(lines)
 
 
@@ -206,24 +264,23 @@ def _build_next(bridge) -> str:
 
 
 def _build_projects(bridge) -> str:
-    data = _api_get("/projects")
-    if "error" in data:
-        return f"⚠ {data['error']}"
+    portfolio = _portfolio_json()
+    if "error" in portfolio:
+        return f"⚠ {portfolio['error']}"
 
-    proj_list = data if isinstance(data, list) else data.get("projects", [])
     lines = [
         "PROJECTS",
         "─" * 55,
-        f"  {'Name':<18} {'Tests':>7}  {'Health':>8}  {'Commits':>8}",
+        f"  {'Name':<16} {'Tests':>7}  {'Uncommit':<10}  {'Last Commit'}",
         "─" * 55,
     ]
-    for p in proj_list:
-        if isinstance(p, dict):
-            name = str(p.get("name", "?"))[:17]
-            tests = str(p.get("test_count", "?"))
-            health = str(p.get("health", "?"))[:8]
-            commits = str(p.get("commit_count", p.get("commits", "?")))
-            lines.append(f"  {name:<18} {tests:>7}  {health:>8}  {commits:>8}")
+    for p in portfolio.get("projects", []):
+        name = p.get("name", "?")[:15]
+        tests = p.get("tests", "—")[:7]
+        uncommit = p.get("uncommitted", "?")[:10]
+        last = p.get("last_commit", "?")[:15]
+        flag = "⚠" if p.get("has_changes") else " "
+        lines.append(f"  {flag}{name:<15} {tests:>7}  {uncommit:<10}  {last}")
     return "\n".join(lines)
 
 
