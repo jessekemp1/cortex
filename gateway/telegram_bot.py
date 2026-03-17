@@ -386,56 +386,117 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await _do_ask(update, update.message.text)
 
 
-async def _do_ask(update: Update, query: str) -> None:
-    """Query Cortex intelligence and return formatted result."""
-    await update.message.reply_text("🔍 Querying Cortex...")
+PROJECT_KEYWORDS = {
+    "vortex": [
+        "vortex",
+        "grib",
+        "forecast",
+        "ensemble",
+        "emos",
+        "hrrr",
+        "gfs",
+        "ecmwf",
+        "weather",
+        "wind",
+        "wave",
+        "buoy",
+        "frontend",
+        "backend",
+    ],
+    "alpha_arena": [
+        "arena",
+        "trading",
+        "trade",
+        "kelly",
+        "strategy",
+        "backtest",
+        "signal",
+        "etf",
+        "position",
+    ],
+    "cortex": [
+        "cortex",
+        "bridge",
+        "cra",
+        "orchestrat",
+        "learning",
+        "batch",
+        "memory",
+        "retriev",
+        "mcp",
+        "intelligence",
+    ],
+    "pupil": ["pupil", "simulation", "recession", "indicator"],
+}
 
-    data = _bridge_post(
-        "/intelligence/query",
-        {
-            "request": query,
-            "project": "cortex",
-            "query_type": "spec",
-        },
-    )
+
+def _detect_project(query: str) -> str:
+    q = query.lower()
+    scores = {proj: sum(1 for kw in kws if kw in q) for proj, kws in PROJECT_KEYWORDS.items()}
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0 else "cortex"
+
+
+async def _do_ask(update: Update, query: str) -> None:
+    """Smart query routing — direct data for lookups, LLM reasoning for everything else."""
+    q_lower = query.lower()
+
+    # Only intercept DIRECT data commands (short, imperative, clearly a lookup)
+    if any(p in q_lower for p in ["how many test", "test count", "number of test"]):
+        portfolio = _portfolio_json()
+        if "error" not in portfolio:
+            lines = ["TEST COUNTS", "─" * 35]
+            for p in portfolio.get("projects", []):
+                lines.append(f"  {p.get('name', '?'):<16} {p.get('tests', '—')}")
+            await _send(update, "\n".join(lines))
+            return
+
+    if any(p in q_lower for p in ["what service", "which service", "what port"]):
+        data = _bridge_get("/service-health")
+        if "error" not in data:
+            lines = ["SERVICES", "─" * 35]
+            for name, info in data.get("services", data).items():
+                if isinstance(info, dict):
+                    st = info.get("status", "?")
+                    icon = "✅" if st == "healthy" else "❌"
+                    port = info.get("port", "")
+                    lines.append(f"{icon} {name}: {st} {f':{port}' if port else ''}")
+            await _send(update, "\n".join(lines))
+            return
+
+    if any(p in q_lower for p in ["list goal", "what are my goal", "show goal", "active goal"]):
+        portfolio = _portfolio_json()
+        if "error" not in portfolio:
+            goals = portfolio.get("goals", [])
+            if goals:
+                lines = ["ACTIVE GOALS", "─" * 35]
+                for g in goals:
+                    lines.append(f"• {g.get('title', '?')}")
+                await _send(update, "\n".join(lines))
+                return
+
+    # Everything else → LLM reasoning via /intelligence/reason
+    await update.message.reply_text("🧠 Thinking...")
+
+    data = _bridge_post("/intelligence/reason", {"question": query})
 
     if "error" in data:
         await _send(update, f"⚠ {data['error']}")
         return
 
-    # Format response — adapt to whatever shape bridge returns
-    lines = []
+    answer = data.get("answer", "No answer generated.")
+    project = data.get("project", "?")
+    model = data.get("model", "?")
+    tokens = data.get("tokens", 0)
 
-    reasoning = data.get("reasoning", data.get("response", data.get("result", "")))
-    if reasoning:
-        lines.append("CORTEX INTELLIGENCE")
-        lines.append("─" * 40)
-        # Truncate long responses for Telegram
-        if isinstance(reasoning, str):
-            lines.append(reasoning[:3000])
-        elif isinstance(reasoning, list):
-            for item in reasoning[:5]:
-                if isinstance(item, dict):
-                    lines.append(f"• {item.get('title', item.get('content', str(item)))[:80]}")
-                else:
-                    lines.append(f"• {str(item)[:80]}")
-
-    patterns = data.get("related_patterns", data.get("patterns", []))
-    if patterns and isinstance(patterns, list):
-        lines.append("")
-        lines.append("RELATED PATTERNS")
-        lines.append("─" * 40)
-        for p in patterns[:3]:
-            if isinstance(p, dict):
-                lines.append(f"  • {p.get('title', p.get('description', '?'))[:60]}")
-            else:
-                lines.append(f"  • {str(p)[:60]}")
-
-    confidence = data.get("confidence")
-    if confidence:
-        lines.append(f"\n[Confidence: {confidence}]")
-
-    await _send(update, "\n".join(lines) if lines else json.dumps(data, indent=2)[:3000])
+    lines = [
+        f"CORTEX ({project})",
+        "─" * 35,
+        answer[:3500],  # Telegram limit safety
+        "",
+        f"[{model} | {tokens} tok]",
+    ]
+    await _send(update, "\n".join(lines))
 
 
 # ---------------------------------------------------------------------------

@@ -310,44 +310,272 @@ def _build_anomalies(bridge) -> str:
         return f"Anomaly detection error: {e}"
 
 
+PROJECT_KEYWORDS = {
+    "vortex": [
+        "vortex",
+        "grib",
+        "forecast",
+        "ensemble",
+        "emos",
+        "hrrr",
+        "gfs",
+        "ecmwf",
+        "weather",
+        "wind",
+        "wave",
+        "buoy",
+        "ndbc",
+        "competition",
+        "navigator",
+        "frontend",
+        "backend",
+        "nowcast",
+        "observation",
+        "validation",
+    ],
+    "alpha_arena": [
+        "arena",
+        "trading",
+        "trade",
+        "kelly",
+        "strategy",
+        "backtest",
+        "signal",
+        "portfolio",
+        "etf",
+        "position",
+        "ensemble engine",
+    ],
+    "cortex": [
+        "cortex",
+        "bridge",
+        "cra",
+        "orchestrat",
+        "learning loop",
+        "batch",
+        "memory",
+        "retriev",
+        "mcp",
+        "dispatch",
+        "intelligence",
+    ],
+    "pupil": ["pupil", "simulation", "recession", "nowcast", "leading indicator"],
+}
+
+
+def _detect_project(query: str) -> str:
+    """Detect which project a query is about from keywords."""
+    q = query.lower()
+    scores = {}
+    for project, keywords in PROJECT_KEYWORDS.items():
+        scores[project] = sum(1 for kw in keywords if kw in q)
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0 else "cortex"
+
+
 def _build_intelligence(bridge, query: str) -> str:
+    q_lower = query.lower()
+
+    # Only intercept DIRECT data commands — not reasoning questions
+    # These are short, imperative, clearly asking for a data lookup
+    direct_data_patterns = [
+        # "how many tests" / "test count" — but NOT "is testing complete"
+        (["how many test", "test count", "number of test"], _answer_project_health),
+        # "what services are running" / "is X up"
+        (["what service", "which service", "is .* running", "what port"], _answer_service_status),
+        # "list goals" / "what goals" — but NOT "is X goal on track"
+        (["list goal", "what are my goal", "show goal", "active goal"], _answer_goals),
+    ]
+
+    for patterns, handler in direct_data_patterns:
+        if any(p in q_lower for p in patterns):
+            if handler == _answer_project_health:
+                return handler(query, _detect_project(query))
+            return handler(query)
+
+    # Everything else → LLM reasoning with gathered context
+    return _answer_with_reasoning(query)
+
+
+def _answer_project_health(query: str, project: str) -> str:
+    portfolio = _portfolio_json()
+    if "error" in portfolio:
+        return f"⚠ Portfolio data unavailable: {portfolio['error']}"
+
+    lines = ["PROJECT HEALTH", "─" * 55]
+
+    # Find matching project(s)
+    q_lower = query.lower()
+    matched = []
+    for p in portfolio.get("projects", []):
+        name = p.get("name", "").lower()
+        if project.replace("_", "-") in name or project.replace("_", " ") in name:
+            matched.append(p)
+        elif any(kw in name for kw in q_lower.split() if len(kw) > 3):
+            matched.append(p)
+
+    if not matched:
+        matched = portfolio.get("projects", [])
+
+    for p in matched:
+        name = p.get("name", "?")
+        tests = p.get("tests", "—")
+        uncommit = p.get("uncommitted", "clean")
+        last = p.get("last_commit", "?")
+        has_changes = p.get("has_changes", False)
+
+        lines.append(f"  {name}")
+        lines.append(f"    Tests:       {tests}")
+        lines.append(f"    Uncommitted: {'⚠ ' + uncommit if has_changes else '✅ clean'}")
+        lines.append(f"    Last commit: {last}")
+        lines.append("")
+
+    gate = portfolio.get("gate", {})
+    if gate:
+        verdict = gate.get("verdict", "?")
+        icon = "✅" if verdict == "SHIP" else "❌"
+        lines.append(f"  Release Gate: {icon} {verdict}")
+
+    return "\n".join(lines)
+
+
+def _answer_service_status(query: str) -> str:
+    health = _api_get("/service-health")
+    if "error" in health:
+        return f"⚠ {health['error']}"
+
+    lines = ["SERVICES", "─" * 55]
+    services = health.get("services", health)
+    for name, info in services.items():
+        if isinstance(info, dict):
+            status = info.get("status", "?")
+            port = info.get("port", "")
+            icon = "✅" if status == "healthy" else "❌" if status == "offline" else "⚠"
+            p = f":{port}" if port else ""
+            lines.append(f"  {icon} {name:<20} {status:<12} {p}")
+    return "\n".join(lines)
+
+
+def _answer_goals(query: str) -> str:
+    portfolio = _portfolio_json()
+    if "error" in portfolio:
+        return f"⚠ {portfolio['error']}"
+
+    goals = portfolio.get("goals", [])
+    if not goals:
+        return "No active goals found"
+
+    lines = ["ACTIVE GOALS", "─" * 55]
+    for g in goals:
+        title = g.get("title", "?")
+        status = g.get("status", "?")
+        icon = "✅" if status == "COMPLETE" else "🔄" if status == "ACTIVE" else "⏸"
+        lines.append(f"  {icon} {title}")
+        if g.get("priority"):
+            lines.append(f"     Priority: {g['priority']}")
+    return "\n".join(lines)
+
+
+def _answer_with_reasoning(query: str) -> str:
+    """Send question to /intelligence/reason endpoint (LLM-powered)."""
+    import urllib.request as _req
+
+    try:
+        data = json.dumps({"question": query}).encode()
+        req = _req.Request(
+            "http://127.0.0.1:8765/intelligence/reason",
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        with _req.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode())
+
+        answer = result.get("answer", "No answer generated.")
+        project = result.get("project", "?")
+        sources = result.get("sources_used", 0)
+        model = result.get("model", "?")
+        tokens = result.get("tokens", 0)
+
+        lines = [
+            f"CORTEX ({project})",
+            "─" * 55,
+            answer,
+            "",
+            f"[{model} | {sources} sources | {tokens} tokens]",
+        ]
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Reasoning error: {e}"
+
+
+def _answer_intelligence(bridge, query: str, project: str) -> str:
+    """Fall back to Cortex pattern retrieval."""
     try:
         result = bridge.query_intelligence(
             request=query,
-            project="cortex",
+            project=project,
             query_type="spec",
         )
 
-        lines = []
+        lines = [f"CORTEX INTELLIGENCE (project: {project})", "─" * 55]
+
         reasoning = result.get("reasoning", result.get("response", result.get("result", "")))
-        if reasoning:
-            lines.append("CORTEX INTELLIGENCE")
+        if isinstance(reasoning, str) and reasoning:
+            # Filter out the generic "no results" boilerplate
+            useful_lines = [
+                line
+                for line in reasoning.split("\n")
+                if not any(
+                    skip in line.lower()
+                    for skip in [
+                        "no similar work found",
+                        "no applicable patterns",
+                        "no specific recommendations",
+                        "consider refining",
+                        "pattern library needs",
+                        "query may be too broad",
+                    ]
+                )
+            ]
+            if useful_lines:
+                lines.extend(useful_lines[:30])
+
+        # Context predictions are often the most useful part
+        predictions = result.get("context_predictions", [])
+        if isinstance(predictions, list) and predictions:
+            lines.append("")
+            lines.append("RELEVANT CONTEXT")
             lines.append("─" * 55)
-            if isinstance(reasoning, str):
-                lines.append(reasoning[:4000])
-            elif isinstance(reasoning, list):
-                for item in reasoning[:8]:
-                    if isinstance(item, dict):
-                        lines.append(f"• {item.get('title', item.get('content', str(item)))[:80]}")
-                    else:
-                        lines.append(f"• {str(item)[:80]}")
+            for pred in predictions[:5]:
+                if isinstance(pred, dict):
+                    source = pred.get("source", "?")
+                    rel = pred.get("relevance", "?")
+                    content = pred.get("content", pred.get("description", ""))
+                    lines.append(f"  [{rel}%] {source}")
+                    if content:
+                        # Show first 200 chars of content
+                        snippet = str(content)[:200].replace("\n", " ")
+                        lines.append(f"    {snippet}")
+                    lines.append("")
 
         patterns = result.get("related_patterns", result.get("patterns", []))
         if patterns and isinstance(patterns, list):
-            lines.append("")
             lines.append("RELATED PATTERNS")
             lines.append("─" * 55)
             for p in patterns[:5]:
                 if isinstance(p, dict):
                     lines.append(f"  • {p.get('title', p.get('description', '?'))[:70]}")
-                else:
-                    lines.append(f"  • {str(p)[:70]}")
 
         confidence = result.get("confidence")
         if confidence:
             lines.append(f"\n[Confidence: {confidence}]")
 
-        return "\n".join(lines) if lines else json.dumps(result, indent=2, default=str)[:4000]
+        # If we got almost nothing useful, say so honestly
+        if len(lines) <= 3:
+            lines.append("No relevant data found in Cortex knowledge base.")
+            lines.append("Try: /status, /projects, /briefing for direct data.")
+
+        return "\n".join(lines)
     except Exception as e:
         return f"Intelligence query error: {e}"
 
