@@ -3,7 +3,7 @@ title: "Cortex: Persistent Intelligence Architecture for LLM-Powered Development
 author: "Jesse Kemp"
 date: "March 2026"
 abstract: |
-  Large language models exhibit session amnesia — each new conversation discards all prior context, forcing developers to repeatedly re-explain decisions, rediscover bugs, and re-establish architectural understanding. We present Cortex, a persistent intelligence layer that compensates for this limitation by maintaining structured memory, learning from implicit feedback signals, and routing tasks to cost-appropriate model tiers. Deployed across a six-project portfolio for eight weeks, Cortex achieves 21.2% context deduplication savings, 0.94 position quality score on retrieved context, and 50% cost reduction via intelligent batch routing. The system processes 958+ validated tests with behavioral assertions enforced by AST-based meta-testing. We describe the three-tier memory architecture, hybrid BM25/embedding retrieval, quality-weighted learning from 557+ tracked outcomes, and autonomous operations including platform-agnostic monitoring, approval gates, and crash-resilient state persistence.
+  Large language models exhibit session amnesia — each new conversation discards all prior context, forcing developers to repeatedly re-explain decisions, rediscover bugs, and re-establish architectural understanding. We present Cortex, a persistent intelligence layer that compensates for this limitation by maintaining structured memory, learning from implicit feedback signals, and routing tasks to cost-appropriate model tiers. Deployed across a six-project portfolio for 14 weeks, Cortex achieves 80% recall@10 and 0.643 MRR on retrieval benchmarks, enforces 1.8% trivial assertion rate via novel AST-based meta-testing, and reduces batch API costs by 50%. The system includes 1,291 validated tests with behavioral assertions, a three-tier memory architecture with hybrid BM25/embedding retrieval, outcome-weighted learning from ~60 human-verified outcomes augmented by ~364 automated strategy outcomes, and autonomous operations including platform-agnostic monitoring, approval gates, and crash-resilient state persistence.
 geometry: margin=1in
 fontsize: 11pt
 numbersections: true
@@ -31,7 +31,7 @@ Cortex addresses this by providing a persistent intelligence layer that:
 - A three-tier memory architecture with weighted retrieval and evidence-based promotion criteria
 - An implicit feedback system that derives learning signals from user behavior without explicit annotation
 - A hybrid BM25 + embedding retrieval pipeline with reciprocal rank fusion
-- Measured production results: 21.2% dedup savings, 0.94 position quality, 50% batch cost savings
+- Measured retrieval results: 80% recall@10, 0.643 MRR on domain-specific benchmark; 50% batch cost savings via Anthropic Batch API
 - AST-based meta-testing that enforces assertion quality across the test suite
 - Autonomous operations: platform-agnostic alert monitoring (macOS/Linux), 3-policy approval gates, atomic state snapshots
 
@@ -105,7 +105,7 @@ Rather than requiring explicit ratings, Cortex derives learning signals from obs
 | **Overridden** | Similarity 0.3–0.7 (modified but influenced) | 0 (neutral) |
 | **Ignored** | Similarity < 0.3 or no action within session | -1 |
 
-This produces 10–100x more signal than explicit feedback because every recommendation-action pair generates a data point automatically.
+In principle, this produces more signal than explicit feedback because every recommendation-action pair generates a data point automatically. In practice, 39 implicit feedback entries have been collected over 14 weeks — useful for validation but not yet at scale for statistical learning.
 
 ### AI-as-a-Judge Evaluation
 
@@ -127,10 +127,10 @@ Six dimensions are tracked continuously:
 | Consistency | 100% | No contradictions detected |
 | Accuracy | 100% | Factual verification via outcomes |
 | Timeliness | 15% → improved | Addressed by three-tier memory weighting |
-| Uniqueness | 91% | 21.2% deduplication savings measured |
+| Uniqueness | 91% | Deduplication measured on synthetic benchmark (see Limitations) |
 | Validity | 100% | Schema validation enforced |
 
-Overall quality: **86.4%** measured on 57 production outcomes.
+Overall quality: **86.4%** measured on 57 early production outcomes. This metric has not been re-measured since the dataset grew to 657 entries (of which ~60 are human-verified, ~364 are automated strategy outcomes, and the remainder are test-fixture-generated).
 
 # Orchestration System
 
@@ -154,7 +154,7 @@ The supervisor routes tasks to the cheapest capable model tier:
 | Sonnet | claude-sonnet-4-6 | Code edits, test writing | $3/MTok |
 | Opus | claude-opus-4-6 | Architecture, research | $15/MTok |
 
-The router learns from outcome data: if sonnet-tier tasks consistently succeed, they stay at sonnet. If they fail and require opus retry, the router adjusts thresholds.
+The router is designed to learn from outcome data: if sonnet-tier tasks consistently succeed, they stay at sonnet; if they fail and require opus retry, the router adjusts thresholds. In practice, with 13 dispatched work items to date, the learning signal is too sparse for meaningful threshold adjustment. The routing currently operates on static heuristics with the learning infrastructure in place for future data accumulation.
 
 ## Batch API Integration
 
@@ -163,7 +163,7 @@ LOW-priority tasks are deferred to the Anthropic Batch API:
 - **Submission window**: 2–6 AM UTC (off-peak)
 - **Cost savings**: 50% vs realtime API calls
 - **State persistence**: Queue survives process restarts via SQLite
-- **Measured throughput**: 685 jobs verified in first deployment
+- **Throughput**: 13 unique work items dispatched, with task outcomes logged for learning
 
 # Autonomous Operations
 
@@ -204,7 +204,7 @@ This guarantees either the old state or the new state is on disk — never a par
 
 ## Test Suite
 
-958+ tests across the Cortex codebase, organized by component:
+1,291 tests across the Cortex codebase (verified via `pytest --collect-only`), organized by component:
 
 | Module | Tests | Coverage |
 |---|---|---|
@@ -234,20 +234,33 @@ A subtle implementation detail: `mock.assert_called_once()` is a *method call*, 
 
 ## Measured Outcomes
 
-| Metric | Value | Method |
-|---|---|---|
-| Context deduplication | 21.2% savings | A/B comparison on 100 queries |
-| Position quality score | 0.94 / 1.00 | Relevance ranking of retrieved context |
-| Batch cost savings | 50% ($16.22 saved) | Batch vs realtime API comparison |
-| Test assertion quality | 1.8% trivial | AST meta-test measurement |
-| Learning outcomes tracked | 557+ | Implicit + explicit feedback |
-| Anti-patterns stored | 12+ | With full prevention context |
+| Metric | Value | Method | Notes |
+|---|---|---|---|
+| Retrieval recall@10 | 80% | Benchmark with domain-specific queries | 20 test queries against 841 indexed patterns |
+| Retrieval MRR | 0.643 | Same benchmark | Mean reciprocal rank of first relevant result |
+| Anti-pattern recall | 90% | Known anti-patterns retrieval test | 9/10 known patterns found in top-10 |
+| Batch cost savings | 50% | Anthropic Batch API pricing | Inherent to Batch API, not a Cortex innovation |
+| Test assertion quality | 1.8% trivial | AST meta-test measurement | Novel: automated test quality enforcement |
+| Anti-patterns stored | 12+ | With full prevention context | Each includes: pattern, symptom, fix, detection |
+
+### Outcome Data (Honest Breakdown)
+
+| Category | Count | Source | Quality |
+|---|---|---|---|
+| Human-verified outcomes | ~60 | Developer interaction tracking | High — real decision/action pairs |
+| Automated strategy outcomes | ~364 | Alpha Arena trading pipeline | Medium — machine-generated, narrow domain |
+| Test-fixture outcomes | ~230 | Integration test data seeding | Low — synthetic, used for pipeline validation |
+| Implicit feedback signals | 39 | Recommendation→action correlation | Medium — small sample, validation only |
+
+### Context Optimization (Synthetic Benchmark)
+
+The context optimizer was tested on a synthetic benchmark of 20 items with known importance scores. Results: 21.2% deduplication savings and 0.94 position quality score. These numbers reflect the optimizer's sorting and deduplication logic, not production retrieval quality. The retrieval benchmark above (80% recall@10, 0.643 MRR) is the better measure of real-world performance.
 
 ## Deployment Scale
 
 - **6 projects** in active portfolio (Vortex weather API, Alpha Arena trading, Pupil simulation, Cortex itself, DJ-CoPilot, Kempion research site)
-- **5,660+ tests** across the portfolio
-- **8 weeks** of continuous production use
+- **7,500+ tests** across the portfolio (1,291 in Cortex alone)
+- **14 weeks** of continuous production use (Dec 2025 – Mar 2026)
 - **2 platforms**: macOS (development), Linux (Hetzner production)
 
 # Related Work
@@ -263,11 +276,17 @@ Cortex is optimized for one use case: a developer or small team using LLM agents
 
 # Conclusion
 
-Session amnesia is the dominant bottleneck in LLM-powered development workflows. Cortex demonstrates that structured memory, implicit feedback learning, and intelligent task routing can compensate for this limitation with measurable impact: 21.2% deduplication savings, 0.94 position quality, and 50% batch cost reduction.
+Session amnesia is the dominant bottleneck in LLM-powered development workflows. Cortex demonstrates that structured memory, implicit feedback learning, and intelligent task routing can compensate for this limitation. The system achieves 80% recall@10 on retrieval benchmarks and enforces 1.8% trivial assertion rates via novel AST-based meta-testing — a technique we believe is a genuine contribution to LLM-assisted development quality.
 
-The system's self-awareness mechanisms — AST-based meta-testing, data quality tracking, and autonomous monitoring — ensure that quality compounds rather than degrades over time. 958+ tests with behavioral assertion enforcement prevent the common failure mode of inflated test counts masking shallow coverage.
+The system's self-awareness mechanisms — AST-based meta-testing, data quality tracking, and autonomous monitoring — ensure that quality compounds rather than degrades over time. 1,291 tests with behavioral assertion enforcement prevent the common failure mode of inflated test counts masking shallow coverage.
 
-Future work includes temporal contradiction handling (detecting when stored patterns conflict with new evidence), cross-portfolio transfer learning, and integration with additional LLM providers beyond Anthropic.
+### Limitations
+
+The implicit feedback system has collected only 39 entries over 14 weeks — sufficient for validation but not for statistical learning. The model routing system has dispatched 13 unique work items, too few to demonstrate learned threshold adjustment. The context optimization benchmark uses synthetic data; production retrieval quality is measured separately via the recall/MRR benchmark. Outcome data is dominated by automated strategy outcomes (364) and test fixtures (230), with only ~60 human-verified outcomes.
+
+### Future Work
+
+Future work includes temporal contradiction handling (detecting when stored patterns conflict with new evidence), scaling implicit feedback collection to enable real learning loop closure, cross-portfolio transfer learning, and integration with additional LLM providers beyond Anthropic.
 
 # Appendix: Performance Characteristics
 
