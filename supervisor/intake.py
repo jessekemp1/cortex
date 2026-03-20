@@ -94,7 +94,17 @@ def _infer_task_type(text: str) -> str:
 def _infer_project(text: str, section_header: str = "") -> str:
     """Infer project name from text or section header."""
     combined = f"{section_header} {text}".lower()
-    projects = ["vortex", "cortex", "winfield", "pupil", "alpha_arena", "dj-copilot"]
+    projects = [
+        "vortex",
+        "cortex",
+        "winfield",
+        "pupil",
+        "alpha_arena",
+        "dj-copilot",
+        "clio",
+        "databricks",
+        "guardrails",
+    ]
     for project in projects:
         if project.replace("_", " ") in combined or project in combined:
             return project

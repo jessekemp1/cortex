@@ -39,6 +39,7 @@ BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
 GOALS_FILE = Path(os.environ.get("CORTEX_ROOT_DIR", Path.home() / "Dev")) / "GOALS.md"
 PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
+DOMAIN = os.environ.get("CORTEX_DOMAIN", "aidev")
 
 mcp = FastMCP("cortex")
 
@@ -99,7 +100,7 @@ def cortex_intelligence(query: str, query_type: str = "research") -> str:
         query_type = "research"
     result = _bridge_post(
         "/intelligence/query",
-        {"request": query, "project": "cortex", "query_type": query_type},
+        {"request": query, "domain": DOMAIN, "query_type": query_type},
     )
     return json.dumps(result, indent=2)
 

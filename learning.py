@@ -59,16 +59,21 @@ class LearningSystem:
         # Initialize AI quality judge
         self.quality_judge = QualityJudge() if QualityJudge else None
 
-    def calculate_recommendation_accuracy(self) -> float:
+    def calculate_recommendation_accuracy(self, domain: Optional[str] = None) -> float:
         """
         Calculate recommendation accuracy: % of followed recommendations that succeeded.
 
         Quality-weighted: High-quality outcomes contribute more to the accuracy calculation.
 
+        Args:
+            domain: Filter to specific domain ("aidev"/"databricks"), or None for all.
+
         Returns:
             Success rate (0.0-1.0), or 0.0 if no data
         """
         outcomes = self.feedback_logger.load_outcomes()
+        if domain:
+            outcomes = [o for o in outcomes if getattr(o, "domain", None) == domain]
 
         if not outcomes:
             return 0.0
@@ -109,9 +114,12 @@ class LearningSystem:
             )
             return success_count / len(followed)
 
-    def get_outcome_patterns(self) -> Dict[str, Dict[str, Any]]:
+    def get_outcome_patterns(self, domain: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """
         Analyze which types of recommendations work best.
+
+        Args:
+            domain: Filter to specific domain ("aidev"/"databricks"), or None for all.
 
         Returns:
             Dictionary mapping recommendation_type to metrics:
@@ -126,6 +134,8 @@ class LearningSystem:
             }
         """
         outcomes = self.feedback_logger.load_outcomes()
+        if domain:
+            outcomes = [o for o in outcomes if getattr(o, "domain", None) == domain]
 
         if not outcomes:
             return {}
@@ -158,9 +168,12 @@ class LearningSystem:
 
         return patterns
 
-    def get_confidence_calibration(self) -> Dict[str, float]:
+    def get_confidence_calibration(self, domain: Optional[str] = None) -> Dict[str, float]:
         """
         Analyze confidence calibration: are high-confidence recommendations more successful?
+
+        Args:
+            domain: Filter to specific domain ("aidev"/"databricks"), or None for all.
 
         Returns:
             Dictionary mapping confidence bucket to success rate:
@@ -171,6 +184,8 @@ class LearningSystem:
             }
         """
         outcomes = self.feedback_logger.load_outcomes()
+        if domain:
+            outcomes = [o for o in outcomes if getattr(o, "domain", None) == domain]
 
         if not outcomes:
             return {}
@@ -339,7 +354,7 @@ class LearningSystem:
             )
         else:
             insights.append(
-                f"Weak correlation ({correlation:.2f}): " "AI scores may need recalibration"
+                f"Weak correlation ({correlation:.2f}): AI scores may need recalibration"
             )
 
         # Add bucket-specific insights

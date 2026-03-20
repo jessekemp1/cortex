@@ -15,3 +15,23 @@ def get_cortex_dir() -> Path:
     path = Path(base).expanduser() if base else Path.home() / ".cortex"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def get_domain() -> str:
+    """
+    Detect the current portfolio domain.
+
+    Resolution order:
+    1. CORTEX_DOMAIN env var (set by cmode launcher or session hook)
+    2. CWD heuristic: ~/dbx-dev → "databricks", else "aidev"
+    3. Fallback: "aidev"
+    """
+    explicit = os.environ.get("CORTEX_DOMAIN")
+    if explicit:
+        return explicit
+
+    cwd = os.getcwd()
+    if "dbx-dev" in cwd:
+        return "databricks"
+
+    return "aidev"
