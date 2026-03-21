@@ -3,9 +3,9 @@
 # Runs periodically to capture work progress from git, docs, and batch results
 # Designed to run every 4-6 hours via launchd
 
-CORTEX_DIR="/Users/jesse.kemp/Dev/cortex"
-LOG_FILE="/Users/jesse.kemp/.cortex/work_absorber.log"
-REPORT_FILE="/Users/jesse.kemp/Dev/cortex/WORK_PROGRESS_REPORT.md"
+CORTEX_DIR="/Users/jesse/dev/cortex"
+LOG_FILE="/Users/jesse/.cortex/work_absorber.log"
+REPORT_FILE="/Users/jesse/dev/cortex/WORK_PROGRESS_REPORT.md"
 
 # Ensure log directory exists
 mkdir -p "$(dirname "$LOG_FILE")"
@@ -16,7 +16,7 @@ echo "========================================" >> "$LOG_FILE"
 echo "$(date): Work Absorber Daemon Started" >> "$LOG_FILE"
 
 # Run incremental absorption
-python3 -c "
+/Users/jesse/dev/cortex/.venv/bin/python -c "
 import sys
 sys.path.insert(0, '.')
 from datetime import datetime
@@ -41,7 +41,7 @@ if report.errors:
 " >> "$LOG_FILE" 2>&1
 
 # Update progress report
-python3 -c "
+/Users/jesse/dev/cortex/.venv/bin/python -c "
 import sys
 sys.path.insert(0, '.')
 from datetime import datetime

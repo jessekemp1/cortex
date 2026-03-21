@@ -3,7 +3,7 @@
 
 set -e
 
-CRON_CMD="0 2 * * * cd /Users/jesse.kemp/Dev && python3 scripts/nightly_portfolio_scan.py >> ${HOME}/.cortex/logs/nightly_scan.log 2>&1"
+CRON_CMD="0 2 * * * cd /Users/jesse/dev && python3 scripts/nightly_portfolio_scan.py >> ${HOME}/.cortex/logs/nightly_scan.log 2>&1"
 
 echo "Setting up nightly portfolio scan..."
 echo "Cron: $CRON_CMD"

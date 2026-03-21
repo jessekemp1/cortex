@@ -17,7 +17,7 @@ cat > "$DEMO_SCRIPT" << 'SCRIPT'
 #!/usr/bin/env bash
 # Cortex demo — runs from Dev root so project detection works
 
-cd /Users/jesse.kemp/Dev
+cd /Users/jesse/dev
 
 type_cmd() {
     local cmd="$1"

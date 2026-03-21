@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-REPO_ROOT="/Users/jesse.kemp/Dev"
+REPO_ROOT="/Users/jesse/dev"
 VENV_PYTHON="${REPO_ROOT}/venv/bin/python"
 QUEUE_MANAGER="${REPO_ROOT}/cortex/batch/queue_manager.py"
 

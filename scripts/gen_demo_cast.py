@@ -234,7 +234,7 @@ header = {
     "env": {"SHELL": "/bin/zsh", "TERM": "xterm-256color"},
 }
 
-out_path = "/Users/jesse.kemp/Dev/cortex/docs/assets/demo.cast"
+out_path = "/Users/jesse/dev/cortex/docs/assets/demo.cast"
 with open(out_path, "w") as f:
     f.write(json.dumps(header) + "\n")
     for ts, etype, text in events:
