@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from cortex.guardian.snapshots import SnapshotRing
+from guardian.snapshots import SnapshotRing
 
 
 @dataclass
