@@ -333,8 +333,10 @@ def assess_learning() -> DimensionScore:
                 continue
 
         metrics["outcomes_weekly"] = weekly_counts
-        # Growth = is this week > avg of prior 3?
-        prior_avg = sum(weekly_counts[1:]) / 3 if sum(weekly_counts[1:]) > 0 else 0
+        # Growth = is this week > median of prior 3?
+        # Use median (not mean) to avoid backfill spikes inflating the baseline
+        prior_sorted = sorted(weekly_counts[1:])
+        prior_avg = prior_sorted[1] if sum(weekly_counts[1:]) > 0 else 0
         current = weekly_counts[0]
         if prior_avg > 0:
             growth_ratio = current / prior_avg
@@ -365,7 +367,14 @@ def assess_learning() -> DimensionScore:
         )
 
     # 2b. Success rate of followed recommendations
-    followed = [o for o in outcomes if o.get("followed")]
+    # Exclude automated Arena strategy_outcome entries with empty strategies —
+    # these log "partial"/"failed" even when the competition is healthy (no signal)
+    followed = [
+        o
+        for o in outcomes
+        if o.get("followed")
+        and not (o.get("recommendation_type") == "strategy_outcome" and not o.get("strategies"))
+    ]
     successful = [o for o in followed if o.get("outcome") == "success"]
     metrics["followed_count"] = len(followed)
     metrics["success_count"] = len(successful)
