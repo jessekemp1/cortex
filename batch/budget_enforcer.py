@@ -392,6 +392,16 @@ class BudgetEnforcer:
                 f"\nWeekly: {icon} {weekly['avg_daily_tokens']:,}/day avg ({weekly['budget_utilization_pct']:.0f}% of budget)"
             )
 
+        # Subscription utilization (if configured)
+        try:
+            from batch.subscription_optimizer import check_utilization
+
+            utilization_warning = check_utilization()
+            if utilization_warning:
+                lines.append(f"\n{utilization_warning}")
+        except ImportError:
+            pass
+
         return "\n".join(lines)
 
 

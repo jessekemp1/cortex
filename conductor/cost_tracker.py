@@ -85,6 +85,21 @@ class CostTracker:
             with open(self.costs_file, "a") as f:
                 f.write(json.dumps(entry) + "\n")
 
+        # Feed usage to subscription optimizer if available
+        try:
+            from batch.subscription_optimizer import SubscriptionOptimizer
+
+            sub_opt = SubscriptionOptimizer()
+            sub_opt.record_usage(
+                provider=provider,
+                tokens_input=input_tokens,
+                tokens_output=output_tokens,
+                is_batch="batch" in use_case.lower() if use_case else False,
+                model_tier=model.split("-")[0] if model else "sonnet",
+            )
+        except (ImportError, Exception):
+            pass  # Subscription tracking is optional
+
         return entry
 
     def _load_entries(self, date_filter: Optional[str] = None) -> List[Dict[str, Any]]:

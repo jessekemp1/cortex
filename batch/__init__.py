@@ -24,6 +24,7 @@ from .batch_fallback import BatchFallback
 from .briefing_batcher import BriefingContext, InsightBatcher, RecommendationBatcher
 from .learning_batcher import LearningBatcher, LearningContext
 from .research_batcher import ResearchBatcher
+from .subscription_optimizer import SubscriptionOptimizer, check_utilization
 from .weather_batcher import WeatherBackfillBatcher, WeatherBackfillContext
 
 __all__ = [
@@ -42,6 +43,8 @@ __all__ = [
     "BriefingContext",
     "LearningBatcher",
     "LearningContext",
+    "SubscriptionOptimizer",
+    "check_utilization",
     "WeatherBackfillBatcher",
     "WeatherBackfillContext",
 ]
