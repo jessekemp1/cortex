@@ -98,8 +98,23 @@ class TestAutonomyPolicy:
 class TestTrustAutonomyBridgeIntegration:
     """Test the bridge reads from LearningSystem (or gracefully degrades)."""
 
-    def test_get_autonomy_policy_no_learning_system(self):
-        """Without LearningSystem, should return VERIFY_ALL."""
+    def test_get_autonomy_policy_no_learning_system(self, monkeypatch):
+        """Without outcome history, should return VERIFY_ALL."""
+        # Patch LearningSystem.get_outcome_patterns to simulate no history
+        from unittest.mock import MagicMock
+
+        mock_ls = MagicMock()
+        mock_ls.return_value.get_outcome_patterns.return_value = {}
+        monkeypatch.setattr(
+            "engines.workstream_orchestrator.LearningSystem", mock_ls, raising=False
+        )
+        # Also patch the cortex.learning import path
+        import sys
+
+        mock_module = MagicMock()
+        mock_module.LearningSystem = mock_ls
+        monkeypatch.setitem(sys.modules, "cortex.learning", mock_module)
+
         bridge = TrustAutonomyBridge()
         policy = bridge.get_autonomy_policy("nonexistent_domain")
         assert policy.level == TrustLevel.VERIFY_ALL

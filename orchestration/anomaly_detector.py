@@ -219,6 +219,9 @@ class ContextSwitchingDetector(AnomalyDetector):
     ) -> List[OrchestrationAnomaly]:
         """Detect excessive active projects."""
         active_projects = context.get("active_projects", 0)
+        # active_projects may be a list of names (from BriefingData) — normalise to int
+        if isinstance(active_projects, list):
+            active_projects = len(active_projects)
         total_projects = context.get("total_projects", 0)
 
         # Calculate percentage if total is known
@@ -822,7 +825,7 @@ class BatchInefficiencyDetector(AnomalyDetector):
             severity=severity,
             title=f"Batch inefficiency: {batch_utilization_pct:.0f}% utilization",
             description=(
-                f"{description}. " f"Batch queue: {batch_queued}/{batch_capacity} tasks queued."
+                f"{description}. Batch queue: {batch_queued}/{batch_capacity} tasks queued."
             ),
             metric_value=batch_utilization_pct,
             threshold_value=50.0,
@@ -879,12 +882,18 @@ class OrchestrationAnomalyManager:
             BatchInefficiencyDetector(),
         ]
 
-    def detect_all(self, context: Dict[str, Any]) -> List[OrchestrationAnomaly]:
+    def detect_all(
+        self,
+        context: Dict[str, Any],
+        min_severity: str = "WARNING",
+    ) -> List[OrchestrationAnomaly]:
         """
         Run all detectors and return sorted anomalies.
 
         Args:
             context: Additional context for detection (active_projects, goals, etc.)
+            min_severity: Minimum severity to include. Defaults to "WARNING" to suppress
+                          INFO noise for beta users. Pass "INFO" to see all anomalies.
 
         Returns:
             List of anomalies sorted by severity (CRITICAL, WARNING, INFO)
@@ -919,7 +928,9 @@ class OrchestrationAnomalyManager:
         if self.enable_alerts:
             self._send_alerts(deduplicated)
 
-        return deduplicated
+        # Filter by minimum severity
+        min_rank = {"CRITICAL": 0, "WARNING": 1, "INFO": 2}.get(min_severity.upper(), 1)
+        return [a for a in deduplicated if severity_order.get(a.severity, 2) <= min_rank]
 
     def _deduplicate_and_track(
         self,

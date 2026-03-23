@@ -178,37 +178,6 @@ PROVIDERS: Dict[str, dict] = {
             },
         },
     },
-    "ollama": {
-        "env_var": "",
-        "base_url": "http://localhost:11434/v1",
-        "api_type": "openai_compat",
-        "timeout": 120.0,
-        "supports_batch": False,
-        "provider_type": "local",
-        "priority": -1,
-        "models": {
-            # llama3:latest confirmed running locally (4.7GB). $0 cost.
-            "llama3:latest": {
-                "display_name": "Llama 3 8B (Local)",
-                "input_cost": 0.0,
-                "output_cost": 0.0,
-                "max_context": 131_072,
-                "max_output": 8_192,
-                "speed": "medium",
-                "strengths": ["classification", "quick_qa"],
-            },
-            # deepseek-r1:7b confirmed locally (4.7GB). Good for reasoning tasks at $0.
-            "deepseek-r1:7b": {
-                "display_name": "DeepSeek R1 7B (Local)",
-                "input_cost": 0.0,
-                "output_cost": 0.0,
-                "max_context": 131_072,
-                "max_output": 8_192,
-                "speed": "slow",
-                "strengths": ["reasoning", "pattern_learning"],
-            },
-        },
-    },
 }
 
 # ---------------------------------------------------------------------------
@@ -219,7 +188,7 @@ PROVIDERS: Dict[str, dict] = {
 ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
     "architecture": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "interactive_coding": ("anthropic", "claude-sonnet-4-5-20250929", "xai", "grok-code-fast-1"),
-    "classification": ("groq", "llama-3.1-8b-instant", "ollama", "llama3:latest"),
+    "classification": ("groq", "llama-3.1-8b-instant", "deepseek", "deepseek-chat"),
     "long_context": ("xai", "grok-3-fast", "minimax", "MiniMax-M1"),
     "research": ("xai", "grok-3-fast", "deepseek", "deepseek-chat"),
     "quick_qa": ("groq", "openai/gpt-oss-20b", "anthropic", "claude-haiku-4-5-20251001"),
