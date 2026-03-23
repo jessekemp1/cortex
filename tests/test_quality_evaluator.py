@@ -111,10 +111,11 @@ class TestDimensionScores:
     def test_dimensions_present(self, evaluator: QualityEvaluator) -> None:
         result = MockDispatchResult(success=True, output="Some output text here")
         eval_ = evaluator.evaluate_heuristic(MockWorkItem(), result)
-        assert "correctness" in eval_.dimensions
-        assert "completeness" in eval_.dimensions
-        assert "relevance" in eval_.dimensions
+        # Heuristic dimensions: success, length, structure, refusal
+        assert "success" in eval_.dimensions
+        assert "length" in eval_.dimensions
         assert "structure" in eval_.dimensions
+        assert "refusal" in eval_.dimensions
 
     def test_all_dimensions_in_range(self, evaluator: QualityEvaluator) -> None:
         result = MockDispatchResult(success=True, output="Test output with some content")

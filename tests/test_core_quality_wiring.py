@@ -37,8 +37,8 @@ class TestQualityEvaluatorWiring:
         evaluation = evaluator.evaluate_heuristic(work_item, result)
         assert isinstance(evaluation, QualityEvaluation)
         assert 0.0 <= evaluation.overall_score <= 1.0
-        assert "correctness" in evaluation.dimensions
-        assert "completeness" in evaluation.dimensions
+        assert "success" in evaluation.dimensions
+        assert "structure" in evaluation.dimensions
         assert evaluation.evaluator == "heuristic"
 
     def test_failed_result_gets_zero(self) -> None:

@@ -20,17 +20,35 @@ STRUCTURE_PATTERNS = [
 class QualityEvaluation:
     overall_score: float
     dimensions: dict[str, float] = field(default_factory=dict)
+    rationale: str = ""
+    evaluator: str = "heuristic"
 
 
 class QualityEvaluator:
     """Evaluates work item results using heuristic signals.
 
     When use_ai_judge=True, could delegate to an LLM for nuanced evaluation.
-    Currently only heuristic mode is implemented.
+    Currently only heuristic mode is implemented; ai_judge returns None.
     """
 
     def __init__(self, use_ai_judge: bool = False):
         self.use_ai_judge = use_ai_judge
+
+    async def evaluate_ai_judge(self, work_item: Any, result: Any) -> QualityEvaluation | None:
+        """AI-judge evaluation (stub). Returns None unless a future judge is wired in."""
+        success = getattr(result, "success", False)
+        if not success:
+            return None
+        if not self.use_ai_judge:
+            return None
+        # No judge implementation yet — degrade gracefully
+        try:
+            from intelligence.evaluation.quality_judge import QualityJudge  # type: ignore[import]
+
+            judge = QualityJudge()
+            return await judge.evaluate(work_item, result)
+        except (ImportError, Exception):
+            return None
 
     def evaluate_heuristic(self, work_item: Any, result: Any) -> QualityEvaluation:
         """Score a dispatch result based on heuristic signals."""
