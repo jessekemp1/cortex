@@ -8,16 +8,16 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/jesse.kemp/Dev/cortex/batch/morning_processor.py</string>
+        <string>/Users/jesse/dev/cortex/batch/morning_processor.py</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/jesse.kemp/Dev/cortex</string>
+    <string>/Users/jesse/dev/cortex</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/Users/jesse.kemp/Dev/cortex</string>
+        <string>/Users/jesse/dev/cortex</string>
     </dict>
 
     <key>StartCalendarInterval</key>
@@ -29,9 +29,9 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/.cortex/batch/morning_stdout.log</string>
+    <string>/Users/jesse/.cortex/batch/morning_stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/.cortex/batch/morning_stderr.log</string>
+    <string>/Users/jesse/.cortex/batch/morning_stderr.log</string>
 </dict>
 </plist>

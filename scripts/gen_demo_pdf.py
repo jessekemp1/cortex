@@ -1268,4 +1268,4 @@ def build_pdf(output_path: str):
 
 
 if __name__ == "__main__":
-    build_pdf("/Users/jesse.kemp/Dev/cortex/docs/assets/Cortex_Demo_Scripts.pdf")
+    build_pdf("/Users/jesse/dev/cortex/docs/assets/Cortex_Demo_Scripts.pdf")

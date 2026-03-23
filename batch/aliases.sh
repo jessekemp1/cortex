@@ -1,8 +1,8 @@
 #!/bin/bash
 # Cortex Batch API Shell Aliases
-# Source this file: source /Users/jesse.kemp/Dev/cortex/batch/aliases.sh
+# Source this file: source /Users/jesse/dev/cortex/batch/aliases.sh
 
-CORTEX_DIR="/Users/jesse.kemp/Dev/cortex"
+CORTEX_DIR="/Users/jesse/dev/cortex"
 
 # Quick batch submission
 batch-review() {

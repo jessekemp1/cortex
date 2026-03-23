@@ -12,13 +12,13 @@
         {
           "task_id": "security_1_username_exposure",
           "title": "Remove exposed username from documentation",
-          "context": "Found hardcoded username 'jesse.kemp' in cortex/README.md lines 21, 41, 44. Replace with placeholders like ~/Dev or ${HOME}/Dev",
+          "context": "Found hardcoded username 'jesse' in cortex/README.md lines 21, 41, 44. Replace with placeholders like ~/Dev or ${HOME}/Dev",
           "files_affected": [
             "cortex/README.md",
             "alpha_arena/README.md",
             "Vortex/VortexV2/README.md"
           ],
-          "prompt": "Audit all README.md and documentation files across cortex, alpha_arena, and VortexV2 projects. Find and replace any instances of hardcoded usernames or absolute paths containing usernames with portable alternatives:\n- Replace '/Users/jesse.kemp/Dev' with '~/Dev' or '${HOME}/Dev'\n- Replace any other exposed usernames with placeholders\n- Ensure all example paths are portable\n\nProvide a comprehensive report of all changes made.",
+          "prompt": "Audit all README.md and documentation files across cortex, alpha_arena, and VortexV2 projects. Find and replace any instances of hardcoded usernames or absolute paths containing usernames with portable alternatives:\n- Replace '/Users/jesse/dev' with '~/Dev' or '${HOME}/Dev'\n- Replace any other exposed usernames with placeholders\n- Ensure all example paths are portable\n\nProvide a comprehensive report of all changes made.",
           "estimated_tokens": 2000
         },
         {

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 RESEARCH_DIR = Path.home() / ".cortex" / "research" / "cra"
 BRIEFS_DIR = Path.home() / "Dev" / "cortex" / "research_briefs"
-DIRECTIVES_PATH = Path.home() / "Dev" / "cortex" / "research_directives.md"
+DIRECTIVES_PATH = Path.home() / "dev" / "cortex" / "research_directives.md"
 
 # Cortex capability vectors — discoveries are scored against these
 CAPABILITY_VECTORS: Dict[str, str] = {

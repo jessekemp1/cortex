@@ -7,7 +7,7 @@
 ### Submit a Batch Job
 
 ```bash
-# From /Users/jesse.kemp/Dev/cortex
+# From /Users/jesse/dev/cortex
 
 # Code review
 python batch/quick_batch.py review path/to/file.py

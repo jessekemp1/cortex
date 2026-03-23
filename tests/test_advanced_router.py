@@ -206,14 +206,17 @@ class TestOpusGuardrail:
 class TestProviderIntegration:
     def test_with_registry(self, router: AdvancedModelRouter) -> None:
         """When registry provided, selects cheapest provider."""
-        from cortex.supervisor.providers import ModelSpec
+        from conductor.models import ModelSpec
 
         mock_registry = MagicMock()
         mock_spec = ModelSpec(
             model_id="deepseek-chat",
-            tier="sonnet",
-            cost_input_per_1m=0.14,
-            cost_output_per_1m=0.28,
+            display_name="DeepSeek Chat",
+            input_cost_per_mtok=0.14,
+            output_cost_per_mtok=0.28,
+            max_context=128000,
+            max_output=8192,
+            speed_tier="fast",
         )
         mock_registry.get_models_for_tier.return_value = [("deepseek", mock_spec)]
         router._registry = mock_registry

@@ -2,9 +2,9 @@
 # Cortex Morning Briefing Script
 # Runs daily to generate briefing and save to file
 
-CORTEX_DIR="/Users/jesse.kemp/Dev/cortex"
-BRIEFING_DIR="/Users/jesse.kemp/.cortex/briefings"
-ABSORBER_LOG="/Users/jesse.kemp/.cortex/work_absorber.log"
+CORTEX_DIR="/Users/jesse/dev/cortex"
+BRIEFING_DIR="/Users/jesse/.cortex/briefings"
+ABSORBER_LOG="/Users/jesse/.cortex/work_absorber.log"
 DATE=$(date +%Y-%m-%d)
 BRIEFING_FILE="$BRIEFING_DIR/briefing_$DATE.txt"
 
