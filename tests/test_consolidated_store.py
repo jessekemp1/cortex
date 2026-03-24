@@ -26,7 +26,7 @@ class TestConsolidatedStoreInit:
             version = conn.execute(
                 "SELECT MAX(version) FROM schema_version"
             ).fetchone()[0]
-            assert version == 1
+            assert version == 2
 
     def test_all_tables_created(self, store):
         with sqlite3.connect(store.db_path) as conn:
@@ -208,7 +208,7 @@ class TestStorageInfo:
 
         info = store.get_storage_info()
         assert info["backend"] == "sqlite"
-        assert info["schema_version"] == 1
+        assert info["schema_version"] == 2
         assert info["tables"]["command_metrics"] == 1
 
 

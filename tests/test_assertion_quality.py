@@ -297,6 +297,8 @@ def test_no_empty_test_bodies():
         if test_file.name in (
             "test_assertion_quality.py",
             "test_memory_roundtrip.py",
+            "test_coverage_audit.py",  # informational audit — reports, not asserts
+            "test_import_health.py",   # uses pytest.skip/xfail/raise as assertions
         ):
             continue
 

@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from cortex.guardian.claims import FileClaimManager
-from cortex.guardian.recovery import RecoveryEngine
-from cortex.guardian.router import ProjectRouter
-from cortex.guardian.snapshots import SnapshotRing
+from guardian.claims import FileClaimManager
+from guardian.recovery import RecoveryEngine
+from guardian.router import ProjectRouter
+from guardian.snapshots import SnapshotRing
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ class TestProjectRouter:
 
 class TestGuardianIntegration:
     def test_guardian_claim_triggers_snapshot(self, tmp_path: Path) -> None:
-        from cortex.guardian.process import GuardianProcess
+        from guardian.process import GuardianProcess
 
         guardian = GuardianProcess(state_dir=tmp_path / "guardian")
         # Create a file to claim
@@ -283,7 +283,7 @@ class TestGuardianIntegration:
         assert str(target) in snaps[0].files
 
     def test_guardian_full_lifecycle(self, tmp_path: Path) -> None:
-        from cortex.guardian.process import GuardianProcess
+        from guardian.process import GuardianProcess
 
         guardian = GuardianProcess(state_dir=tmp_path / "guardian")
         target = tmp_path / "target.py"
