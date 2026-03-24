@@ -215,10 +215,28 @@ class ContextAwareModelRecommender:
                 model = "sonnet"
                 adjustments.append("Upgraded Haiku→Sonnet: high priority + budget available")
 
-        # PARALLEL LOAD (future enhancement placeholder)
-        # if context.parallel_tasks > 3:
-        #     # Many parallel tasks - prefer faster models to reduce queue time
-        #     pass
+        # SUBSCRIPTION UTILIZATION — learned from UtilizationLearningEngine
+        if context.subscription_utilization_pct is not None:
+            self._apply_subscription_adjustment(
+                model, context, complexity, adjustments
+            )
+
+        # LEARNED WASTE REDUCTION — check if model mismatches are a problem
+        try:
+            from batch.utilization_learning import UtilizationLearningEngine
+
+            engine = UtilizationLearningEngine()
+            model_adj = engine.get_model_adjustment(task_type="", complexity=complexity)
+            if model_adj and model != model_adj["preferred_model"]:
+                # Only downgrade, never upgrade from learned waste data
+                tier_rank = {"haiku": 0, "sonnet": 1, "opus": 2}
+                if tier_rank.get(model, 1) > tier_rank.get(model_adj["preferred_model"], 1):
+                    model = model_adj["preferred_model"]
+                    adjustments.append(
+                        f"[LEARNED] {model_adj['reasoning']}"
+                    )
+        except (ImportError, Exception):
+            pass  # Learning engine is optional
 
         # Update recommendation
         if adjustments:
@@ -240,6 +258,41 @@ class ContextAwareModelRecommender:
             )
         else:
             return rec
+
+    @staticmethod
+    def _apply_subscription_adjustment(
+        model: str,
+        context: "OrchestrationContext",
+        complexity: str,
+        adjustments: list,
+    ):
+        """
+        Adjust model selection based on subscription utilization.
+
+        When subscription is overutilized, prefer cheaper models.
+        When underutilized with tokens at risk, prefer higher-quality
+        models to extract more value from the subscription.
+        """
+        util = context.subscription_utilization_pct
+        at_risk = context.tokens_at_risk
+
+        if util is not None and util > 95:
+            # Near subscription cap — conserve tokens
+            if model == "opus":
+                adjustments.append(
+                    f"Downgraded Opus→Sonnet: subscription at {util:.0f}% utilization"
+                )
+            elif model == "sonnet" and complexity == "simple":
+                adjustments.append(
+                    f"Downgraded Sonnet→Haiku: subscription at {util:.0f}%, simple task"
+                )
+        elif util is not None and util < 40 and at_risk > 100_000:
+            # Subscription heavily underutilized — tokens at risk of waste
+            if model == "haiku" and complexity != "simple":
+                adjustments.append(
+                    f"Upgraded Haiku→Sonnet: {at_risk:,} tokens at risk, "
+                    f"subscription only {util:.0f}% utilized"
+                )
 
     def _cost_multiplier(self, original_model: str, new_model: str) -> float:
         """Calculate cost multiplier when changing models."""

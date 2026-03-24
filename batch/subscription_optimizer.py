@@ -771,6 +771,9 @@ class SubscriptionOptimizer:
             },
         ]
 
+        # Reorder work types by learned acceptance rates (if available)
+        work_types = self._reorder_by_learned_preference(work_types)
+
         tokens_allocated = 0
         for work in work_types:
             if len(suggestions) >= max_suggestions:
@@ -791,6 +794,30 @@ class SubscriptionOptimizer:
             tokens_allocated += work["tokens"]
 
         return suggestions
+
+    @staticmethod
+    def _reorder_by_learned_preference(work_types: List[Dict]) -> List[Dict]:
+        """
+        Reorder suggestions using learned acceptance rates from
+        the UtilizationLearningEngine. Falls back to default order
+        if no learned data is available.
+        """
+        try:
+            from batch.utilization_learning import UtilizationLearningEngine
+
+            engine = UtilizationLearningEngine()
+            task_type_list = [w["type"] for w in work_types]
+            ranking = engine.get_suggestion_ranking(task_type_list)
+
+            if ranking:
+                # Build lookup: task_type -> score
+                scores = {task_type: score for task_type, score in ranking}
+                # Sort work_types by learned score (highest first)
+                return sorted(work_types, key=lambda w: scores.get(w["type"], 0.5), reverse=True)
+        except (ImportError, Exception):
+            pass  # Learning engine is optional
+
+        return work_types
 
     def format_utilization_dashboard(self, provider: str = "anthropic") -> str:
         """

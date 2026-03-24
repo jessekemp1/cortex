@@ -193,6 +193,10 @@ class OrchestrationContext:
     # Parallel load
     parallel_tasks: int = 0
 
+    # Subscription utilization (fed by UtilizationLearningEngine)
+    subscription_utilization_pct: Optional[float] = None  # 0-100, None if unknown
+    tokens_at_risk: int = 0  # Tokens that will be wasted if not used
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         data = asdict(self)

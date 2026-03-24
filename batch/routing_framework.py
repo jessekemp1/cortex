@@ -258,6 +258,12 @@ class RequestRouter:
                 estimated_hours=batch_match.get("estimated_tokens", 20_000) / 50_000 * 0.5,
             )
 
+        # Apply learned utilization policies — may suggest batch for requests
+        # that aren't pattern-matched but where subscription is underutilized
+        learned_decision = self._apply_learned_utilization(request_lower)
+        if learned_decision:
+            return learned_decision
+
         # Check token estimate for large requests
         estimated_tokens = self._estimate_tokens(request)
         if estimated_tokens > 10_000:
@@ -275,6 +281,51 @@ class RequestRouter:
             reason="Standard request - interactive processing",
             confidence=0.60,
         )
+
+    def _apply_learned_utilization(self, request_lower: str) -> Optional[RouteDecision]:
+        """
+        Check learned utilization policies for routing adjustments.
+
+        Queries the UtilizationLearningEngine and SubscriptionOptimizer
+        for policies that should influence this routing decision.
+        Falls back gracefully if neither is configured.
+        """
+        try:
+            from batch.utilization_learning import UtilizationLearningEngine
+
+            engine = UtilizationLearningEngine()
+
+            # Check if learned policies suggest batching for this request type
+            for pattern_key, config in self.batch_patterns.items():
+                for compiled_pattern in config["compiled"]:
+                    if compiled_pattern.search(request_lower):
+                        adjustment = engine.get_routing_adjustment(pattern_key)
+                        if adjustment and adjustment.get("preferred_route") == "suggest_batch":
+                            return RouteDecision(
+                                route=RouteType.SUGGEST_BATCH,
+                                reason=f"[LEARNED] {adjustment['reasoning']}",
+                                confidence=min(0.90, adjustment.get("confidence", 0.7)),
+                                template_id=config.get("template"),
+                                estimated_tokens=config.get("estimated_tokens", 20_000),
+                            )
+
+            # Check if subscription underutilization should lower batch threshold
+            adjustment = engine.get_routing_adjustment("__batch_aggressiveness__")
+            if adjustment:
+                threshold = adjustment.get("lower_token_threshold", 10_000)
+                estimated_tokens = self._estimate_tokens(request_lower)
+                if estimated_tokens > threshold:
+                    return RouteDecision(
+                        route=RouteType.OFFER_BATCH,
+                        reason=f"[LEARNED] {adjustment['reasoning']}",
+                        confidence=0.65,
+                        estimated_tokens=estimated_tokens,
+                    )
+
+        except (ImportError, Exception):
+            pass  # Learning engine is optional
+
+        return None
 
     def _match_patterns(self, text: str, pattern_dict: Dict) -> Optional[Dict]:
         """Match text against pattern dictionary"""
