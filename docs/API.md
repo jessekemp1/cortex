@@ -21,13 +21,13 @@ The `CortexBridge` class provides a unified interface to all Cortex modules.
 ### Initialization
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
-bridge = CortexBridge(root_dir="/Users/jesse.kemp/Dev")
+bridge = CortexBridge(root_dir="/path/to/projects")
 ```
 
 **Parameters**:
-- `root_dir`: Optional workspace root directory (default: `/Users/jesse.kemp/Dev`)
+- `root_dir`: Optional workspace root directory (default: `/path/to/projects`)
 
 **Performance**: <10ms initialization
 
@@ -795,7 +795,7 @@ else:
 
 ### Current Implementation
 
-Cortex operates in **local-first mode** with no authentication required. All data is stored locally in `~/.claude/`.
+Cortex operates in **local-first mode** with no authentication required. All data is stored locally in `~/.cortex/`.
 
 ### API Keys (Optional)
 
@@ -878,7 +878,7 @@ version = bridge.get_version()
 ### Complete Workflow
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge()
 
@@ -916,7 +916,7 @@ print(graph["graph"])
 ### Error Handling Example
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge()
 
@@ -941,7 +941,7 @@ else:
 ### Dependency Analysis Workflow
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge()
 

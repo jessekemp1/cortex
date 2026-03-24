@@ -28,7 +28,7 @@ This guide covers advanced features and customization options for Cortex.
   "mcpServers": {
     "cortex": {
       "command": "python",
-      "args": ["/Users/jesse.kemp/Dev/cortex/mcp_server.py"]
+      "args": ["/path/to/cortex/mcp_server.py"]
     }
   }
 }
@@ -204,10 +204,10 @@ fi
 **Using cron**:
 ```bash
 # Daily metrics tracking
-0 0 * * * cd /Users/jesse.kemp/Dev/cortex && python bridge.py track --project all
+0 0 * * * cd /path/to/cortex && python bridge.py track --project all
 
 # Weekly portfolio analysis
-0 0 * * 0 cd /Users/jesse.kemp/Dev/cortex && python portfolio_analyzer.py
+0 0 * * 0 cd /path/to/cortex && python portfolio_analyzer.py
 ```
 
 ---

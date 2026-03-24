@@ -49,7 +49,7 @@ lessons = pm.get_lessons_by_category("data_validation")
 
 ### Data Storage
 
-**Location**: `~/.claude/portfolio/`
+**Location**: `~/.cortex/portfolio/`
 - `project_index.json` - Project registry
 - `patterns.json` - Pattern library
 - `lessons.json` - Lessons learned
@@ -86,7 +86,7 @@ Session Intelligence generates automatic context from git history, including:
 ```python
 from intelligence.session_manager import SessionManager
 
-sm = SessionManager(root_dir="/Users/jesse.kemp/Dev")
+sm = SessionManager(root_dir="/path/to/projects")
 
 # Get session context
 context = sm.load_session_context()
@@ -236,7 +236,7 @@ Bridge API provides unified access to all Cortex modules through a single interf
 ### How It Works
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge()
 
@@ -268,7 +268,7 @@ Unified Intelligence aggregates intelligence from all sources into a single quer
 ### How It Works
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge()
 
@@ -318,7 +318,7 @@ result = bridge.query_intelligence(
 ### Session Hooks
 
 Automatic context injection on session start:
-- File: `~/.claude/hooks/SessionStart.compact.sh`
+- File: `~/.cortex/hooks/SessionStart.compact.sh`
 - Runs: On every Claude Code session
 - Output: Session context for AI agents
 

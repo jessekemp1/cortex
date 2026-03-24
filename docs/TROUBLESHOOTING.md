@@ -15,11 +15,11 @@ This guide helps you resolve common issues with Cortex.
 **Solution**:
 ```bash
 # Install cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 pip install -e .
 
 # Or add to Python path
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="/path/to/cortex:$PYTHONPATH"
 ```
 
 ---
@@ -34,7 +34,7 @@ export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
 python3 -c "from portfolio_memory import PortfolioMemory; PortfolioMemory()"
 
 # Check data directory exists
-ls -la ~/.claude/portfolio/
+ls -la ~/.cortex/portfolio/
 ```
 
 ---
@@ -46,10 +46,10 @@ ls -la ~/.claude/portfolio/
 **Solution**:
 ```bash
 # Check workspace root
-echo $CORTEX_ROOT  # or check config.yaml
+echo $CORTEX_ROOT_DIR  # or check config.yaml
 
 # Verify projects exist
-ls /Users/jesse.kemp/Dev/
+ls /path/to/projects/
 
 # Projects should have .git directories or .claude/project.yaml files
 ```
@@ -117,14 +117,14 @@ pip install chromadb
 
 ---
 
-### "Permission denied" when accessing ~/.claude/
+### "Permission denied" when accessing ~/.cortex/
 
 **Cause**: Insufficient permissions
 
 **Solution**:
 ```bash
 # Fix permissions
-chmod -R 755 ~/.claude/
+chmod -R 755 ~/.cortex/
 
 # Or run with appropriate permissions
 ```
@@ -138,7 +138,7 @@ chmod -R 755 ~/.claude/
 **Solution**:
 ```bash
 # Validate JSON
-python3 -m json.tool ~/.claude/portfolio/project_index.json
+python3 -m json.tool ~/.cortex/portfolio/project_index.json
 
 # Restore from backup if needed
 cp ~/cortex_backups/cortex_YYYYMMDD.tar.gz ~/restore/
@@ -228,20 +228,20 @@ cortex status --verbose
 
 ```bash
 # Check Python version
-python3 --version  # Should be 3.9+
+python3 --version  # Should be 3.11+
 
 # Check installed packages
 pip list | grep cortex
 
 # Check data directories
-ls -la ~/.claude/
+ls -la ~/.cortex/
 ```
 
 ### Verify Dependencies
 
 ```bash
 # Check core dependencies
-python3 -c "import structlog, yaml, dotenv; print('Core dependencies OK')"
+python3 -c "import rich, yaml, requests; print('Core dependencies OK')"
 
 # Check optional dependencies
 python3 -c "import chromadb; print('ChromaDB available')" 2>/dev/null || echo "ChromaDB not installed (optional)"

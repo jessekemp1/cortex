@@ -4,7 +4,8 @@
 
 | File | Purpose |
 |------|---------|
-| `cli.py` | CLI entry point (`cortex` command). 4,300 lines — use `def cmd_` to navigate command handlers. Decomposition planned for v1.1. |
+| `cli.py` | CLI entry point (`cortex` command). ~5,200 lines — use `def cmd_` to navigate command handlers. |
+| `cortex_setup.py` | Interactive setup wizard for new users (`cortex setup`). |
 | `mcp_server.py` | MCP server for Claude Desktop and compatible clients. |
 | `bridge.py` | Python SDK. `CortexBridge` is the public class. Start here for programmatic use. |
 
@@ -15,30 +16,57 @@ cortex/
 ├── bridge.py               # SDK entry point — CortexBridge class
 ├── bridge_intelligence.py  # Intelligence mixin for CortexBridge (query, retrieval)
 ├── bridge_system.py        # System/ops mixin for CortexBridge (git, deps, portfolio)
-├── cli.py                  # CLI (monolith, refactor in progress)
+├── cli.py                  # CLI (monolith)
+├── cortex_setup.py         # Interactive setup wizard
 ├── mcp_server.py           # MCP server
 ├── config.py               # CortexConfig dataclass + load_config()
 ├── briefing.py             # Daily briefing generation
 ├── orchestrator.py         # Task orchestration
-├── scheduler.py            # Background job scheduler
 ├── learning.py             # Feedback and learning loop
+├── goal_parser.py          # GOALS.md / ACTION_PLAN.md parser
+├── feedback.py             # Feedback logging
+├── portfolio_memory.py     # Cross-project pattern memory
 │
 ├── intelligence/           # Core algorithms (importable subpackage)
-│   ├── memory/             # Three-tier memory (tiered_memory.py, hybrid_retriever.py)
-│   ├── monitoring/         # Trend analysis, anomaly detection, alert generation
-│   ├── signals.py          # Signal detection
+│   ├── ensemble_decider.py      # Field-level ensemble decisions (Vortex-inspired)
+│   ├── temporal_router.py       # Temporal horizon routing (immediate/session/strategic)
+│   ├── verifiable_expertise.py  # Verifiable prediction track record
 │   ├── unified_intelligence.py  # Aggregates all intelligence sources
+│   ├── signals.py               # Autonomous signal detection
+│   ├── contracts.py             # Task contract generation
+│   ├── executor.py              # Contract execution engine
+│   ├── memory/                  # Three-tier memory (tiered_memory.py, hybrid_retriever.py)
+│   ├── model_selection/         # Context-aware model recommendation
+│   │   ├── classifier.py        # Task complexity classification
+│   │   ├── rules.py             # Rule-based model selection
+│   │   ├── recommender.py       # Context-aware recommender (learned + rules)
+│   │   └── models.py            # Data classes
+│   ├── monitoring/              # Trend analysis, anomaly detection, alerts
+│   ├── process_monitor/         # System process monitoring
+│   ├── safety/                  # Injection detection, behavioral firewall, guardrails
 │   └── ...
 │
-├── tests/                  # 600+ tests
-├── examples/               # Runnable demos (demo_tiered_memory.py, etc.)
-├── batch/                  # Async batch job infrastructure
-├── scripts/                # Utilities
-│   └── internal/           # Internal tooling (not for external use)
-├── docs/
-│   ├── API.md              # Full API reference
-│   ├── user_guide/         # Getting started guides
-│   └── archive/internal/   # Session logs and implementation notes (historical)
+├── batch/                  # Batch processing & subscription optimization
+│   ├── routing_framework.py       # Request routing (batch vs interactive)
+│   ├── subscription_optimizer.py  # Token utilization tracking & waste analysis
+│   ├── utilization_learning.py    # Closed-loop learning for utilization policies
+│   ├── batch_api_client.py        # Anthropic Batch API wrapper
+│   ├── queue_manager.py           # Auto-submission queue
+│   └── ...
+│
+├── conductor/              # Multi-provider orchestration
+│   ├── config.py            # Provider definitions, routing tables
+│   ├── caller.py            # Execution engine
+│   ├── router.py            # Smart provider selection
+│   └── cost_tracker.py      # Per-provider cost tracking
+│
+├── engines/                # Augmentation, synthesis, ingestion
+├── integration/            # Git sync, feedback loops, history analysis
+├── tests/                  # 765+ tests
+├── examples/               # Runnable demos
+├── scripts/                # Utilities and test scripts
+│   └── test_fresh_install.sh  # Fresh container beta test
+├── docs/                   # User guides, API reference, architecture
 └── agents/                 # Data agents for portfolio analysis
 ```
 
@@ -48,19 +76,19 @@ cortex/
 
 ```python
 # bridge.py — defines CortexBridge + core init/storage
-class CortexBridge(BridgeIntelligenceMixin, BridgeSystemMixin):
+class CortexBridge(IntelligenceMixin, SystemMixin):
     def __init__(self, root_dir=None): ...
     def get_context(self, task, project): ...          # Core retrieval
     def inject_recommendation(self, title, ...): ...   # Store to memory
 
 # bridge_intelligence.py — intelligence queries
-class BridgeIntelligenceMixin:
+class IntelligenceMixin:
     def query_intelligence(self, request, project, ...): ...
     def get_recommendations(self): ...
     def get_anomalies(self, project): ...
 
 # bridge_system.py — system/portfolio operations
-class BridgeSystemMixin:
+class SystemMixin:
     def get_session_context(self): ...
     def get_portfolio_stats(self): ...
     def get_dependency_graph(self, project): ...
@@ -72,16 +100,23 @@ Cortex stores user data in `~/.cortex/` (never in the repo).
 
 Key env vars:
 - `CORTEX_ROOT_DIR` — path to your projects root (default: cwd)
-- `ANTHROPIC_API_KEY` — required for embedding and intelligence features
-- `CORTEX_ANTI_PATTERNS_SCRIPT` — path to custom anti-pattern mining script (optional)
+- `ANTHROPIC_API_KEY` — required for intelligence features
+- `CORTEX_BRIDGE_URL` — bridge API URL (default: http://localhost:8765)
 
-Config file: `~/.cortex/config.yaml` (created by `cortex init`)
+Config file: `~/.cortex/config.yaml` (created by `cortex init` or `cortex setup`)
 
-## Known Technical Debt
+## Dependencies
 
-- `cli.py` is a monolith (4,311 lines). Decomposition into `commands/` is planned for v1.1.
-- Internal imports use bare module names (`from formatter import ...`) rather than `from cortex.formatter import ...`. This works with the current `package_dir` setup but will be migrated to proper package imports in v1.1.
-- `sys.path.insert` calls in several files are a legacy workaround for the above.
+Core (always installed): `rich`, `requests`, `PyYAML`, `pytz`
+
+Optional groups:
+- `[llm]` — Anthropic SDK (batch API, intelligence queries)
+- `[embeddings]` — numpy (semantic memory search)
+- `[monitoring]` — psutil, structlog, python-dotenv
+- `[server]` — FastAPI, uvicorn, MCP
+- `[analytics]` — pydantic, xgboost, shap
+- `[orchestration]` — litellm, httpx
+- `[all]` — everything
 
 ## Contributing
 

@@ -24,7 +24,7 @@ This guide helps you submit Layers 3-4 implementation as an overnight batch job 
 ### Step 1: Generate Batch Specification
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Generate batch spec (creates layer3_4_batch.json)
 python batch/layer3_4_batch_spec.py
@@ -185,7 +185,7 @@ cat cortex/intelligence/monitoring/metric_tracker.py
 ### 3. Run Tests
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Run all intelligence tests
 pytest intelligence/ -v
@@ -208,7 +208,7 @@ python -m cortex.cli alerts
 python -m cortex.cli next --limit=3
 
 # Test context injection
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 echo "test prompt" | .claude/hooks/inject_context.py
 ```
 

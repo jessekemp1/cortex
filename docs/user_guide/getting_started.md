@@ -26,7 +26,7 @@ Cortex is a **meta-intelligence system** that creates compound learning across y
 
 ```bash
 # Navigate to cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Install (if not already installed)
 pip install -e .
@@ -152,7 +152,7 @@ python bridge.py deps-graph cortex mermaid
 ### Basic Usage
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 # Initialize bridge
 bridge = CortexBridge()
@@ -267,7 +267,7 @@ print(dashboard)
 python bridge.py intelligence similar-work "your query" --project yourproject
 
 # Via Python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 bridge = CortexBridge()
 results = bridge.search_specs("your query", project="yourproject")
 ```

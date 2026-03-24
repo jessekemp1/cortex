@@ -291,7 +291,7 @@ Items are promoted through tiers based on access patterns and outcomes:
 All prompts are stored as versioned YAML templates:
 
 ```
-cortex/prompts/
+prompts/
 ├── versions/
 │   └── v1/
 │       ├── briefing.yaml         # Daily briefing generation
@@ -493,7 +493,7 @@ metadata:
 ## Configuration Reference
 
 ```python
-# cortex/config.py
+# config.py
 
 # Feature flags
 prompt_versioning_enabled: bool = True

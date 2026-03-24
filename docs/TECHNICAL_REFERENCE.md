@@ -265,7 +265,7 @@ class CortexBridge:
     """
 
     def __init__(self, root_dir: Optional[Path] = None):
-        self.root_dir = root_dir or Path("/Users/jesse.kemp/Dev")
+        self.root_dir = root_dir or Path("/path/to/projects")
         self.orchestrator = CortexOrchestrator(root_dir)
         self.learning = LearningSystem()
         self.portfolio_memory = PortfolioMemory()
@@ -1503,7 +1503,7 @@ except ImportError:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CORTEX_ROOT_DIR` | `/Users/jesse.kemp/Dev` | Workspace root |
+| `CORTEX_ROOT_DIR` | `/path/to/projects` | Workspace root |
 | `CORTEX_BATCH_*_ENABLED` | `false` | Batch feature flags |
 | `CORTEX_LOG_LEVEL` | `INFO` | Logging verbosity |
 | `ANTHROPIC_API_KEY` | - | Required for batch API |

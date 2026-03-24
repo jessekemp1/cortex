@@ -20,7 +20,7 @@ Week 1 implements the foundation for context-aware model selection:
 Add cortex to your PYTHONPATH:
 
 ```bash
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="/path/to/cortex:$PYTHONPATH"
 ```
 
 Or add to your `.bashrc`/`.zshrc`.
@@ -28,7 +28,7 @@ Or add to your `.bashrc`/`.zshrc`.
 ### 2. Test Installation
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 python3 -c "from intelligence.model_selection import ContextAwareModelRecommender; print('✓ Import successful')"
 ```
 
@@ -262,8 +262,8 @@ If you get import errors:
 # Check PYTHONPATH
 echo $PYTHONPATH
 
-# Should include /Users/jesse.kemp/Dev/cortex
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+# Should include /path/to/cortex
+export PYTHONPATH="/path/to/cortex:$PYTHONPATH"
 ```
 
 ### Storage Errors
@@ -335,7 +335,7 @@ Currently, no configuration needed. Week 2 will add:
 ## Support
 
 Questions or issues:
-- Check `/Users/jesse.kemp/Dev/cortex/docs/MODEL_SELECTION.md` for full design
+- Check `/path/to/cortex/docs/MODEL_SELECTION.md` for full design
 - Run tests to verify installation
 - Check storage files in `~/.cortex/` for data
 

@@ -211,7 +211,7 @@ if 'hybrid_stats' in stats:
 
 ## See Also
 
-- Implementation: `/Users/jesse.kemp/Dev/cortex/intelligence/memory/hybrid_retriever.py`
-- Tests: `/Users/jesse.kemp/Dev/cortex/tests/test_hybrid_retriever.py`
-- Demo: `/Users/jesse.kemp/Dev/cortex/demo_hybrid_retrieval.py`
-- PRD: `/Users/jesse.kemp/Dev/cortex/docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md` (Improvement 1)
+- Implementation: `intelligence/memory/hybrid_retriever.py`
+- Tests: `tests/test_hybrid_retriever.py`
+- Demo: `demo_hybrid_retrieval.py`
+- PRD: `docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md` (Improvement 1)

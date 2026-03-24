@@ -38,7 +38,7 @@ This guide helps developers set up their environment to contribute to Cortex.
 
 ```bash
 # Navigate to workspace
-cd /Users/jesse.kemp/Dev
+cd /path/to/projects
 
 # Clone or navigate to cortex
 cd cortex

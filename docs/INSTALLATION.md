@@ -20,7 +20,7 @@
 
 ### Minimum Requirements
 
-- **Python**: 3.9+ (3.10+ recommended)
+- **Python**: 3.9+ (required minimum)
 - **Operating System**: macOS, Linux, Windows (WSL)
 - **Git**: 2.0+ (for session intelligence)
 - **Disk Space**: ~100MB (for data storage)
@@ -41,7 +41,7 @@
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Create virtual environment (optional but recommended)
 python3.11 -m venv venv
@@ -73,7 +73,7 @@ cortex --help
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -99,7 +99,7 @@ cortex --help
 
 ```bash
 # Install only core dependencies
-pip install structlog rich PyYAML python-dotenv pytz
+pip install rich requests PyYAML pytz  # or: pip install -e .
 
 # Use cortex modules directly (no CLI)
 python3 -c "from portfolio_memory import PortfolioMemory; print(PortfolioMemory().get_stats())"
@@ -131,10 +131,10 @@ python3 -c "from portfolio_memory import PortfolioMemory; print(PortfolioMemory(
 
 ### Optional Environment Variables
 
-**CORTEX_ROOT**:
+**CORTEX_ROOT_DIR**:
 - Purpose: Override default workspace root
-- Default: `~/Dev` or `/Users/jesse.kemp/Dev`
-- Example: `export CORTEX_ROOT="/path/to/workspace"`
+- Default: `~/Dev` or `/path/to/projects`
+- Example: `export CORTEX_ROOT_DIR="/path/to/workspace"`
 
 **OPENAI_API_KEY** (Optional):
 - Purpose: OpenAI API access (if using OpenAI features)
@@ -148,7 +148,7 @@ python3 -c "from portfolio_memory import PortfolioMemory; print(PortfolioMemory(
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
-export CORTEX_ROOT="/Users/jesse.kemp/Dev"
+export CORTEX_ROOT_DIR="/path/to/projects"
 
 # Reload shell
 source ~/.zshrc  # or source ~/.bashrc
@@ -158,7 +158,7 @@ source ~/.zshrc  # or source ~/.bashrc
 ```powershell
 # Set environment variable
 $env:ANTHROPIC_API_KEY="sk-ant-api03-..."
-$env:CORTEX_ROOT="C:\Users\...\Dev"
+$env:CORTEX_ROOT_DIR="C:\Users\...\Dev"
 
 # Or use System Properties > Environment Variables
 ```
@@ -180,7 +180,7 @@ python -c "from config import create_default_config; create_default_config()"
 # Method 2: Manual creation
 mkdir -p ~/.cortex
 cat > ~/.cortex/config.yaml <<EOF
-root_dir: /Users/jesse.kemp/Dev
+root_dir: /path/to/projects
 learning_enabled: true
 default_limit: 3
 EOF
@@ -190,7 +190,7 @@ EOF
 
 ```yaml
 # Workspace root directory
-root_dir: /Users/jesse.kemp/Dev
+root_dir: /path/to/projects
 
 # Enable learning from execution history
 learning_enabled: true
@@ -199,13 +199,13 @@ learning_enabled: true
 default_limit: 3
 
 # Portfolio index location (optional)
-portfolio_index: ~/.claude/portfolio/project_index.json
+portfolio_index: ~/.cortex/portfolio/project_index.json
 
 # Metrics database location (optional)
-metrics_db: ~/.claude/metrics.db
+metrics_db: ~/.cortex/metrics.db
 
 # Spec knowledge base location (optional)
-specs_path: ~/.claude/specs
+specs_path: ~/.cortex/specs
 ```
 
 ---
@@ -237,8 +237,8 @@ python3 -c "from bridge import CortexBridge; bridge = CortexBridge(); print(brid
 ### Step 3: Run Enterprise Tests
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
-python test_enterprise_grade.py
+cd /path/to/cortex
+pytest tests/ -v
 
 # Expected: 15/15 tests pass (100%)
 ```
@@ -247,7 +247,7 @@ python test_enterprise_grade.py
 
 ```bash
 # Check data directories created
-ls -la ~/.claude/
+ls -la ~/.cortex/
 
 # Expected:
 # portfolio/
@@ -269,17 +269,17 @@ Data directories and files are created automatically on first run:
 cortex status
 
 # Directories created:
-# ~/.claude/portfolio/
-# ~/.claude/specs/
-# ~/.claude/session/
-# ~/.claude/metrics/
+# ~/.cortex/portfolio/
+# ~/.cortex/specs/
+# ~/.cortex/session/
+# ~/.cortex/metrics/
 ```
 
 ### Manual Initialization
 
 ```bash
 # Create data directories
-mkdir -p ~/.claude/{portfolio,specs,session,metrics}
+mkdir -p ~/.cortex/{portfolio,specs,session,metrics}
 
 # Initialize JSON files
 python3 -c "from portfolio_memory import PortfolioMemory; PortfolioMemory()"
@@ -297,11 +297,11 @@ python3 -c "from intelligence.spec_knowledge_base import SpecKnowledgeBase; Spec
 **Solution**:
 ```bash
 # Install cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 pip install -e .
 
 # Or add to Python path
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="/path/to/cortex:$PYTHONPATH"
 ```
 
 ---
@@ -336,14 +336,14 @@ pip install chromadb
 
 ---
 
-### Issue: "Permission denied" when accessing ~/.claude/
+### Issue: "Permission denied" when accessing ~/.cortex/
 
 **Cause**: Insufficient permissions
 
 **Solution**:
 ```bash
 # Fix permissions
-chmod -R 755 ~/.claude/
+chmod -R 755 ~/.cortex/
 
 # Or run with appropriate permissions
 ```
@@ -360,7 +360,7 @@ chmod -R 755 ~/.claude/
 python3 -c "from portfolio_memory import PortfolioMemory; PortfolioMemory()"
 
 # Check data directory exists
-ls -la ~/.claude/portfolio/
+ls -la ~/.cortex/portfolio/
 ```
 
 ---
@@ -372,10 +372,10 @@ ls -la ~/.claude/portfolio/
 **Solution**:
 ```bash
 # Check workspace root
-echo $CORTEX_ROOT  # or check config.yaml
+echo $CORTEX_ROOT_DIR  # or check config.yaml
 
 # Verify projects exist
-ls /Users/jesse.kemp/Dev/
+ls /path/to/projects/
 
 # Projects should have .git directories or .claude/project.yaml files
 ```
@@ -403,17 +403,17 @@ print(f'Indexed {count} specs')
 
 ```bash
 # Create hooks directory
-mkdir -p ~/.claude/hooks
+mkdir -p ~/.cortex/hooks
 
 # Create session start hook
-cat > ~/.claude/hooks/SessionStart.compact.sh <<'EOF'
+cat > ~/.cortex/hooks/SessionStart.compact.sh <<'EOF'
 #!/bin/bash
 cd ~/Dev/cortex
 python3 bridge.py session-context 2>/dev/null
 EOF
 
 # Make executable
-chmod +x ~/.claude/hooks/SessionStart.compact.sh
+chmod +x ~/.cortex/hooks/SessionStart.compact.sh
 ```
 
 ### 3. Configure Git Integration
@@ -428,7 +428,7 @@ Cortex automatically detects git repositories. No additional configuration neede
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd /path/to/cortex
 
 # Pull latest changes
 git pull
@@ -438,7 +438,7 @@ pip install -e . --upgrade
 
 # Verify
 cortex --help
-python test_enterprise_grade.py
+pytest tests/ -v
 ```
 
 ### Migrating Data
@@ -465,8 +465,8 @@ pip uninstall cortex
 
 # Remove data (optional)
 rm -rf ~/.cortex
-rm -rf ~/.claude/portfolio
-rm -rf ~/.claude/specs
+rm -rf ~/.cortex/portfolio
+rm -rf ~/.cortex/specs
 ```
 
 **Note**: Removing data will delete all portfolio memory, indexed specs, and metrics.
@@ -489,13 +489,13 @@ cortex status --verbose
 
 ```bash
 # Check Python version
-python3 --version  # Should be 3.9+
+python3 --version  # Should be 3.11+
 
 # Check installed packages
 pip list | grep cortex
 
 # Check data directories
-ls -la ~/.claude/
+ls -la ~/.cortex/
 ```
 
 ### Verify Dependencies
