@@ -65,7 +65,26 @@ class ContextAwareModelRecommender:
         # 4. Apply context adjustments (budget/time/priority)
         adjusted_rec = self._apply_context_adjustments(learned_rec, context, complexity)
 
+        # 5. VORTEX INTEGRATION: Record prediction for verifiable expertise
+        self._record_for_verification(adjusted_rec, task_type, task_description)
+
         return adjusted_rec
+
+    @staticmethod
+    def _record_for_verification(rec: ModelRecommendation, task_type: str, description: str):
+        """Record this recommendation as a verifiable prediction."""
+        try:
+            from intelligence.verifiable_expertise import VerifiableExpertise
+
+            ve = VerifiableExpertise()
+            ve.record_prediction(
+                domain="model_selection",
+                predicted_value=rec.model,
+                confidence=rec.confidence,
+                task_summary=f"{task_type}: {description[:80]}",
+            )
+        except (ImportError, Exception):
+            pass  # Verification system is optional
 
     def _apply_learned_override(
         self,

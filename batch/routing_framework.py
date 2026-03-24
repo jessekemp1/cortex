@@ -264,6 +264,12 @@ class RequestRouter:
         if learned_decision:
             return learned_decision
 
+        # TEMPORAL AWARENESS (Vortex principle: different models for
+        # different prediction durations → strategic tasks get batched)
+        temporal_decision = self._apply_temporal_routing(request_lower)
+        if temporal_decision:
+            return temporal_decision
+
         # Check token estimate for large requests
         estimated_tokens = self._estimate_tokens(request)
         if estimated_tokens > 10_000:
@@ -275,12 +281,53 @@ class RequestRouter:
                 estimated_hours=estimated_tokens / 50_000 * 0.5,
             )
 
+        # Record routing decision for verifiable expertise
+        self._record_routing_prediction("interactive", 0.60)
+
         # Default: interactive
         return RouteDecision(
             route=RouteType.INTERACTIVE,
             reason="Standard request - interactive processing",
             confidence=0.60,
         )
+
+    def _apply_temporal_routing(self, request_lower: str) -> Optional[RouteDecision]:
+        """
+        Apply temporal horizon awareness: strategic tasks should
+        be batched, immediate tasks should be interactive.
+        """
+        try:
+            from intelligence.temporal_router import TemporalHorizonRouter
+
+            router = TemporalHorizonRouter()
+            profile = router.classify({"request_text": request_lower})
+
+            if profile.horizon.value == "strategic" and profile.batch_eligible:
+                estimated = self._estimate_tokens(request_lower)
+                self._record_routing_prediction("batch", profile.confidence)
+                return RouteDecision(
+                    route=RouteType.SUGGEST_BATCH,
+                    reason=f"[TEMPORAL] Strategic task — batch for optimal quality with {profile.preferred_model_tier}",
+                    confidence=profile.confidence,
+                    estimated_tokens=estimated,
+                )
+        except (ImportError, Exception):
+            pass
+        return None
+
+    @staticmethod
+    def _record_routing_prediction(route: str, confidence: float):
+        """Record routing decision for verifiable expertise tracking."""
+        try:
+            from intelligence.verifiable_expertise import VerifiableExpertise
+            ve = VerifiableExpertise()
+            ve.record_prediction(
+                domain="routing",
+                predicted_value=route,
+                confidence=confidence,
+            )
+        except (ImportError, Exception):
+            pass
 
     def _apply_learned_utilization(self, request_lower: str) -> Optional[RouteDecision]:
         """
