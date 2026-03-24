@@ -5,7 +5,6 @@ This guide gets you from zero to working in ~5 minutes.
 ## Prerequisites
 
 - Python 3.11+
-- An Anthropic API key (`ANTHROPIC_API_KEY`)
 - Git
 
 ## Install
@@ -14,22 +13,39 @@ This guide gets you from zero to working in ~5 minutes.
 # Clone and install
 git clone https://github.com/jessekemp1/cortex && cd cortex
 python -m venv .venv && source .venv/bin/activate
-pip install -e .
+pip install -e .              # Core (memory, routing, ensemble, learning)
 
-# Initialize data directories and config
+# Optional: install extras for specific features
+pip install -e ".[llm]"       # Anthropic SDK (batch API, intelligence queries)
+pip install -e ".[embeddings]" # numpy (semantic memory search)
+pip install -e ".[all]"       # Everything
+```
+
+## Quick Setup
+
+```bash
+# Option A: Interactive setup wizard (recommended for new users)
+cortex setup
+
+# Option B: Manual setup
 cortex init --root-dir /path/to/your/projects
-
-# Verify the CLI works
+export ANTHROPIC_API_KEY=sk-ant-...
 cortex status
 ```
 
-You should see session context output (project name, recent commits, focus area). If you see errors about missing modules, run `pip install -e ".[all]"` for the full dependency set.
+The setup wizard auto-detects your projects, configures subscription tracking,
+and verifies everything works. It takes about 2 minutes.
 
 ## Configuration
 
 ```bash
-# Required: set your API key
+# Required for intelligence features
 export ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: additional providers for multi-model routing
+export GROQ_API_KEY=gsk_...     # Fast classification (Groq)
+export OPENAI_API_KEY=sk-...    # GPT models
+export XAI_API_KEY=xai-...      # Grok (long context)
 
 # Optional: point Cortex at your project workspace
 export CORTEX_ROOT_DIR=/path/to/your/projects
@@ -52,6 +68,16 @@ cortex briefing
 # 4. Health check — verify all subsystems
 cortex health
 ```
+
+## Core Features (No API Key Required)
+
+These work with just `pip install -e .` (no optional deps):
+
+- **Field-level ensemble decisions** — decomposes routing/model/context decisions into independent fields with Bayesian-weighted predictor voting
+- **Temporal horizon routing** — classifies tasks as immediate/session/strategic, picks different model/context strategies per horizon
+- **Verifiable expertise** — logs every prediction, verifies against outcomes, builds provable track record with calibration scoring
+- **Subscription optimization** — tracks token utilization, detects waste, suggests capacity-fill work
+- **Utilization learning engine** — closed-loop learning: observe → learn → adapt → act
 
 ## Claude Code / MCP Integration
 
@@ -77,7 +103,7 @@ This lets Claude query `cortex_intelligence`, `cortex_recommendations`, and `cor
 ## Python SDK
 
 ```python
-from cortex.bridge import CortexBridge
+from bridge import CortexBridge
 
 bridge = CortexBridge(root_dir="/path/to/projects")
 
@@ -90,9 +116,9 @@ session = bridge.get_session_context()
 
 ## What to Expect
 
-- **First session**: Cortex starts with an empty memory. It learns from your git history, commits, and interaction patterns.
-- **After a few sessions**: Anti-patterns and insights start accumulating. Briefings become more useful.
-- **After a week+**: Cross-session patterns emerge. Cortex surfaces relevant context before you ask for it.
+- **First session**: Cortex starts with empty memory. Core features (ensemble decisions, routing, expertise tracking) work immediately. Intelligence queries learn from your git history.
+- **After a few sessions**: Anti-patterns and insights accumulate. Model recommendations improve from outcome data. Expertise credentials start building.
+- **After a week+**: Cross-session patterns emerge. Temporal routing learns which models work best per horizon. Subscription utilization is optimized.
 
 The more you use it, the more context it builds. This is the compound intelligence effect.
 
@@ -100,11 +126,21 @@ The more you use it, the more context it builds. This is the compound intelligen
 
 | Issue | Fix |
 |---|---|
-| `ModuleNotFoundError: anthropic` | Run `pip install -e .` (dependencies not installed) |
+| `ModuleNotFoundError: anthropic` | `pip install -e ".[llm]"` (optional dep for intelligence) |
 | `cortex: command not found` | Activate your venv: `source .venv/bin/activate` |
 | `ANTHROPIC_API_KEY not set` | Export the key: `export ANTHROPIC_API_KEY=sk-ant-...` |
 | `Permission denied: ~/.cortex/` | `mkdir -p ~/.cortex && chmod 755 ~/.cortex` |
-| Intelligence queries return empty | Normal on first run — Cortex needs interaction history to surface patterns |
+| Intelligence queries return empty | Normal on first run — needs interaction history |
+
+## Fresh Install Testing
+
+To verify a fresh install works correctly:
+
+```bash
+bash scripts/test_fresh_install.sh
+```
+
+This runs a comprehensive test suite covering imports, unit tests, setup wizard, and functional smoke tests.
 
 ## Feedback
 
