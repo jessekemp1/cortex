@@ -4,7 +4,8 @@ import json
 import logging
 import subprocess
 import uuid
-from datetime import datetime, timedelta
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +20,30 @@ except ImportError:
     MemoryItem = None
 
 logger = logging.getLogger(__name__)
+
+CORTEX_DIR = Path("~/.cortex").expanduser()
+SESSION_METRICS_FILE = CORTEX_DIR / "session_metrics.jsonl"
+
+
+@dataclass
+class SessionProductivityMetrics:
+    """Productivity metrics for Exponential Collaboration research (Goal 9).
+
+    Research question: Does persistent context make session N+1 measurably
+    more productive than session N?
+    """
+
+    session_id: str
+    session_start: str  # ISO timestamp
+    session_end: str  # ISO timestamp
+    session_duration_seconds: float
+    context_questions_asked: int = 0  # proxy: clarifying "?" interactions
+    time_to_first_useful_output: Optional[float] = None  # seconds, if trackable
+    delegation_rate: float = 0.0  # fraction of tasks where review_required=False
+    corrections_received: int = 0  # correction signals from FeedbackLogger
+    outcomes_recorded: int = 0  # outcomes logged this session
+    domain: Optional[str] = None  # cortex domain tag (aidev/databricks)
+    extra: Dict[str, Any] = field(default_factory=dict)
 
 
 class SessionManager:
@@ -400,3 +425,119 @@ class SessionManager:
             return {"available": True, "stats": self.tiered_memory.get_stats()}
         except Exception as e:
             return {"available": False, "error": str(e)}
+
+    def record_session_metrics(
+        self,
+        session_start: datetime,
+        *,
+        context_questions_asked: int = 0,
+        time_to_first_useful_output: Optional[float] = None,
+        domain: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> SessionProductivityMetrics:
+        """Record productivity metrics at session end for Exponential Collaboration research.
+
+        Calculates delegation_rate via TrustAutonomyBridge and corrections_received
+        via FeedbackLogger, then appends a SessionProductivityMetrics record to
+        ~/.cortex/session_metrics.jsonl.
+
+        Args:
+            session_start: datetime when the session began
+            context_questions_asked: count of clarifying questions asked this session
+            time_to_first_useful_output: seconds to first substantive response, if known
+            domain: cortex domain tag (aidev/databricks), defaults to CORTEX_DOMAIN env var
+            extra: any additional key/value pairs to persist
+
+        Returns:
+            The SessionProductivityMetrics written to disk.
+        """
+        import os
+
+        now = datetime.now(tz=timezone.utc)
+        session_end_str = now.isoformat()
+        session_start_utc = (
+            session_start.astimezone(timezone.utc)
+            if session_start.tzinfo
+            else session_start.replace(tzinfo=timezone.utc)
+        )
+        duration = (now - session_start_utc).total_seconds()
+
+        # --- delegation_rate via TrustAutonomyBridge ---
+        delegation_rate = 0.0
+        try:
+            try:
+                from cortex.engines.workstream_orchestrator import TrustAutonomyBridge
+            except ImportError:
+                from engines.workstream_orchestrator import TrustAutonomyBridge
+            bridge = TrustAutonomyBridge()
+            policies = bridge.get_all_policies()
+            if policies:
+                autonomous = sum(1 for p in policies.values() if not p.review_required)
+                delegation_rate = autonomous / len(policies)
+        except Exception as e:
+            logger.debug(f"TrustAutonomyBridge unavailable for delegation_rate: {e}")
+
+        # --- outcomes_recorded this session (entries since session_start) ---
+        outcomes_recorded = 0
+        try:
+            outcomes_file = CORTEX_DIR / "outcomes.jsonl"
+            if outcomes_file.exists():
+                cutoff = session_start_utc.isoformat()
+                with open(outcomes_file) as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                            ts = entry.get("timestamp", "")
+                            if ts >= cutoff:
+                                outcomes_recorded += 1
+                        except json.JSONDecodeError:
+                            continue
+        except Exception as e:
+            logger.debug(f"Could not count outcomes: {e}")
+
+        # --- corrections_received via FeedbackLogger feedback.json ---
+        corrections_received = 0
+        try:
+            feedback_file = CORTEX_DIR / "feedback.json"
+            if feedback_file.exists():
+                cutoff = session_start_utc.isoformat()
+                with open(feedback_file) as f:
+                    entries = json.load(f)
+                for entry in entries:
+                    ts = entry.get("timestamp", "")
+                    if ts >= cutoff and not entry.get("useful", True):
+                        corrections_received += 1
+        except Exception as e:
+            logger.debug(f"Could not count corrections: {e}")
+
+        resolved_domain = domain or os.environ.get("CORTEX_DOMAIN")
+
+        metrics = SessionProductivityMetrics(
+            session_id=uuid.uuid4().hex,
+            session_start=session_start_utc.isoformat(),
+            session_end=session_end_str,
+            session_duration_seconds=round(duration, 2),
+            context_questions_asked=context_questions_asked,
+            time_to_first_useful_output=time_to_first_useful_output,
+            delegation_rate=round(delegation_rate, 4),
+            corrections_received=corrections_received,
+            outcomes_recorded=outcomes_recorded,
+            domain=resolved_domain,
+            extra=extra or {},
+        )
+
+        # Append to ~/.cortex/session_metrics.jsonl
+        try:
+            SESSION_METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(SESSION_METRICS_FILE, "a") as f:
+                f.write(json.dumps(asdict(metrics)) + "\n")
+            logger.info(
+                f"Session metrics written: {metrics.session_id} ({duration:.0f}s, delegation={delegation_rate:.0%})"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to write session metrics: {e}")
+
+        return metrics
