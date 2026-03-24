@@ -37,8 +37,11 @@ install_plist_macos() {
 
   [[ ! -f "$src" ]] && echo "SKIP (not found): $src" && return
 
+  local py_bin
+  py_bin=$(command -v python3 || command -v python || echo "/usr/local/bin/python")
+
   local content
-  content=$(sed "s|__HOME__|$HOME_DIR|g; s|__DEV_DIR__|$DEV_DIR|g" "$src")
+  content=$(sed "s|__HOME__|$HOME_DIR|g; s|__DEV_DIR__|$DEV_DIR|g; s|/usr/local/bin/python\b|$py_bin|g" "$src")
 
   if $DRY_RUN; then
     echo "--- DRY RUN: $dest ---"
@@ -140,8 +143,12 @@ install_plist_linux() {
   local src="$DEV_DIR/$1"
   [[ ! -f "$src" ]] && echo "SKIP (not found): $src" && return
 
+  # Resolve python path for this machine (/usr/local/bin/python may not exist on Linux)
+  local py_bin
+  py_bin=$(command -v python3 || command -v python || echo "/usr/bin/python3")
+
   local content
-  content=$(sed "s|__HOME__|$HOME_DIR|g; s|__DEV_DIR__|$DEV_DIR|g" "$src")
+  content=$(sed "s|__HOME__|$HOME_DIR|g; s|__DEV_DIR__|$DEV_DIR|g; s|/usr/local/bin/python\b|$py_bin|g" "$src")
 
   local systemd_dir="$HOME_DIR/.config/systemd/user"
   local units
