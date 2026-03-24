@@ -12,6 +12,7 @@ Exposes Cortex intelligence for:
 Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
+import asyncio
 import hashlib
 import json
 import os
@@ -417,7 +418,7 @@ async def status():
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
-        anomalies = anomaly_mgr.detect_all(context=context)
+        anomalies = await asyncio.to_thread(anomaly_mgr.detect_all, context=context)
 
         return {
             "status": "operational",
@@ -753,7 +754,7 @@ async def get_anomalies(
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
-        anomalies = anomaly_mgr.detect_all(context=context)
+        anomalies = await asyncio.to_thread(anomaly_mgr.detect_all, context=context)
 
         # Filter by severity
         if severity:
