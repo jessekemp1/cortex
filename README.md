@@ -59,6 +59,17 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 │  │ Anti-      │  │  Signal      │  │  Contract      │  │
 │  │ Patterns   │  │  Detection   │  │  Tasks         │  │
 │  └────────────┘  └──────────────┘  └────────────────┘  │
+│                                                         │
+│  ┌────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ Ensemble   │  │  Temporal    │  │  Verifiable    │  │
+│  │ Decisions  │  │  Horizon     │  │  Expertise     │  │
+│  │ (per-field)│  │  Router      │  │  (trust card)  │  │
+│  └────────────┘  └──────────────┘  └────────────────┘  │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  Utilization Learning (closed-loop)             │    │
+│  │  observe → learn → adapt → act → repeat         │    │
+│  └─────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
                        │
               ┌────────▼────────┐
@@ -75,7 +86,12 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 |---|---|
 | **Three-tier memory** | Working (session) → episodic (past events) → semantic with hybrid BM25 + embedding retrieval |
 | **Anti-pattern database** | Stores learned mistakes with prevention context. Surfaces them on relevant queries. |
+| **Field-level ensemble decisions** | Decomposes model/routing/context/priority decisions into independent fields, each with multiple Bayesian-weighted predictors. Ensemble outperforms any single predictor. *(Vortex-inspired)* |
+| **Temporal horizon routing** | Classifies tasks as immediate/session/strategic. Different models, context depth, and learning weights per horizon. *(Vortex-inspired)* |
+| **Verifiable expertise** | Every prediction is logged, verified against outcomes, and scored (Brier, calibration). Earns Novice→Master credentials. Shows exactly where Cortex is trustworthy. *(Vortex-inspired)* |
 | **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by complexity. Learns from outcome data to adjust selection. |
+| **Subscription optimization** | Tracks token utilization against subscription allowances. Learns pacing strategies, suggests batch work to fill idle capacity. |
+| **Utilization learning engine** | Closed-loop learning: observes routing decisions, learns user preferences, feeds policies back into routing/model/batch systems. |
 | **Goal-to-task pipeline** | Parses GOALS.md into prioritized work items. Discovers tasks from multiple sources. |
 | **Interaction capture** | Hooks capture prompts, tool outcomes, and session patterns. Derives implicit feedback signals (corrections, approvals, failure rates). |
 
@@ -288,14 +304,21 @@ All data is local by default. Nothing leaves your machine unless you configure a
 
 ```
 ~/.cortex/
-├── config.yaml          # configuration
-├── memories/            # episodic and semantic store
-├── anti_patterns/       # learned mistakes with prevention context
-├── metrics/             # observability logs (append-only JSONL)
+├── config.yaml              # configuration
+├── memories/                # episodic and semantic store
+├── anti_patterns/           # learned mistakes with prevention context
+├── metrics/                 # observability logs (append-only JSONL)
+│   ├── model_outcomes.jsonl # task outcomes for learning loops
 │   ├── bias_corrections.jsonl
-│   ├── adaptive_weight_updates.jsonl
-│   └── scheduler_jobs.jsonl
-└── batch/               # async job results
+│   └── adaptive_weight_updates.jsonl
+├── subscriptions/           # subscription tracking
+│   ├── utilization.db       # token usage per billing period
+│   └── learning.db          # learned utilization policies
+├── ensemble/                # Vortex-inspired decision systems
+│   ├── decisions.db         # field-level ensemble audit trail
+│   ├── temporal.db          # temporal horizon performance data
+│   └── expertise.db         # verifiable prediction track record
+└── batches/                 # async job results
 ```
 
 ---
@@ -307,12 +330,14 @@ All data is local by default. Nothing leaves your machine unless you configure a
 ```bash
 git clone https://github.com/jessekemp1/cortex
 cd cortex
-pip install -e .            # core only
-pip install -e ".[server]"  # + FastAPI server (uvicorn, apscheduler)
-pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
+pip install -e .                # core (memory, routing, ensemble, learning — stdlib only)
+pip install -e ".[llm]"         # + Anthropic SDK (batch API, embeddings)
+pip install -e ".[embeddings]"  # + numpy (semantic memory)
+pip install -e ".[monitoring]"  # + psutil, structlog, dotenv
+pip install -e ".[all]"         # everything
 ```
 
-**Requirements:** Python 3.11+. `ANTHROPIC_API_KEY` required for embedding and intelligence features.
+**Requirements:** Python 3.11+. Core features (memory, routing, ensemble decisions, utilization learning) work with stdlib only. Set `ANTHROPIC_API_KEY` for LLM-powered intelligence and batch features.
 
 ---
 

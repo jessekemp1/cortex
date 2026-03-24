@@ -5,6 +5,7 @@ Workflow Hooks for Automatic Batch Job Creation
 Integrates with git hooks and other workflows to automatically queue batch jobs.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
