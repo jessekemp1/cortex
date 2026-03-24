@@ -191,6 +191,10 @@ class WorkIntake:
         actionable_level = 0  # heading depth that triggered actionable mode
         priority_level = 0
 
+        # Track the last item ID per section header for sequential blocked_by inference.
+        # Items within the same header section are treated as ordered (each blocked by prior).
+        last_item_per_section: Dict[str, str] = {}
+
         for line in text.splitlines():
             # Detect section headers
             hm = re.match(r"^(#{1,4})\s+", line)
@@ -239,6 +243,13 @@ class WorkIntake:
             if not description:
                 continue
 
+            # Parse optional inline done_criteria annotation: [done: <check>]
+            done_criteria: Optional[str] = None
+            done_match = re.search(r"\[done:\s*(.+?)\]", description)
+            if done_match:
+                done_criteria = done_match.group(1).strip()
+                description = description[: done_match.start()].strip()
+
             # Determine priority based on which section we're in
             if in_priority_section:
                 priority = _GOALS_PRIORITY_MAP.get(in_priority_section, WorkItemPriority.MEDIUM)
@@ -246,17 +257,26 @@ class WorkIntake:
                 # Immediate actions are always HIGH
                 priority = WorkItemPriority.HIGH
 
-            items.append(
-                WorkItem(
-                    id=_make_id(),
-                    source="goals",
-                    task_type=_infer_task_type(description),
-                    description=description,
-                    project=_infer_project(description, current_header),
-                    priority=priority,
-                    confidence=0.7,
-                )
+            item_id = _make_id()
+
+            # Sequential dependency: each item within the same section header is
+            # blocked by the previous one (they are ordered steps, not parallel).
+            prior_id = last_item_per_section.get(current_header)
+            blocked_by = [prior_id] if prior_id else []
+
+            item = WorkItem(
+                id=item_id,
+                source="goals",
+                task_type=_infer_task_type(description),
+                description=description,
+                project=_infer_project(description, current_header),
+                priority=priority,
+                confidence=0.7,
+                blocked_by=blocked_by,
+                done_criteria=done_criteria,
             )
+            items.append(item)
+            last_item_per_section[current_header] = item_id
 
         log.info("Parsed %d work items from GOALS.md", len(items))
         return items
