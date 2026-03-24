@@ -8,16 +8,16 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/jesse/dev/cortex/batch/flywheel_daemon.py</string>
+        <string>__DEV_DIR__/cortex/batch/flywheel_daemon.py</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/jesse/dev/cortex</string>
+    <string>__DEV_DIR__/cortex</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/Users/jesse/dev/cortex</string>
+        <string>__DEV_DIR__/cortex</string>
     </dict>
 
     <key>RunAtLoad</key>
@@ -30,10 +30,10 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse/.cortex/flywheel/stdout.log</string>
+    <string>__HOME__/.cortex/flywheel/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jesse/.cortex/flywheel/stderr.log</string>
+    <string>__HOME__/.cortex/flywheel/stderr.log</string>
 
     <key>ProcessType</key>
     <string>Background</string>
