@@ -33,3 +33,10 @@ steps:
     prompt: "Generate a concise morning briefing for a solo developer. Include: (1) overnight batch results, (2) service health, (3) git status. Highlight anything that needs immediate attention. Format as bullet points, max 10 lines."
     context_from: [batch-status, service-health, git-status]
     timeout: 60
+
+  - id: kempion-email
+    type: shell
+    description: Send Kempion-infused morning briefing email via Resend
+    command: "python cli.py morning-email --to jessekemp1@gmail.com"
+    timeout: 30
+    on_failure: continue

@@ -290,29 +290,47 @@ class BriefingScheduler:
 
     def _send_email(self, to_address: str, content: str, date: datetime):
         """
-        Send briefing via email.
+        Send briefing via email using Resend (preferred) or local SMTP (fallback).
 
         Args:
             to_address: Email address to send to
-            content: Briefing content
+            content: Briefing content (plain text)
             date: Briefing date
         """
+        # Try Resend first (Kempion-infused HTML briefing)
+        try:
+            from briefing_email import generate_morning_briefing_html
+            from notifications.resend_email import send_briefing_email
+
+            briefing_data = generate_morning_briefing_html(self.root_dir)
+            result = send_briefing_email(
+                to=to_address,
+                subject=briefing_data["subject"],
+                briefing_html=briefing_data["html"],
+                briefing_text=briefing_data["text"],
+            )
+            if result.success:
+                print(f"Kempion briefing sent via Resend to: {to_address} (id: {result.email_id})")
+                return
+            else:
+                print(f"Resend failed: {result.error}, falling back to SMTP", file=sys.stderr)
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"Resend error: {e}, falling back to SMTP", file=sys.stderr)
+
+        # Fallback: local SMTP
         try:
             import smtplib
             from email.mime.multipart import MIMEMultipart
             from email.mime.text import MIMEText
 
-            # Create message
             msg = MIMEMultipart()
             msg["From"] = "cortex@localhost"
             msg["To"] = to_address
             msg["Subject"] = f"Daily Briefing - {date.strftime('%B %d, %Y')}"
-
-            # Add content
             msg.attach(MIMEText(content, "plain"))
 
-            # Send via local sendmail or SMTP
-            # Note: This requires sendmail or SMTP configuration
             server = smtplib.SMTP("localhost")
             server.send_message(msg)
             server.quit()
@@ -321,6 +339,34 @@ class BriefingScheduler:
 
         except Exception as e:
             print(f"Warning: Could not send email: {e}", file=sys.stderr)
+
+    def send_kempion_briefing(self, to_address: str) -> bool:
+        """Send a Kempion-infused morning briefing via Resend.
+
+        This is the preferred method for daily email briefings. Generates
+        an HTML email with wisdom, learning insights, portfolio intelligence,
+        and 5 next tasks per active project.
+        """
+        try:
+            from briefing_email import generate_morning_briefing_html
+            from notifications.resend_email import send_briefing_email
+
+            briefing_data = generate_morning_briefing_html(self.root_dir)
+            result = send_briefing_email(
+                to=to_address,
+                subject=briefing_data["subject"],
+                briefing_html=briefing_data["html"],
+                briefing_text=briefing_data["text"],
+            )
+            if result.success:
+                print(f"Kempion briefing sent to: {to_address} (id: {result.email_id})")
+                return True
+            else:
+                print(f"Failed to send briefing: {result.error}", file=sys.stderr)
+                return False
+        except Exception as e:
+            print(f"Error sending Kempion briefing: {e}", file=sys.stderr)
+            return False
 
 
 def parse_cron_expression(expression: str) -> dict:

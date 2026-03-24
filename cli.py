@@ -916,6 +916,40 @@ def cmd_briefing(args):
         sys.exit(1)
 
 
+def cmd_morning_email(args):
+    """Send Kempion-infused morning briefing email via Resend."""
+    try:
+        from briefing_email import generate_morning_briefing_html
+        from notifications.resend_email import send_briefing_email
+
+        root_dir = Path(args.root)
+        briefing_data = generate_morning_briefing_html(root_dir)
+
+        if args.preview:
+            print(briefing_data["html"])
+            return
+
+        result = send_briefing_email(
+            to=args.to,
+            subject=briefing_data["subject"],
+            briefing_html=briefing_data["html"],
+            briefing_text=briefing_data["text"],
+        )
+
+        if result.success:
+            print(f"Kempion briefing sent to {args.to} (id: {result.email_id})")
+        else:
+            print(f"Failed: {result.error}", file=sys.stderr)
+            sys.exit(1)
+
+    except ImportError as e:
+        print(f"Missing dependency: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_briefing_style(args):
     """Validate/show persistent briefing style contract."""
     try:
@@ -3336,6 +3370,29 @@ Deep Mode (Phase 1):
         help="Exit non-zero when signal quality is LOW",
     )
     briefing_parser.set_defaults(func=cmd_briefing)
+
+    # Morning email command (Kempion + Cortex briefing via Resend)
+    morning_email_parser = subparsers.add_parser(
+        "morning-email", help="Send Kempion morning briefing email via Resend"
+    )
+    morning_email_parser.add_argument(
+        "--to",
+        type=str,
+        default="jessekemp1@gmail.com",
+        help="Email address to send to (default: jessekemp1@gmail.com)",
+    )
+    morning_email_parser.add_argument(
+        "--root",
+        type=str,
+        default=str(Path.cwd()),
+        help="Root directory to scan",
+    )
+    morning_email_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Print HTML to stdout instead of sending",
+    )
+    morning_email_parser.set_defaults(func=cmd_morning_email)
 
     # Briefing style command
     briefing_style_parser = subparsers.add_parser(
