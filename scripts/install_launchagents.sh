@@ -71,25 +71,22 @@ content = sys.argv[1]
 root = ET.fromstring(content)
 d = root.find('dict')
 
-def parse_dict(node):
-    it = iter(node)
-    result = {}
-    for key in it:
-        val = next(it)
-        result[key.text] = val
-    return result
-
 def node_value(node):
     if node.tag == 'string': return node.text or ''
     if node.tag == 'integer': return int(node.text)
     if node.tag == 'true': return True
     if node.tag == 'false': return False
     if node.tag == 'array': return [node_value(c) for c in node]
-    if node.tag == 'dict': return parse_dict(node)
+    if node.tag == 'dict':
+        it = iter(node)
+        result = {}
+        for key in it:
+            val = next(it)
+            result[key.text] = node_value(val)
+        return result
     return node.text
 
-kv = parse_dict(d)
-data = {k: node_value(v) for k, v in kv.items()}
+data = node_value(d)
 
 label = data.get('Label', 'unknown')
 args = data.get('ProgramArguments', [])
