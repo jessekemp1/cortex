@@ -5250,6 +5250,92 @@ Deep Mode (Phase 1):
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
+    def cmd_import_claude(args):
+        """Import learning data from Claude Code (~/.claude/)."""
+        try:
+            from intelligence.claude_code_importer import ClaudeCodeImporter
+
+            importer = ClaudeCodeImporter()
+            print("Importing learning data from Claude Code...")
+            results = importer.import_all()
+
+            if "error" in results:
+                print(f"Error: {results['error']}")
+                sys.exit(1)
+
+            print()
+            for source, result in results.items():
+                status = result.get("status", "unknown")
+                if status == "imported":
+                    detail = ", ".join(
+                        f"{k}={v}"
+                        for k, v in result.items()
+                        if k != "status"
+                    )
+                    print(f"  [OK] {source}: {detail}")
+                elif status == "skipped":
+                    print(f"  [--] {source}: {result.get('reason', 'skipped')}")
+                else:
+                    print(f"  [!!] {source}: {result.get('reason', status)}")
+
+            print()
+            print("Import complete. Data stored in ~/.cortex/imported/")
+        except ImportError:
+            print("Error: Claude Code importer not available", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    def cmd_optimize_data(args):
+        """Consolidate outcome stores, add indices, migrate legacy data."""
+        print("Optimizing Cortex data stores...")
+        print()
+
+        # 1. Add missing indices to existing databases
+        try:
+            from intelligence.storage.add_missing_indices import add_missing_indices
+
+            idx_results = add_missing_indices()
+            print("[1/3] Adding missing indices:")
+            for db, indices in idx_results.items():
+                print(f"  {db}: {len(indices)} indices verified")
+        except Exception as e:
+            print(f"  Error adding indices: {e}")
+
+        print()
+
+        # 2. Initialize consolidated store
+        try:
+            from intelligence.storage.consolidated_store import get_consolidated_store
+
+            store = get_consolidated_store()
+            info = store.get_storage_info()
+            print(f"[2/3] Consolidated store initialized: {info['db_path']}")
+            print(f"  Schema version: {info['schema_version']}")
+        except Exception as e:
+            print(f"  Error initializing store: {e}")
+
+        print()
+
+        # 3. Migrate legacy data
+        try:
+            from intelligence.storage.consolidated_store import get_consolidated_store
+
+            store = get_consolidated_store()
+            counts = store.migrate_legacy_data()
+            print("[3/3] Legacy data migration:")
+            if counts:
+                for source, count in counts.items():
+                    print(f"  {source}: {count} records migrated")
+            else:
+                print("  No legacy data to migrate")
+        except Exception as e:
+            print(f"  Error migrating data: {e}")
+
+        print()
+        print("Data optimization complete.")
+
     signals_parser = subparsers.add_parser(
         "signals", help="Run active cross-project signal detection"
     )
@@ -5261,13 +5347,73 @@ Deep Mode (Phase 1):
     )
     signals_parser.set_defaults(func=cmd_signals)
 
+    # Import Claude Code data
+    import_claude_parser = subparsers.add_parser(
+        "import-claude", help="Import learning data from Claude Code (~/.claude/)"
+    )
+    import_claude_parser.set_defaults(func=cmd_import_claude)
+
+    # Optimize data stores
+    optimize_data_parser = subparsers.add_parser(
+        "optimize-data",
+        help="Consolidate outcome stores, add indices, migrate legacy data",
+    )
+    optimize_data_parser.set_defaults(func=cmd_optimize_data)
+
     args = parser.parse_args()
 
     if not hasattr(args, "func"):
         parser.print_help()
         sys.exit(1)
 
-    args.func(args)
+    # Wrap command execution with metrics tracking
+    _execute_with_metrics(args)
+
+
+def _execute_with_metrics(args):
+    """Execute CLI command with performance tracking and session cleanup."""
+    import time
+
+    command_name = getattr(args, "command", "unknown") or "unknown"
+    start = time.monotonic()
+    success = True
+    error_msg = None
+
+    try:
+        args.func(args)
+    except SystemExit as e:
+        if e.code and e.code != 0:
+            success = False
+            error_msg = f"exit code {e.code}"
+        raise
+    except Exception as e:
+        success = False
+        error_msg = str(e)[:200]
+        raise
+    finally:
+        duration_ms = (time.monotonic() - start) * 1000
+        try:
+            from intelligence.storage.consolidated_store import get_consolidated_store
+
+            store = get_consolidated_store()
+            store.log_command_metric(
+                command=command_name,
+                duration_ms=round(duration_ms, 1),
+                success=success,
+                error_message=error_msg,
+            )
+        except Exception:
+            pass  # Never let metrics break the CLI
+
+        # End session: flush implicit feedback + memory consolidation
+        try:
+            from bridge import CortexBridge
+
+            bridge = CortexBridge.__dict__.get("_singleton")
+            if bridge:
+                bridge.end_session()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -357,7 +357,8 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
 
         Cleans up AI Engineering modules:
         - TieredMemory: Consolidate and promote frequently accessed items
-        - ImplicitFeedback: End session tracking
+        - ImplicitFeedback: End session tracking and persist signals
+        - ConsolidatedStore: Flush any pending implicit signals to SQLite
         """
         if self.tiered_memory:
             try:
@@ -368,8 +369,30 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
         if self.implicit_feedback:
             try:
                 self.implicit_feedback.session_end()
+                # Migrate implicit signals to consolidated store
+                self._flush_implicit_to_store()
             except Exception:
                 pass
+
+    def _flush_implicit_to_store(self) -> None:
+        """Flush implicit feedback signals from JSONL to consolidated SQLite store."""
+        try:
+            from intelligence.storage.consolidated_store import get_consolidated_store
+
+            store = get_consolidated_store()
+            if self.implicit_feedback:
+                signals = self.implicit_feedback.load_signals(limit=50)
+                for sig in signals:
+                    store.log_implicit_signal(
+                        recommendation_id=sig.recommendation_id,
+                        signal_type=sig.signal_type,
+                        similarity=sig.similarity,
+                        time_to_action=sig.time_to_action,
+                        alternative_taken=sig.alternative_taken,
+                        context=sig.context if isinstance(sig.context, dict) else None,
+                    )
+        except Exception:
+            pass  # Best effort — never break session end
 
     def _detect_current_project(self) -> str:
         """
