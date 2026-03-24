@@ -20,10 +20,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cortex.state_paths import get_cortex_dir
+try:
+    from cortex.state_paths import get_cortex_dir
+except ImportError:
+    from state_paths import get_cortex_dir
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class ConsolidatedOutcomeStore:
@@ -60,10 +63,12 @@ class ConsolidatedOutcomeStore:
 
             # Check if we need to initialize
             cursor = conn.execute("SELECT MAX(version) FROM schema_version")
-            current_version = cursor.fetchone()[0]
+            current_version = cursor.fetchone()[0] or 0
 
-            if current_version is None or current_version < SCHEMA_VERSION:
+            if current_version < 1:
                 self._apply_schema_v1(conn)
+            if current_version < 2:
+                self._apply_schema_v2(conn)
 
             conn.commit()
 
@@ -268,6 +273,225 @@ class ConsolidatedOutcomeStore:
             "INSERT OR REPLACE INTO schema_version (version, applied_at) VALUES (?, ?)",
             (SCHEMA_VERSION, datetime.now().isoformat()),
         )
+
+    def _apply_schema_v2(self, conn: sqlite3.Connection):
+        """Apply schema version 2 — conversation content + corrections."""
+
+        # Full conversation content (prompts + assistant turns)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                project TEXT,
+                git_branch TEXT,
+                message_index INTEGER,
+                role TEXT NOT NULL,
+                content_text TEXT,
+                is_correction INTEGER DEFAULT 0,
+                correction_target TEXT,
+                tools_used_json TEXT,
+                files_touched_json TEXT,
+                timestamp TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_conv_content_session
+            ON conversation_content(session_id)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_conv_content_project
+            ON conversation_content(project)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_conv_content_correction
+            ON conversation_content(is_correction) WHERE is_correction = 1
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_conv_content_timestamp
+            ON conversation_content(timestamp)
+        """)
+
+        # Correction chains — paired (wrong, correction) for learning
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS correction_chains (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                project TEXT,
+                wrong_approach TEXT,
+                user_correction TEXT,
+                correct_approach TEXT,
+                files_affected_json TEXT,
+                correction_type TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correction_chains_project
+            ON correction_chains(project)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_correction_chains_type
+            ON correction_chains(correction_type)
+        """)
+
+        # Record version
+        conn.execute(
+            "INSERT OR REPLACE INTO schema_version (version, applied_at) VALUES (?, ?)",
+            (2, datetime.now().isoformat()),
+        )
+
+    # ──────────────────────────────────────────────
+    # Conversation Content
+    # ──────────────────────────────────────────────
+
+    def store_conversation_turn(
+        self,
+        session_id: str,
+        message_index: int,
+        role: str,
+        content_text: str,
+        project: str = "",
+        git_branch: str = "",
+        is_correction: bool = False,
+        correction_target: Optional[str] = None,
+        tools_used: Optional[List[str]] = None,
+        files_touched: Optional[List[str]] = None,
+        timestamp: Optional[str] = None,
+    ) -> int:
+        """Store a single conversation turn. Returns the row ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO conversation_content
+                (session_id, project, git_branch, message_index, role, content_text,
+                 is_correction, correction_target, tools_used_json, files_touched_json,
+                 timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    project,
+                    git_branch,
+                    message_index,
+                    role,
+                    content_text,
+                    int(is_correction),
+                    correction_target,
+                    json.dumps(tools_used) if tools_used else None,
+                    json.dumps(files_touched) if files_touched else None,
+                    timestamp or datetime.now().isoformat(),
+                ),
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_corrections(
+        self,
+        project: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get all correction turns, optionally filtered by project."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if project:
+                rows = conn.execute(
+                    """SELECT * FROM conversation_content
+                       WHERE is_correction = 1 AND project = ?
+                       ORDER BY timestamp DESC LIMIT ?""",
+                    (project, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM conversation_content
+                       WHERE is_correction = 1
+                       ORDER BY timestamp DESC LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_prompts_by_project(
+        self,
+        project: str,
+        role: str = "user",
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """Get conversation turns for a project."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT * FROM conversation_content
+                   WHERE project = ? AND role = ?
+                   ORDER BY timestamp DESC LIMIT ?""",
+                (project, role, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def store_correction_chain(
+        self,
+        session_id: str,
+        wrong_approach: str,
+        user_correction: str,
+        correct_approach: str = "",
+        project: str = "",
+        files_affected: Optional[List[str]] = None,
+        correction_type: str = "general",
+    ) -> int:
+        """Store a correction chain (wrong → user says no → right). Returns row ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO correction_chains
+                (session_id, project, wrong_approach, user_correction,
+                 correct_approach, files_affected_json, correction_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    project,
+                    wrong_approach,
+                    user_correction,
+                    correct_approach,
+                    json.dumps(files_affected) if files_affected else None,
+                    correction_type,
+                ),
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_correction_chains(
+        self,
+        project: Optional[str] = None,
+        correction_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get correction chains for learning."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            query = "SELECT * FROM correction_chains WHERE 1=1"
+            params: list = []
+            if project:
+                query += " AND project = ?"
+                params.append(project)
+            if correction_type:
+                query += " AND correction_type = ?"
+                params.append(correction_type)
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+            rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_session_content(self, session_id: str) -> List[Dict[str, Any]]:
+        """Get all turns for a session, ordered by message_index."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT * FROM conversation_content
+                   WHERE session_id = ?
+                   ORDER BY message_index ASC""",
+                (session_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # ──────────────────────────────────────────────
     # Recommendation Outcomes
@@ -705,6 +929,8 @@ class ConsolidatedOutcomeStore:
                 "implicit_signals",
                 "command_metrics",
                 "feedback_entries",
+                "conversation_content",
+                "correction_chains",
             ]:
                 try:
                     count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]

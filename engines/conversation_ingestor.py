@@ -20,6 +20,7 @@ Each digest captures:
 
 import json
 import logging
+import os
 import re
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
@@ -33,8 +34,26 @@ logger = logging.getLogger(__name__)
 DIGESTS_PATH = Path.home() / ".cortex" / "conversation_digests.jsonl"
 INGEST_STATE_PATH = Path.home() / ".cortex" / "conversation_ingest_state.json"
 
-# Default conversation directory
-CONVERSATIONS_DIR = Path.home() / ".claude" / "projects" / "-Users-jesse-kemp-Dev"
+def _default_conversations_dir() -> Path:
+    """Auto-detect the Claude Code projects directory (cross-platform)."""
+    projects_root = Path.home() / ".claude" / "projects"
+    if projects_root.is_dir():
+        # Find the most recently modified project slug directory
+        candidates = [
+            d for d in projects_root.iterdir()
+            if d.is_dir() and not d.name.startswith(".")
+        ]
+        if candidates:
+            # Prefer directory with JSONL files; fall back to most recent
+            with_jsonl = [d for d in candidates if any(d.glob("*.jsonl"))]
+            if with_jsonl:
+                return max(with_jsonl, key=lambda d: d.stat().st_mtime)
+            return max(candidates, key=lambda d: d.stat().st_mtime)
+    return projects_root
+
+
+# Default conversation directory (auto-detected)
+CONVERSATIONS_DIR = _default_conversations_dir()
 
 # Correction indicators (reuse from interaction_learner for consistency)
 _CORRECTION_PHRASES = [
@@ -355,9 +374,22 @@ class DigestExtractor:
         root_dir = os.environ.get("CORTEX_ROOT_DIR", "")
         if root_dir and path.startswith(root_dir):
             return path[len(root_dir):].lstrip("/")
-        # Strip common home-relative dev paths
+        # Strip common home-relative dev paths (supports macOS & Linux homes)
         home = str(Path.home())
-        for dev_dir in [f"{home}/Dev/", f"{home}/dev/", f"{home}/projects/"]:
+        dev_dirs = [
+            f"{home}/Dev/", f"{home}/dev/", f"{home}/projects/",
+        ]
+        # Also match non-local home patterns (e.g. paths recorded on macOS)
+        for prefix in ["/Users/", "/home/"]:
+            idx = path.find(prefix)
+            if idx == 0:
+                # Find the dev subdir after /Users/<user>/ or /home/<user>/
+                parts = path.split("/")
+                # /Users/user/Dev/... → skip first 4 components
+                for i, p in enumerate(parts):
+                    if p.lower() in ("dev", "projects"):
+                        return "/".join(parts[i + 1:])
+        for dev_dir in dev_dirs:
             if path.startswith(dev_dir):
                 return path[len(dev_dir):]
         return path
@@ -648,9 +680,18 @@ class ConversationIngestor:
                 logger.debug(f"Already ingested (unchanged): {path.name}")
                 return None
 
-        digest = self._process_file(path)
+        digest, messages = self._process_file(path)
         if digest:
             self._store_digest(digest)
+
+            # Store full conversation content for learning
+            try:
+                self._store_content(
+                    messages, digest.session_id, digest.project, digest.git_branch
+                )
+            except Exception as e:
+                logger.debug(f"Content storage failed for {digest.session_id}: {e}")
+
             self._state["ingested_sessions"][path_key] = {
                 "session_id": digest.session_id,
                 "mtime": path.stat().st_mtime,
@@ -707,19 +748,148 @@ class ConversationIngestor:
             "results": results,
         }
 
-    def _process_file(self, path: Path) -> Optional[ConversationDigest]:
-        """Parse and extract digest from a single JSONL file."""
+    def _process_file(self, path: Path) -> tuple:
+        """Parse and extract digest from a single JSONL file.
+
+        Returns (digest, messages) or (None, []).
+        """
         parser = ConversationParser(path)
         messages = parser.parse()
 
         if not messages:
             logger.debug(f"No messages in {path.name}")
-            return None
+            return None, []
 
         session_id = parser.get_session_id()
         timestamps = parser.get_timestamps()
 
-        return self.extractor.extract(messages, session_id, path, timestamps)
+        digest = self.extractor.extract(messages, session_id, path, timestamps)
+        return digest, messages
+
+    def _store_content(
+        self,
+        messages: List[Dict[str, Any]],
+        session_id: str,
+        project: str,
+        git_branch: str,
+    ) -> None:
+        """Store full conversation content and extract correction chains."""
+        try:
+            from intelligence.storage.consolidated_store import get_consolidated_store
+
+            store = get_consolidated_store()
+        except Exception as e:
+            logger.debug(f"Cannot access consolidated store: {e}")
+            return
+
+        # Check if session already stored
+        existing = store.get_session_content(session_id)
+        if existing:
+            logger.debug(f"Content already stored for session {session_id}")
+            return
+
+        prev_assistant_text = ""
+        prev_tools: List[str] = []
+        prev_files: List[str] = []
+        msg_index = 0
+
+        for msg in messages:
+            msg_type = msg.get("type")
+            timestamp = msg.get("timestamp", "")
+
+            if msg_type == "user":
+                content = self._get_user_text(msg)
+                if not content:
+                    continue
+
+                # Detect correction
+                content_lower = content.lower()
+                is_correction = any(p in content_lower for p in _CORRECTION_PHRASES)
+
+                store.store_conversation_turn(
+                    session_id=session_id,
+                    message_index=msg_index,
+                    role="user",
+                    content_text=content,
+                    project=project,
+                    git_branch=git_branch,
+                    is_correction=is_correction,
+                    correction_target=prev_assistant_text[:500] if is_correction else None,
+                    timestamp=timestamp,
+                )
+
+                # Build correction chain if this is a correction
+                if is_correction and prev_assistant_text:
+                    store.store_correction_chain(
+                        session_id=session_id,
+                        wrong_approach=prev_assistant_text[:1000],
+                        user_correction=content[:1000],
+                        project=project,
+                        files_affected=prev_files[:20],
+                        correction_type=self._classify_correction(content_lower),
+                    )
+
+                msg_index += 1
+
+            elif msg_type == "assistant":
+                text_parts = []
+                tools_used = []
+                files_touched = []
+
+                content_blocks = msg.get("message", {}).get("content", [])
+                if isinstance(content_blocks, str):
+                    text_parts.append(content_blocks)
+                elif isinstance(content_blocks, list):
+                    for block in content_blocks:
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_use":
+                            tool_name = block.get("name", "unknown")
+                            tools_used.append(tool_name)
+                            tool_input = block.get("input", {})
+                            fp = tool_input.get("file_path", "") or tool_input.get("path", "")
+                            if fp:
+                                files_touched.append(fp)
+
+                full_text = "\n".join(text_parts)
+                prev_assistant_text = full_text
+                prev_tools = tools_used
+                prev_files = files_touched
+
+                store.store_conversation_turn(
+                    session_id=session_id,
+                    message_index=msg_index,
+                    role="assistant",
+                    content_text=full_text[:5000],  # cap for storage
+                    project=project,
+                    git_branch=git_branch,
+                    tools_used=tools_used,
+                    files_touched=files_touched,
+                    timestamp=timestamp,
+                )
+                msg_index += 1
+
+    def _get_user_text(self, msg: Dict) -> str:
+        """Extract text from a user message."""
+        content = msg.get("message", {}).get("content", "")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return " ".join(b.get("text", "") for b in content if b.get("type") == "text")
+        return ""
+
+    @staticmethod
+    def _classify_correction(content_lower: str) -> str:
+        """Classify the type of correction."""
+        if any(w in content_lower for w in ["wrong file", "wrong path", "different file"]):
+            return "wrong_file"
+        if any(w in content_lower for w in ["undo", "revert", "go back"]):
+            return "revert"
+        if any(w in content_lower for w in ["that broke", "error", "failing"]):
+            return "broken"
+        if any(w in content_lower for w in ["misunderstood", "not what i", "i meant"]):
+            return "misunderstanding"
+        return "general"
 
     def _store_digest(self, digest: ConversationDigest) -> None:
         """Append digest to JSONL storage, replacing any existing entry for this session."""

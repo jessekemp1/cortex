@@ -395,6 +395,10 @@ class TestConversationIngestor:
 class TestDigestToPattern:
     """Test that digests integrate with HybridRetriever via Pattern conversion."""
 
+    @pytest.mark.skipif(
+        not __import__("importlib").util.find_spec("numpy"),
+        reason="numpy not installed",
+    )
     def test_load_digest_patterns(self, tmp_path):
         """Verify _load_digest_patterns produces valid Pattern objects."""
         # Create a minimal digest file

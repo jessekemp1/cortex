@@ -147,25 +147,51 @@ class PromptHistoryAnalyzer:
 
         Args:
             sessions_dir: Path to Claude Code sessions directory.
-                         Defaults to ~/Library/Application Support/Claude/local-agent-mode-sessions/
+                         Auto-detects across platforms:
+                           Linux: ~/.claude/projects/
+                           macOS: ~/Library/Application Support/Claude/local-agent-mode-sessions/
+                                  (falls back to ~/.claude/projects/)
         """
         if sessions_dir is None:
-            sessions_dir = (
+            sessions_dir = self._detect_sessions_dir()
+
+        self.sessions_dir = sessions_dir
+        self.cache_dir = Path.home() / ".cortex" / "prompt_history"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _detect_sessions_dir() -> Path:
+        """Cross-platform detection of Claude Code session storage."""
+        import sys
+
+        # Linux / generic: ~/.claude/projects/
+        claude_projects = Path.home() / ".claude" / "projects"
+        if claude_projects.is_dir():
+            return claude_projects
+
+        # macOS: ~/Library/Application Support/Claude/local-agent-mode-sessions/
+        if sys.platform == "darwin":
+            macos_path = (
                 Path.home()
                 / "Library"
                 / "Application Support"
                 / "Claude"
                 / "local-agent-mode-sessions"
             )
+            if macos_path.is_dir():
+                return macos_path
 
-        self.sessions_dir = sessions_dir
-        self.cache_dir = Path.home() / ".cortex" / "prompt_history"
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Fallback
+        return claude_projects
 
     def extract_sessions(
         self, days_back: int = 30, max_sessions: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        """Extract conversation sessions from audit logs.
+        """Extract conversation sessions from audit logs or JSONL conversations.
+
+        Supports both formats:
+          - audit.jsonl (macOS local-agent-mode-sessions)
+          - <session-id>.jsonl (Linux/newer ~/.claude/projects/ format)
 
         Args:
             days_back: How many days of history to extract
@@ -177,7 +203,7 @@ class PromptHistoryAnalyzer:
         cutoff_date = datetime.now() - timedelta(days=days_back)
         sessions = []
 
-        # Find all audit.jsonl files
+        # Try audit.jsonl files first (macOS format)
         audit_files = list(self.sessions_dir.rglob("audit.jsonl"))
 
         for audit_file in audit_files:
@@ -185,14 +211,105 @@ class PromptHistoryAnalyzer:
                 session_data = self._parse_audit_file(audit_file, cutoff_date)
                 if session_data:
                     sessions.append(session_data)
-
                     if max_sessions and len(sessions) >= max_sessions:
-                        break
+                        return sessions
             except Exception:
-                # Skip problematic files
                 continue
 
+        # Also try JSONL conversation files (Linux / newer format)
+        for project_dir in self.sessions_dir.iterdir():
+            if not project_dir.is_dir():
+                continue
+            for jsonl_file in sorted(project_dir.glob("*.jsonl"), reverse=True):
+                try:
+                    session_data = self._parse_conversation_jsonl(
+                        jsonl_file, cutoff_date
+                    )
+                    if session_data:
+                        sessions.append(session_data)
+                        if max_sessions and len(sessions) >= max_sessions:
+                            return sessions
+                except Exception:
+                    continue
+
         return sessions
+
+    def _parse_conversation_jsonl(
+        self, jsonl_file: Path, cutoff_date: datetime
+    ) -> Optional[Dict[str, Any]]:
+        """Parse a Claude Code conversation JSONL file (newer format).
+
+        Returns:
+            Session data dict or None if too old/empty
+        """
+        user_prompts = []
+        assistant_responses = []
+        tool_calls = []
+        session_id = None
+        session_cwd = None
+
+        with open(jsonl_file, "r", errors="replace") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                except json.JSONDecodeError:
+                    continue
+
+                entry_type = entry.get("type")
+
+                # Extract timestamp
+                timestamp_str = entry.get("timestamp")
+                timestamp = None
+                if timestamp_str:
+                    try:
+                        timestamp = datetime.fromisoformat(
+                            timestamp_str.replace("Z", "+00:00")
+                        ).replace(tzinfo=None)
+                        if timestamp < cutoff_date:
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+
+                if not session_id:
+                    session_id = entry.get("sessionId") or jsonl_file.stem
+                if not session_cwd and entry.get("cwd"):
+                    session_cwd = entry["cwd"]
+
+                if entry_type == "user":
+                    message = entry.get("message", {})
+                    content = message.get("content", "")
+                    if isinstance(content, str) and content:
+                        user_prompts.append(
+                            {"text": content, "timestamp": timestamp}
+                        )
+
+                elif entry_type == "assistant":
+                    message = entry.get("message", {})
+                    content = message.get("content", [])
+                    if isinstance(content, list):
+                        for block in content:
+                            if block.get("type") == "tool_use":
+                                tool_calls.append(block.get("name", "unknown"))
+                    assistant_responses.append(
+                        {"stop_reason": None, "error": None, "timestamp": timestamp}
+                    )
+
+                elif entry_type == "last-prompt":
+                    if not session_id:
+                        session_id = entry.get("sessionId", jsonl_file.stem)
+
+        if not user_prompts:
+            return None
+
+        return {
+            "session_id": session_id,
+            "cwd": session_cwd,
+            "start_time": user_prompts[0].get("timestamp") if user_prompts else None,
+            "prompts": user_prompts,
+            "responses": assistant_responses,
+            "tools_used": list(set(tool_calls)),
+            "audit_file": str(jsonl_file),
+        }
 
     def _parse_audit_file(
         self, audit_file: Path, cutoff_date: datetime
@@ -219,7 +336,9 @@ class PromptHistoryAnalyzer:
                 # Extract timestamp
                 timestamp_str = entry.get("_audit_timestamp")
                 if timestamp_str:
-                    timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                    timestamp = datetime.fromisoformat(
+                        timestamp_str.replace("Z", "+00:00")
+                    ).replace(tzinfo=None)
 
                     # Skip old sessions
                     if timestamp < cutoff_date:
