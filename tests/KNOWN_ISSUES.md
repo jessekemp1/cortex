@@ -26,7 +26,7 @@ def test_tiered_memory_stores_and_retrieves():
 ```
 
 **Status**: Fixed in `test_bridge_integration.py` and `test_tiered_memory.py`.
-Remaining files tracked at: https://github.com/jessekemp/cortex/issues (post-launch)
+Remaining files tracked at: https://github.com/jessekemp1/cortex/issues (post-launch)
 
 ---
 

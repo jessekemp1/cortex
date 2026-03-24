@@ -23,10 +23,11 @@ cortex_dir = Path(__file__).parent
 sys.path.insert(0, str(cortex_dir))
 sys.path.insert(0, str(cortex_dir.parent))
 
-# Fallback: Add user site-packages if dependencies are missing (e.g. structlog)
-site_packages = Path.home() / "Library/Python/3.9/lib/python/site-packages"
-if site_packages.exists() and str(site_packages) not in sys.path:
-    sys.path.append(str(site_packages))
+# Fallback: Add user site-packages if dependencies are missing
+import site as _site
+_user_site = _site.getusersitepackages()
+if _user_site and str(_user_site) not in sys.path:
+    sys.path.append(str(_user_site))
 
 from formatter import CortexFormatter
 
@@ -1850,75 +1851,6 @@ def cmd_batch_status(args):
     print("")
     print("  export CORTEX_BATCH_RECOMMENDATIONS_ENABLED=true")
     print("")
-
-
-def cmd_v2a_batch(args):
-    """Manage V2a sprint batch jobs."""
-    from batch.v2a_sprint_orchestrator import V2aSprintOrchestrator
-
-    orchestrator = V2aSprintOrchestrator()
-
-    if args.action == "submit":
-        print("🚀 Submitting V2a sprint batch jobs...")
-        print("")
-
-        wave_task_ids = orchestrator.submit_all_sprints()
-
-        print("✓ All tasks submitted to batch queue!")
-        print("")
-
-        for wave_id in sorted(wave_task_ids.keys()):
-            task_ids = wave_task_ids[wave_id]
-            print(f"  {wave_id}: {len(task_ids)} tasks")
-
-        print("")
-        print("Use 'cortex v2a-batch --action status' to monitor progress")
-
-    elif args.action == "status":
-        print("📊 V2a Sprint Batch Status")
-        print("=" * 60)
-
-        status_data = orchestrator.get_overall_status()
-
-        print(f"Total Tasks: {status_data['total_tasks']}")
-        print(f"Completed: {status_data['completed']}")
-        print(f"Running: {status_data['running']}")
-        print(f"Failed: {status_data['failed']}")
-        print(f"Pending: {status_data['pending']}")
-        print(f"Progress: {status_data['progress_pct']:.1f}%")
-        print(f"Current Wave: {status_data['current_wave']}")
-        print("")
-
-        # Per-wave breakdown
-        print("Per-Wave Status:")
-        for wave_id in ["wave_1", "wave_2", "wave_3", "wave_4"]:
-            wave_status = status_data["waves"].get(wave_id, {})
-            progress = wave_status.get("progress_pct", 0)
-            running = wave_status.get("running", 0)
-
-            if progress == 100:
-                emoji = "✅"
-            elif running > 0:
-                emoji = "🔄"
-            else:
-                emoji = "📋"
-
-            print(
-                f"  {emoji} {wave_id}: {wave_status.get('completed', 0)}/{wave_status.get('total', 0)} complete ({progress:.0f}%)"
-            )
-
-    elif args.action == "retry":
-        print("🔄 Retrying failed tasks...")
-        retried = orchestrator.retry_failed_tasks(wave_id=args.wave)
-
-        if retried:
-            print(f"✓ Retried {len(retried)} tasks")
-        else:
-            print("No failed tasks to retry")
-
-    else:
-        print(f"Unknown action: {args.action}")
-        sys.exit(1)
 
 
 def cmd_notify(args):

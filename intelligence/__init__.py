@@ -11,4 +11,14 @@ Core modules:
 - contracts: Task contract generation and execution
 """
 
+from intelligence.ensemble_decider import FieldEnsembleDecider
+from intelligence.temporal_router import TemporalHorizonRouter
+from intelligence.verifiable_expertise import VerifiableExpertise
+
 __version__ = "1.1.0"
+
+__all__ = [
+    "FieldEnsembleDecider",
+    "TemporalHorizonRouter",
+    "VerifiableExpertise",
+]

@@ -10,8 +10,8 @@ requires:
     anthropic: "For AI-powered commit suggestions"
 tags: [core, git, orchestration, intelligence]
 enabled: true
-homepage: https://github.com/jessekemp/cortex
-repository: https://github.com/jessekemp/cortex
+homepage: https://github.com/jessekemp1/cortex
+repository: https://github.com/jessekemp1/cortex
 license: MIT
 ---
 

@@ -19,7 +19,7 @@ from pathlib import Path
 
 CORTEX_DIR = Path.home() / ".cortex"
 CLAUDE_DIR = Path.home() / ".claude"
-REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+REPO_ROOT = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
 METRICS_DIR = CORTEX_DIR / "metrics"
 OUTPUT_FILE = METRICS_DIR / "self_audit.json"
 

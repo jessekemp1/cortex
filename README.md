@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-958%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-765%20passing-green.svg)](tests/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
@@ -347,7 +347,7 @@ pip install -e ".[all]"         # everything
 pytest tests/ -v
 ```
 
-958+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+765+ tests covering memory retrieval, context optimization, work discovery, model routing, ensemble decisions, temporal routing, verifiable expertise, subscription optimization, and the MCP server contract. Some tests require optional dependencies (`anthropic`, `numpy`, `psutil`).
 
 ---
 

@@ -15,7 +15,7 @@ Get productive with Cortex in 5 minutes.
 ## Installation
 
 ```bash
-git clone https://github.com/your-org/cortex
+git clone https://github.com/jessekemp1/cortex
 cd cortex
 
 # Create and activate virtual environment

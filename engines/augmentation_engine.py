@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-BRIDGE_URL = "http://localhost:8765"
+BRIDGE_URL = os.environ.get("CORTEX_BRIDGE_URL", "http://localhost:8765")
 AUGMENTATIONS_PATH = Path.home() / ".cortex" / "augmentations.jsonl"
 
 

@@ -13,7 +13,7 @@ Thank you for your interest in contributing to Cortex!
 ```bash
 # Fork the repository on GitHub
 # Clone your fork
-git clone https://github.com/yourusername/cortex.git
+git clone https://github.com/jessekemp1/cortex.git
 cd cortex
 ```
 

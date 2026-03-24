@@ -351,10 +351,15 @@ class DigestExtractor:
                 files_read.add(self._normalize_path(path))
 
     def _normalize_path(self, path: str) -> str:
-        """Normalize file paths to be relative to Dev/."""
-        dev_prefix = "/Users/jesse.kemp/Dev/"
-        if path.startswith(dev_prefix):
-            return path[len(dev_prefix) :]
+        """Normalize file paths to be relative to project root."""
+        root_dir = os.environ.get("CORTEX_ROOT_DIR", "")
+        if root_dir and path.startswith(root_dir):
+            return path[len(root_dir):].lstrip("/")
+        # Strip common home-relative dev paths
+        home = str(Path.home())
+        for dev_dir in [f"{home}/Dev/", f"{home}/dev/", f"{home}/projects/"]:
+            if path.startswith(dev_dir):
+                return path[len(dev_dir):]
         return path
 
     def _infer_project(
