@@ -344,6 +344,13 @@ implicit_feedback_enabled: true
     print("  cortex health    # check subsystems")
 
 
+def cmd_setup(args):
+    """Interactive setup wizard for new users."""
+    from cortex_setup import CortexSetupWizard
+    wizard = CortexSetupWizard(non_interactive=getattr(args, "non_interactive", False))
+    wizard.run()
+
+
 def cmd_status(args):
     """Show intelligent strategic status."""
     root = Path(args.root)
@@ -2968,6 +2975,16 @@ Deep Mode (Phase 1):
         "--root-dir", type=str, default="", help="Set workspace root directory in config"
     )
     init_parser.set_defaults(func=cmd_init)
+
+    # Setup wizard command
+    setup_parser = subparsers.add_parser(
+        "setup", help="Interactive setup wizard for new users"
+    )
+    setup_parser.add_argument(
+        "--non-interactive", action="store_true",
+        help="Accept defaults, prompt only for essentials"
+    )
+    setup_parser.set_defaults(func=cmd_setup)
 
     # Status command
     status_parser = subparsers.add_parser("status", help="Show current state")

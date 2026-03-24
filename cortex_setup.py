@@ -209,12 +209,35 @@ class CortexSetupWizard:
         else:
             print("  Projects:   No git projects detected in working directory")
 
-        # Detect existing API key
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if api_key:
-            masked = api_key[:8] + "..." + api_key[-4:]
-            print(f"  API Key:    Found ({masked})")
-            self.config.anthropic_api_key = api_key
+        # Detect all API providers
+        providers = {
+            "ANTHROPIC_API_KEY": "Anthropic (Opus, Sonnet, Haiku)",
+            "GROQ_API_KEY": "Groq (fast classification)",
+            "OPENAI_API_KEY": "OpenAI (GPT models)",
+            "XAI_API_KEY": "xAI (Grok, long context)",
+            "DEEPSEEK_API_KEY": "DeepSeek (research, docs)",
+        }
+        detected_providers = []
+        for env_var, label in providers.items():
+            key = os.environ.get(env_var, "")
+            if key:
+                detected_providers.append(label)
+                if env_var == "ANTHROPIC_API_KEY":
+                    self.config.anthropic_api_key = key
+
+        if detected_providers:
+            print(f"  Providers:  {len(detected_providers)} configured:")
+            for p in detected_providers:
+                print(f"              + {p}")
+        else:
+            print("  Providers:  None detected (set ANTHROPIC_API_KEY to enable intelligence)")
+
+        # Detect Claude Code / MCP
+        claude_dir = Path.home() / ".claude"
+        if claude_dir.exists():
+            print("  Claude Code: Detected (~/.claude/ exists)")
+        else:
+            print("  Claude Code: Not detected")
 
         print()
 
@@ -567,6 +590,23 @@ class CortexSetupWizard:
             pass
 
         print()
+        # Show MCP config if Claude Code detected
+        claude_dir = Path.home() / ".claude"
+        if claude_dir.exists():
+            cortex_path = Path(__file__).parent / "mcp_server.py"
+            print("  MCP Integration (for Claude Code / Claude Desktop):")
+            print("  Add this to your MCP config:")
+            print()
+            print('  {')
+            print('    "mcpServers": {')
+            print('      "cortex": {')
+            print(f'        "command": "python",')
+            print(f'        "args": ["{cortex_path}"]')
+            print('      }')
+            print('    }')
+            print('  }')
+            print()
+
         print("  Next steps:")
         print()
         print("  1. Run 'cortex status' to see your session context")
