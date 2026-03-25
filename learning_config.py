@@ -23,8 +23,9 @@ RECOMMENDATION_TYPE_WEIGHTS = {
     # Medium performers
     "alert": 1.0,  # Neutral - alerts are important regardless
     "health": 1.0,  # Neutral
-    # Low performers (25% success rate in 30-day analysis)
-    "optimization": 0.7,  # Penalize - often premature/unnecessary
+    # Low performers — split from legacy "optimization" (25% success rate)
+    "performance": 0.7,  # Penalize - premature perf opts rarely survive review
+    "refactor": 0.9,  # Near-neutral - refactors succeed when scoped well
     # Default for unknown types
     "default": 1.0,
 }

@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jesse.kemp/Dev/cortex/daily_scan.sh</string>
+        <string>__DEV_DIR__/cortex/daily_scan.sh</string>
     </array>
 
     <key>StartCalendarInterval</key>
@@ -20,13 +20,13 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/daily_scan.log</string>
+    <string>__HOME__/.cortex/logs/daily_scan.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/daily_scan_error.log</string>
+    <string>__HOME__/.cortex/logs/daily_scan_error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>/Users/jesse.kemp/Dev/cortex</string>
+    <string>__DEV_DIR__/cortex</string>
 
     <key>EnvironmentVariables</key>
     <dict>

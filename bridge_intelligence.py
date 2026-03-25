@@ -1547,3 +1547,76 @@ class IntelligenceMixin:
         else:
             # Default to deep for balanced and deep modes
             return self.analyze_deep(project)
+
+    def get_anomalies(
+        self,
+        severity: Optional[str] = None,
+        anomaly_type: Optional[str] = None,
+        min_severity: str = "WARNING",
+    ) -> Dict[str, Any]:
+        """
+        Get detected orchestration anomalies.
+
+        Args:
+            severity: Optional exact severity filter: "CRITICAL", "WARNING", or "INFO".
+                      When set, overrides min_severity.
+            anomaly_type: Optional filter by anomaly type name.
+            min_severity: Minimum severity threshold (default "WARNING" suppresses INFO).
+
+        Returns:
+            Dict with "count" and "anomalies" list.
+        """
+        try:
+            from cortex.orchestration.anomaly_detector import OrchestrationAnomalyManager
+            from cortex.orchestration.database import OrchestrationDatabase
+
+            db = OrchestrationDatabase()
+            mgr = OrchestrationAnomalyManager(db, enable_alerts=False)
+
+            # Build context — active_projects as list is handled by type guard in detector
+            context = {
+                "active_projects": list(getattr(self, "_known_projects", [])),
+                "total_projects": len(getattr(self, "_known_projects", [])),
+                "goals_in_progress": 0,
+                "goals_pending": 0,
+            }
+
+            effective_min = "INFO" if severity else min_severity
+            anomalies = mgr.detect_all(context=context, min_severity=effective_min)
+
+            if severity:
+                anomalies = [
+                    a
+                    for a in anomalies
+                    if getattr(a.severity, "value", str(a.severity)) == severity.upper()
+                ]
+            if anomaly_type:
+                anomalies = [
+                    a
+                    for a in anomalies
+                    if getattr(a.anomaly_type, "value", str(a.anomaly_type)) == anomaly_type
+                ]
+
+            return {
+                "count": len(anomalies),
+                "anomalies": [
+                    {
+                        "id": a.anomaly_id,
+                        "type": getattr(a.anomaly_type, "value", str(a.anomaly_type)),
+                        "severity": getattr(a.severity, "value", str(a.severity)),
+                        "title": a.title,
+                        "description": a.description,
+                        "recommendation": a.remediation,
+                        "detected_at": (
+                            a.detected_at.isoformat()
+                            if hasattr(a.detected_at, "isoformat")
+                            else str(a.detected_at)
+                            if a.detected_at
+                            else None
+                        ),
+                    }
+                    for a in anomalies
+                ],
+            }
+        except Exception as e:
+            return {"count": 0, "anomalies": [], "error": str(e)}

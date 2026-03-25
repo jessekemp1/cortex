@@ -12,6 +12,7 @@ Exposes Cortex intelligence for:
 Start with: uvicorn cortex.api.bridge_endpoint:app --host 127.0.0.1 --port 8765
 """
 
+import asyncio
 import hashlib
 import json
 import os
@@ -146,6 +147,14 @@ app = FastAPI(
     description="RESTful API for Cortex intelligence and orchestration",
     version="1.0.0",
 )
+
+# Mount web chat gateway
+try:
+    from cortex.gateway.web_chat import router as chat_router
+
+    app.include_router(chat_router)
+except ImportError:
+    pass  # gateway module not available
 
 # CORS - Allow Moltbot, React frontend, and localhost
 app.add_middleware(
@@ -409,7 +418,7 @@ async def status():
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
-        anomalies = anomaly_mgr.detect_all(context=context)
+        anomalies = await asyncio.to_thread(anomaly_mgr.detect_all, context=context)
 
         return {
             "status": "operational",
@@ -450,6 +459,210 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ReasonQuery(BaseModel):
+    """Request model for reasoning queries (LLM-powered answers)."""
+
+    question: str = Field(..., description="User's question in natural language")
+    project: Optional[str] = Field(
+        default=None, description="Project context (auto-detected if empty)"
+    )
+
+
+@app.post("/intelligence/reason")
+async def reason_query(query: ReasonQuery) -> Dict[str, Any]:
+    """
+    Answer a question using gathered context + Claude API.
+
+    Unlike /intelligence/query (pattern retrieval), this endpoint actually
+    reasons about the question by gathering relevant context and sending
+    it to an LLM for synthesis.
+    """
+    import subprocess
+
+    question = query.question
+    project = query.project
+
+    # Auto-detect project from keywords if not specified
+    if not project:
+        q_lower = question.lower()
+        project_kw = {
+            "vortex": [
+                "vortex",
+                "grib",
+                "forecast",
+                "ensemble",
+                "emos",
+                "weather",
+                "wind",
+                "wave",
+                "buoy",
+                "frontend",
+                "backend",
+                "hrrr",
+                "gfs",
+                "ecmwf",
+            ],
+            "alpha_arena": ["arena", "trading", "trade", "kelly", "strategy", "etf"],
+            "cortex": ["cortex", "bridge", "cra", "orchestrat", "memory", "mcp", "gateway"],
+            "pupil": ["pupil", "simulation", "recession"],
+        }
+        scores = {p: sum(1 for kw in kws if kw in q_lower) for p, kws in project_kw.items()}
+        project = max(scores, key=lambda k: scores[k])
+        if scores[project] == 0:
+            project = "cortex"
+
+    # Gather context from multiple sources
+    context_parts = []
+
+    # 1. Portfolio status (real data)
+    try:
+        result = subprocess.run(
+            ["/opt/homebrew/bin/python3", "scripts/portfolio_status.py", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd="/Users/jesse.kemp/Dev",
+        )
+        if result.returncode == 0:
+            portfolio = json.loads(result.stdout)
+            context_parts.append(f"PORTFOLIO STATUS:\n{json.dumps(portfolio, indent=2)}")
+    except Exception:
+        pass
+
+    # 2. Service health
+    try:
+        bridge = get_bridge()
+        health = bridge.get_portfolio_health_summary()
+        if health:
+            context_parts.append(f"SERVICE HEALTH:\n{json.dumps(health, indent=2, default=str)}")
+    except Exception:
+        pass
+
+    # 3. Recent git activity for the detected project
+    try:
+        project_dirs = {
+            "vortex": "Vortex/",
+            "alpha_arena": "alpha_arena/",
+            "cortex": "cortex/",
+            "pupil": "pupil/",
+        }
+        proj_dir = project_dirs.get(project, "")
+        if proj_dir:
+            git_result = subprocess.run(
+                ["git", "log", "--oneline", "-15", "--", proj_dir],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd="/Users/jesse.kemp/Dev",
+            )
+            if git_result.returncode == 0 and git_result.stdout.strip():
+                context_parts.append(f"RECENT COMMITS ({project}):\n{git_result.stdout.strip()}")
+
+            diff_result = subprocess.run(
+                ["git", "diff", "--stat", "--", proj_dir],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd="/Users/jesse.kemp/Dev",
+            )
+            if diff_result.returncode == 0 and diff_result.stdout.strip():
+                context_parts.append(
+                    f"UNCOMMITTED CHANGES ({project}):\n{diff_result.stdout.strip()}"
+                )
+    except Exception:
+        pass
+
+    # 4. Cortex pattern retrieval (lightweight, for additional context)
+    try:
+        bridge = get_bridge()
+        intel = bridge.query_intelligence(
+            request=question,
+            project=project,
+            query_type="spec",
+        )
+        predictions = intel.get("context_predictions", [])
+        if predictions:
+            pred_text = "\n".join(
+                f"- [{p.get('source', '?')}] {str(p.get('content', ''))[:200]}"
+                for p in predictions[:3]
+                if isinstance(p, dict)
+            )
+            if pred_text.strip():
+                context_parts.append(f"CORTEX KNOWLEDGE:\n{pred_text}")
+    except Exception:
+        pass
+
+    # 5. GOALS.md summary
+    try:
+        goals_path = Path("/Users/jesse.kemp/Dev/GOALS.md")
+        if goals_path.exists():
+            goals_text = goals_path.read_text()
+            # Extract immediate actions section
+            if "## Immediate Actions" in goals_text:
+                actions_section = goals_text.split("## Immediate Actions")[1].split("##")[0]
+                context_parts.append(f"GOALS - IMMEDIATE ACTIONS:\n{actions_section[:1500]}")
+    except Exception:
+        pass
+
+    context_block = "\n\n---\n\n".join(context_parts) if context_parts else "No context gathered."
+
+    # Call Claude API (haiku for speed + cost efficiency)
+    try:
+        import anthropic
+
+        # Load API key from env or ~/.cortex/.env
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            env_file = Path.home() / ".cortex" / ".env"
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    if line.strip().startswith("export ANTHROPIC_API_KEY="):
+                        api_key = line.split("=", 1)[1].strip().strip("'\"")
+                        break
+        client = anthropic.Anthropic(api_key=api_key)
+
+        system_prompt = (
+            "You are Cortex Intelligence, answering questions about a software portfolio. "
+            "You have access to real-time project data provided below. "
+            "Answer concisely and accurately based on the data. "
+            "Use monospace-friendly formatting (no markdown headers, use dashes and indentation). "
+            "If the data doesn't contain enough information to answer fully, say so honestly. "
+            "Keep answers under 300 words."
+        )
+
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1024,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"CONTEXT:\n{context_block}\n\n---\n\nQUESTION: {question}",
+                }
+            ],
+        )
+
+        answer = message.content[0].text if message.content else "No response generated."
+        tokens_used = message.usage.input_tokens + message.usage.output_tokens
+
+        return {
+            "answer": answer,
+            "project": project,
+            "sources_used": len(context_parts),
+            "model": "claude-haiku-4-5",
+            "tokens": tokens_used,
+        }
+
+    except Exception as e:
+        return {
+            "answer": f"LLM call failed: {e}\n\nFallback context:\n{context_block[:2000]}",
+            "project": project,
+            "sources_used": len(context_parts),
+            "model": "fallback",
+            "tokens": 0,
+        }
 
 
 @app.get("/intelligence/recommendations")
@@ -541,7 +754,7 @@ async def get_anomalies(
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
-        anomalies = anomaly_mgr.detect_all(context=context)
+        anomalies = await asyncio.to_thread(anomaly_mgr.detect_all, context=context)
 
         # Filter by severity
         if severity:

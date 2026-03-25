@@ -49,6 +49,10 @@ class WorkItem:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
+    # Dependency graph
+    blocked_by: List[str] = field(default_factory=list)  # WorkItem IDs that must complete first
+    done_criteria: Optional[str] = None  # Verifiable completion check (e.g. "grep DOI README.md")
+
     # Overnight batch deferral
     defer_to_batch: bool = False  # If True, queue for overnight batch instead of immediate dispatch
 

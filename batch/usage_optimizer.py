@@ -51,7 +51,14 @@ class UsageOptimizer:
 
         self.targets = UsageTarget()
 
-    def record_real_time_usage(self, tokens: int, task_type: str, could_be_batch: bool = False):
+    def record_real_time_usage(
+        self,
+        tokens: int,
+        task_type: str,
+        could_be_batch: bool = False,
+        model: str = None,
+        cost_usd: float = None,
+    ):
         """
         Record real-time Claude usage.
 
@@ -59,6 +66,8 @@ class UsageOptimizer:
             tokens: Number of tokens used
             task_type: Type of task (interactive, analysis, etc.)
             could_be_batch: Whether this could have been a batch task
+            model: Model used (e.g. claude-sonnet-4-6, claude-haiku-4-5)
+            cost_usd: Estimated cost in USD
         """
         record = {
             "timestamp": datetime.now().isoformat(),
@@ -66,11 +75,15 @@ class UsageOptimizer:
             "tokens": tokens,
             "task_type": task_type,
             "could_be_batch": could_be_batch,
+            "model": model,
+            "cost_usd": cost_usd,
         }
 
         self._append_record(record)
 
-    def record_batch_usage(self, tokens: int, task_type: str, savings: float):
+    def record_batch_usage(
+        self, tokens: int, task_type: str, savings: float, model: str = None, cost_usd: float = None
+    ):
         """
         Record batch API usage.
 
@@ -78,6 +91,8 @@ class UsageOptimizer:
             tokens: Number of tokens used
             task_type: Type of task
             savings: Dollar amount saved vs real-time
+            model: Model used
+            cost_usd: Actual cost in USD
         """
         record = {
             "timestamp": datetime.now().isoformat(),
@@ -85,6 +100,8 @@ class UsageOptimizer:
             "tokens": tokens,
             "task_type": task_type,
             "savings": savings,
+            "model": model,
+            "cost_usd": cost_usd,
         }
 
         self._append_record(record)

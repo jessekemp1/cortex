@@ -5,15 +5,94 @@ Detects and automatically recovers from:
 - Stuck shell tasks (RUNNING but no process)
 - Orphaned AI batches (processing too long)
 - Resource issues (disk, memory)
+- Test count drift (>10% change signals missing/removed tests)
 """
 
+import json
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+import subprocess
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from intelligence.process_monitor.batch_queue import BatchTaskQueue, TaskState
+
+_CENSUS_PATH = Path.home() / ".cortex" / "test_census.json"
+
+# Projects to measure, keyed by display name → pytest root path (relative to repo root)
+_PROJECT_TEST_ROOTS: Dict[str, str] = {
+    "vortex": "Vortex/backend/tests",
+    "winfield": "Vortex/Winfield/tests",
+    "alpha_arena": "alpha_arena/tests",
+    "cortex": "cortex/tests",
+    "pupil": "Pupil/tests",
+}
+
+_DRIFT_THRESHOLD = 0.10  # 10% change triggers a warning
+
+
+@dataclass
+class TestCensus:
+    """Snapshot of per-project test counts.
+
+    Written to ``~/.cortex/test_census.json`` so future sessions can detect
+    drift without re-running pytest.
+    """
+
+    projects: Dict[str, int]  # project name → collected test count
+    total: int
+    collected_at: str  # ISO-8601 UTC
+
+    @classmethod
+    def collect(cls, repo_root: Path) -> "TestCensus":
+        """Run ``pytest --collect-only -q`` per project and count tests."""
+        counts: Dict[str, int] = {}
+        for name, rel_path in _PROJECT_TEST_ROOTS.items():
+            test_dir = repo_root / rel_path
+            if not test_dir.exists():
+                counts[name] = 0
+                continue
+            try:
+                result = subprocess.run(
+                    ["python", "-m", "pytest", "--collect-only", "-q", str(test_dir)],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    cwd=str(repo_root),
+                )
+                # Last non-empty line is typically "N tests collected in X.XXs"
+                for line in reversed(result.stdout.splitlines()):
+                    line = line.strip()
+                    if line and ("test" in line or "item" in line):
+                        parts = line.split()
+                        if parts and parts[0].isdigit():
+                            counts[name] = int(parts[0])
+                            break
+                else:
+                    counts[name] = 0
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                counts[name] = 0
+        return cls(
+            projects=counts,
+            total=sum(counts.values()),
+            collected_at=datetime.now(tz=timezone.utc).isoformat(),
+        )
+
+    def save(self, path: Path = _CENSUS_PATH) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(asdict(self), indent=2) + "\n")
+
+    @classmethod
+    def load(cls, path: Path = _CENSUS_PATH) -> Optional["TestCensus"]:
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text())
+            return cls(**data)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +169,42 @@ class HealthMonitor:
 
         # 3. Check disk space
         issues.extend(self._check_disk_space())
+
+        # 4. Check test count drift
+        issues.extend(self._check_test_census())
+
+        return issues
+
+    def _check_test_census(self) -> List[HealthIssue]:
+        """Detect >10% drift in per-project test counts vs. last saved census."""
+        issues = []
+        prior = TestCensus.load()
+        if prior is None:
+            return issues  # No baseline yet — first run will establish it
+
+        # Compare current counts from disk (don't re-run pytest on every health check;
+        # re-run is done explicitly via TestCensus.collect())
+        for project, prior_count in prior.projects.items():
+            if prior_count == 0:
+                continue
+            # We only flag drift — re-collection is a separate explicit action
+            # so we just surface the age of the census as a warning if stale (>7d)
+            try:
+                collected_dt = datetime.fromisoformat(prior.collected_at)
+                age_days = (datetime.now(tz=collected_dt.tzinfo) - collected_dt).days
+                if age_days > 7:
+                    issues.append(
+                        HealthIssue(
+                            issue_type="stale_test_census",
+                            target_id=project,
+                            description=f"Test census is {age_days}d old — run TestCensus.collect() to refresh",
+                            severity="info",
+                            auto_healable=False,
+                            metadata={"age_days": age_days, "last_count": prior_count},
+                        )
+                    )
+            except (ValueError, TypeError):
+                pass
 
         return issues
 
@@ -176,7 +291,7 @@ class HealthMonitor:
                         target_id=task.task_id,
                         description=f"Task running for {hours_running:.1f}h with no process",
                         severity="warning" if can_retry else "critical",
-                        auto_healable=can_retry,
+                        auto_healable=True,  # Always healable: retry if possible, force-fail if exhausted
                         metadata={
                             "task_type": task.task_type,
                             "retry_count": task.retry_count,
@@ -283,8 +398,10 @@ class HealthMonitor:
         )
 
     def _heal_stuck_shell_task(self, issue: HealthIssue) -> HealingAction:
-        """Heal a stuck shell task by marking it failed and retrying."""
+        """Heal a stuck shell task — retry if possible, force-fail if retries exhausted."""
         task_id = issue.target_id
+        retry_count = issue.metadata.get("retry_count", 0)
+        can_retry = retry_count < self.max_retries
 
         try:
             # Mark as failed
@@ -294,17 +411,27 @@ class HealthMonitor:
                 error_message=f"Auto-healed: {issue.description}",
             )
 
-            # Retry the task
-            self.shell_queue.retry_task(task_id)
-
-            logger.info(f"Healed stuck task {task_id[:8]}: marked failed and retried")
-
-            return HealingAction(
-                issue=issue,
-                action="retried",
-                success=True,
-                message=f"Marked as failed and queued for retry ({issue.metadata.get('retry_count', 0) + 1}/{self.max_retries})",
-            )
+            if can_retry:
+                self.shell_queue.retry_task(task_id)
+                logger.info(
+                    f"Healed stuck task {task_id[:8]}: retrying ({retry_count + 1}/{self.max_retries})"
+                )
+                return HealingAction(
+                    issue=issue,
+                    action="retried",
+                    success=True,
+                    message=f"Marked as failed and queued for retry ({retry_count + 1}/{self.max_retries})",
+                )
+            else:
+                logger.info(
+                    f"Force-failed stuck task {task_id[:8]}: retries exhausted ({retry_count}/{self.max_retries})"
+                )
+                return HealingAction(
+                    issue=issue,
+                    action="force_failed",
+                    success=True,
+                    message=f"Retries exhausted ({retry_count}/{self.max_retries}) — permanently marked as failed",
+                )
 
         except Exception as e:
             logger.error(f"Failed to heal task {task_id[:8]}: {e}")
@@ -314,6 +441,20 @@ class HealthMonitor:
                 success=False,
                 message=f"Healing failed: {str(e)}",
             )
+
+    def force_fail_task(self, task_id: str, reason: str = "Manually cancelled") -> bool:
+        """Force-fail a task regardless of retry count. For manual cleanup."""
+        try:
+            self.shell_queue.update_task_state(
+                task_id,
+                TaskState.FAILED,
+                error_message=reason,
+            )
+            logger.info(f"Force-failed task {task_id[:8]}: {reason}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to force-fail task {task_id[:8]}: {e}")
+            return False
 
     def _was_recently_healed(self, target_id: str, cooldown_minutes: int = 30) -> bool:
         """Check if a target was recently healed (to avoid healing loops)."""

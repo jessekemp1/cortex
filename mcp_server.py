@@ -25,18 +25,21 @@ Resources:
   - cortex://prompts/patterns: Learned prompt patterns and category hints
 """
 
+from __future__ import annotations
+
 import json
 import os
 import urllib.request
 import urllib.error
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
 GOALS_FILE = Path(os.environ.get("CORTEX_ROOT_DIR", Path.home() / "Dev")) / "GOALS.md"
 PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
+DOMAIN = os.environ.get("CORTEX_DOMAIN", "aidev")
 
 mcp = FastMCP("cortex")
 
@@ -97,7 +100,7 @@ def cortex_intelligence(query: str, query_type: str = "research") -> str:
         query_type = "research"
     result = _bridge_post(
         "/intelligence/query",
-        {"request": query, "project": "cortex", "query_type": query_type},
+        {"request": query, "domain": DOMAIN, "query_type": query_type},
     )
     return json.dumps(result, indent=2)
 
@@ -346,6 +349,96 @@ def cortex_orchestrate(
         return json.dumps({"error": str(e)})
 
 
+# ── CRA Research Tools ──
+
+
+@mcp.tool()
+def cortex_research_status() -> str:
+    """Get CRA (Cortex Research Agent) pipeline status: discovery, assessment, proposal counts, and baseline score."""
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+        discoveries = agent.load_discoveries()
+        assessments = agent.load_assessments()
+        adopt = agent.get_adopt_recommendations()
+        threats = agent.get_urgent_threats()
+        proposals = agent.get_pending_proposals()
+        statuses = agent.status_tracker.get_all()
+
+        status_counts = {}
+        for _file, data in statuses.items():
+            s = data.get("status", "draft")
+            status_counts[s] = status_counts.get(s, 0) + 1
+
+        result = {
+            "discoveries": len(discoveries),
+            "assessments": len(assessments),
+            "adopt_recommendations": len(adopt),
+            "urgent_threats": len(threats),
+            "pending_proposals": len(proposals),
+            "baseline_score": round(agent.get_baseline_score(), 4),
+            "scan_due": agent.should_scan(),
+            "proposal_statuses": status_counts,
+        }
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def cortex_research_digest() -> str:
+    """Get the CRA weekly research digest — discoveries, assessments, urgent threats, and pending proposals."""
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+        return agent.weekly_digest()
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def cortex_research_proposals(action: str = "list") -> str:
+    """Manage CRA research proposals. List pending proposals or approve one for live execution.
+
+    Args:
+        action: "list" to show all proposals with status, or "approve:<filename>" to approve a proposal.
+    """
+    try:
+        from cortex.engines.research_agent import CortexResearchAgent
+
+        agent = CortexResearchAgent()
+
+        if action.startswith("approve:"):
+            proposal_file = action.split(":", 1)[1].strip()
+            agent.approve_proposal(proposal_file)
+            return json.dumps(
+                {
+                    "approved": proposal_file,
+                    "new_status": agent.status_tracker.get_status(proposal_file),
+                },
+                indent=2,
+            )
+
+        # Default: list proposals with status
+        proposals = agent.get_pending_proposals()
+        result = []
+        for p in proposals:
+            status = agent.status_tracker.get_status(p["file"])
+            result.append(
+                {
+                    "file": p["file"],
+                    "title": p["title"],
+                    "created": p["created"],
+                    "status": status,
+                }
+            )
+        return json.dumps({"proposals": result, "count": len(result)}, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 # ── Resources ──
 
 
@@ -384,6 +477,79 @@ def prompt_patterns_resource() -> str:
     return json.dumps(
         {"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"}
     )
+
+
+# ── Deferred Tool Loading ──
+#
+# Low-frequency tools (research, conductor) are removed at import time
+# and re-registered on demand via cortex_enable_tools(). This reduces
+# the initial tools/list payload sent to clients — fewer tokens per session.
+
+_DEFERRED_TOOL_GROUPS = {
+    "research": {
+        "cortex_research_status": cortex_research_status,
+        "cortex_research_digest": cortex_research_digest,
+        "cortex_research_proposals": cortex_research_proposals,
+    },
+    "conductor": {
+        "cortex_conductor_compose": cortex_conductor_compose,
+        "cortex_conductor_startup": cortex_conductor_startup,
+    },
+}
+
+_DEFERRED_TOOL_NAMES = set()
+for _group_tools in _DEFERRED_TOOL_GROUPS.values():
+    _DEFERRED_TOOL_NAMES.update(_group_tools.keys())
+
+# Remove deferred tools from initial registration
+for _name in _DEFERRED_TOOL_NAMES:
+    try:
+        mcp.remove_tool(_name)
+    except Exception:
+        pass  # Tool may not exist if registration order changes
+
+
+def _enable_tool_group(group: str) -> dict:
+    """Enable deferred tools by group name. Returns result dict."""
+    if group == "all":
+        groups_to_enable = list(_DEFERRED_TOOL_GROUPS.keys())
+    elif group in _DEFERRED_TOOL_GROUPS:
+        groups_to_enable = [group]
+    else:
+        return {"error": f"Unknown group '{group}'. Valid: research, conductor, all"}
+
+    enabled = []
+    for g in groups_to_enable:
+        for tool_name, tool_fn in _DEFERRED_TOOL_GROUPS[g].items():
+            # Skip if already registered
+            if tool_name in {t for t in mcp._tool_manager._tools}:
+                continue
+            mcp.add_tool(tool_fn, name=tool_name)
+            enabled.append(tool_name)
+
+    return {"enabled": enabled, "group": group}
+
+
+@mcp.tool()
+async def cortex_enable_tools(group: str = "all", ctx: Context | None = None) -> str:
+    """Enable deferred tool groups that were not loaded at startup.
+
+    Available groups: 'research' (CRA status/digest/proposals),
+    'conductor' (compose/startup), or 'all'.
+
+    Args:
+        group: Tool group to enable — 'research', 'conductor', or 'all'.
+    """
+    result = _enable_tool_group(group)
+
+    # Notify client that the tool list changed (MCP spec compliance)
+    if result.get("enabled") and ctx is not None:
+        try:
+            await ctx.session.send_tool_list_changed()
+        except Exception:
+            pass  # Best-effort — session may not support notifications
+
+    return json.dumps(result)
 
 
 def main():

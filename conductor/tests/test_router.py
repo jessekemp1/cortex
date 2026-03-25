@@ -437,8 +437,8 @@ class TestSpecificRoutes:
         decision = router.route(request)
         assert decision.provider == "groq"
         assert decision.model_id == "llama-3.1-8b-instant"
-        assert decision.fallback_provider == "openai"
-        assert decision.fallback_model_id == "gpt-5-nano"
+        assert decision.fallback_provider == "deepseek"
+        assert decision.fallback_model_id == "deepseek-chat"
 
     def test_long_context_routes_to_xai(self, router):
         """Long context routes to Grok 4.1 Fast."""

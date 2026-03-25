@@ -26,6 +26,65 @@ _DEFAULT_OUTCOMES_PATH = Path.home() / ".cortex" / "orchestration" / "model_outc
 
 
 @dataclass
+class VerificationEvidence:
+    """Structured evidence of verification quality for a dispatched task.
+
+    Score breakdown (0-100):
+      - tests_ran:        up to 20 pts (10+ tests = max)
+      - tests_relevant:   20 pts
+      - assertion_depth:  up to 32 pts  (L0=none … L4=golden baseline match)
+      - regression_free:  20 pts
+      - golden_match:      8 pts
+
+    Interpretation:
+      score >= 60  → verified, proceed
+      40 <= score < 60 → flag for human review
+      score < 40   → auto-reject, re-queue with different approach
+    """
+
+    tests_ran: int = 0  # how many tests actually executed
+    tests_relevant: bool = False  # test-orchestrator confirmed coverage
+    assertion_depth: int = 0  # L0-L4 (existence → regression detection)
+    golden_match: bool = False  # output matches known-good baseline
+    regression_free: bool = False  # no existing tests broken
+    human_required: bool = False  # risk level demands spot-check
+
+    @property
+    def score(self) -> float:
+        """0-100 verification quality score."""
+        s = 0.0
+        s += min(self.tests_ran, 10) * 2.0  # up to 20 pts
+        s += 20.0 if self.tests_relevant else 0.0
+        s += self.assertion_depth * 8.0  # up to 32 pts (L4=32)
+        s += 20.0 if self.regression_free else 0.0
+        s += 8.0 if self.golden_match else 0.0
+        return round(min(s, 100.0), 1)
+
+    @property
+    def needs_review(self) -> bool:
+        """Score below 60 or human explicitly required."""
+        return self.score < 60.0 or self.human_required
+
+    @property
+    def auto_reject(self) -> bool:
+        """Score below 40 — re-queue with different approach."""
+        return self.score < 40.0
+
+    def to_dict(self) -> dict:
+        return {
+            "tests_ran": self.tests_ran,
+            "tests_relevant": self.tests_relevant,
+            "assertion_depth": self.assertion_depth,
+            "golden_match": self.golden_match,
+            "regression_free": self.regression_free,
+            "human_required": self.human_required,
+            "score": self.score,
+            "needs_review": self.needs_review,
+            "auto_reject": self.auto_reject,
+        }
+
+
+@dataclass
 class BatchSummary:
     """Aggregated summary for a batch of dispatches."""
 
@@ -36,6 +95,8 @@ class BatchSummary:
     total_duration_seconds: float
     model_breakdown: dict[str, int]  # model_tier -> count
     errors: list[str]
+    flagged_for_review: int = 0  # results where verification.needs_review
+    auto_rejected: int = 0  # results where verification.auto_reject
 
 
 class ResultCollector:
@@ -58,6 +119,7 @@ class ResultCollector:
         self._results_dir = results_dir or _DEFAULT_RESULTS_DIR
         self._outcomes_path = outcomes_path or _DEFAULT_OUTCOMES_PATH
         self._results: list[DispatchResult] = []
+        self._evidence: dict[str, VerificationEvidence] = {}  # work_item_id -> evidence
 
     # ------------------------------------------------------------------
     # Collection
@@ -67,10 +129,22 @@ class ResultCollector:
         """Add a single :class:`DispatchResult` to the current batch."""
         self._results.append(result)
 
-    def collect_batch(self, results: list[DispatchResult]) -> BatchSummary:
-        """Add multiple results and return a summary of the full batch."""
-        for r in results:
+    def collect_batch(
+        self,
+        results: list[DispatchResult],
+        evidence: list[VerificationEvidence] | None = None,
+    ) -> BatchSummary:
+        """Add multiple results and return a summary of the full batch.
+
+        Args:
+            results: Dispatch results to collect.
+            evidence: Optional per-result verification evidence (parallel list).
+                      If provided, flagged/rejected counts are updated in the summary.
+        """
+        for i, r in enumerate(results):
             self._results.append(r)
+            if evidence and i < len(evidence):
+                self._evidence[r.work_item_id] = evidence[i]
         return self.get_summary()
 
     # ------------------------------------------------------------------
@@ -82,6 +156,7 @@ class ResultCollector:
         result: DispatchResult,
         quality_score: float | None = None,
         is_baseline: bool = False,
+        evidence: VerificationEvidence | None = None,
     ) -> None:
         """Append an outcome entry to ``model_outcomes.jsonl``.
 
@@ -91,9 +166,13 @@ class ResultCollector:
         Args:
             is_baseline: True if this task was part of the A/B baseline
                 (forced Anthropic-only for quality comparison).
+            evidence: Optional verification evidence. When present, verification
+                quality is persisted alongside the outcome so routing can learn
+                which task types produce trustworthy outputs.
         """
+        ev = evidence or self._evidence.get(result.work_item_id)
         model_tier = _tier_from_model_id(result.model_used)
-        entry = {
+        entry: dict = {
             "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             "work_item_id": result.work_item_id,
             "model_tier": model_tier,
@@ -107,6 +186,8 @@ class ResultCollector:
             "cost_usd": getattr(result, "cost_usd", 0.0),
             "is_baseline": is_baseline,
         }
+        if ev is not None:
+            entry["verification"] = ev.to_dict()
         self._outcomes_path.parent.mkdir(parents=True, exist_ok=True)
         with self._outcomes_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry) + "\n")
@@ -130,6 +211,17 @@ class ResultCollector:
 
         errors = [r.error for r in self._results if r.error]
 
+        flagged = sum(
+            1
+            for r in self._results
+            if (ev := self._evidence.get(r.work_item_id)) and ev.needs_review
+        )
+        rejected = sum(
+            1
+            for r in self._results
+            if (ev := self._evidence.get(r.work_item_id)) and ev.auto_reject
+        )
+
         return BatchSummary(
             total=len(self._results),
             succeeded=succeeded,
@@ -138,6 +230,8 @@ class ResultCollector:
             total_duration_seconds=round(total_duration, 3),
             model_breakdown=breakdown,
             errors=errors,
+            flagged_for_review=flagged,
+            auto_rejected=rejected,
         )
 
     # ------------------------------------------------------------------
@@ -170,6 +264,15 @@ class ResultCollector:
     def clear(self) -> None:
         """Reset the collector for the next batch."""
         self._results.clear()
+        self._evidence.clear()
+
+    def attach_evidence(self, work_item_id: str, evidence: VerificationEvidence) -> None:
+        """Attach verification evidence to a previously collected result.
+
+        Useful when verification runs asynchronously after dispatch.
+        """
+        self._evidence[work_item_id] = evidence
+        log.debug("evidence attached: work_item=%s score=%.1f", work_item_id, evidence.score)
 
 
 # ------------------------------------------------------------------

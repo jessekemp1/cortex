@@ -9,6 +9,8 @@ GPT5/
 MARKETING/
 FUTURE/
 STRATEGY/
+docs/BUSINESS_PLAN.md
+docs/CORTEX_STRATEGY.md
 
 # Internal tooling and session state — never publish
 .claude/

@@ -161,9 +161,9 @@ class TestHealthMonitor:
             with patch.object(queue, "_is_process_alive", return_value=False):
                 issues = monitor.check()
 
-            # Issue should be detected but not auto-healable
+            # Issue should be detected and auto-healable (force-fail path)
             assert len(issues) == 1
-            assert issues[0].auto_healable is False
+            assert issues[0].auto_healable is True  # healable via force-fail
             assert issues[0].severity == "critical"
 
 

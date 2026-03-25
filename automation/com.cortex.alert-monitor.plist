@@ -8,7 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/jesse.kemp/Dev/cortex/alert_monitor.py</string>
+        <string>__DEV_DIR__/cortex/alert_monitor.py</string>
     </array>
 
     <!-- Run every 5 minutes -->
@@ -19,10 +19,10 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/alert_monitor.log</string>
+    <string>__HOME__/.cortex/logs/alert_monitor.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/alert_monitor_err.log</string>
+    <string>__HOME__/.cortex/logs/alert_monitor_err.log</string>
 
     <!-- Restart on failure (not continuously — StartInterval handles scheduling) -->
     <key>KeepAlive</key>
@@ -31,7 +31,7 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
-        <string>/Users/jesse.kemp</string>
+        <string>__HOME__</string>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin</string>
     </dict>

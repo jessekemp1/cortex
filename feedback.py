@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cortex.state_paths import get_cortex_dir
+from cortex.state_paths import get_cortex_dir, get_domain
 
 # Import quality tracking
 try:
@@ -56,6 +56,7 @@ class OutcomeEntry:
     outcome: str  # "success", "partial", "failed", "unknown"
     notes: Optional[str] = None
     context: Optional[Dict[str, Any]] = None  # Additional context (project, goal, etc.)
+    domain: Optional[str] = None  # "aidev" | "databricks" | None (legacy)
 
 
 class FeedbackLogger:
@@ -196,6 +197,9 @@ class FeedbackLogger:
             notes: Optional notes
             context: Additional context (project, goal, etc.)
         """
+        # Auto-detect domain from context, env var, or CWD
+        domain = (context or {}).get("domain") or get_domain()
+
         entry = OutcomeEntry(
             timestamp=datetime.now().isoformat(),
             recommendation_id=recommendation_id,
@@ -207,6 +211,7 @@ class FeedbackLogger:
             outcome=outcome,
             notes=notes,
             context=context,
+            domain=domain,
         )
 
         # Assess quality if quality tracker is available

@@ -221,6 +221,7 @@ class TestPipelineDiscovery:
         with (
             patch.object(WorkIntake, "from_taskboard", return_value=[]),
             patch.object(WorkIntake, "from_workflow_definitions", return_value=[]),
+            patch.object(WorkIntake, "from_research_agent", return_value=[]),
         ):
             result = run_pipeline(
                 dry_run=True,

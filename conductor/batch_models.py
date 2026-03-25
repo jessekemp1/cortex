@@ -24,37 +24,47 @@ logger = logging.getLogger(__name__)
 
 # Anthropic batch-eligible model IDs
 _ANTHROPIC_FAST = "claude-haiku-4-5-20251001"
-_ANTHROPIC_DEFAULT = "claude-sonnet-4-20250514"
-_ANTHROPIC_PREMIUM = "claude-opus-4-5-20251101"
+_ANTHROPIC_DEFAULT = "claude-sonnet-4-6"
+_ANTHROPIC_PREMIUM = "claude-opus-4-6"
 
-# Map conductor use cases to batch tier
+# Map conductor use cases to batch tier.
+#
+# Batch tier policy (async, offline — latency tolerance allows cheaper models):
+#   fast    = Haiku  ($0.25/$1.25 MTok)  — structured analysis, extraction, classification
+#   default = Sonnet ($3/$15 MTok)       — code generation, complex multi-step reasoning
+#   premium = Opus   ($15/$75 MTok)      — security audits, architecture decisions only
+#
+# Batch is async: always default to "fast" unless the task requires code generation or
+# multi-step reasoning that Haiku demonstrably struggles with.
 _USE_CASE_TO_TIER: Dict[str, str] = {
     # Direct tier names (backward compat with AnthropicBatchModels)
     "default": "default",
     "fast": "fast",
     "premium": "premium",
-    # Use-case to tier mapping
+    # Haiku-appropriate: structured analysis, extraction, classification, summaries
     "classification": "fast",
     "quick_qa": "fast",
     "simple": "fast",
-    "pattern_learning": "default",
+    "pattern_learning": "fast",  # was: default — pattern extraction is Haiku-capable
     "documentation": "fast",
-    "code_review": "default",
+    "code_review": "fast",  # was: default — batch code review = structured analysis
+    "research": "fast",  # was: default — batch research synthesis is Haiku-capable
+    "learning": "fast",  # was: default — outcome recording, not generation
+    "briefing": "fast",  # was: default — summary generation, not reasoning
+    "analysis": "fast",  # was: default — structured output, Haiku handles well
+    "recommendation": "fast",  # was: default — rule-based recommendations
+    "goal": "fast",  # was: default — goal tracking/update
+    "pattern": "fast",  # was: default — pattern extraction
+    "docs": "fast",
+    # Sonnet-appropriate: code generation, multi-step reasoning, complex logic
     "test_generation": "default",
     "long_context": "default",
-    "research": "default",
     "interactive_coding": "default",
-    "learning": "default",
-    "briefing": "default",
-    "analysis": "default",
-    "recommendation": "default",
+    # Opus-only: security review, architecture decisions
     "security_audit": "premium",
     "security": "premium",
     "architecture": "premium",
     "complex": "premium",
-    "docs": "fast",
-    "goal": "default",
-    "pattern": "default",
 }
 
 

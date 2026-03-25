@@ -5,6 +5,8 @@ Orchestrates the detection, consolidation, and correlation of work
 across all projects in the portfolio.
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 from collections import defaultdict

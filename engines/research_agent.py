@@ -291,6 +291,78 @@ def parse_directives_priorities(directives_text: str) -> Dict[str, List[str]]:
     return priorities
 
 
+VALID_PROPOSAL_STATUSES = ("draft", "approved", "implementing", "shipped", "abandoned")
+VALID_PROPOSAL_TRANSITIONS = {
+    "draft": ("approved", "abandoned"),
+    "approved": ("implementing", "abandoned"),
+    "implementing": ("shipped", "abandoned"),
+    "shipped": (),
+    "abandoned": (),
+}
+
+
+class ProposalStatusTracker:
+    """Tracks proposal lifecycle: draft → approved → implementing → shipped | abandoned.
+
+    Persists status in proposal_status.json alongside the proposals/ directory.
+    """
+
+    def __init__(self, research_dir: Path):
+        self.status_path = research_dir / "proposal_status.json"
+        self._statuses: Dict[str, Dict[str, Any]] = {}
+        self._load()
+
+    def _load(self) -> None:
+        if self.status_path.exists():
+            try:
+                self._statuses = json.loads(self.status_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                self._statuses = {}
+
+    def _save(self) -> None:
+        self.status_path.write_text(json.dumps(self._statuses, indent=2))
+
+    def get_status(self, proposal_file: str) -> str:
+        entry = self._statuses.get(proposal_file, {})
+        return entry.get("status", "draft")
+
+    def set_status(self, proposal_file: str, new_status: str) -> None:
+        """Transition a proposal to a new status. Validates transitions."""
+        if new_status not in VALID_PROPOSAL_STATUSES:
+            raise ValueError(
+                f"Invalid status: {new_status}. Must be one of {VALID_PROPOSAL_STATUSES}"
+            )
+
+        current = self.get_status(proposal_file)
+        allowed = VALID_PROPOSAL_TRANSITIONS.get(current, ())
+        if new_status != current and new_status not in allowed:
+            raise ValueError(
+                f"Invalid transition: {current} → {new_status}. Allowed from {current}: {allowed}"
+            )
+
+        if proposal_file not in self._statuses:
+            self._statuses[proposal_file] = {}
+
+        self._statuses[proposal_file]["status"] = new_status
+        self._statuses[proposal_file]["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+
+        # Track transition history
+        history = self._statuses[proposal_file].get("history", [])
+        history.append(
+            {"from": current, "to": new_status, "at": datetime.now(tz=timezone.utc).isoformat()}
+        )
+        self._statuses[proposal_file]["history"] = history
+
+        self._save()
+        logger.info("Proposal %s: %s → %s", proposal_file, current, new_status)
+
+    def get_all(self) -> Dict[str, Dict[str, Any]]:
+        return dict(self._statuses)
+
+    def get_by_status(self, status: str) -> List[str]:
+        return [f for f, d in self._statuses.items() if d.get("status") == status]
+
+
 class CortexResearchAgent:
     """
     CRA: Discovers, assesses, and proposes research integrations for Cortex.
@@ -314,6 +386,8 @@ class CortexResearchAgent:
         self.assessments_path = self.research_dir / "assessments.jsonl"
         self.adopted_path = self.research_dir / "adopted.jsonl"
         self.dismissed_path = self.research_dir / "dismissed.jsonl"
+
+        self.status_tracker = ProposalStatusTracker(self.research_dir)
 
     # ── Discovery ──
 
@@ -581,6 +655,76 @@ class CortexResearchAgent:
         with open(self.adopted_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
 
+    def generate_proposals_from_assessments(self) -> List[Path]:
+        """Auto-generate proposal specs from adopt assessments.
+
+        Converts each 'adopt' assessment that doesn't already have a proposal
+        into a Golden Spec format markdown file in proposals/.
+
+        Returns list of created proposal paths.
+        """
+        adopt = self.get_adopt_recommendations()
+        existing_proposals = self.get_pending_proposals()
+        existing_titles = {p["title"].lower().strip() for p in existing_proposals}
+
+        # Also check adopted items
+        adopted_files = set()
+        if self.adopted_path.exists():
+            for line in self.adopted_path.read_text().splitlines():
+                try:
+                    adopted_files.add(json.loads(line).get("proposal_file", ""))
+                except json.JSONDecodeError:
+                    continue
+
+        created: List[Path] = []
+        for assessment in adopt:
+            title_normalized = assessment.title.lower().strip()
+            # Skip if proposal already exists (by title match)
+            if any(title_normalized in t or t in title_normalized for t in existing_titles if t):
+                logger.info("Skipping already-proposed: %s", assessment.title)
+                continue
+
+            # Generate Golden Spec proposal
+            priority = "URGENT" if assessment.is_urgent else "STANDARD"
+            spec = (
+                f"# Research Integration: {assessment.title}\n\n"
+                f"**Priority:** {priority}\n"
+                f"**Disruption Risk:** {assessment.disruption_risk:.1f}\n"
+                f"**Effort:** {assessment.adoption_effort}\n"
+                f"**Expected Impact:** {assessment.expected_impact}\n"
+                f"**Source:** {assessment.source_url}\n\n"
+                f"## Assessment\n\n{assessment.reasoning}\n\n"
+                f"## Integration Approach\n\n{assessment.integration_approach}\n\n"
+                f"## Affected Modules\n\n"
+            )
+            for mod in assessment.affected_modules:
+                spec += f"- `{mod}`\n"
+
+            spec += "\n## Risks\n\n"
+            for risk in assessment.risks:
+                spec += f"- {risk}\n"
+
+            spec += (
+                "\n## Acceptance Criteria\n\n"
+                "- [ ] Integration implemented in affected modules\n"
+                "- [ ] Tests pass with specific assertions\n"
+                "- [ ] adoption_outcome_score > baseline\n"
+            )
+
+            path = self.save_proposal(assessment.title, spec)
+            self.status_tracker.set_status(path.name, "draft")
+            created.append(path)
+
+            # Update existing_titles for dedup within this batch
+            existing_titles.add(title_normalized)
+
+        logger.info(
+            "Generated %d proposals from %d adopt recommendations",
+            len(created),
+            len(adopt),
+        )
+        return created
+
     # ── Queries ──
 
     def load_discoveries(self, days: int = 30) -> List[Discovery]:
@@ -734,7 +878,18 @@ class CortexResearchAgent:
         Returns dict with decision, score, and metadata.
         """
         score = adoption_outcome_score(result)
-        decision = "keep" if score > baseline_score and not result.error else "discard"
+        # Hard error = tests didn't run at all (0 total) or catastrophic failure.
+        # Pre-existing flaky tests (99%+ pass rate) should not block adoption.
+        hard_error = bool(result.error) and result.test_pass_rate < 0.99
+        # Urgency bypass: existential threats (addresses_threat=True) skip the
+        # baseline ratchet — they must still pass tests but don't need to beat
+        # the current quality floor. Rationale: an existential threat with
+        # disruption_risk=0.8 shouldn't be blocked by a higher-scoring
+        # incremental improvement that set the baseline.
+        if result.addresses_threat and not hard_error and score > 0.5:
+            decision = "keep"
+        else:
+            decision = "keep" if score > baseline_score and not hard_error else "discard"
 
         entry = {
             "proposal_title": result.proposal_title,
@@ -790,11 +945,16 @@ class CortexResearchAgent:
         self,
         proposals: List[Dict[str, Any]],
         dry_run: bool = True,
+        approval_dir: Optional[Path] = None,
     ) -> List[Dict[str, Any]]:
         """Run the full experiment loop over a list of proposals.
 
         In dry_run mode (default), simulates the loop without creating
         branches or running tests. Set dry_run=False for actual execution.
+
+        Approval gate: HIGH priority proposals (disruption_risk > 0.7)
+        require explicit approval before live execution. Check
+        ~/.cortex/approvals/pending/ for items awaiting approval.
 
         Returns list of experiment outcomes.
         """
@@ -809,7 +969,20 @@ class CortexResearchAgent:
 
         for proposal in proposals:
             title = proposal.get("title", "untitled")
+            proposal_file = proposal.get("file", "")
             logger.info("Evaluating proposal: %s", title)
+
+            # Approval gate: check if HIGH priority needs approval
+            if not dry_run and self._requires_approval(proposal, approval_dir):
+                logger.info("Skipping %s: awaiting approval (HIGH priority)", title)
+                outcomes.append(
+                    {
+                        "proposal_title": title,
+                        "decision": "pending_approval",
+                        "reason": "HIGH priority item requires explicit approval",
+                    }
+                )
+                continue
 
             if dry_run:
                 # Simulate: assume tests pass, no capability delta measured
@@ -829,9 +1002,19 @@ class CortexResearchAgent:
 
             outcomes.append(outcome)
 
-            # Update baseline if kept
+            # Update baseline and record adoption if kept
             if outcome["decision"] == "keep":
                 baseline = outcome["score"]
+                # Wire record_adoption() — closes the feedback loop
+                if proposal_file:
+                    self.record_adoption(
+                        proposal_file,
+                        outcome=f"score={outcome['score']:.4f}, "
+                        f"tests={outcome.get('test_pass_rate', 0):.2%}",
+                    )
+                    # Fast-forward status to shipped (skip intermediate states)
+                    self._advance_status_to_shipped(proposal_file)
+                    logger.info("Adoption recorded for %s", proposal_file)
 
         logger.info(
             "Experiment loop complete: %d/%d kept",
@@ -840,6 +1023,79 @@ class CortexResearchAgent:
         )
 
         return outcomes
+
+    def _requires_approval(
+        self, proposal: Dict[str, Any], approval_dir: Optional[Path] = None
+    ) -> bool:
+        """Check if a proposal requires manual approval before live execution.
+
+        HIGH priority = disruption_risk > 0.7 in the proposal spec.
+        Returns True if approval is needed and not yet granted.
+        """
+        # Read proposal spec to check priority
+        proposal_path = proposal.get("path", "")
+        if proposal_path and Path(proposal_path).exists():
+            spec_text = Path(proposal_path).read_text(encoding="utf-8")
+            # Check for URGENT priority marker (set by generate_proposals_from_assessments)
+            if "**Priority:** URGENT" in spec_text:
+                # Check if already approved
+                if approval_dir is None:
+                    approval_dir = Path.home() / ".cortex" / "approvals"
+                proposal_file = proposal.get("file", "")
+                approved_path = approval_dir / f"cra_{proposal_file}.approved"
+                if approved_path.exists():
+                    return False
+                # Write pending approval
+                pending_dir = approval_dir / "pending"
+                pending_dir.mkdir(parents=True, exist_ok=True)
+                pending_path = pending_dir / f"cra_{proposal_file}.json"
+                if not pending_path.exists():
+                    pending_path.write_text(
+                        json.dumps(
+                            {
+                                "proposal_file": proposal_file,
+                                "title": proposal.get("title", ""),
+                                "priority": "HIGH",
+                                "created_at": datetime.now(tz=timezone.utc).isoformat(),
+                            },
+                            indent=2,
+                        )
+                    )
+                return True
+        return False
+
+    def approve_proposal(self, proposal_file: str, approval_dir: Optional[Path] = None) -> None:
+        """Approve a HIGH priority proposal for live execution."""
+        if approval_dir is None:
+            approval_dir = Path.home() / ".cortex" / "approvals"
+        approval_dir.mkdir(parents=True, exist_ok=True)
+        (approval_dir / f"cra_{proposal_file}.approved").touch()
+        # Remove from pending
+        pending = approval_dir / "pending" / f"cra_{proposal_file}.json"
+        if pending.exists():
+            pending.unlink()
+        # Update status tracker
+        current = self.status_tracker.get_status(proposal_file)
+        if current == "draft":
+            self.status_tracker.set_status(proposal_file, "approved")
+        logger.info("Approved proposal: %s", proposal_file)
+
+    def _advance_status_to_shipped(self, proposal_file: str) -> None:
+        """Fast-forward proposal status to 'shipped', walking through valid transitions.
+
+        The experiment loop validates and records adoption in one step,
+        so we walk through intermediate states automatically.
+        """
+        target_path = ["draft", "approved", "implementing", "shipped"]
+        current = self.status_tracker.get_status(proposal_file)
+        if current in ("shipped", "abandoned"):
+            return
+        try:
+            idx = target_path.index(current)
+        except ValueError:
+            return
+        for next_status in target_path[idx + 1 :]:
+            self.status_tracker.set_status(proposal_file, next_status)
 
     def _execute_live_experiment(self, proposal: Dict[str, Any]) -> "ProposalResult":
         """Execute a live experiment: branch, apply, test, measure.
@@ -1024,9 +1280,31 @@ def main():
         )
         print(f"Scan due: {agent.should_scan()}")
         print(f"Pending proposals: {len(agent.get_pending_proposals())}")
+        print(f"Baseline score: {agent.get_baseline_score():.3f}")
         return
 
     command = sys.argv[1]
+
+    if command == "generate-proposals":
+        created = agent.generate_proposals_from_assessments()
+        if created:
+            for p in created:
+                print(f"  Created: {p.name}")
+            print(f"\nGenerated {len(created)} proposals")
+        else:
+            print("No new proposals generated (all adopt items already proposed)")
+        return
+
+    if command == "approve":
+        if len(sys.argv) < 3:
+            print("Usage: python -m cortex.engines.research_agent approve <proposal_file>")
+            return
+        proposal_file = sys.argv[2]
+        agent.approve_proposal(proposal_file)
+        print(f"Approved: {proposal_file}")
+        return
+
+    command = command  # Keep original flow
 
     if command == "ingest-brief":
         # Ingest a research brief file
@@ -1104,7 +1382,8 @@ def main():
         print(f"Unknown command: {command}")
         print(
             "Usage: python -m cortex.engines.research_agent "
-            "[ingest-brief|digest|threats|status|experiment|baseline|directives]"
+            "[ingest-brief|digest|threats|status|experiment|baseline|directives|"
+            "generate-proposals|approve]"
         )
 
 

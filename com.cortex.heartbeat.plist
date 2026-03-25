@@ -7,8 +7,8 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
-        <string>/Users/jesse.kemp/Dev/cortex/heartbeat.py</string>
+        <string>/usr/local/bin/python</string>
+        <string>__DEV_DIR__/cortex/heartbeat.py</string>
     </array>
 
     <key>StartInterval</key>
@@ -18,9 +18,9 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/heartbeat.stdout.log</string>
+    <string>__HOME__/.cortex/logs/heartbeat.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/.cortex/logs/heartbeat.stderr.log</string>
+    <string>__HOME__/.cortex/logs/heartbeat.stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

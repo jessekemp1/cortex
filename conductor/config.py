@@ -225,7 +225,7 @@ PROVIDERS: Dict[str, dict] = {
 ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
     "architecture": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "interactive_coding": ("anthropic", "claude-sonnet-4-5-20250929", "xai", "grok-code-fast-1"),
-    "classification": ("groq", "llama-3.1-8b-instant", "openai", "gpt-5-nano"),
+    "classification": ("groq", "llama-3.1-8b-instant", "deepseek", "deepseek-chat"),
     "long_context": ("qwen", "qwen-turbo", "xai", "grok-3-fast"),
     "research": ("deepseek", "deepseek-chat", "xai", "grok-3-fast"),
     "quick_qa": ("groq", "openai/gpt-oss-20b", "anthropic", "claude-haiku-4-5-20251001"),

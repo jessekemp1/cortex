@@ -637,6 +637,403 @@ class TestResearchDirectives:
         assert "karpathy autoresearch" in sources["autoresearch_ecosystem"]["queries"]
 
 
+class TestProposalGeneration:
+    """Tests for auto-generating proposals from adopt assessments."""
+
+    def test_generate_proposals_creates_files(self, agent, sample_assessment):
+        agent.ingest_assessment(sample_assessment)
+        created = agent.generate_proposals_from_assessments()
+        assert len(created) == 1
+        assert created[0].exists()
+        content = created[0].read_text()
+        assert "Research Integration:" in content
+        assert "Trajectory Memory" in content
+
+    def test_generate_skips_already_proposed(self, agent, sample_assessment):
+        agent.ingest_assessment(sample_assessment)
+        first = agent.generate_proposals_from_assessments()
+        assert len(first) == 1
+        # Second call should create nothing
+        second = agent.generate_proposals_from_assessments()
+        assert len(second) == 0
+
+    def test_generate_sets_draft_status(self, agent, sample_assessment):
+        agent.ingest_assessment(sample_assessment)
+        created = agent.generate_proposals_from_assessments()
+        status = agent.status_tracker.get_status(created[0].name)
+        assert status == "draft"
+
+    def test_generate_marks_urgent(self, agent, urgent_assessment):
+        agent.ingest_assessment(urgent_assessment)
+        created = agent.generate_proposals_from_assessments()
+        content = created[0].read_text()
+        assert "**Priority:** URGENT" in content
+
+    def test_generate_marks_standard(self, agent, sample_assessment):
+        agent.ingest_assessment(sample_assessment)
+        created = agent.generate_proposals_from_assessments()
+        content = created[0].read_text()
+        assert "**Priority:** STANDARD" in content
+
+    def test_generate_includes_spec_fields(self, agent, sample_assessment):
+        agent.ingest_assessment(sample_assessment)
+        created = agent.generate_proposals_from_assessments()
+        content = created[0].read_text()
+        assert "## Assessment" in content
+        assert "## Integration Approach" in content
+        assert "## Affected Modules" in content
+        assert "## Risks" in content
+        assert "## Acceptance Criteria" in content
+
+
+class TestProposalStatusTracker:
+    """Tests for proposal status lifecycle tracking."""
+
+    def test_initial_status_is_draft(self, agent):
+        from engines.research_agent import ProposalStatusTracker
+
+        tracker = ProposalStatusTracker(agent.research_dir)
+        assert tracker.get_status("new_proposal.md") == "draft"
+
+    def test_valid_transitions(self, agent):
+        tracker = agent.status_tracker
+        tracker.set_status("p.md", "draft")
+        tracker.set_status("p.md", "approved")
+        assert tracker.get_status("p.md") == "approved"
+        tracker.set_status("p.md", "implementing")
+        assert tracker.get_status("p.md") == "implementing"
+        tracker.set_status("p.md", "shipped")
+        assert tracker.get_status("p.md") == "shipped"
+
+    def test_invalid_transition_raises(self, agent):
+        tracker = agent.status_tracker
+        tracker.set_status("p.md", "draft")
+        tracker.set_status("p.md", "approved")
+        tracker.set_status("p.md", "implementing")
+        tracker.set_status("p.md", "shipped")
+        with pytest.raises(ValueError, match="Invalid transition"):
+            tracker.set_status("p.md", "draft")  # shipped → draft not allowed
+
+    def test_invalid_status_raises(self, agent):
+        tracker = agent.status_tracker
+        with pytest.raises(ValueError, match="Invalid status"):
+            tracker.set_status("p.md", "bogus")
+
+    def test_abandoned_is_terminal(self, agent):
+        tracker = agent.status_tracker
+        tracker.set_status("p.md", "draft")
+        tracker.set_status("p.md", "abandoned")
+        with pytest.raises(ValueError, match="Invalid transition"):
+            tracker.set_status("p.md", "approved")
+
+    def test_persists_to_json(self, agent, cra_dir):
+        tracker = agent.status_tracker
+        tracker.set_status("p.md", "draft")
+        tracker.set_status("p.md", "approved")
+        # Reload from disk
+        from engines.research_agent import ProposalStatusTracker
+
+        tracker2 = ProposalStatusTracker(cra_dir)
+        assert tracker2.get_status("p.md") == "approved"
+
+    def test_get_by_status(self, agent):
+        tracker = agent.status_tracker
+        tracker.set_status("a.md", "draft")
+        tracker.set_status("b.md", "draft")
+        tracker.set_status("b.md", "approved")
+        tracker.set_status("c.md", "draft")
+        drafts = tracker.get_by_status("draft")
+        assert set(drafts) == {"a.md", "c.md"}
+        approved = tracker.get_by_status("approved")
+        assert approved == ["b.md"]
+
+    def test_history_tracked(self, agent):
+        tracker = agent.status_tracker
+        tracker.set_status("p.md", "draft")
+        tracker.set_status("p.md", "approved")
+        all_statuses = tracker.get_all()
+        history = all_statuses["p.md"]["history"]
+        assert len(history) == 2
+        assert history[0]["from"] == "draft"
+        assert history[0]["to"] == "draft"
+        assert history[1]["from"] == "draft"
+        assert history[1]["to"] == "approved"
+
+
+class TestAdoptionRecording:
+    """Tests for wiring record_adoption() into the experiment loop."""
+
+    def test_record_adoption_called_on_keep(self, agent, cra_dir):
+        """Verify adopted.jsonl gets an entry after a 'keep' decision."""
+        from engines.research_agent import ProposalResult
+
+        # Create a proposal file
+        path = agent.save_proposal("Kept Integration", "Content for kept integration")
+        proposal = {
+            "title": "kept integration",
+            "file": path.name,
+            "path": str(path),
+            "created": "2026-03-14",
+        }
+
+        # Mock _execute_live_experiment to return a good result
+        good_result = ProposalResult(
+            proposal_title="kept integration",
+            tests_passing=95,
+            tests_total=100,
+            capability_score_delta=0.6,
+            addresses_threat=False,
+            branch_name="cra/kept-integration",
+        )
+
+        from unittest.mock import patch
+
+        with patch.object(agent, "_execute_live_experiment", return_value=good_result):
+            outcomes = agent.run_experiment_loop([proposal], dry_run=False)
+
+        assert outcomes[0]["decision"] == "keep"
+        # Verify adopted.jsonl has an entry
+        assert agent.adopted_path.exists()
+        lines = agent.adopted_path.read_text().strip().splitlines()
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["proposal_file"] == path.name
+        assert "score=" in entry["outcome"]
+
+    def test_record_adoption_not_called_on_discard(self, agent, cra_dir):
+        """Verify no adopted.jsonl entry after a 'discard' decision."""
+        from engines.research_agent import ProposalResult
+
+        path = agent.save_proposal("Discarded Integration", "Content")
+        proposal = {
+            "title": "discarded integration",
+            "file": path.name,
+            "path": str(path),
+            "created": "2026-03-14",
+        }
+
+        bad_result = ProposalResult(
+            proposal_title="discarded integration",
+            tests_passing=20,
+            tests_total=100,
+            capability_score_delta=0.0,
+            addresses_threat=False,
+            branch_name="cra/discarded",
+        )
+
+        from unittest.mock import patch
+
+        with patch.object(agent, "_execute_live_experiment", return_value=bad_result):
+            outcomes = agent.run_experiment_loop([proposal], dry_run=False)
+
+        assert outcomes[0]["decision"] == "discard"
+        # No adoption should be recorded
+        if agent.adopted_path.exists():
+            content = agent.adopted_path.read_text().strip()
+            assert content == ""
+
+
+class TestApprovalGate:
+    """Tests for approval gate checking HIGH priority proposals."""
+
+    def test_approval_blocks_high_priority(self, agent, cra_dir):
+        """URGENT proposals are blocked without explicit approval."""
+        # Create an urgent proposal
+        agent.ingest_assessment(
+            _make_assessment(
+                title="Urgent Thing",
+                disruption_risk=0.9,
+                effort="medium",
+                impact="transformative",
+            )
+        )
+        created = agent.generate_proposals_from_assessments()
+        assert len(created) == 1
+
+        proposal = {
+            "title": "urgent thing",
+            "file": created[0].name,
+            "path": str(created[0]),
+            "created": "2026-03-14",
+        }
+
+        outcomes = agent.run_experiment_loop(
+            [proposal],
+            dry_run=False,
+            approval_dir=cra_dir / "approvals",
+        )
+        assert outcomes[0]["decision"] == "pending_approval"
+
+    def test_approval_passes_low_priority(self, agent, cra_dir):
+        """STANDARD proposals pass without approval."""
+        from engines.research_agent import ProposalResult
+
+        agent.ingest_assessment(
+            _make_assessment(
+                title="Low Priority Thing",
+                disruption_risk=0.2,
+                effort="small",
+                impact="incremental",
+            )
+        )
+        created = agent.generate_proposals_from_assessments()
+        proposal = {
+            "title": "low priority thing",
+            "file": created[0].name,
+            "path": str(created[0]),
+            "created": "2026-03-14",
+        }
+
+        good_result = ProposalResult(
+            proposal_title="low priority thing",
+            tests_passing=90,
+            tests_total=100,
+            capability_score_delta=0.3,
+            addresses_threat=False,
+        )
+
+        from unittest.mock import patch
+
+        with patch.object(agent, "_execute_live_experiment", return_value=good_result):
+            outcomes = agent.run_experiment_loop(
+                [proposal],
+                dry_run=False,
+                approval_dir=cra_dir / "approvals",
+            )
+        assert outcomes[0]["decision"] == "keep"
+
+    def test_approved_urgent_passes(self, agent, cra_dir):
+        """URGENT proposals pass after explicit approval."""
+        from engines.research_agent import ProposalResult
+
+        agent.ingest_assessment(
+            _make_assessment(
+                title="Approved Urgent",
+                disruption_risk=0.9,
+                effort="medium",
+                impact="transformative",
+            )
+        )
+        created = agent.generate_proposals_from_assessments()
+        proposal_file = created[0].name
+
+        # Approve it
+        approval_dir = cra_dir / "approvals"
+        agent.approve_proposal(proposal_file, approval_dir=approval_dir)
+
+        proposal = {
+            "title": "approved urgent",
+            "file": proposal_file,
+            "path": str(created[0]),
+            "created": "2026-03-14",
+        }
+
+        good_result = ProposalResult(
+            proposal_title="approved urgent",
+            tests_passing=95,
+            tests_total=100,
+            capability_score_delta=0.7,
+            addresses_threat=True,
+        )
+
+        from unittest.mock import patch
+
+        with patch.object(agent, "_execute_live_experiment", return_value=good_result):
+            outcomes = agent.run_experiment_loop(
+                [proposal],
+                dry_run=False,
+                approval_dir=approval_dir,
+            )
+        assert outcomes[0]["decision"] == "keep"
+
+
+def _make_assessment(
+    title: str,
+    disruption_risk: float = 0.3,
+    effort: str = "medium",
+    impact: str = "significant",
+) -> "Assessment":
+    """Helper to create Assessment objects for tests."""
+    from engines.research_agent import Assessment
+
+    return Assessment(
+        discovery_id=f"cra_{hash(title) & 0xFFFF:04x}",
+        title=title,
+        source_url=f"https://example.com/{title.lower().replace(' ', '-')}",
+        disruption_risk=disruption_risk,
+        adoption_effort=effort,
+        expected_impact=impact,
+        affected_modules=["cortex/test_module.py"],
+        integration_approach=f"Integrate {title} into Cortex.",
+        risks=["Test risk"],
+        recommendation="adopt",
+        reasoning=f"Assessment: {title} should be adopted.",
+        assessed_at=datetime.now(tz=timezone.utc).isoformat(),
+    )
+
+
+class TestEndToEndPipeline:
+    """Integration test: assessment → proposal → status → experiment → adopted."""
+
+    def test_full_pipeline(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        from engines.research_agent import ProposalResult
+
+        # Step 1: Ingest an assessment
+        assessment = _make_assessment("E2E Pipeline Test", disruption_risk=0.3)
+        agent.ingest_assessment(assessment)
+
+        # Step 2: Generate proposals
+        created = agent.generate_proposals_from_assessments()
+        assert len(created) == 1
+        proposal_file = created[0].name
+
+        # Step 3: Verify status is draft
+        assert agent.status_tracker.get_status(proposal_file) == "draft"
+
+        # Step 4: Approve (transitions to approved)
+        agent.status_tracker.set_status(proposal_file, "approved")
+        assert agent.status_tracker.get_status(proposal_file) == "approved"
+
+        # Step 5: Run experiment loop
+        proposal = {
+            "title": "e2e pipeline test",
+            "file": proposal_file,
+            "path": str(created[0]),
+            "created": "2026-03-14",
+        }
+
+        good_result = ProposalResult(
+            proposal_title="e2e pipeline test",
+            tests_passing=98,
+            tests_total=100,
+            capability_score_delta=0.5,
+            addresses_threat=False,
+        )
+
+        with patch.object(agent, "_execute_live_experiment", return_value=good_result):
+            outcomes = agent.run_experiment_loop([proposal], dry_run=False)
+
+        # Step 6: Verify keep decision
+        assert outcomes[0]["decision"] == "keep"
+
+        # Step 7: Verify adoption recorded
+        assert agent.adopted_path.exists()
+        lines = agent.adopted_path.read_text().strip().splitlines()
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["proposal_file"] == proposal_file
+
+        # Step 8: Verify status is shipped
+        assert agent.status_tracker.get_status(proposal_file) == "shipped"
+
+        # Step 9: Verify proposal no longer pending
+        pending = agent.get_pending_proposals()
+        pending_files = [p["file"] for p in pending]
+        assert proposal_file not in pending_files
+
+
 class TestExperimentLoop:
     """Tests for the CRA experiment loop runner (autoresearch-inspired)."""
 
@@ -723,3 +1120,189 @@ class TestExperimentLoop:
         baseline = agent.get_baseline_score()
         # Baseline should be the score of the last kept experiment
         assert baseline > 0.5
+
+
+class TestLiveExperiment:
+    """Tests for _execute_live_experiment with mocked subprocess."""
+
+    def test_parses_pytest_all_pass(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        # Create a proposal file so the method can read it
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_test_integration.md"
+        spec_file.write_text(
+            "## Research Integration: Test\n\nMemory retrieval improvement using hybrid search.\n"
+        )
+
+        proposal = {
+            "title": "test integration",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "57 passed in 0.18s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 57
+        assert result.tests_total == 57
+        assert result.test_pass_rate == 1.0
+        assert result.error == ""
+        assert result.capability_score_delta > 0.0  # Spec has relevant keywords
+
+    def test_parses_pytest_with_failures(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal = {"title": "failing integration"}
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "45 passed, 3 failed, 1 error in 2.5s\n",
+                "stderr": "",
+                "returncode": 1,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 45
+        assert result.tests_total == 49  # 45 + 3 + 1
+        assert result.test_pass_rate == pytest.approx(45 / 49)
+        assert result.error != ""  # returncode=1 means error captured
+
+    def test_handles_timeout(self, agent, cra_dir):
+        import subprocess
+        from unittest.mock import patch
+
+        proposal = {"title": "slow integration"}
+
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="pytest", timeout=300),
+        ):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.tests_passing == 0
+        assert result.tests_total == 0
+        assert "timed out" in result.error
+
+    def test_threat_detection_from_spec(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_threat_response.md"
+        spec_file.write_text(
+            "## Threat Response: Anthropic native memory API\n\n"
+            "Pivot Cortex to intelligence layer on top of native memory.\n"
+        )
+
+        proposal = {
+            "title": "threat response",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "100 passed in 1.0s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.addresses_threat is True
+
+    def test_no_threat_when_spec_unrelated(self, agent, cra_dir):
+        from unittest.mock import patch
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_minor_improvement.md"
+        spec_file.write_text(
+            "## Minor: Add logging to retriever\n\nImproved debug output for hybrid search.\n"
+        )
+
+        proposal = {
+            "title": "minor improvement",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "50 passed in 0.5s\n",
+                "stderr": "",
+                "returncode": 0,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        assert result.addresses_threat is False
+
+    def test_score_integrates_correctly(self, agent, cra_dir):
+        """Full integration: live experiment → adoption_outcome_score."""
+        from unittest.mock import patch
+
+        from engines.research_agent import adoption_outcome_score
+
+        proposal_dir = cra_dir / "proposals"
+        proposal_dir.mkdir(exist_ok=True)
+        spec_file = proposal_dir / "2026-03-14_full_test.md"
+        spec_file.write_text(
+            "## Research Integration: Trajectory Memory\n\n"
+            "Memory retrieval improvement using trajectory pattern matching.\n"
+            "Responds to Anthropic native memory API threat.\n"
+        )
+
+        proposal = {
+            "title": "full test",
+            "path": str(spec_file),
+            "file": spec_file.name,
+            "created": "2026-03-14",
+        }
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "stdout": "95 passed, 5 failed in 3.0s\n",
+                "stderr": "",
+                "returncode": 1,
+            },
+        )()
+
+        with patch("subprocess.run", return_value=mock_result):
+            result = agent._execute_live_experiment(proposal)
+
+        score = adoption_outcome_score(result)
+        # 0.5 * (95/100) + 0.3 * capability_delta + 0.2 * 1.0(threat)
+        assert 0.5 < score < 1.0
+        assert result.addresses_threat is True
+        assert result.capability_score_delta > 0.0
