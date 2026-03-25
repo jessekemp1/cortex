@@ -176,6 +176,43 @@ PROVIDERS: Dict[str, dict] = {
                 "speed": "medium",
                 "strengths": ["pattern_learning", "research", "documentation"],
             },
+            "deepseek-reasoner": {
+                "display_name": "DeepSeek R1",
+                "input_cost": 0.55,
+                "output_cost": 2.19,
+                "max_context": 128_000,
+                "max_output": 16_384,
+                "speed": "slow",
+                "strengths": ["reasoning", "architecture", "research"],
+            },
+        },
+    },
+    "qwen": {
+        "env_var": "QWEN_API_KEY",
+        "fallback_env": "DASHSCOPE_API_KEY",
+        "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "api_type": "openai_compat",
+        "timeout": 120.0,
+        "supports_batch": False,
+        "models": {
+            "qwen-plus": {
+                "display_name": "Qwen Plus",
+                "input_cost": 0.80,
+                "output_cost": 2.00,
+                "max_context": 131_072,
+                "max_output": 16_384,
+                "speed": "fast",
+                "strengths": ["code", "code_review", "research", "documentation"],
+            },
+            "qwen-turbo": {
+                "display_name": "Qwen Turbo",
+                "input_cost": 0.30,
+                "output_cost": 0.60,
+                "max_context": 1_000_000,
+                "max_output": 16_384,
+                "speed": "fast",
+                "strengths": ["classification", "quick_qa", "documentation", "long_context"],
+            },
         },
     },
 }
@@ -189,12 +226,12 @@ ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
     "architecture": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "interactive_coding": ("anthropic", "claude-sonnet-4-5-20250929", "xai", "grok-code-fast-1"),
     "classification": ("groq", "llama-3.1-8b-instant", "openai", "gpt-5-nano"),
-    "long_context": ("xai", "grok-3-fast", "minimax", "MiniMax-M1"),
-    "research": ("xai", "grok-3-fast", "deepseek", "deepseek-chat"),
+    "long_context": ("qwen", "qwen-turbo", "xai", "grok-3-fast"),
+    "research": ("deepseek", "deepseek-chat", "xai", "grok-3-fast"),
     "quick_qa": ("groq", "openai/gpt-oss-20b", "anthropic", "claude-haiku-4-5-20251001"),
     "code_review": ("minimax", "MiniMax-M2.1", "anthropic", "claude-sonnet-4-5-20250929"),
     "test_generation": ("minimax", "MiniMax-M2.1", "xai", "grok-code-fast-1"),
-    "documentation": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
+    "documentation": ("deepseek", "deepseek-chat", "qwen", "qwen-turbo"),
     "security_audit": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
     "pattern_learning": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
 }
@@ -202,7 +239,7 @@ ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
 BATCH_ROUTING_TABLE: Dict[str, Tuple[str, str, str, str]] = {
     "code_review": ("minimax", "MiniMax-M2.1", "anthropic", "claude-sonnet-4-5-20250929"),
     "test_generation": ("minimax", "MiniMax-M2.1", "xai", "grok-code-fast-1"),
-    "documentation": ("deepseek", "deepseek-chat", "groq", "llama-3.1-8b-instant"),
+    "documentation": ("deepseek", "deepseek-chat", "qwen", "qwen-turbo"),
     "security_audit": ("anthropic", "claude-opus-4-6", "openai", "gpt-5"),
 }
 
