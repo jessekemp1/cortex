@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-958%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1342%2B%20passing-green.svg)](tests/)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
@@ -119,7 +119,7 @@ With Cortex, your session begins differently:
 
 ```bash
 $ cortex briefing
-📊 CORTEX INTELLIGENCE BRIEFING — February 24, 2025
+📊 CORTEX INTELLIGENCE BRIEFING — March 27, 2026
 
 🎯 ACTIVE PROJECTS (3)
   • fastapi-backend: 2 commits since yesterday, tests passing
@@ -322,7 +322,7 @@ pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
 pytest tests/ -v
 ```
 
-958+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+1342+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
 
 ---
 

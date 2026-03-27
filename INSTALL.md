@@ -88,6 +88,15 @@ result = bridge.query_intelligence("implement caching", project="my-api")
 session = bridge.get_session_context()
 ```
 
+## Gateway — Telegram Bot + Web Chat (Coming Soon)
+
+Cortex includes a Gateway module for Telegram (`@KempionBot`) and web chat (`:8765/chat`). **This feature is not yet active by default.** To enable it, you'll need:
+
+- A Telegram bot token (`CORTEX_TELEGRAM_TOKEN`) from [@BotFather](https://t.me/BotFather)
+- The bridge server running (`cortex serve`)
+
+See `cortex/gateway/` for configuration details.
+
 ## What to Expect
 
 - **First session**: Cortex starts with an empty memory. It learns from your git history, commits, and interaction patterns.
