@@ -326,9 +326,10 @@ class TestCortexSupervisor:
         supervisor = CortexSupervisor(config=config)
         result = supervisor.run_once()
 
-        assert result is not None
-        assert hasattr(result, "timestamp")
-        assert hasattr(result, "shell_tasks_started")
+        assert result.timestamp is not None
+        assert result.shell_tasks_started >= 0
+        assert result.shell_tasks_completed >= 0
+        assert isinstance(result.errors, list)
 
     def test_get_queue_summary(self):
         """Test queue summary generation."""

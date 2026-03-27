@@ -62,10 +62,13 @@ def _patch_slow_operations():
 
 
 def test_orchestrator_initialization():
-    """Test orchestrator can be initialized."""
+    """Test orchestrator can be initialized with expected defaults."""
     orchestrator = CortexOrchestrator()
-    assert orchestrator is not None
     assert orchestrator.root_dir == Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
+    # Verify core attributes exist and have sane values
+    response = orchestrator.get_next_action(limit=0)
+    assert response.current_state["total_projects"] >= 0
+    assert response.current_state["active_projects"] >= 0
 
 
 def test_orchestrator_custom_root():
@@ -128,10 +131,13 @@ def test_current_state_structure():
     assert "goals_in_progress" in state
     assert "blockers" in state
 
-    # Check types
-    assert isinstance(state["active_projects"], int)
-    assert isinstance(state["total_projects"], int)
+    # Check values are sane, not just types
+    assert state["active_projects"] >= 0
+    assert state["total_projects"] >= 0
+    assert state["total_projects"] >= state["active_projects"]
     assert isinstance(state["blockers"], list)
+    assert state["goals_pending"] >= 0
+    assert state["goals_in_progress"] >= 0
 
 
 def test_graceful_degradation():

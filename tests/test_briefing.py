@@ -67,8 +67,9 @@ def test_briefing_generation():
     assert briefing is not None
     assert briefing.generated_at is not None
     assert isinstance(briefing.active_projects, list)
-    assert isinstance(briefing.recent_commits_24h, int)
-    assert isinstance(briefing.total_commits_7d, int)
+    assert briefing.recent_commits_24h >= 0
+    assert briefing.total_commits_7d >= 0
+    assert briefing.total_commits_7d >= briefing.recent_commits_24h
     assert isinstance(briefing.blockers, list)
     assert isinstance(briefing.priority_actions, list)
     assert isinstance(briefing.patterns, list)
@@ -87,14 +88,14 @@ def test_text_formatting():
 
     # Test with colors
     output_color = format_briefing(briefing, use_color=True)
-    assert isinstance(output_color, str)
+    assert len(output_color) > 0
     assert "DAILY BRIEFING" in output_color
     assert "PORTFOLIO PULSE" in output_color
     assert "PRIORITY ACTIONS" in output_color
 
     # Test without colors
     output_plain = format_briefing(briefing, use_color=False)
-    assert isinstance(output_plain, str)
+    assert len(output_plain) > 0
     assert "DAILY BRIEFING" in output_plain
 
     print("  ✓ Text formatting works with colors")
@@ -108,7 +109,7 @@ def test_json_formatting():
     briefing = generate_daily_briefing(Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))))
 
     output = format_briefing_json(briefing)
-    assert isinstance(output, str)
+    assert len(output) > 0
 
     # Parse JSON to verify structure
     data = json.loads(output)

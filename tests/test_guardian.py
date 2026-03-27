@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -74,9 +75,13 @@ class TestClaims:
         assert "agent_a" in result.message
 
     def test_claim_expired_by_other_agent_succeeds(self, claim_mgr: FileClaimManager) -> None:
-        claim_mgr.claim("/tmp/foo.py", "agent_a", ttl=1)
-        time.sleep(1.1)
-        result = claim_mgr.claim("/tmp/foo.py", "agent_b", ttl=300)
+        now = time.time()
+        with patch("guardian.claims.time") as mock_time:
+            mock_time.time.return_value = now
+            claim_mgr.claim("/tmp/foo.py", "agent_a", ttl=1)
+            # Advance past the 1-second TTL
+            mock_time.time.return_value = now + 2
+            result = claim_mgr.claim("/tmp/foo.py", "agent_b", ttl=300)
         assert result.success is True
         assert result.agent_id == "agent_b"
 
@@ -99,21 +104,29 @@ class TestClaims:
 
 class TestTTLReaping:
     def test_reap_expired_removes_stale_claims(self, claim_mgr: FileClaimManager) -> None:
-        claim_mgr.claim("/tmp/a.py", "agent_a", ttl=1)
-        claim_mgr.claim("/tmp/b.py", "agent_a", ttl=1)
-        claim_mgr.claim("/tmp/c.py", "agent_a", ttl=1)
-        time.sleep(1.1)
-        reaped = claim_mgr.reap_expired()
-        assert reaped == 3
-        assert len(claim_mgr.get_all_claims()) == 0
+        now = time.time()
+        with patch("guardian.claims.time") as mock_time:
+            mock_time.time.return_value = now
+            claim_mgr.claim("/tmp/a.py", "agent_a", ttl=1)
+            claim_mgr.claim("/tmp/b.py", "agent_a", ttl=1)
+            claim_mgr.claim("/tmp/c.py", "agent_a", ttl=1)
+            # Advance past the 1-second TTL
+            mock_time.time.return_value = now + 2
+            reaped = claim_mgr.reap_expired()
+            assert reaped == 3
+            assert len(claim_mgr.get_all_claims()) == 0
 
     def test_reap_preserves_active_claims(self, claim_mgr: FileClaimManager) -> None:
-        claim_mgr.claim("/tmp/short.py", "agent_a", ttl=1)
-        claim_mgr.claim("/tmp/long.py", "agent_b", ttl=300)
-        time.sleep(1.1)
-        reaped = claim_mgr.reap_expired()
-        assert reaped == 1
-        active = claim_mgr.get_all_claims()
+        now = time.time()
+        with patch("guardian.claims.time") as mock_time:
+            mock_time.time.return_value = now
+            claim_mgr.claim("/tmp/short.py", "agent_a", ttl=1)
+            claim_mgr.claim("/tmp/long.py", "agent_b", ttl=300)
+            # Advance past the 1-second TTL but not the 300-second TTL
+            mock_time.time.return_value = now + 2
+            reaped = claim_mgr.reap_expired()
+            assert reaped == 1
+            active = claim_mgr.get_all_claims()
         assert len(active) == 1
         assert "/tmp/long.py" in active
 
@@ -152,7 +165,6 @@ class TestSnapshots:
             sample_file.write_text(f"version_{i}")
             info = snap_ring.snapshot([str(sample_file)], reason=f"v{i}")
             ids.append(info.snapshot_id)
-            time.sleep(0.01)  # ensure unique timestamps
 
         # Only 5 remain
         assert len(snap_ring._manifest) == 5
@@ -171,7 +183,6 @@ class TestSnapshots:
             sample_file.write_text(f"v{i}")
             info = snap_ring.snapshot([str(sample_file)], reason=f"v{i}")
             ids.append(info.snapshot_id)
-            time.sleep(0.01)
 
         listing = snap_ring.list_snapshots()
         assert len(listing) == 3

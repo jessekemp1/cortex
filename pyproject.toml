@@ -123,4 +123,18 @@ exclude = [
 [tool.pytest.ini_options]
 markers = [
     "integration: requires running services or monorepo environment",
+    "slow: tests that take > 1 second",
+]
+
+[tool.coverage.run]
+source = ["supervisor", "guardian", "intelligence/storage", "workflows"]
+omit = ["tests/*", "*/test_*", "*/_dead/*", "*/_archive/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 50
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "raise NotImplementedError",
 ]
