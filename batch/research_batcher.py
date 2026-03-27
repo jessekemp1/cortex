@@ -435,14 +435,24 @@ Return ONLY valid JSON (no markdown fences, no commentary) matching this schema:
             logger.info("CRA: No unassessed discoveries to batch")
             return [], []
 
+        try:
+            from supervisor.router import complexity_for_task, select_model as router_select_model
+        except ImportError:
+            from cortex.supervisor.router import (  # type: ignore[no-redef]
+                complexity_for_task,
+                select_model as router_select_model,
+            )
+
         requests = []
         for discovery in pending:
             prompt = agent.get_assess_prompt(discovery)
+            _complexity = complexity_for_task("research")
+            _model = router_select_model(_complexity)
             requests.append(
                 BatchRequest(
                     custom_id=f"cra_assess_{discovery.id}",
                     params={
-                        "model": "claude-sonnet-4-6",
+                        "model": _model,
                         "messages": [{"role": "user", "content": prompt}],
                         "system": self.CRA_ASSESS_SYSTEM_PROMPT,
                         "max_tokens": 2048,

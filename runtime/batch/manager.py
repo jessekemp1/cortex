@@ -256,7 +256,7 @@ class BatchManager:
     def submit_pending_batch(
         self,
         max_items: int = 1000,
-        model: str = "claude-sonnet-4-5-20250929",
+        model: Optional[str] = None,
         max_tokens: int = 8000,
         dry_run: bool = False,
     ) -> List[str]:
@@ -271,6 +271,20 @@ class BatchManager:
         Returns:
             List of batch_ids (or plan details in dry_run)
         """
+        # Resolve model via supervisor router if not explicitly provided
+        if model is None:
+            try:
+                from supervisor.router import (
+                    complexity_for_task,
+                    select_model as router_select_model,
+                )
+            except ImportError:
+                from cortex.supervisor.router import (  # type: ignore[no-redef]
+                    complexity_for_task,
+                    select_model as router_select_model,
+                )
+            model = router_select_model(complexity_for_task("batch"))
+
         # 1. Get pending items
         pending = self.get_pending_items(limit=max_items)
 

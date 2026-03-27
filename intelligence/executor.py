@@ -261,9 +261,20 @@ class ContractExecutor:
             else:
                 import asyncio
 
+                try:
+                    from supervisor.router import (
+                        complexity_for_task,
+                        select_model as router_select_model,
+                    )
+                except ImportError:
+                    from cortex.supervisor.router import (  # type: ignore[no-redef]
+                        complexity_for_task,
+                        select_model as router_select_model,
+                    )
+                _model = router_select_model(complexity_for_task("interactive_coding"))
                 response = await asyncio.to_thread(
                     self._anthropic_client.messages.create,
-                    model="claude-sonnet-4-5-20250929",
+                    model=_model,
                     max_tokens=4000,
                     messages=[{"role": "user", "content": prompt}],
                 )

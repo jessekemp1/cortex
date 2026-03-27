@@ -72,6 +72,52 @@ _MODEL_MAP: Dict[str, str] = {
     "haiku": "claude-haiku-4-5-20251001",
 }
 
+# --- Task-type complexity heuristic (for callers without a full WorkItem) ---
+
+TASK_COMPLEXITY: Dict[str, float] = {
+    # Opus tier
+    "architecture": 0.7,
+    "security_audit": 0.7,
+    "novel_algorithm": 0.7,
+    # Sonnet tier
+    "code_review": 0.5,
+    "interactive_coding": 0.5,
+    "research": 0.5,
+    # Haiku tier
+    "quick_qa": 0.2,
+    "extraction": 0.2,
+    "summarize": 0.2,
+    "briefing": 0.2,
+    "data_fetch": 0.2,
+    "batch": 0.2,
+}
+
+
+def complexity_for_task(task_type: str) -> float:
+    """Return a 0.0-1.0 complexity score for a given task type string.
+
+    Used by batch dispatch layers that have a task_type string but no full
+    WorkItem.  Sonnet (0.4) is the safe default for unmapped types.
+    """
+    return TASK_COMPLEXITY.get(task_type.lower(), 0.4)
+
+
+def select_model(complexity: float) -> str:
+    """Select a model tier string given a raw complexity score (0.0-1.0).
+
+    Returns the full model ID, not the tier name.  Thresholds match the
+    constants used by ModelRouter.select_model():
+
+        complexity >= 0.7  → opus
+        complexity >= 0.3  → sonnet
+        otherwise          → haiku
+    """
+    if complexity >= _OPUS_THRESHOLD:
+        return _MODEL_MAP["opus"]
+    elif complexity >= _SONNET_THRESHOLD:
+        return _MODEL_MAP["sonnet"]
+    return _MODEL_MAP["haiku"]
+
 
 @dataclass
 class ModelAssignment:
