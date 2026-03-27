@@ -194,8 +194,12 @@ except ImportError:
     IAPHandler = None
 
 
-from cortex.bridge_intelligence import IntelligenceMixin
-from cortex.bridge_system import SystemMixin
+try:
+    from cortex.bridge_intelligence import IntelligenceMixin
+    from cortex.bridge_system import SystemMixin
+except ImportError:
+    from bridge_intelligence import IntelligenceMixin  # type: ignore[no-redef]
+    from bridge_system import SystemMixin  # type: ignore[no-redef]
 
 
 class CortexBridge(IntelligenceMixin, SystemMixin):
@@ -926,7 +930,9 @@ def main():
                     icon = (
                         "🔴"
                         if alert.get("severity") == "HIGH"
-                        else "🟡" if alert.get("severity") == "MEDIUM" else "🟢"
+                        else "🟡"
+                        if alert.get("severity") == "MEDIUM"
+                        else "🟢"
                     )
                     print(
                         f"   {icon} [{alert.get('severity', 'Unknown')}] {alert.get('message', 'Unknown')}"
