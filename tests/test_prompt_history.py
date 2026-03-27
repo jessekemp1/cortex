@@ -1,10 +1,16 @@
 """Tests for prompt_history intelligence module."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
+
+def _recent_iso(days_ago: int = 1, hours_offset: int = 0) -> str:
+    """Return an ISO timestamp N days ago (always within lookback window)."""
+    dt = datetime.now() - timedelta(days=days_ago, hours=-hours_offset)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 @pytest.fixture
@@ -21,7 +27,7 @@ def sessions_dir(tmp_path):
             "gitBranch": "main",
             "message": {"role": "user", "content": "fix the urgent authentication bug"},
             "uuid": "ph-001",
-            "timestamp": "2026-03-20T10:00:00.000Z",
+            "timestamp": _recent_iso(days_ago=2),
         },
         {
             "type": "assistant",
@@ -36,7 +42,7 @@ def sessions_dir(tmp_path):
                 ],
             },
             "uuid": "ph-002",
-            "timestamp": "2026-03-20T10:05:00.000Z",
+            "timestamp": _recent_iso(days_ago=2, hours_offset=1),
         },
         {
             "type": "user",
@@ -45,7 +51,7 @@ def sessions_dir(tmp_path):
             "gitBranch": "main",
             "message": {"role": "user", "content": "add tests for the fix"},
             "uuid": "ph-003",
-            "timestamp": "2026-03-20T10:10:00.000Z",
+            "timestamp": _recent_iso(days_ago=2, hours_offset=2),
         },
     ]
 

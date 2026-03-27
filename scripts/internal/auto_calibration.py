@@ -41,7 +41,7 @@ def get_changed_files():
         )
         if result.returncode == 0 and result.stdout:
             return [f for f in result.stdout.strip().split("\n") if f]
-    except:
+    except (OSError, subprocess.SubprocessError):
         pass
 
     # Fallback: check git status for unstaged changes
@@ -52,7 +52,7 @@ def get_changed_files():
         if result.returncode == 0 and result.stdout:
             lines = result.stdout.strip().split("\n")
             return [line.split()[-1] for line in lines if line]
-    except:
+    except (OSError, subprocess.SubprocessError):
         pass
 
     return []
@@ -97,7 +97,7 @@ def infer_task_description(files):
             )
             if result.returncode == 0 and result.stdout:
                 return f"Continue: {result.stdout.strip()}"
-        except:
+        except (OSError, subprocess.SubprocessError):
             pass
         return "General development work"
 
@@ -241,7 +241,7 @@ def auto_complete_from_commit():
             check=False,
         )
         commit_msg = result.stdout.strip() if result.returncode == 0 else "No commit"
-    except:
+    except (OSError, subprocess.SubprocessError):
         commit_msg = "Unknown"
 
     # Calculate elapsed time

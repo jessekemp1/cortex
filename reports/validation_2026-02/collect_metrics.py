@@ -97,7 +97,7 @@ def count_queued_jobs():
             with open(queue_file) as f:
                 data = json.load(f)
                 return len(data.get("priority_jobs", []))
-    except:
+    except (json.JSONDecodeError, OSError, KeyError):
         pass
     return 0
 

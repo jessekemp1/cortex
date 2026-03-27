@@ -178,7 +178,7 @@ class PortfolioAnalyzer:
                 try:
                     rate = float(success_rate.replace("%", ""))
                     success_rates.append(rate)
-                except:
+                except (ValueError, AttributeError):
                     pass
 
         avg_success = sum(success_rates) / len(success_rates) if success_rates else 0

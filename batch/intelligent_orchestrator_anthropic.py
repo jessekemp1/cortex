@@ -178,7 +178,7 @@ class IntelligentBatchOrchestratorAnthropic:
                 try:
                     content = readme_path.read_text()[:2000]
                     context_parts.append(content)
-                except:
+                except (OSError, UnicodeDecodeError):
                     pass
 
         return "\n".join(context_parts) if context_parts else "No project context available."

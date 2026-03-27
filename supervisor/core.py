@@ -30,13 +30,16 @@ logger = logging.getLogger(__name__)
 
 # Module-level evaluator instance (lazy init via _get_quality_evaluator)
 _quality_evaluator: Optional[QualityEvaluator] = None
+_quality_evaluator_lock = threading.Lock()
 
 
 def _get_quality_evaluator() -> QualityEvaluator:
-    """Lazy-init singleton QualityEvaluator."""
+    """Lazy-init singleton QualityEvaluator (thread-safe)."""
     global _quality_evaluator
     if _quality_evaluator is None:
-        _quality_evaluator = QualityEvaluator(use_ai_judge=False)
+        with _quality_evaluator_lock:
+            if _quality_evaluator is None:
+                _quality_evaluator = QualityEvaluator(use_ai_judge=False)
     return _quality_evaluator
 
 
@@ -84,6 +87,9 @@ class CortexSupervisor:
         self._collector = None
         self._pending_work_items: List[WorkItem] = []
 
+        # Lock for mutable shared state accessed during tick()
+        self._state_lock = threading.Lock()
+
         # Work dedup tracking — avoid re-dispatching the same items every tick
         self._dispatched_ids: set = set()
         self._dispatched_descriptions: Dict[str, float] = {}  # description -> timestamp
@@ -125,7 +131,9 @@ class CortexSupervisor:
             TickResult with actions taken
         """
         result = TickResult(timestamp=datetime.now())  # noqa: DTZ005
-        self._tick_count += 1
+
+        with self._state_lock:
+            self._tick_count += 1
 
         try:
             # 1. Health check (periodic)
@@ -208,7 +216,7 @@ class CortexSupervisor:
                     else:
                         logger.debug(f"Cannot execute task {task.task_id[:8]}: {reason}")
                 except Exception as e:
-                    logger.error(f"Error starting task {task.task_id[:8]}: {e}")
+                    logger.error(f"Error starting task {task.task_id[:8]}: {e}", exc_info=True)
                     result.errors.append(f"Task start failed: {e}")
 
             # 3. Check for completed tasks
@@ -646,7 +654,7 @@ class CortexSupervisor:
                             errors.append(f"{work_item.id[:8]}: {result.error}")
 
                 except Exception as e:
-                    logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}")
+                    logger.error(f"Dispatch failed for {work_item.id[:8]}: {e}", exc_info=True)
                     failed += 1
                     errors.append(f"{work_item.id[:8]}: {e}")
 
@@ -958,14 +966,17 @@ class CortexSupervisor:
 
     def _mark_dispatched(self, work_item: WorkItem) -> None:
         """Record a work item as dispatched to prevent re-dispatch."""
-        self._dispatched_ids.add(work_item.id)
-        self._dispatched_descriptions[work_item.description] = time.time()
+        with self._state_lock:
+            self._dispatched_ids.add(work_item.id)
+            self._dispatched_descriptions[work_item.description] = time.time()
 
     def _is_recently_dispatched(self, description: str) -> bool:
         """Check if a similar description was recently dispatched."""
         from .intake import _similarity
 
-        for past_desc in self._dispatched_descriptions:
+        with self._state_lock:
+            descs = dict(self._dispatched_descriptions)
+        for past_desc in descs:
             if _similarity(description, past_desc) >= 0.7:
                 return True
         return False
@@ -973,9 +984,10 @@ class CortexSupervisor:
     def _cleanup_dispatched_cache(self) -> None:
         """Remove expired entries from dispatched tracking (TTL-based)."""
         cutoff = time.time() - self._dispatch_ttl_seconds
-        self._dispatched_descriptions = {
-            desc: ts for desc, ts in self._dispatched_descriptions.items() if ts > cutoff
-        }
+        with self._state_lock:
+            self._dispatched_descriptions = {
+                desc: ts for desc, ts in self._dispatched_descriptions.items() if ts > cutoff
+            }
 
     @staticmethod
     def _should_route_to_shell(work_item: WorkItem) -> bool:

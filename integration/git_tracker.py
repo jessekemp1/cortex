@@ -186,7 +186,7 @@ class GitTracker:
             try:
                 commit_date = datetime.fromisoformat(date_str.replace(" ", "T").split("+")[0])
                 age_days = (datetime.now() - commit_date).days
-            except:
+            except (ValueError, TypeError):
                 commit_date = None
                 age_days = 0
 

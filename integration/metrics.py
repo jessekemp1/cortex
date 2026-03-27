@@ -29,7 +29,7 @@ class RecommendationMetrics:
             try:
                 with open(self.metrics_file, "r") as f:
                     self.metrics = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError):
                 self.metrics = {"recommendations": [], "statistics": {}}
         else:
             self.metrics = {"recommendations": [], "statistics": {}}

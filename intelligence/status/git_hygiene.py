@@ -163,7 +163,7 @@ class GitHygieneAnalyzer:
                 if file_path.exists() and file_path.is_file():
                     with open(file_path, "r", errors="ignore") as fp:
                         total_lines += sum(1 for _ in fp)
-            except:
+            except (OSError, UnicodeDecodeError):
                 total_lines += 50  # Estimate
 
         return total_lines, total_files
@@ -191,7 +191,7 @@ class GitHygieneAnalyzer:
             branch_start = datetime.fromtimestamp(int(timestamp))
             age = datetime.now() - branch_start
             return age.total_seconds() / 86400  # Convert to days
-        except:
+        except (ValueError, TypeError, OSError):
             return 0.0
 
     def get_commits_ahead(self) -> int:
@@ -207,7 +207,7 @@ class GitHygieneAnalyzer:
 
         try:
             return int(count) if count else 0
-        except:
+        except (ValueError, TypeError):
             return 0
 
     def _check_threshold(

@@ -207,6 +207,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+
+    limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+except ImportError:
+    limiter = None  # slowapi not installed — rate limiting disabled
+
 # Initialize Cortex bridge (lazy load)
 _bridge: Optional[CortexBridge] = None
 _anomaly_manager: Optional[OrchestrationAnomalyManager] = None
@@ -498,7 +510,7 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
 @app.get("/intelligence/recommendations")
 async def get_recommendations(
     project: Optional[str] = Query(None, description="Filter by project"),
-    limit: int = Query(5, description="Max recommendations"),
+    limit: int = Query(5, ge=1, le=100, description="Max recommendations"),
 ) -> Dict[str, Any]:
     """
     Get Cortex recommendations based on current context.
@@ -689,7 +701,7 @@ def get_queue_manager():
 
 
 @app.get("/batches")
-async def list_batches(limit: int = Query(20, description="Max batches to return")):
+async def list_batches(limit: int = Query(20, ge=1, le=200, description="Max batches to return")):
     """
     List active and recent batch jobs.
 
@@ -948,7 +960,7 @@ async def list_projects() -> List[Dict[str, Any]]:
 async def get_v2_outcomes(
     project: Optional[str] = Query(None, description="Filter by project"),
     days: int = Query(7, description="Look back N days"),
-    limit: int = Query(50, description="Max outcomes to return"),
+    limit: int = Query(50, ge=1, le=500, description="Max outcomes to return"),
 ) -> Dict[str, Any]:
     """Get recent outcomes from OutcomeDetector (v2 compound learning)."""
     try:
@@ -986,7 +998,7 @@ async def get_v2_outcome_stats(
 @app.get("/v2/graph/search")
 async def search_v2_graph(
     query: str = Query(..., description="Search query"),
-    limit: int = Query(10, description="Max results"),
+    limit: int = Query(10, ge=1, le=100, description="Max results"),
 ) -> Dict[str, Any]:
     """Search the v2 knowledge graph for patterns, projects, and outcomes."""
     try:
@@ -1057,7 +1069,7 @@ async def get_compound_health() -> Dict[str, Any]:
 @app.get("/recommendations")
 async def get_recommendations_alias(
     project: Optional[str] = Query(None, description="Filter by project"),
-    limit: int = Query(5, description="Max recommendations"),
+    limit: int = Query(5, ge=1, le=100, description="Max recommendations"),
 ) -> Dict[str, Any]:
     """Alias for /intelligence/recommendations."""
     return await get_recommendations(project=project, limit=limit)
@@ -1134,7 +1146,7 @@ async def list_briefing_executions(
 @app.get("/sessions")
 async def get_sessions(
     active_only: bool = Query(False, description="Only return active/waiting sessions"),
-    limit: int = Query(20, description="Max sessions to return"),
+    limit: int = Query(20, ge=1, le=200, description="Max sessions to return"),
 ) -> Dict[str, Any]:
     """
     Scan Claude Code session JSONL files for real-time session visibility.
@@ -1599,7 +1611,7 @@ async def guardian_snapshot(req: GuardianSnapshotRequest) -> Dict[str, Any]:
 
 
 @app.get("/guardian/snapshots")
-async def guardian_list_snapshots(limit: int = Query(default=20)) -> Dict[str, Any]:
+async def guardian_list_snapshots(limit: int = Query(default=20, ge=1, le=200)) -> Dict[str, Any]:
     """List available snapshots."""
     guardian = _get_guardian()
     snaps = guardian.list_snapshots(limit=limit)

@@ -81,7 +81,34 @@ class SupervisorConfig:
     min_items_for_overnight_batch: int = 3  # Minimum items before submitting
 
     def __post_init__(self):
-        """Ensure directories exist."""
+        """Validate configuration and ensure directories exist."""
+        # Validate numeric bounds
+        if not (1 <= self.tick_interval_seconds <= 3600):
+            raise ValueError(f"tick_interval_seconds must be 1-3600, got {self.tick_interval_seconds}")
+        if not (1 <= self.health_check_interval_seconds <= 3600):
+            raise ValueError(
+                f"health_check_interval_seconds must be 1-3600, got {self.health_check_interval_seconds}"
+            )
+        if not (1 <= self.max_concurrent_shell_tasks <= 100):
+            raise ValueError(
+                f"max_concurrent_shell_tasks must be 1-100, got {self.max_concurrent_shell_tasks}"
+            )
+        if not (1 <= self.stale_task_hours <= 168):
+            raise ValueError(f"stale_task_hours must be 1-168, got {self.stale_task_hours}")
+        if not (1 <= self.max_retries <= 20):
+            raise ValueError(f"max_retries must be 1-20, got {self.max_retries}")
+        if not (0.0 <= self.ab_baseline_ratio <= 1.0):
+            raise ValueError(f"ab_baseline_ratio must be 0.0-1.0, got {self.ab_baseline_ratio}")
+        if not (0 <= self.overnight_start_hour <= 23):
+            raise ValueError(
+                f"overnight_start_hour must be 0-23, got {self.overnight_start_hour}"
+            )
+        if self.approval_policy not in ("auto_all", "gate_high", "gate_all"):
+            raise ValueError(
+                f"approval_policy must be auto_all/gate_high/gate_all, got {self.approval_policy}"
+            )
+
+        # Ensure directories exist
         self.pid_file.parent.mkdir(parents=True, exist_ok=True)
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -91,12 +118,19 @@ class SupervisorConfig:
         """Create config from environment variables."""
         import os
 
+        def _safe_int(var: str, default: str) -> int:
+            raw = os.getenv(var, default)
+            try:
+                return int(raw)
+            except (ValueError, TypeError):
+                return int(default)
+
         return cls(
-            tick_interval_seconds=int(os.getenv("CORTEX_SUPERVISOR_TICK_INTERVAL", "30")),
-            health_check_interval_seconds=int(os.getenv("CORTEX_SUPERVISOR_HEALTH_INTERVAL", "60")),
-            work_discovery_interval_seconds=int(
-                os.getenv("CORTEX_SUPERVISOR_DISCOVERY_INTERVAL", "300")
+            tick_interval_seconds=_safe_int("CORTEX_SUPERVISOR_TICK_INTERVAL", "30"),
+            health_check_interval_seconds=_safe_int("CORTEX_SUPERVISOR_HEALTH_INTERVAL", "60"),
+            work_discovery_interval_seconds=_safe_int(
+                "CORTEX_SUPERVISOR_DISCOVERY_INTERVAL", "300"
             ),
-            max_concurrent_shell_tasks=int(os.getenv("CORTEX_SUPERVISOR_MAX_CONCURRENT", "3")),
-            stale_task_hours=int(os.getenv("CORTEX_SUPERVISOR_STALE_HOURS", "4")),
+            max_concurrent_shell_tasks=_safe_int("CORTEX_SUPERVISOR_MAX_CONCURRENT", "3"),
+            stale_task_hours=_safe_int("CORTEX_SUPERVISOR_STALE_HOURS", "4"),
         )

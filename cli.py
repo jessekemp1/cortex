@@ -189,7 +189,7 @@ def _portfolio_counts_from_scanner(root: Path) -> Optional[Tuple[int, int]]:
         active = sum(1 for activity in by_name.values() if activity.commits_7d > 0)
         return active, total
     except Exception:
-        return None
+        return (0, 0)
 
 
 def _goal_counts_from_parser(root: Path) -> Optional[Tuple[int, int]]:
@@ -210,7 +210,7 @@ def _goal_counts_from_parser(root: Path) -> Optional[Tuple[int, int]]:
         pending = len([m for m in re.finditer(r"pending", text, re.IGNORECASE)])
         return in_progress, pending
     except Exception:
-        return None
+        return (0, 0)
 
 
 def _apply_signal_gate_to_briefing(briefing, signal: Dict[str, Union[int, str]]) -> None:
@@ -2051,7 +2051,7 @@ def cmd_dashboard(args):
                         time_val = str(ts_str).split("T")[1].split(".")[0]
                     else:
                         time_val = str(ts_str)
-                except:
+                except (ValueError, IndexError, TypeError):
                     time_val = str(ts_str)[:8]
 
             msg = (
