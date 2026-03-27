@@ -14,9 +14,12 @@ SCAN_DIR.mkdir(parents=True, exist_ok=True)
 
 def run(cmd, desc):
     print(f"\n{desc}")
-    full_cmd = f"cd {DEV_ROOT} && {cmd}"
     try:
-        result = subprocess.run(full_cmd, shell=True, capture_output=True, text=True, timeout=180)
+        result = subprocess.run(
+            ["/bin/bash", "-c", cmd],
+            shell=False, capture_output=True, text=True, timeout=180,
+            cwd=str(DEV_ROOT),
+        )
         return {
             "description": desc,
             "success": result.returncode == 0,

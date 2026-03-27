@@ -380,7 +380,8 @@ class HealthChecker:
                 print(f"  ({issue.fix_description})")
             else:
                 try:
-                    subprocess.run(issue.fix_command, shell=True, check=True)
+                    import shlex
+                    subprocess.run(shlex.split(issue.fix_command), shell=False, check=True)
                     fixed.append(issue.fix_command)
                     print(f"✓ Fixed: {issue.fix_description}")
                 except subprocess.CalledProcessError as e:

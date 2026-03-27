@@ -11,7 +11,6 @@ with successful outcomes and demote those associated with failures.
 
 import json
 import logging
-import pickle
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -209,35 +208,25 @@ class HybridRetriever:
 
     def _load_or_generate_embeddings(self):
         """Load embeddings from cache or generate new ones."""
-        cache_file = self.cache_dir / "embeddings.pkl"
-        cache_meta_file = self.cache_dir / "embeddings_meta.pkl"
+        cache_file = self.cache_dir / "embeddings.npy"
+        cache_meta_file = self.cache_dir / "embeddings_meta.json"
 
         # Check if cache exists and is valid
         if cache_file.exists() and cache_meta_file.exists():
             try:
-                # Note: pickle is used here for numpy array serialization
-                # Cache files are stored locally in ~/.cortex/patterns
-                with open(cache_meta_file, "rb") as f:
-                    meta = pickle.load(f)
+                with open(cache_meta_file, "r") as f:
+                    meta = json.load(f)
 
                 # Verify cache matches current patterns
                 if meta.get("pattern_count") == len(self.patterns):
-                    # Check if pattern IDs match
                     cached_ids = set(meta.get("pattern_ids", []))
                     current_ids = {p.id for p in self.patterns}
 
                     if cached_ids == current_ids:
-                        import warnings
-
-                        with open(cache_file, "rb") as f:
-                            # Suppress numpy internal namespace deprecation from
-                            # cached arrays serialized with older numpy versions.
-                            # Cache files are local-only (~/.cortex/patterns).
-                            with warnings.catch_warnings():
-                                warnings.filterwarnings(
-                                    "ignore", category=DeprecationWarning, module="numpy"
-                                )
-                                self.pattern_embeddings = pickle.load(f)
+                        # numpy.load with allow_pickle=False is safe
+                        self.pattern_embeddings = np.load(
+                            str(cache_file), allow_pickle=False
+                        )
                         logger.info(f"Loaded {len(self.patterns)} pattern embeddings from cache")
                         return
             except Exception as e:
@@ -273,24 +262,23 @@ class HybridRetriever:
             self.pattern_embeddings = None
 
     def _save_embeddings(self):
-        """Save embeddings to cache."""
+        """Save embeddings to cache using numpy (no pickle)."""
         if self.pattern_embeddings is None:
             return
 
-        cache_file = self.cache_dir / "embeddings.pkl"
-        cache_meta_file = self.cache_dir / "embeddings_meta.pkl"
+        cache_file = self.cache_dir / "embeddings.npy"
+        cache_meta_file = self.cache_dir / "embeddings_meta.json"
 
         try:
-            with open(cache_file, "wb") as f:
-                pickle.dump(self.pattern_embeddings, f)
+            np.save(str(cache_file), self.pattern_embeddings, allow_pickle=False)
 
             meta = {
                 "pattern_count": len(self.patterns),
                 "pattern_ids": [p.id for p in self.patterns],
                 "embedding_dimension": self.embedding_dimension,
             }
-            with open(cache_meta_file, "wb") as f:
-                pickle.dump(meta, f)
+            with open(cache_meta_file, "w") as f:
+                json.dump(meta, f)
 
             logger.info(f"Saved embeddings to cache: {cache_file}")
         except Exception as e:

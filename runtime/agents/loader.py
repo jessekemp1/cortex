@@ -17,6 +17,10 @@ from cortex.runtime.models import AgentResult
 logger = structlog.get_logger()
 
 
+class SecurityError(Exception):
+    """Raised when a dynamic agent script fails security validation."""
+
+
 class DynamicAgent(BaseAgent):
     """An agent loaded dynamically from a JSON definition.
 
@@ -50,21 +54,77 @@ class DynamicAgent(BaseAgent):
         # Pre-compile the script to validate syntax and get the 'run' function
         self._compile_script()
 
+    # Modules allowed in dynamic agent scripts (import whitelist).
+    _ALLOWED_IMPORTS = frozenset({
+        "json", "re", "os", "os.path", "pathlib", "datetime",
+        "collections", "itertools", "functools", "math", "hashlib",
+        "logging", "typing", "dataclasses", "textwrap", "copy",
+    })
+
     def _compile_script(self):
-        """Compiles the embedded script and extracts the run function."""
+        """Compile and validate the embedded script, then extract run().
+
+        Security: validates AST before execution to reject dangerous
+        constructs (unrestricted imports, exec/eval, attribute access
+        to dunder methods).
+        """
+        import ast as _ast
+
         try:
-            # Create a restricted namespace
-            namespace: Dict[str, Any] = {}
-            exec(self.script_code, namespace)
-
-            if "run" not in namespace:
-                raise ValueError("Dynamic agent script must define a 'run(context)' function.")
-
-            self._compiled_run = namespace["run"]
-
-        except Exception as e:
-            logger.error("dynamic_agent_compile_failed", agent_id=self.agent_id, error=str(e))
+            tree = _ast.parse(self.script_code, filename=f"<agent:{self.agent_id}>")
+        except SyntaxError as e:
+            logger.error("dynamic_agent_syntax_error", agent_id=self.agent_id, error=str(e))
             raise
+
+        # Walk AST to reject dangerous constructs
+        for node in _ast.walk(tree):
+            # Block exec() / eval() / __import__()
+            if isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name):
+                if node.func.id in ("exec", "eval", "__import__", "compile"):
+                    raise SecurityError(
+                        f"Agent {self.agent_id}: forbidden call to {node.func.id}()"
+                    )
+            # Block dunder attribute access (e.g., __class__, __subclasses__)
+            if isinstance(node, _ast.Attribute) and node.attr.startswith("__"):
+                raise SecurityError(
+                    f"Agent {self.agent_id}: forbidden dunder access .{node.attr}"
+                )
+            # Whitelist imports
+            if isinstance(node, (_ast.Import, _ast.ImportFrom)):
+                modules = (
+                    [alias.name for alias in node.names]
+                    if isinstance(node, _ast.Import)
+                    else [node.module or ""]
+                )
+                for mod in modules:
+                    top = mod.split(".")[0]
+                    if top and top not in self._ALLOWED_IMPORTS:
+                        raise SecurityError(
+                            f"Agent {self.agent_id}: import of '{mod}' not in whitelist"
+                        )
+
+        # AST passed — compile and execute in restricted namespace
+        code = compile(tree, filename=f"<agent:{self.agent_id}>", mode="exec")
+        namespace: Dict[str, Any] = {"__builtins__": {
+            # Minimal safe builtins
+            "True": True, "False": False, "None": None,
+            "int": int, "float": float, "str": str, "bool": bool,
+            "list": list, "dict": dict, "tuple": tuple, "set": set,
+            "len": len, "range": range, "enumerate": enumerate,
+            "zip": zip, "map": map, "filter": filter, "sorted": sorted,
+            "min": min, "max": max, "sum": sum, "abs": abs, "round": round,
+            "isinstance": isinstance, "hasattr": hasattr, "getattr": getattr,
+            "print": print, "repr": repr, "type": type,
+            "ValueError": ValueError, "TypeError": TypeError,
+            "KeyError": KeyError, "RuntimeError": RuntimeError,
+            "__import__": __import__,  # needed for import statements
+        }}
+        exec(code, namespace)  # noqa: S102 — AST-validated above
+
+        if "run" not in namespace:
+            raise ValueError("Dynamic agent script must define a 'run(context)' function.")
+
+        self._compiled_run = namespace["run"]
 
     def execute(self, context: Dict[str, Any]) -> AgentResult:
         """Executes the dynamic script.

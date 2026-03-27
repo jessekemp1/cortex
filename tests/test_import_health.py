@@ -35,9 +35,6 @@ NEEDS_OPTIONAL = {
     "runtime.scheduler": "apscheduler",
     "mcp_server": "mcp",
     "api.bridge_endpoint": "fastapi",
-    "cortexdbx.notebooks.01_generate_synthetic_data": "dbutils",
-    "cortexdbx.notebooks.02_run_calibration": "dbutils",
-    "cortexdbx.notebooks.03_run_recommendations": "dbutils",
 }
 
 # Modules in deprecated/demo dirs that have stale internal imports — skip entirely

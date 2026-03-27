@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -49,7 +50,7 @@ class SnapshotRing:
 
     def snapshot(self, files: List[str], reason: str) -> SnapshotInfo:
         """Create a snapshot of the specified files."""
-        snap_id = f"snap_{int(time.time() * 1000)}"
+        snap_id = f"snap_{int(time.time() * 1000)}_{uuid.uuid4().hex[:6]}"
         file_hashes: Dict[str, str] = {}
         snapshotted_files: List[str] = []
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -191,8 +192,8 @@ class WorkflowRunner:
         start = time.monotonic()
         try:
             proc = subprocess.run(
-                step.command,
-                shell=True,
+                ["/bin/bash", "-c", step.command],
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=step.timeout,
@@ -297,7 +298,7 @@ class WorkflowRunner:
           - not steps.<id>.success  → negation
           - steps.<id>.success and steps.<id2>.success  → conjunction
         """
-        # Build a safe evaluation namespace
+        # Build a flat lookup of step results for safe condition evaluation.
         steps_ns: Dict[str, Any] = {}
         for sid, result in self._results.items():
             steps_ns[sid] = {
@@ -306,22 +307,66 @@ class WorkflowRunner:
                 "output": result.output[:200],
             }
 
-        # Wrap in a namespace object for dot access
-        class _NS:
-            def __init__(self, data: dict):
-                for k, v in data.items():
-                    if isinstance(v, dict):
-                        setattr(self, k, _NS(v))
-                    else:
-                        setattr(self, k, v)
-
-        namespace = {"steps": _NS(steps_ns)}
-
         try:
-            return bool(eval(condition, {"__builtins__": {}}, namespace))  # noqa: S307
+            return self._safe_eval_condition(condition, steps_ns)
         except Exception as e:
             logger.warning("Condition evaluation failed for '%s': %s", condition, e)
             return False
+
+    @staticmethod
+    def _safe_eval_condition(condition: str, steps: Dict[str, Any]) -> bool:
+        """Evaluate a workflow condition without eval().
+
+        Supports patterns like:
+            steps.build.success == True
+            steps.build.exit_code == 0
+            steps.test.success
+        """
+        import re as _re
+
+        condition = condition.strip()
+
+        # Pattern: steps.<step_id>.<field> [== <value>]
+        m = _re.match(
+            r"^steps\.([a-zA-Z_]\w*)\.(\w+)"
+            r"(?:\s*(==|!=)\s*(True|False|None|\d+))?\s*$",
+            condition,
+        )
+        if not m:
+            logger.warning("Unsupported condition syntax: %s", condition)
+            return False
+
+        step_id, field, op, rhs_str = m.groups()
+
+        step = steps.get(step_id)
+        if step is None:
+            logger.warning("Unknown step '%s' in condition", step_id)
+            return False
+
+        lhs = step.get(field)
+        if lhs is None:
+            return False
+
+        # Bare accessor: `steps.build.success` — truthy check
+        if op is None:
+            return bool(lhs)
+
+        # Parse right-hand side
+        rhs: Any
+        if rhs_str == "True":
+            rhs = True
+        elif rhs_str == "False":
+            rhs = False
+        elif rhs_str == "None":
+            rhs = None
+        else:
+            rhs = int(rhs_str)
+
+        if op == "==":
+            return lhs == rhs
+        if op == "!=":
+            return lhs != rhs
+        return False
 
     def _persist_result(self, result: WorkflowResult) -> None:
         """Write workflow result to disk for the supervisor to find."""

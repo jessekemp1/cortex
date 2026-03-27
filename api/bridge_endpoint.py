@@ -28,12 +28,54 @@ cortex_root = Path(__file__).parent.parent
 sys.path.insert(0, str(cortex_root.parent))
 
 try:
-    from fastapi import FastAPI, HTTPException, Query, Request
+    from fastapi import Depends, FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
     from pydantic import BaseModel, Field
 except ImportError:
     print("ERROR: FastAPI not installed. Run: pip install fastapi uvicorn")
     sys.exit(1)
+
+
+# ============================================================================
+# Authentication
+# ============================================================================
+
+_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _get_api_key_from_config() -> Optional[str]:
+    """Read configured API key from env or ~/.cortex/api_key."""
+    key = os.environ.get("CORTEX_API_KEY")
+    if key:
+        return key
+    key_file = Path.home() / ".cortex" / "api_key"
+    if key_file.is_file():
+        return key_file.read_text().strip() or None
+    return None
+
+
+async def require_auth(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> None:
+    """FastAPI dependency that enforces bearer-token auth on all protected routes.
+
+    Policy:
+      - If CORTEX_API_KEY is configured: require matching Bearer token.
+      - If no key configured: allow localhost-only (127.0.0.1 / ::1).
+    """
+    api_key = _get_api_key_from_config()
+    if api_key:
+        if credentials is None or credentials.credentials != api_key:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    else:
+        client_host = request.client.host if request.client else None
+        if client_host not in ("127.0.0.1", "::1", "localhost"):
+            raise HTTPException(
+                status_code=401,
+                detail="No API key configured; only localhost access allowed",
+            )
 
 try:
     from cortex.bridge import CortexBridge
@@ -145,6 +187,7 @@ app = FastAPI(
     title="Cortex Bridge API",
     description="RESTful API for Cortex intelligence and orchestration",
     version="1.0.0",
+    dependencies=[Depends(require_auth)],
 )
 
 # CORS - Allow Moltbot, React frontend, and localhost
@@ -198,9 +241,9 @@ def get_anomaly_manager() -> OrchestrationAnomalyManager:
 # ============================================================================
 
 
-@app.get("/", response_model=Dict[str, str])
+@app.get("/", response_model=Dict[str, str], dependencies=[])
 async def root():
-    """Root endpoint - API info."""
+    """Root endpoint - API info (no auth required)."""
     return {
         "service": "Cortex Bridge API",
         "version": "1.0.0",
@@ -209,13 +252,13 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get("/health", dependencies=[])
 async def health():
-    """Health check endpoint."""
+    """Health check endpoint (no auth required)."""
     return {"status": "healthy", "service": "cortex-bridge-api"}
 
 
-@app.get("/service-health")
+@app.get("/service-health", dependencies=[])
 async def service_health():
     """
     Check health of all ecosystem services.
@@ -1599,42 +1642,6 @@ async def guardian_recover(req: GuardianRecoverRequest) -> Dict[str, Any]:
 # ============================================================================
 
 
-def _get_api_key() -> Optional[str]:
-    """Read configured API key from env or ~/.cortex/api_key."""
-    key = os.environ.get("CORTEX_API_KEY")
-    if key:
-        return key
-    key_file = Path.home() / ".cortex" / "api_key"
-    if key_file.is_file():
-        return key_file.read_text().strip() or None
-    return None
-
-
-def _verify_signal_auth(request: "Request") -> None:
-    """Verify caller is authorised to inject signals.
-
-    Policy:
-      - If CORTEX_API_KEY (env or file) is set, require Bearer token match.
-      - If no key configured, allow localhost-only (127.0.0.1 / ::1).
-    Raises HTTPException(401) on failure.
-    """
-    api_key = _get_api_key()
-    if api_key:
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing Bearer token")
-        if auth_header[7:] != api_key:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    else:
-        # No key configured — restrict to localhost
-        client_host = request.client.host if request.client else None
-        if client_host not in ("127.0.0.1", "::1", "localhost"):
-            raise HTTPException(
-                status_code=401,
-                detail="No API key configured; only localhost access allowed",
-            )
-
-
 class SignalAbsorbRequest(BaseModel):
     """Request model for absorbing a workspace signal via HTTP."""
 
@@ -1679,7 +1686,7 @@ async def absorb_signal(request: Request, payload: SignalAbsorbRequest) -> Dict[
         {"source": "iterm", "project": "vortex", "content_type": "insight",
          "content": "HRRR wins wind_speed at all lead times today"}
     """
-    _verify_signal_auth(request)
+    # Auth is handled by app-level require_auth dependency
     try:
         from cortex.engines.workstream_orchestrator import (
             SignalSource,

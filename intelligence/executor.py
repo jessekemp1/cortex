@@ -453,13 +453,12 @@ Output ONLY the JSON, no other text."""
 
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                ["/bin/bash", "-c", command],
+                shell=False,
                 cwd=working_dir,
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
-                executable="/bin/bash",  # Required for source command
             )
 
             step.output = result.stdout
@@ -655,13 +654,12 @@ Output ONLY the JSON, no other text."""
 
         try:
             test_result = subprocess.run(
-                test_command,
-                shell=True,
+                ["/bin/bash", "-c", test_command],
+                shell=False,
                 cwd=working_dir,
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minute timeout for tests
-                executable="/bin/bash",  # Required for source command
             )
 
             result.test_output = test_result.stdout + test_result.stderr

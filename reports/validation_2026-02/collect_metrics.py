@@ -15,8 +15,9 @@ METRICS_FILE = REPORT_DIR / "metrics_snapshots.json"
 
 def run_command(cmd):
     """Run shell command and return output."""
+    import shlex
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(shlex.split(cmd), shell=False, capture_output=True, text=True, timeout=30)
         return result.stdout.strip()
     except Exception as e:
         return f"ERROR: {e}"
