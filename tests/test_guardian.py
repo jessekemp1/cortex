@@ -253,11 +253,6 @@ class TestProjectRouter:
         info = router.resolve(str(root / "cortex/guardian/claims.py"))
         assert info.name == "cortex"
 
-    def test_router_resolves_winfield(self, router: ProjectRouter) -> None:
-        root = router.REPO_ROOT
-        info = router.resolve(str(root / "Vortex/Winfield/scripts/blend.py"))
-        assert info.name == "winfield"
-
 
 # ---------------------------------------------------------------------------
 # Integration Tests

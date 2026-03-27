@@ -29,7 +29,6 @@ class PRDescription:
 PROJECT_MAP = {
     "Vortex/backend": "Vortex Backend",
     "Vortex/VortexV3": "VortexV3",
-    "Vortex/Winfield": "Winfield",
     "cortex": "Cortex",
     "alpha_arena": "Alpha Arena",
 }
@@ -174,7 +173,6 @@ def generate_test_plan(projects: list[str], files: list[str]) -> list[str]:
     test_commands = {
         "Vortex Backend": "pytest Vortex/backend/tests/ -v",
         "VortexV3": "cd Vortex/VortexV3 && npm test",
-        "Winfield": "pytest Vortex/Winfield/tests/ -v",
         "Cortex": "pytest cortex/tests/ -v",
         "Alpha Arena": "pytest alpha_arena/tests/ -v",
     }

@@ -25,7 +25,6 @@ SHELL_HOOKS = r"""
 # Auto-detect project from cwd
 _cortex_detect_project() {
     case "$PWD" in
-        */Vortex/Winfield*) echo "winfield" ;;
         */Vortex*)          echo "vortex" ;;
         */alpha_arena*)     echo "alpha_arena" ;;
         */cortex*)          echo "cortex" ;;

@@ -58,16 +58,6 @@ class ProjectRouter:
             ],
         ),
         ProjectInfo(
-            name="winfield",
-            display_name="Winfield",
-            root="Vortex/Winfield",
-            test_dir="Vortex/Winfield/tests",
-            rules=[
-                "Port 8002 only",
-                "NDBC stations: 9/13 responding (Great Lakes offline)",
-            ],
-        ),
-        ProjectInfo(
             name="cortex",
             display_name="Cortex",
             root="cortex",

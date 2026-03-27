@@ -25,29 +25,26 @@ VELOCITY_LOG = Path.home() / ".cortex" / "metrics" / "goal_velocity.jsonl"
 # Project prefix → goal keyword mapping
 # Update when GOALS.md goals change
 PROJECT_TO_GOAL: dict[str, str] = {
-    "cortex":           "Cortex Orchestration Platform",
-    "vortex-backend":   "Vortex Production Readiness",
-    "vortex-frontend":  "Vortex Production Readiness",
-    "winfield":         "Winfield Marine Nowcasting Engine",
-    "alpha_arena":      "Alpha Arena Strategy Refinement",
-    "alpha-arena":      "Alpha Arena Strategy Refinement",
-    "pupil":            "Pupil Prediction",
-    "emos":             "Vortex Production Readiness",
-    "nowcast":          "Winfield Marine Nowcasting Engine",
-    "grib":             "Vortex Production Readiness",
-    "blend":            "Winfield Marine Nowcasting Engine",
-    "arena":            "Alpha Arena Strategy Refinement",
+    "cortex": "Cortex Orchestration Platform",
+    "vortex-backend": "Vortex Production Readiness",
+    "vortex-frontend": "Vortex Production Readiness",
+    "alpha_arena": "Alpha Arena Strategy Refinement",
+    "alpha-arena": "Alpha Arena Strategy Refinement",
+    "pupil": "Pupil Prediction",
+    "emos": "Vortex Production Readiness",
+    "nowcast": "Vortex Production Readiness",
+    "grib": "Vortex Production Readiness",
+    "arena": "Alpha Arena Strategy Refinement",
 }
 
 # Project directory prefixes
 DIR_TO_PROJECT: dict[str, str] = {
-    "Vortex/backend/":   "vortex-backend",
-    "Vortex/frontend/":  "vortex-frontend",
-    "Vortex/Winfield/":  "winfield",
-    "alpha_arena/":      "alpha_arena",
-    "cortex/":           "cortex",
-    "pupil/":            "pupil",
-    "scripts/":          "scripts",
+    "Vortex/backend/": "vortex-backend",
+    "Vortex/frontend/": "vortex-frontend",
+    "alpha_arena/": "alpha_arena",
+    "cortex/": "cortex",
+    "pupil/": "pupil",
+    "scripts/": "scripts",
 }
 
 

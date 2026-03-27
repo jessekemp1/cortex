@@ -5,7 +5,6 @@ Overnight Queue — Fills the batch queue with recurring 24/7 jobs.
 Run nightly (e.g., midnight) to enqueue jobs that keep the system healthy:
 - Cross-project test validation
 - EMOS pair count monitoring
-- Winfield accuracy tracking
 - Cortex self-diagnostics (outcome counts, memory stats, graph growth)
 
 Usage:
@@ -39,7 +38,6 @@ def test_validation_jobs() -> List[LocalJob]:
     # (display_name, project_key, test_dir)
     suites = [
         ("Vortex Backend", "vortex_backend", "Vortex/backend/tests"),
-        ("Winfield", "winfield", "Vortex/Winfield/tests"),
         ("Alpha Arena", "alpha_arena", "alpha_arena/tests"),
         ("Cortex", "cortex", "cortex/tests"),
         ("Pupil", "pupil", "pupil/tests"),
@@ -117,26 +115,12 @@ def cortex_diagnostics_job() -> LocalJob:
     )
 
 
-def winfield_accuracy_job() -> LocalJob:
-    """Winfield accuracy snapshot — capture current blend performance."""
-    return LocalJob(
-        description="Winfield accuracy snapshot",
-        command="python3 -c \"import requests; r = requests.get('http://localhost:8002/health', timeout=3); print(r.json())\" 2>/dev/null || echo 'Winfield not running'",
-        task_type="monitoring",
-        working_dir=WORKSPACE,
-        priority="low",
-        timeout_seconds=10,
-        metadata={"project": "Winfield", "recurring": True},
-    )
-
-
 def build_overnight_queue() -> List[LocalJob]:
     """Build the full overnight job queue."""
     jobs = []
     jobs.extend(test_validation_jobs())
     jobs.append(emos_monitoring_job())
     jobs.append(cortex_diagnostics_job())
-    jobs.append(winfield_accuracy_job())
     return jobs
 
 

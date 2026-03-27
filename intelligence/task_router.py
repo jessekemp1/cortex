@@ -9,7 +9,7 @@ Used by /foresight to score batch job candidates and decide:
 - skip: Low value, don't queue
 
 State features:
-  project    — vortex, cortex, alpha_arena, winfield, other
+  project    — vortex, cortex, alpha_arena, other
   task_type  — bug_fix, feature, investigation, validation, optimization, other
   time_slot  — morning (6-12), afternoon (12-18), evening (18-24), night (0-6)
   priority   — A, B, C
@@ -41,7 +41,7 @@ Q_TABLE_FILE = CORTEX_DIR / "q_table.json"
 OUTCOMES_FILE = CORTEX_DIR / "outcomes.jsonl"
 
 # State discretization
-PROJECTS = ["vortex", "cortex", "alpha_arena", "winfield", "other"]
+PROJECTS = ["vortex", "cortex", "alpha_arena", "other"]
 TASK_TYPES = ["bug_fix", "feature", "investigation", "validation", "optimization", "other"]
 TIME_SLOTS = ["morning", "afternoon", "evening", "night"]
 PRIORITIES = ["A", "B", "C"]
@@ -152,8 +152,6 @@ class TaskRouter:
             return "cortex"
         elif "alpha" in ctx or "arena" in ctx or "trading" in ctx:
             return "alpha_arena"
-        elif "winfield" in ctx or "nowcast" in ctx or "ndbc" in ctx:
-            return "winfield"
         return "other"
 
     def _classify_task(self, rec_type: str, title: str = "") -> str:

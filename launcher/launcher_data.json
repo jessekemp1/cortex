@@ -114,11 +114,6 @@
       "command": "Python",
       "status": "running"
     },
-    "8002": {
-      "pid": 27026,
-      "command": "Python",
-      "status": "running"
-    },
     "8000": {
       "pid": 29634,
       "command": "Python",
