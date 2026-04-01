@@ -16,7 +16,6 @@ const SERVICE_META: Record<string, { label: string; url?: string; description: s
   bridge: { label: 'Cortex Bridge', description: 'REST API + intelligence layer', url: 'http://localhost:8765' },
   vortex_backend: { label: 'Vortex Backend', description: 'Weather forecast API', url: 'http://localhost:8000' },
   vortex_frontend: { label: 'Vortex UI', description: 'React forecast dashboard', url: 'http://localhost:5173' },
-  winfield: { label: 'Winfield', description: 'Marine nowcast engine', url: 'http://localhost:8002' },
   alpha_arena: { label: 'Alpha Arena', description: 'Trading strategy dashboard', url: 'http://localhost:8502' },
   cortex_runtime: { label: 'Cortex Runtime', description: 'Agent execution API', url: 'http://localhost:8003' },
   mission_control: { label: 'Mission Control', description: 'This dashboard', url: 'http://localhost:3001' },

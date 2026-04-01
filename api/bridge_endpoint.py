@@ -229,7 +229,7 @@ async def service_health():
     """
     Check health of all ecosystem services.
 
-    Returns status of bridge, Vortex backend, Winfield, and EMOS readiness.
+    Returns status of bridge, Vortex backend, Navigator, and EMOS readiness.
     """
     import urllib.request
 
@@ -250,21 +250,6 @@ async def service_health():
             }
     except Exception:
         services["vortex_backend"] = {"status": "offline", "port": 8000}
-
-    # Check Winfield (:8002)
-    try:
-        req = urllib.request.Request("http://localhost:8002/api/v1/health")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read())
-            services["winfield"] = {
-                "status": "healthy" if data.get("status") == "healthy" else "degraded",
-                "port": 8002,
-                "models": data.get("models_available", 0),
-                "stations": data.get("observation_stations", 0),
-                "version": data.get("version", "unknown"),
-            }
-    except Exception:
-        services["winfield"] = {"status": "offline", "port": 8002}
 
     # Check Navigator (subsystem of Vortex Backend on :8000)
     try:
@@ -1071,7 +1056,6 @@ async def list_projects() -> List[Dict[str, Any]]:
     project_defs = [
         ("Vortex/backend", "Vortex Backend", "Vortex/backend/tests"),
         ("Vortex/frontend", "Vortex Frontend", "Vortex/frontend/src"),
-        ("Vortex/Winfield", "Winfield", "Vortex/Winfield/tests"),
         ("cortex", "Cortex", "cortex/tests"),
         ("alpha_arena", "Alpha Arena", "alpha_arena/tests"),
         ("pupil", "Pupil", "pupil/tests"),
@@ -1992,13 +1976,6 @@ CONDUCTOR_PROJECTS = [
         "path": "alpha_arena",
         "icon": "▲",
         "test_cmd": "pytest alpha_arena/tests/ -v",
-    },
-    {
-        "id": "winfield",
-        "name": "Winfield",
-        "path": "Vortex/Winfield",
-        "icon": "◈",
-        "test_cmd": "pytest Vortex/Winfield/tests/ -v",
     },
     {
         "id": "pupil",

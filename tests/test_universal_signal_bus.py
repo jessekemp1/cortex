@@ -145,8 +145,8 @@ def test_query_does_not_raise_when_offline(tmp_bus):
 
 
 def test_query_includes_project_field(tmp_bus):
-    result = tmp_bus.query("caching strategy", "winfield")
-    assert result["project"] == "winfield"
+    result = tmp_bus.query("caching strategy", "pupil")
+    assert result["project"] == "pupil"
     assert result["tool_source"] == "unknown"  # default
 
 

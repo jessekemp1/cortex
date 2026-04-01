@@ -48,6 +48,5 @@ export const PROJECT_COLORS: Record<string, string> = {
   VortexV2: '#06b6d4',
   VortexV3: '#3B82F6',
   Cortex: '#A855F7',
-  Winfield: '#10B981',
   'Alpha Arena': '#F59E0B',
 }

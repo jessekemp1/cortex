@@ -23,7 +23,6 @@ _CENSUS_PATH = Path.home() / ".cortex" / "test_census.json"
 # Projects to measure, keyed by display name → pytest root path (relative to repo root)
 _PROJECT_TEST_ROOTS: Dict[str, str] = {
     "vortex": "Vortex/backend/tests",
-    "winfield": "Vortex/Winfield/tests",
     "alpha_arena": "alpha_arena/tests",
     "cortex": "cortex/tests",
     "pupil": "Pupil/tests",

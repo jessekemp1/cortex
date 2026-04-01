@@ -105,7 +105,7 @@ def test_augment_counter_arguments_nonempty(offline_engine):
 
 
 def test_augment_related_patterns_list(offline_engine):
-    result = offline_engine.augment("implement caching layer", "winfield")
+    result = offline_engine.augment("implement caching layer", "pupil")
     assert isinstance(result.related_patterns, list)
 
 
@@ -181,7 +181,7 @@ def test_multiple_augmentations_appended(tmp_path, monkeypatch):
     eng = AugmentationEngine(bridge_url="http://127.0.0.1:19999")
     eng.augment("idea A", "vortex")
     eng.augment("idea B", "cortex")
-    eng.augment("idea C", "winfield")
+    eng.augment("idea C", "pupil")
 
     with open(log_path) as f:
         lines = f.readlines()

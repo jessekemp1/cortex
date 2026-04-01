@@ -20,7 +20,7 @@ def _sample_briefing() -> BriefingData:
         active_projects=["vortex-backend", "cortex", "alpha_arena"],
         recent_commits_24h=21,
         total_commits_7d=133,
-        blockers=[{"project": "Winfield", "blocker": "Missing .env file"}],
+        blockers=[{"project": "Pupil", "blocker": "Missing .env file"}],
         priority_actions=[
             {
                 "priority": "HIGH",

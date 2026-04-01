@@ -97,7 +97,6 @@ def _infer_project(text: str, section_header: str = "") -> str:
     projects = [
         "vortex",
         "cortex",
-        "winfield",
         "pupil",
         "alpha_arena",
         "dj-copilot",

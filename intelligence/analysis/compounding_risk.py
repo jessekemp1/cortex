@@ -322,7 +322,6 @@ class CompoundingRiskAssessor:
             "cortex": 842,
             "alpha-arena": 519,
             "pupil": 1255,
-            "winfield": 409,
         }
         if self.METRICS_FILE.exists():
             try:

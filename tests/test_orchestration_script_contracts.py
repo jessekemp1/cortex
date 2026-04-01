@@ -34,5 +34,4 @@ def test_macro_test_uses_strict_probe_contract() -> None:
     body = _read("scripts/codex/macro-test.sh")
     assert 'code="$(curl' in body
     assert "probe_any" in body
-    assert "winfield-health" in body
     assert 'expect="${2:-}"' in body

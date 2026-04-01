@@ -82,7 +82,7 @@ def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
 
 @mcp.tool()
 def cortex_service_health() -> str:
-    """Get ecosystem health: bridge, Vortex, Winfield, Mission Control, test results, and EMOS pair counts."""
+    """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts."""
     result = _bridge_get("/service-health")
     return json.dumps(result, indent=2)
 

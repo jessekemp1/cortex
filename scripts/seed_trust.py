@@ -10,7 +10,6 @@ Domains seeded (from historical project outcomes):
   vortex-backend  45 outcomes, 91% success → L2 (TRUST_BUT_VERIFY)
   vortex-frontend 30 outcomes, 87% success → L2
   cortex          60 outcomes, 95% success → L3 (AUTONOMOUS_WITH_GUARDRAILS)
-  winfield        35 outcomes, 89% success → L2
   alpha_arena     15 outcomes, 80% success → L1 (SPOT_CHECK)
   pupil           25 outcomes, 92% success → L2
 
@@ -34,7 +33,6 @@ DOMAIN_SEEDS = {
     "vortex-backend": (45, 41),  # 91%
     "vortex-frontend": (30, 26),  # 87%
     "cortex": (60, 57),  # 95%
-    "winfield": (35, 31),  # 89%
     "alpha_arena": (15, 12),  # 80%
     "pupil": (25, 23),  # 92%
 }

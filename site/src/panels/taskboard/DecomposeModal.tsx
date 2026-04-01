@@ -6,7 +6,7 @@ interface DecomposeModalProps {
   onClose: () => void
 }
 
-const PROJECTS = ['VortexV2', 'VortexV3', 'Cortex', 'Winfield', 'Alpha Arena']
+const PROJECTS = ['VortexV2', 'VortexV3', 'Cortex', 'Alpha Arena', 'Pupil']
 
 export function DecomposeModal({ onClose }: DecomposeModalProps) {
   const [description, setDescription] = useState('')

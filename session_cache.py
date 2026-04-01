@@ -199,7 +199,6 @@ def build_fast_session_context() -> Dict:
             project_map = {
                 "Vortex/backend/": "Vortex Backend",
                 "Vortex/frontend/": "Vortex Frontend",
-                "Vortex/Winfield/": "Winfield",
                 "alpha_arena/": "Alpha Arena",
                 "cortex/": "Cortex",
                 "DJ-CoPilot/": "DJ-CoPilot",
