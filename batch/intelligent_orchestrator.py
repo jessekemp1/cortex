@@ -21,9 +21,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# Ensure parent directory is on path so "from batch.xxx import ..." works
+# Ensure repo root and cortex/ are on path so "from cortex.X import Y" works
 # when this script is run directly (e.g., by launchd)
+_repo_root = str(Path(__file__).resolve().parent.parent.parent)
 _cortex_root = str(Path(__file__).resolve().parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
 if _cortex_root not in sys.path:
     sys.path.insert(0, _cortex_root)
 
@@ -138,9 +141,42 @@ class IntelligentBatchOrchestrator:
                     return numbers[0]
         return 0
 
+    def _generate_goals_work_items(self) -> List["BatchWorkItem"]:
+        """Generate work items from pending GOALS.md This Week tasks."""
+        goals_file = Path("/Users/jesse.kemp/Dev/GOALS.md")
+        if not goals_file.exists():
+            return []
+
+        text = goals_file.read_text()
+
+        import re
+
+        week_match = re.search(r"### This Week.*?(?=###|\Z)", text, re.DOTALL)
+        section = week_match.group(0) if week_match else text
+
+        pending = re.findall(r"- \[ \] (.+)", section)
+
+        items = []
+        for task in pending[:6]:
+            slug = re.sub(r"[^a-z0-9]+", "-", task.lower())[:40]
+            items.append(
+                BatchWorkItem(
+                    id=f"goal-{slug}",
+                    title=task[:60],
+                    description=task,
+                    prompt=f"Analyze this pending work item and identify blockers, dependencies, risks, and concrete first steps.\n\nTask: {task}\n\nProvide actionable output in under 500 words.",
+                    priority="high",
+                    estimated_input_tokens=8000,
+                    estimated_output_tokens=2000,
+                    source="goal",
+                    deadline_hours=12,
+                )
+            )
+        return items
+
     def generate_work_items(self) -> List[BatchWorkItem]:
         """Generate batch work items from Cortex intelligence"""
-        work_items = []
+        work_items = list(self._generate_goals_work_items())
         state = self.analyze_cortex_state()
 
         # 1. Security & Vulnerability Scans (Critical)

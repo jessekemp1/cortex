@@ -228,6 +228,51 @@ class SpecKnowledgeBase:
 
         return spec_id
 
+    def index_text(
+        self, text: str, title: str, project: str, domain: str = "general", doc_id: str = ""
+    ) -> str:
+        """Index arbitrary text content (no file required)."""
+        word_count = len(text.split())
+        embedding = self._generate_embedding(text)
+
+        spec_id = (
+            doc_id
+            or f"{project}_{title.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+
+        self.collection.upsert(
+            ids=[spec_id],
+            embeddings=[embedding],
+            documents=[text[:1000]],
+            metadatas=[{"project": project, "domain": domain, "title": title, "path": ""}],
+        )
+
+        content_hash = hashlib.sha256(text.encode()).hexdigest()
+        now = datetime.now().isoformat()
+        conn = sqlite3.connect(self.metadata_db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            """INSERT OR REPLACE INTO specs
+               (spec_id, title, project, domain, file_path, created_at, indexed_at, content_hash, word_count, key_concepts)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                spec_id,
+                title,
+                project,
+                domain,
+                "",
+                now,
+                now,
+                content_hash,
+                word_count,
+                json.dumps([]),
+            ),
+        )
+        conn.commit()
+        conn.close()
+        self._save_embedding_cache()
+        return spec_id
+
     def find_similar(
         self,
         query_text: str,

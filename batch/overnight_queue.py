@@ -119,7 +119,6 @@ def build_overnight_queue() -> List[LocalJob]:
     """Build the full overnight job queue."""
     jobs = []
     jobs.extend(test_validation_jobs())
-    jobs.append(emos_monitoring_job())
     jobs.append(cortex_diagnostics_job())
     return jobs
 
