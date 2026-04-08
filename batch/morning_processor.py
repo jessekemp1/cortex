@@ -574,6 +574,41 @@ def main():
     else:
         print("  No overnight batch results found")
 
+    # Phase 3: Seed intelligence layer from overnight results
+    print("\n--- Intelligence Seeding ---")
+    try:
+        import sys as _sys
+
+        _sys.path.insert(0, str(Path.home() / "Dev"))
+        _sys.path.insert(0, str(Path.home() / "Dev" / "cortex"))
+        from cortex.intelligence.spec_knowledge_base import SpecKnowledgeBase
+        from cortex.portfolio_memory import PortfolioMemory
+
+        kb = SpecKnowledgeBase()
+        before = kb.collection.count()
+
+        # Import seeder functions
+        _script = Path.home() / "Dev" / "cortex" / "scripts" / "seed_intelligence.py"
+        import importlib.util as _ilu
+
+        _spec = _ilu.spec_from_file_location("seed_intelligence", _script)
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+
+        projects = ["cortex", "Vortex/backend", "Vortex/frontend", "alpha_arena", "pupil"]
+        n1 = _mod.seed_from_outcomes(kb)
+        n2 = _mod.seed_from_git(kb, projects)
+        n3 = _mod.seed_from_goals(kb)
+        after = kb.collection.count()
+        print(f"  SpecKnowledgeBase: {before} -> {after} docs (+{after - before})")
+        print(f"  Indexed: {n1} outcomes, {n2} git histories, {n3} goals")
+
+        portfolio = PortfolioMemory()
+        n4 = _mod.seed_portfolio_memory(portfolio, projects)
+        print(f"  PortfolioMemory: seeded {n4} projects")
+    except Exception as _e:
+        print(f"  Intelligence seeding failed (non-fatal): {_e}")
+
     print("\nMorning processing complete!")
 
 
