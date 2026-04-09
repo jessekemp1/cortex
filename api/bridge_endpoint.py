@@ -755,27 +755,56 @@ async def get_anomalies(
                 if getattr(a.anomaly_type, "value", a.anomaly_type) == anomaly_type
             ]
 
-        return {
-            "count": len(anomalies),
-            "anomalies": [
-                {
-                    "id": a.anomaly_id,
-                    "type": getattr(a.anomaly_type, "value", str(a.anomaly_type)),
-                    "severity": getattr(a.severity, "value", str(a.severity)),
-                    "title": a.title,
-                    "description": a.description,
-                    "recommendation": a.remediation,
-                    "detected_at": (
-                        a.detected_at.isoformat()
-                        if hasattr(a.detected_at, "isoformat")
-                        else str(a.detected_at)
-                        if a.detected_at
-                        else None
-                    ),
-                }
-                for a in anomalies
-            ],
-        }
+        serialized = [
+            {
+                "id": a.anomaly_id,
+                "type": getattr(a.anomaly_type, "value", str(a.anomaly_type)),
+                "severity": getattr(a.severity, "value", str(a.severity)),
+                "title": a.title,
+                "description": a.description,
+                "recommendation": a.remediation,
+                "detected_at": (
+                    a.detected_at.isoformat()
+                    if hasattr(a.detected_at, "isoformat")
+                    else str(a.detected_at)
+                    if a.detected_at
+                    else None
+                ),
+                "source": "anomaly_manager",
+            }
+            for a in anomalies
+        ]
+
+        # Merge proactive ActionBroker interventions
+        try:
+            from engines.broker import ActionBroker
+
+            broker = ActionBroker()
+            for i in broker.get_pending():
+                sev = getattr(i.severity, "value", str(i.severity))
+                itype = getattr(i.type, "value", str(i.type))
+                if severity and sev.upper() != severity.upper():
+                    continue
+                if anomaly_type and itype != anomaly_type:
+                    continue
+                serialized.append(
+                    {
+                        "id": i.id,
+                        "type": itype,
+                        "severity": sev,
+                        "title": i.title,
+                        "description": i.description,
+                        "recommendation": (
+                            i.suggested_action.title if i.suggested_action else None
+                        ),
+                        "detected_at": i.timestamp.isoformat() if i.timestamp else None,
+                        "source": "action_broker",
+                    }
+                )
+        except (ImportError, Exception):
+            pass  # ActionBroker is optional
+
+        return {"count": len(serialized), "anomalies": serialized}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

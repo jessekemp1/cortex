@@ -312,6 +312,9 @@ def main():
     force = "--force" in sys.argv
     dry_run = "--dry-run" in sys.argv
 
+    # Session rotation runs independently of heartbeat rate limiting
+    _check_session_rotation()
+
     config = _load_config()
 
     if not force and not _should_run():
@@ -345,6 +348,19 @@ def main():
     if not sent and message:
         # Fallback: print to stdout for launchd log capture
         print(message, file=sys.stderr)
+
+
+def _check_session_rotation():
+    """Check if the active claude session needs rotation (age or request threshold)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from session_watcher import check_and_rotate_if_needed
+
+        result = check_and_rotate_if_needed()
+        if result not in ("no_claude_process",) and not result.startswith("ok"):
+            print(f"[heartbeat] session_watcher: {result}", file=sys.stderr)
+    except Exception as e:
+        print(f"[heartbeat] session_watcher error: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":
