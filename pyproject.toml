@@ -70,7 +70,7 @@ Homepage = "https://github.com/jessekemp1/cortex"
 Repository = "https://github.com/jessekemp1/cortex"
 
 [tool.setuptools]
-py-modules = ["cli", "bridge", "orchestrator", "formatter", "briefing", "feedback", "goal_parser", "learning", "mcp_server"]
+py-modules = ["bridge", "orchestrator", "formatter", "briefing", "feedback", "goal_parser", "learning", "mcp_server"]
 
 [tool.setuptools.packages.find]
 exclude = [
