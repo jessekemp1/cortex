@@ -181,21 +181,21 @@ def test_learning_with_real_recommendation():
 
 
 def test_cli_schedule_command():
-    """Test CLI schedule command structure"""
+    """Test CLI schedule command is reachable via the cli/ package entry point."""
     import subprocess
     import sys
 
-    # Test help
+    # Use python -m cli (resolves to cli/__init__:main, the V2 package)
     result = subprocess.run(
-        [sys.executable, "cortex/cli.py", "schedule", "--help"],
+        [sys.executable, "-m", "cli", "schedule", "--help"],
         capture_output=True,
         text=True,
-        cwd=Path(__file__).parent.parent.parent,
+        cwd=Path(__file__).parent.parent,
     )
 
     assert result.returncode == 0
-    assert "schedule" in result.stdout.lower()
-    assert "cron" in result.stdout.lower() or "schedule" in result.stdout.lower()
+    combined = (result.stdout + result.stderr).lower()
+    assert "schedule" in combined
     print("✓ CLI schedule command structure correct")
 
 

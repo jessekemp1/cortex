@@ -184,16 +184,8 @@ def test_integration_with_real_cortex_recommendation():
 
 def test_cli_schedule_command_structure():
     """Test that CLI schedule command structure is correct"""
-    import importlib.util
+    # cmd_schedule lives in cli/commands/batch.py (cli/ package, not cli.py)
+    from cli.commands.batch import cmd_schedule
 
-    cli_spec = importlib.util.spec_from_file_location(
-        "cli", Path(__file__).parent.parent / "cli.py"
-    )
-    cli_module = importlib.util.module_from_spec(cli_spec)
-    cli_spec.loader.exec_module(cli_module)
-
-    # Check cmd_schedule exists
-    assert hasattr(cli_module, "cmd_schedule")
-
-    # Check it's callable
-    assert callable(cli_module.cmd_schedule)
+    assert cmd_schedule is not None
+    assert callable(cmd_schedule)
