@@ -38,16 +38,14 @@ def run_cli_command(cmd_args: list, timeout: int = 60) -> Tuple[str, str, int, f
         Tuple of (stdout, stderr, return_code, execution_time)
     """
     root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
-    # Use the CLI module directly — handle both monorepo root and cortex dir as CWD
-    cortex_script = root_dir / "cortex" / "cli.py"
-    if not cortex_script.exists() and (root_dir / "cli.py").exists():
-        cortex_script = root_dir / "cli.py"
-    cmd = [sys.executable, str(cortex_script), "--root", str(root_dir)] + cmd_args
+    # Use python -m cli (cli/ package) — works regardless of CWD
+    cortex_dir = root_dir / "cortex"
+    cmd = [sys.executable, "-m", "cli", "--root", str(root_dir)] + cmd_args
 
     start_time = time.time()
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, cwd=str(root_dir)
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=str(cortex_dir)
         )
         execution_time = time.time() - start_time
         return result.stdout, result.stderr, result.returncode, execution_time

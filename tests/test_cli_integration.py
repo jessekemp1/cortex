@@ -22,17 +22,17 @@ pytestmark = pytest.mark.skipif(
 
 CORTEX_DIR = str(Path(__file__).parent.parent)
 ROOT_DIR = str(Path(__file__).parent.parent.parent)
-CLI_SCRIPT = str(Path(CORTEX_DIR) / "cli.py")
+CLI_MODULE = "cli"  # python -m cli (uses cli/ package)
 
 
 def run_command(cmd, expect_success=True):
     """Run a CLI command and return result.
 
-    Uses absolute path to cli.py with PYTHONPATH set to cortex/ so
+    Uses python -m cli with PYTHONPATH set to cortex/ so
     module imports (intelligence.*, bridge, etc.) resolve correctly.
     """
-    # Replace bare "python cli.py" with absolute path + explicit --root
-    cmd = cmd.replace("python cli.py", f"{sys.executable} {CLI_SCRIPT} --root {ROOT_DIR}")
+    # Replace bare "python cli.py" with python -m cli + explicit --root
+    cmd = cmd.replace("python cli.py", f"{sys.executable} -m {CLI_MODULE} --root {ROOT_DIR}")
     import os
 
     env = {**os.environ, "PYTHONPATH": CORTEX_DIR}
