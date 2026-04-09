@@ -1,0 +1,11 @@
+{
+  "weights": {
+    "lstm": 0.2612474934036939,
+    "gfs": 0.27913034300791556,
+    "ecmwf_hres": 0.29418047493403693,
+    "hrrr": 0.16544168865435355
+  },
+  "last_updated": "2026-02-17T16:10:34.758463",
+  "performance_history": {},
+  "validation_based": true
+}

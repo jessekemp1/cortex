@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cortex Deep Research Report — April 2026</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--accent); }
+  h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.15rem; margin: 1.5rem 0 0.75rem; color: var(--purple); }
+  h4 { font-size: 1rem; margin: 1rem 0 0.5rem; color: var(--text); }
+  p { margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .subtitle { color: var(--text-muted); font-size: 1rem; margin-bottom: 2rem; }
+  .tldr {
+    background: var(--surface2);
+    border-left: 4px solid var(--accent);
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .tldr strong { color: var(--accent); }
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+  }
+  .verdict.green { border-left: 4px solid var(--accent2); }
+  .verdict.yellow { border-left: 4px solid var(--warning); }
+  .verdict.red { border-left: 4px solid var(--danger); }
+  .verdict.blue { border-left: 4px solid var(--accent); }
+  .verdict.purple { border-left: 4px solid var(--purple); }
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .tag-green { background: rgba(63,185,80,0.15); color: var(--accent2); }
+  .tag-yellow { background: rgba(210,153,34,0.15); color: var(--warning); }
+  .tag-red { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .tag-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:hover { background: var(--surface); }
+  .metric { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .metric-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
+  .section-nav {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 2rem 0;
+  }
+  .section-nav a { margin-right: 1.5rem; font-size: 0.9rem; }
+  .cite { font-size: 0.8rem; color: var(--text-muted); }
+  .cite a { color: var(--text-muted); }
+  .cite a:hover { color: var(--accent); }
+  code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  .gap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+  @media (max-width: 768px) { .gap-grid { grid-template-columns: 1fr; } .metrics-grid { grid-template-columns: 1fr 1fr; } }
+  .priority-high { color: var(--danger); font-weight: 600; }
+  .priority-med { color: var(--warning); font-weight: 600; }
+  .priority-low { color: var(--accent2); font-weight: 600; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Cortex Intelligence Report</h1>
+<p class="subtitle">Deep Research: Agent Memory, Competitive Landscape, Innovation Opportunities &mdash; April 8, 2026</p>
+
+<div class="section-nav">
+  <strong>Jump to:</strong><br style="margin-bottom:0.5rem">
+  <a href="#state">1. State of the Art</a>
+  <a href="#missing">2. Missing Features</a>
+  <a href="#competitive">3. Competitive Landscape</a>
+  <a href="#innovation">4. Innovation Opportunities</a>
+  <a href="#convergence">5. Convergence Platform</a>
+  <a href="#users">6. Target Users</a>
+  <a href="#actions">7. Action Items</a>
+</div>
+
+<!-- EXECUTIVE SUMMARY -->
+<div class="tldr">
+  <strong>Bottom Line:</strong> Cortex has real differentiation in three areas nobody else combines: outcome-aware memory + anti-pattern tracking + multi-provider cost routing. The market is consolidating fast around Mem0 (48K stars, $24M, 186M API calls/quarter) and Letta (stateful agents). Your window to ship is narrowing. The blue ocean isn't "another memory layer" — it's <strong>intelligence optimization infrastructure</strong> that makes agent fleets smarter, cheaper, and more reliable through memory. That's a $500M+ TAM nobody is addressing. Ship the convergence story or get absorbed as a feature.
+</div>
+
+<div class="metrics-grid">
+  <div class="metric-card">
+    <div class="metric">48K</div>
+    <div class="metric-label">Mem0 GitHub Stars</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric">$24M</div>
+    <div class="metric-label">Mem0 Series A</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric">186M</div>
+    <div class="metric-label">Mem0 Q3 API Calls</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric">40%</div>
+    <div class="metric-label">Enterprise Agent Adoption by EOY 2026 (Gartner)</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric">97M+</div>
+    <div class="metric-label">Monthly MCP SDK Downloads</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric">$201B</div>
+    <div class="metric-label">Projected Agent Spend 2026</div>
+  </div>
+</div>
+
+<!-- SECTION 1: STATE OF THE ART -->
+<h2 id="state">1. State of the Art: Agent Memory in 2026</h2>
+
+<p>The field moved from "interesting research" to "production infrastructure" in ~12 months. Here's what matters.</p>
+
+<h3>1.1 Research Landscape (Key Papers)</h3>
+
+<h4>Memory Architecture & Consolidation</h4>
+<p>The dominant research theme is <strong>agentic memory management</strong> — agents that decide what to store, retrieve, compress, and forget using tool-based actions rather than fixed pipelines.</p>
+
+<div class="verdict blue">
+<strong>"Agentic Memory" (arXiv 2601.01885)</strong> — Unified framework exposing memory operations (store, retrieve, update, summarize, discard) as callable tools. This is converging with MCP's tool paradigm. Cortex's MCP server architecture is well-positioned here.
+</div>
+
+<div class="verdict blue">
+<strong>"A-MEM" (arXiv 2502.12110, NeurIPS 2025)</strong> — Zettelkasten-inspired design creating interconnected knowledge networks through dynamic indexing and linking. Significantly outperforms flat vector retrieval on complex multi-hop queries.
+</div>
+
+<div class="verdict blue">
+<strong>"Memory in the Age of AI Agents" (arXiv 2512.13564)</strong> — 46+ co-author survey. Canonical taxonomy: factual, experiential, working memory. Cortex's three-tier model maps cleanly but lacks explicit experiential memory (trajectories).
+</div>
+
+<h4>Graph Memory (Consensus Direction)</h4>
+<p>Graph-based memory is no longer experimental — it's the consensus direction for production systems. Every serious player is moving here.</p>
+
+<div class="verdict yellow">
+<strong>"Zep: Temporal Knowledge Graph" (arXiv 2501.13956)</strong> — Graphiti engine with temporal validity windows on facts. 18.5% accuracy improvement over baselines on temporal reasoning. This is what Cortex's experimental v21/graph.py needs to become.
+</div>
+
+<div class="verdict blue">
+<strong>"MAGMA" (arXiv 2601.03236)</strong> — Multi-graph architecture modeling multiple relational dimensions simultaneously. Goes beyond Cortex's single-graph prototype.
+</div>
+
+<div class="verdict blue">
+<strong>"From Experience to Strategy" (arXiv 2511.07800)</strong> — Abstracts execution trajectories into state machine decision paths with RL-based weight optimization. Directly relevant to Cortex's trajectory-informed memory roadmap.
+</div>
+
+<p class="cite">Additional survey: <a href="https://github.com/DEEP-PolyU/Awesome-GraphMemory">Awesome-GraphMemory</a> curated list</p>
+
+<h4>Reflection & Self-Improvement</h4>
+<p>Multi-agent reflection is proving more effective than single-agent introspection. Key finding: failure-derived heuristics outperform success-derived ones.</p>
+
+<div class="verdict green">
+<strong>"MARS" (arXiv 2503.19271)</strong> — Three-agent reflection framework (User, Assistant, Checker). This maps directly to Cortex's existing reflection.py + learning.py pipeline but adds adversarial validation.
+</div>
+
+<div class="verdict green">
+<strong>"Experiential Reflective Learning" (arXiv 2603.24639, ICLR 2026 MemAgents Workshop)</strong> — Agents that learn from their own execution trajectories. Cortex's outcome-aware retrieval is a primitive form of this.
+</div>
+
+<div class="verdict blue">
+<strong>"MemR3" (arXiv 2512.20237)</strong> — Router selecting between retrieve, reflect, or answer actions with a global evidence-gap tracker. Interesting pattern for Cortex's retrieval pipeline.
+</div>
+
+<h4>Memory Admission Control & Compression</h4>
+
+<div class="verdict green">
+<strong>"A-MAC" (arXiv 2603.04549)</strong> — Already on your roadmap. Decomposes memory value into: future utility, factual confidence, semantic novelty, temporal recency, content type prior. Achieves F1 0.583, 31% latency reduction. <a href="https://github.com/GuilinDev/Adaptive_Memory_Admission_Control_LLM_Agents">GitHub available</a>.
+</div>
+
+<div class="verdict blue">
+<strong>"SimpleMem" (arXiv 2601.02553)</strong> — Semantic lossless compression + online synthesis → 30-fold token reduction with 26.4% F1 improvement. Directly applicable to Cortex's context optimizer.
+</div>
+
+<div class="verdict blue">
+<strong>"LightThinker++" (arXiv 2604.03679)</strong> — Composable memory primitives → 70% peak token reduction, 26% latency improvement.
+</div>
+
+<h4>Learned Retrieval & Agentic RAG</h4>
+
+<div class="verdict yellow">
+<strong>"R3-RAG" (arXiv 2603.18272)</strong> — RL-trained agents that learn <em>when</em> to pause and retrieve (not just what to retrieve). Cortex's hybrid retriever does BM25+embedding fusion but doesn't learn retrieval timing.
+</div>
+
+<div class="verdict blue">
+<strong>"Agentic RAG Survey" (arXiv 2501.09136)</strong> — Comprehensive taxonomy. Traditional RAG is table stakes; agentic RAG (with planning, reflection, tool use) is the new baseline for complex workflows.
+</div>
+
+<h4>Multi-Agent Shared Memory</h4>
+
+<div class="verdict blue">
+<strong>"Multi-Agent Memory from a Computer Architecture Perspective" (arXiv 2603.10062)</strong> — Frames shared memory as a systems problem (consistency, coherence, synchronization). Nobody has solved this well yet.
+</div>
+
+<div class="verdict blue">
+<strong>"Intrinsic Memory Agents" (arXiv 2508.08997)</strong> — Heterogeneous multi-agent systems through structured contextual memory. Relevant to Cortex's multi-project portfolio model.
+</div>
+
+<h3>1.2 Table Stakes for Production Memory (2026)</h3>
+
+<p>If you're shipping a memory system today, you need all of these. Missing any one makes you a toy.</p>
+
+<table>
+  <tr><th>Capability</th><th>Why Table Stakes</th><th>Cortex Status</th></tr>
+  <tr><td>Cross-session persistence</td><td>Baseline expectation</td><td><span class="tag tag-green">Has</span></td></tr>
+  <tr><td>Semantic + keyword retrieval</td><td>BM25+embedding is standard</td><td><span class="tag tag-green">Has</span> BM25+embedding+RRF</td></tr>
+  <tr><td>Multiple memory types</td><td>Short/working/long-term minimum</td><td><span class="tag tag-green">Has</span> Three-tier</td></tr>
+  <tr><td>Sub-300ms retrieval</td><td>Users notice &gt;300ms</td><td><span class="tag tag-yellow">Unclear</span> Needs benchmarking</td></tr>
+  <tr><td>Graph-based relationships</td><td>All leaders shipping this</td><td><span class="tag tag-yellow">Experimental</span> v21/graph.py</td></tr>
+  <tr><td>Temporal reasoning</td><td>Zep proved the value (18.5% lift)</td><td><span class="tag tag-red">Missing</span></td></tr>
+  <tr><td>Memory admission control</td><td>Can't store everything forever</td><td><span class="tag tag-yellow">Planned</span> Phase 2</td></tr>
+  <tr><td>Context compression</td><td>Cost + latency demand it</td><td><span class="tag tag-yellow">Partial</span> Context optimizer exists</td></tr>
+  <tr><td>Framework agnostic</td><td>Teams use multiple frameworks</td><td><span class="tag tag-green">Has</span> MCP-based</td></tr>
+  <tr><td>Observability/tracing</td><td>Production debugging requirement</td><td><span class="tag tag-yellow">Partial</span> JSONL logging</td></tr>
+</table>
+
+<h3>1.3 What Changed Since Your Roadmap Was Written</h3>
+
+<div class="verdict yellow">
+<strong>Anthropic shipped Claude memory to all Pro/Max users.</strong> File-based, per-project, user-editable. It's simple and good enough for casual use. This is the "context windows get big enough" scenario playing out — but it's shallow memory, not learned memory. Cortex's outcome-aware retrieval still differentiates.
+</div>
+
+<div class="verdict yellow">
+<strong>Mem0 raised $24M and hit 186M API calls/quarter.</strong> They're the default "add memory to your agent" solution. Fighting them on their turf (simple memory API) is a losing bet. Cortex must position differently.
+</div>
+
+<div class="verdict green">
+<strong>MCP ecosystem exploded to 97M+ monthly SDK downloads.</strong> Cortex's MCP-first architecture is validated. This is a structural advantage over Mem0's REST-only API model.
+</div>
+
+<div class="verdict blue">
+<strong>"MemOS" concept paper proposes memory as an operating system primitive.</strong> Cortex's conductor + memory + routing architecture is already closer to this than anyone shipping. Lean into it.
+</div>
+
+<!-- SECTION 2: MISSING FEATURES -->
+<h2 id="missing">2. Missing Features: What Cortex Needs</h2>
+
+<p>Ranked by impact and urgency. "Has" means Cortex has a working implementation. "Partial" means design exists but incomplete. "Missing" means nothing built.</p>
+
+<h3>2.1 Critical Gaps (Ship in 30 Days)</h3>
+
+<div class="verdict red">
+<h4><span class="tag tag-red">Missing</span> Temporal Knowledge Graph</h4>
+<p>Cortex stores facts without temporal validity. Zep's Graphiti engine tracks when facts were true and when they changed — this is essential for any enterprise context where information evolves. Your v21/graph.py is a SQLite prototype; it needs temporal edges with valid_at/invalid_at semantics.</p>
+<p><strong>Impact:</strong> Without this, Cortex can't answer "what was the API endpoint last month?" or handle knowledge that changes over time. Every competitor is shipping this.</p>
+<p class="cite">Ref: <a href="https://arxiv.org/abs/2501.13956">Zep paper (arXiv 2501.13956)</a></p>
+</div>
+
+<div class="verdict red">
+<h4><span class="tag tag-red">Missing</span> Trajectory Memory</h4>
+<p>Cortex stores outcomes but not <em>how</em> tasks were solved. The trajectory-informed memory paper (arXiv 2603.10600) shows 14.3% improvement when agents learn from execution paths, not just results. Your roadmap has this for Phase 2 — it should be Phase 1.</p>
+<p><strong>What to store:</strong> Decision points, tool calls made, alternatives considered, context that influenced choices, time spent per step.</p>
+<p class="cite">Ref: <a href="https://arxiv.org/abs/2603.10600">arXiv 2603.10600</a></p>
+</div>
+
+<div class="verdict red">
+<h4><span class="tag tag-red">Missing</span> Adversarial Reflection Loop</h4>
+<p>Cortex's reflection.py synthesizes weekly progress but doesn't challenge its own conclusions. MARS framework (arXiv 2503.19271) adds a "Checker" agent that actively tries to find flaws. Multi-agent reflection improves HotPotQA by 3 points, HumanEval by 6.2 points.</p>
+<p><strong>Concrete implementation:</strong> After reflection synthesis, route the summary through a separate Haiku call that tries to poke holes. Store disagreements as anti-patterns.</p>
+</div>
+
+<h3>2.2 Important Gaps (Ship in 60 Days)</h3>
+
+<div class="verdict yellow">
+<h4><span class="tag tag-yellow">Partial</span> Memory Admission Control</h4>
+<p>On your roadmap but not yet built. A-MAC framework provides the blueprint: score incoming memories on utility × confidence × novelty × recency × type. Cortex currently stores everything and relies on retrieval ranking — this doesn't scale.</p>
+<p><strong>Benchmark target:</strong> A-MAC achieves F1 0.583 and 31% latency reduction. Beat that.</p>
+<p class="cite">Ref: <a href="https://github.com/GuilinDev/Adaptive_Memory_Admission_Control_LLM_Agents">A-MAC GitHub</a></p>
+</div>
+
+<div class="verdict yellow">
+<h4><span class="tag tag-yellow">Partial</span> Learned Retrieval Timing</h4>
+<p>Cortex retrieves when asked. R3-RAG (arXiv 2603.18272) trains agents to learn <em>when</em> retrieval is worth the latency cost. Some queries are better answered from the model's parametric knowledge; others need memory. Cortex should learn which is which.</p>
+</div>
+
+<div class="verdict yellow">
+<h4><span class="tag tag-yellow">Missing</span> Plan Caching</h4>
+<p>Agentic Plan Caching (NeurIPS 2025) extracts reusable plan templates from agent execution, achieving 90% token savings on semantically similar tasks. Cortex's batch API integration saves 50% on cost; plan caching would compound on top of that.</p>
+<p class="cite">Ref: <a href="https://neurips.cc/virtual/2025/poster/116166">NeurIPS 2025 poster</a></p>
+</div>
+
+<div class="verdict yellow">
+<h4><span class="tag tag-yellow">Missing</span> Cross-Agent Knowledge Sharing</h4>
+<p>Cortex handles multi-project memory for a single developer but can't share patterns across users or agent instances. The multi-agent shared memory research (arXiv 2603.10062) outlines consistency and synchronization challenges. Even a simple "pattern export/import" would be a start.</p>
+</div>
+
+<h3>2.3 Strategic Gaps (Ship in 90 Days)</h3>
+
+<div class="verdict blue">
+<h4><span class="tag tag-blue">Missing</span> Causal Retrieval</h4>
+<p>Vector search finds similar memories; causal retrieval finds memories that <em>caused</em> outcomes. HugRAG uses hierarchical causal knowledge graphs; CausalAgent (arXiv 2602.11527) maps action → outcome chains. This is your roadmap Phase 5 — but the research is ready now.</p>
+</div>
+
+<div class="verdict blue">
+<h4><span class="tag tag-blue">Missing</span> Behavioral Anomaly Detection</h4>
+<p>ICML 2025 showed automated failure attribution achieves 53.5% accuracy identifying failure-responsible agents, but only 14.2% on pinpointing failure steps. Cortex's anti-pattern detector is manual/rule-based. Learned anomaly detection from execution traces would be transformative.</p>
+<p class="cite">Ref: <a href="https://icml.cc/virtual/2025/poster/45823">ICML 2025</a></p>
+</div>
+
+<div class="verdict blue">
+<h4><span class="tag tag-blue">Missing</span> Memory-Aware Cost Budgeting</h4>
+<p>Cortex's conductor tracks costs per provider. But it doesn't know "this memory retrieval will cost X tokens downstream" or "caching this plan saves Y tokens over Z future calls." Connecting memory decisions to cost impact is a unique differentiator nobody offers.</p>
+</div>
+
+<!-- SECTION 3: COMPETITIVE LANDSCAPE -->
+<h2 id="competitive">3. Competitive Landscape</h2>
+
+<h3>3.1 The Players</h3>
+
+<table>
+  <tr>
+    <th>Player</th>
+    <th>Stars</th>
+    <th>Funding</th>
+    <th>Core Strength</th>
+    <th>Key Weakness</th>
+    <th>Threat to Cortex</th>
+  </tr>
+  <tr>
+    <td><strong>Mem0</strong></td>
+    <td>48K</td>
+    <td>$24M Series A</td>
+    <td>Scale, ecosystem, simplest API</td>
+    <td>Graph features paywalled ($249/mo); no outcome learning</td>
+    <td class="priority-high">HIGH</td>
+  </tr>
+  <tr>
+    <td><strong>Letta/MemGPT</strong></td>
+    <td>Strong</td>
+    <td>$10M Seed ($70M val)</td>
+    <td>Stateful agents, academic credibility, UC Berkeley</td>
+    <td>Coding-agent focused; less general-purpose</td>
+    <td class="priority-high">HIGH</td>
+  </tr>
+  <tr>
+    <td><strong>Zep</strong></td>
+    <td>—</td>
+    <td>Early</td>
+    <td>Temporal knowledge graphs (Graphiti), SOC 2</td>
+    <td>Smaller ecosystem; enterprise-only focus</td>
+    <td class="priority-med">MEDIUM</td>
+  </tr>
+  <tr>
+    <td><strong>LangMem</strong></td>
+    <td>—</td>
+    <td>LangChain backed</td>
+    <td>LangGraph native, procedural memory, prompt optimization</td>
+    <td>Locked to LangChain ecosystem</td>
+    <td class="priority-med">MEDIUM</td>
+  </tr>
+  <tr>
+    <td><strong>CrewAI</strong></td>
+    <td>43K</td>
+    <td>VC-backed</td>
+    <td>Unified memory API, 60% Fortune 500</td>
+    <td>Memory is a feature, not the product; newer implementation</td>
+    <td class="priority-low">LOW</td>
+  </tr>
+  <tr>
+    <td><strong>MS Agent Framework</strong></td>
+    <td>54K (AutoGen)</td>
+    <td>Microsoft</td>
+    <td>Enterprise features, telemetry</td>
+    <td>New; no cross-session memory built-in</td>
+    <td class="priority-med">MEDIUM</td>
+  </tr>
+  <tr>
+    <td><strong>Supermemory</strong></td>
+    <td>—</td>
+    <td>—</td>
+    <td>81.6% LongMemEval, sub-300ms recall</td>
+    <td>Closed source; no self-hosting</td>
+    <td class="priority-low">LOW</td>
+  </tr>
+  <tr>
+    <td><strong>Hindsight</strong></td>
+    <td>—</td>
+    <td>—</td>
+    <td>91.4% accuracy, depth-first retrieval, MIT licensed</td>
+    <td>Newer, smaller community</td>
+    <td class="priority-low">LOW</td>
+  </tr>
+</table>
+
+<h3>3.2 What Nobody Does Well</h3>
+
+<div class="gap-grid">
+  <div class="verdict green">
+    <h4>Outcome-Aware Retrieval</h4>
+    <p><strong>Cortex has this.</strong> Nobody else tags memories with success/failure outcomes and uses that signal for retrieval ranking. Mem0 retrieves by similarity. Zep retrieves by temporal relevance. Neither learns "this memory led to good outcomes, surface it more."</p>
+    <p>This is your most defensible moat. Expand it aggressively.</p>
+  </div>
+  <div class="verdict green">
+    <h4>Anti-Pattern Tracking</h4>
+    <p><strong>Cortex has this.</strong> The validated-but-undeployed detector is unique. Nobody else maintains a persistent record of agent mistakes and proactively warns when patterns recur. Research confirms: failure-derived heuristics outperform success ones.</p>
+  </div>
+  <div class="verdict green">
+    <h4>Multi-Provider Routing + Memory</h4>
+    <p><strong>Cortex has this.</strong> The conductor routes across 6 providers with cost tracking. Nobody else combines model routing with memory-informed task classification. All routing solutions are post-hoc (route then talk); Cortex routes based on learned task performance.</p>
+  </div>
+  <div class="verdict purple">
+    <h4>Task Orchestration + Memory</h4>
+    <p><strong>Cortex has this (supervisor module).</strong> Memory systems are universally decoupled from task routing. Nobody stores "this task type works best with memory architecture X." Cortex's supervisor + memory + conductor integration is unique.</p>
+  </div>
+  <div class="verdict purple">
+    <h4>Developer Portfolio Memory</h4>
+    <p><strong>Cortex has this.</strong> Cross-project pattern sharing, portfolio-level stats, multi-project memory. Every competitor is single-agent or single-project scoped.</p>
+  </div>
+  <div class="verdict yellow">
+    <h4>Cost Optimization via Memory</h4>
+    <p><strong>Gap for everyone.</strong> No memory system has cost optimization as first-class. xMemory showed 48% token reduction is possible but isn't commercialized. Cortex's conductor tracks costs but doesn't yet optimize memory operations for cost.</p>
+  </div>
+</div>
+
+<h3>3.3 Competitive Positioning Matrix</h3>
+
+<table>
+  <tr><th>Dimension</th><th>Mem0</th><th>Letta</th><th>Zep</th><th>LangMem</th><th>Cortex</th></tr>
+  <tr><td>Memory persistence</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+  <tr><td>Graph memory</td><td>Pro only</td><td>No</td><td>Core feature</td><td>No</td><td>Experimental</td></tr>
+  <tr><td>Temporal reasoning</td><td>No</td><td>No</td><td><strong>Best</strong></td><td>No</td><td>No</td></tr>
+  <tr><td>Outcome learning</td><td>No</td><td>No</td><td>No</td><td>Partial</td><td><strong>Yes</strong></td></tr>
+  <tr><td>Anti-pattern tracking</td><td>No</td><td>No</td><td>No</td><td>No</td><td><strong>Unique</strong></td></tr>
+  <tr><td>Model routing</td><td>No</td><td>No</td><td>No</td><td>No</td><td><strong>6 providers</strong></td></tr>
+  <tr><td>Task orchestration</td><td>No</td><td>Yes (agents)</td><td>No</td><td>Via LangGraph</td><td><strong>Supervisor</strong></td></tr>
+  <tr><td>Cost tracking</td><td>No</td><td>No</td><td>No</td><td>Via LangSmith</td><td><strong>Per-call JSONL</strong></td></tr>
+  <tr><td>Multi-project</td><td>Via namespaces</td><td>No</td><td>Group-level</td><td>Via namespaces</td><td><strong>Portfolio native</strong></td></tr>
+  <tr><td>MCP native</td><td>JS server only</td><td>No</td><td>No</td><td>No</td><td><strong>10 tools, 3 resources</strong></td></tr>
+  <tr><td>Reflection loop</td><td>No</td><td>No</td><td>No</td><td>Procedural memory</td><td><strong>Weekly synthesis</strong></td></tr>
+</table>
+
+<h3>3.4 Honest Assessment: Where Cortex is Weak</h3>
+
+<div class="verdict red">
+<h4>Community & Adoption</h4>
+<p>Zero public community vs. Mem0's 48K stars and 186M quarterly API calls. This is the existential gap. Features don't matter if nobody uses them. Every week without users is a week competitors learn from production feedback and you don't.</p>
+</div>
+
+<div class="verdict red">
+<h4>Graph Memory Maturity</h4>
+<p>v21/graph.py is a SQLite prototype. Zep has a production temporal knowledge graph with a published paper, SDKs in 3 languages, and SOC 2 compliance. Cortex needs to ship graph memory that's production-grade or integrate Graphiti.</p>
+</div>
+
+<div class="verdict yellow">
+<h4>Benchmark Results</h4>
+<p>No external benchmarks run. Mem0 publishes LoCoMo scores (68.5%). Zep publishes LongMemEval (18.5% improvement). Hindsight claims 91.4%. Cortex has internal metrics (21.2% dedup, 0.94 PQS) that mean nothing to outsiders. Run AMA-Bench or LongMemEval immediately.</p>
+</div>
+
+<div class="verdict yellow">
+<h4>Developer Experience</h4>
+<p>Mem0 is 6 lines of code to integrate. Cortex is a 190K LOC system with a 5K-line CLI. The barrier to entry is too high for casual adoption. Need a simple SDK path.</p>
+</div>
+
+<!-- SECTION 4: INNOVATION OPPORTUNITIES -->
+<h2 id="innovation">4. Transformative Innovation Opportunities</h2>
+
+<p>Not incremental improvements. These are capabilities that would make Cortex categorically different from everything else.</p>
+
+<h3>4.1 Self-Improving Retrieval (Highest Impact)</h3>
+
+<div class="verdict green">
+<p><strong>The finding:</strong> 64-88% of agent failures stem from irrelevant retrieval, not memory construction problems. When relevant context surfaces, models use it effectively.</p>
+<p><strong>The innovation:</strong> Build a feedback loop where agents flag "I retrieved the wrong memory" events. Learn the failure signature — what made retrieval fail. Adaptively adjust similarity metrics, add metadata tags, or switch from embedding-based to LLM-abstraction-based retrieval.</p>
+<p><strong>Why Cortex is uniquely positioned:</strong> You already track outcomes. Add retrieval-outcome correlation and you have a self-improving retrieval system nobody else has.</p>
+<p><strong>Expected impact:</strong> 20-30% reduction in task failures from retrieval improvement alone.</p>
+<p class="cite">Ref: <a href="https://arxiv.org/abs/2603.10600">arXiv 2603.10600</a>, <a href="https://arxiv.org/html/2603.02473">arXiv 2603.02473</a></p>
+</div>
+
+<h3>4.2 Memory-Aware Cost Router</h3>
+
+<div class="verdict green">
+<p><strong>The finding:</strong> Plan caching achieves 90% token savings on similar tasks. Prompt caching gets 90% discount on cached reads. But nobody connects memory decisions to cost impact.</p>
+<p><strong>The innovation:</strong> A routing layer that asks: "Do I already have a cached plan for this task type? If yes, route to cheaper model with cached plan. If no, route to capable model and cache the result." Memory becomes a cost optimization lever, not just a recall mechanism.</p>
+<p><strong>Cortex advantage:</strong> Conductor already tracks per-call costs. Add plan similarity detection and you have automatic cost-memory optimization.</p>
+<p><strong>Expected impact:</strong> Additional 30-40% cost reduction on top of multi-provider routing savings.</p>
+</div>
+
+<h3>4.3 Automated Anti-Pattern Discovery (From Rules to Learning)</h3>
+
+<div class="verdict purple">
+<p><strong>The finding:</strong> Cortex's anti-pattern detector uses hand-coded rules (VALIDATED_UNDEPLOYED, FIXED_NOT_INTEGRATED, etc.). ICML 2025 showed automated failure attribution is possible but only achieves 53.5% accuracy on identifying responsible agents.</p>
+<p><strong>The innovation:</strong> Train a lightweight model on Cortex's JSONL outcome data to discover NEW anti-patterns from execution traces. Instead of "these 4 patterns" → "these N patterns, discovered automatically."</p>
+<p><strong>Data advantage:</strong> Every Cortex user generates anti-pattern training data. As the user base grows, pattern discovery improves. This is a network-effect data moat.</p>
+<p class="cite">Ref: <a href="https://icml.cc/virtual/2025/poster/45823">ICML 2025</a>, <a href="https://github.com/mingyin1/Agents_Failure_Attribution">Failure Attribution GitHub</a></p>
+</div>
+
+<h3>4.4 Neuroscience-Inspired Memory Reconsolidation</h3>
+
+<div class="verdict blue">
+<p><strong>The concept:</strong> In neuroscience, reconsolidation means memories are modified when reactivated — they're updated with new context rather than just replayed. Current AI memory systems just retrieve; they don't update memories based on new evidence.</p>
+<p><strong>The innovation:</strong> When Cortex retrieves a memory for a task, evaluate whether that memory should be updated given new context. "The last time I used this API pattern was 3 months ago; the API has changed since then. Update the memory with current state."</p>
+<p><strong>Why this matters:</strong> Eliminates stale memory accumulation — the primary failure mode of long-running memory systems.</p>
+<p class="cite">Ref: <a href="https://arxiv.org/html/2504.15965v2">arXiv 2504.15965</a></p>
+</div>
+
+<h3>4.5 Learned Forgetting with Safety Constraints</h3>
+
+<div class="verdict blue">
+<p><strong>The finding:</strong> Utility-based deletion yields 10% performance gains over time-based eviction. But naive forgetting can delete safety-critical information.</p>
+<p><strong>The innovation:</strong> RL-trained deletion policy that maximizes long-term task performance while maintaining a "safety-critical memory budget" — memories flagged as unsafe to delete. Cortex's anti-pattern alerts would be permanently protected; routine memories would decay based on learned utility.</p>
+<p class="cite">Ref: <a href="https://dl.acm.org/doi/10.1145/3765766.3765803">ACM Digital Library</a></p>
+</div>
+
+<!-- SECTION 5: CONVERGENCE PLATFORM -->
+<h2 id="convergence">5. The Convergence Play: Intelligence Optimization Platform</h2>
+
+<p>This is the strategic question. Cortex can be a memory tool (compete with Mem0, lose on distribution) or an intelligence optimization platform (category creation, blue ocean). Here's the case for the latter.</p>
+
+<h3>5.1 The Unique Bundle Nobody Else Has</h3>
+
+<div class="verdict green">
+<p>No other system combines all five of these:</p>
+<table>
+  <tr><th>Capability</th><th>Value Alone</th><th>Convergence Value</th></tr>
+  <tr><td>Outcome-aware memory</td><td>Better retrieval</td><td>Feeds routing decisions + anti-pattern detection + cost optimization</td></tr>
+  <tr><td>Anti-pattern tracking</td><td>Fewer repeated mistakes</td><td>Feeds memory admission control + model selection + behavioral monitoring</td></tr>
+  <tr><td>Multi-provider routing</td><td>Cost savings</td><td>Learns from memory which model handles which task type best</td></tr>
+  <tr><td>Task orchestration</td><td>Work management</td><td>Routes tasks to optimal model+memory combo based on learned performance</td></tr>
+  <tr><td>Cost tracking</td><td>Budget visibility</td><td>Connects memory decisions to downstream cost impact</td></tr>
+</table>
+<p><strong>The compound effect:</strong> Each system makes the others smarter. Memory informs routing. Routing outcomes feed memory. Anti-patterns improve both. Cost data constrains all three. This feedback loop is Cortex's moat — it's structurally impossible for single-capability tools to replicate.</p>
+</div>
+
+<h3>5.2 Positioning Statement</h3>
+
+<div class="tldr">
+<strong>For enterprise AI teams</strong> running multi-model agent architectures,<br>
+<strong>Cortex is the intelligence optimization layer</strong> that makes agent fleets smarter, cheaper, and more reliable<br>
+<strong>by converging</strong> outcome-aware memory + cost-optimized routing + automated failure prevention<br>
+<strong>unlike</strong> Mem0 (memory API), LangSmith (observability), or standalone routers<br>
+<strong>because</strong> each capability compounds the others — memory informs routing, routing outcomes improve memory, anti-patterns prevent both from degrading.
+</div>
+
+<h3>5.3 Defensible Moats</h3>
+
+<div class="verdict green">
+<h4>1. Causal Execution Graphs (Data Moat)</h4>
+<p>Every agent execution → trace → causal pattern. Early adopters with 50+ agents generate patterns that improve all agents. Non-adopters can't match the coverage. This compounds — more data → better patterns → more adoption → more data.</p>
+</div>
+
+<div class="verdict green">
+<h4>2. Task-Model-Memory Compatibility Signatures (Knowledge Moat)</h4>
+<p>Which models work with which memory strategies for which task types. Requires massive fleet data. Creates a "memory passport" for new tasks — recommended memory config based on what succeeded for similar tasks across the user base.</p>
+</div>
+
+<div class="verdict green">
+<h4>3. Anti-Pattern Library (Behavioral Moat)</h4>
+<p>Failure mode signatures discovered from agent runs. Grows more valuable over time as patterns accumulate. Monetizable: "your agent exhibits anti-pattern X with 85% probability; here's the fix."</p>
+</div>
+
+<div class="verdict blue">
+<h4>4. MCP-Native Architecture (Distribution Moat)</h4>
+<p>97M+ monthly MCP SDK downloads. Cortex's 10-tool MCP server is ahead of competitors (Mem0 has JS-only MCP server). As MCP becomes the standard agent interface, being MCP-native is a distribution advantage.</p>
+</div>
+
+<h3>5.4 Why "Memory Layer" is the Wrong Positioning</h3>
+
+<p>Mem0 owns "memory layer" with 48K stars and $24M. Competing on that framing means fighting an incumbent with 100x your distribution on their turf. The research shows the market is moving from "add memory to your agent" to "optimize your agent fleet's intelligence." That's the framing Cortex should own.</p>
+
+<p>The analogy: Mem0 is Redis (fast, simple key-value store). Cortex should be Datadog (observability + optimization platform that happens to use memory). Don't compete with Redis. Be Datadog.</p>
+
+<!-- SECTION 6: TARGET USERS -->
+<h2 id="users">6. Target Users & Use Cases</h2>
+
+<h3>6.1 Primary: Enterprise AI Operations Teams</h3>
+
+<div class="verdict green">
+<p><strong>Pain point:</strong> Managing 50-500 agents across departments without visibility into why quality degrades. $3,200-$13,000/month per production agent. 5% failure rate makes 20-action agents unusable.</p>
+<p><strong>Cortex value:</strong> Shared outcome-learning across fleet + automated anti-pattern detection + cost-optimized routing = 30-40% fewer manual interventions, 25-40% lower costs.</p>
+<p><strong>TAM signal:</strong> 40% of enterprise applications will include agents by EOY 2026 (Gartner). $201B projected agent spend. Enterprise AI Ops is where the money is.</p>
+</div>
+
+<h3>6.2 Secondary: MLOps Engineers</h3>
+
+<div class="verdict blue">
+<p><strong>Pain point:</strong> Existing observability tools (Arize, WhyLabs, LangSmith) catch infrastructure failures but miss behavioral failures — agents producing wrong answers while infrastructure metrics look green.</p>
+<p><strong>Cortex value:</strong> Memory-specific observability that shows retrieval → quality correlation, behavioral drift patterns, anti-pattern recurrence rates. Integrates as a complement to existing MLOps stacks.</p>
+<p><strong>Wedge:</strong> Start with "agent behavioral anomaly detection" (most obvious gap in MLOps tooling), expand to full intelligence optimization.</p>
+</div>
+
+<h3>6.3 Tertiary: Cost-Conscious AI Teams</h3>
+
+<div class="verdict blue">
+<p><strong>Pain point:</strong> Agents re-compute the same reasoning repeatedly, re-read same context windows. Output tokens cost 3-8x input tokens.</p>
+<p><strong>Cortex value:</strong> Plan caching + prompt caching + cost-aware routing + memory-optimized context compression = 30-90% cost reduction. Pays for itself immediately.</p>
+<p><strong>Pricing model that works:</strong> "We save you $X/month; we take 20%." Aligns incentives perfectly.</p>
+</div>
+
+<h3>6.4 Solo AI Builders (Current Audience)</h3>
+
+<div class="verdict yellow">
+<p><strong>Pain point:</strong> Multi-project context loss, repeated mistakes across projects, no learning between sessions.</p>
+<p><strong>Cortex value:</strong> Portfolio memory, anti-pattern alerts, outcome-aware recommendations. Already validated (18 months of personal use).</p>
+<p><strong>Limitation:</strong> This audience is small and doesn't pay. Use them for validation and testimonials, not revenue.</p>
+</div>
+
+<h3>6.5 AI Safety Researchers</h3>
+
+<div class="verdict blue">
+<p><strong>Pain point:</strong> Behavioral monitoring is manual/ad-hoc. Hard to detect goal drift, prompt injection at scale. Partnership on AI published a framework but no tools exist.</p>
+<p><strong>Cortex value:</strong> Memory as a built-in audit trail + automated behavioral pattern discovery. Anti-pattern library becomes a safety monitoring tool.</p>
+<p><strong>Signal:</strong> $3.6B in agentic AI security startup funding in 2026. This is a market forming.</p>
+</div>
+
+<!-- SECTION 7: ACTION ITEMS -->
+<h2 id="actions">7. Concrete Action Items</h2>
+
+<h3>7.1 Next 2 Weeks (Ship or Die)</h3>
+
+<table>
+  <tr><th>#</th><th>Action</th><th>Why</th><th>Effort</th></tr>
+  <tr><td>1</td><td>Run LongMemEval or AMA-Bench benchmark</td><td>Can't claim anything without external numbers</td><td>2-3 days</td></tr>
+  <tr><td>2</td><td>Build 6-line SDK quickstart (cortex.remember / cortex.recall)</td><td>Mem0's adoption is driven by DX simplicity</td><td>2-3 days</td></tr>
+  <tr><td>3</td><td>Ship to 3 beta users with feedback loop</td><td>Already on your plan; every week without users is a week behind</td><td>Ongoing</td></tr>
+</table>
+
+<h3>7.2 Next 30 Days (Core Differentiation)</h3>
+
+<table>
+  <tr><th>#</th><th>Action</th><th>Why</th><th>Effort</th></tr>
+  <tr><td>4</td><td>Upgrade graph.py to temporal knowledge graph</td><td>Table stakes; everyone is shipping this</td><td>1-2 weeks</td></tr>
+  <tr><td>5</td><td>Add trajectory memory to outcome tracking</td><td>14.3% improvement proven; your biggest learning gain</td><td>1 week</td></tr>
+  <tr><td>6</td><td>Implement memory admission control (A-MAC)</td><td>You can't store everything forever; benchmark target: F1 &gt; 0.583</td><td>1 week</td></tr>
+  <tr><td>7</td><td>Add retrieval-outcome correlation tracking</td><td>Self-improving retrieval; unique capability</td><td>3-5 days</td></tr>
+</table>
+
+<h3>7.3 Next 90 Days (Platform Positioning)</h3>
+
+<table>
+  <tr><th>#</th><th>Action</th><th>Why</th><th>Effort</th></tr>
+  <tr><td>8</td><td>Build plan caching on top of conductor</td><td>90% token savings on similar tasks; compounds with batch API</td><td>2 weeks</td></tr>
+  <tr><td>9</td><td>Ship memory-aware cost router</td><td>"We save you $X/month" is the enterprise pitch</td><td>2 weeks</td></tr>
+  <tr><td>10</td><td>Automated anti-pattern discovery (ML-based)</td><td>Move from 4 hand-coded patterns to N learned patterns; data moat</td><td>3 weeks</td></tr>
+  <tr><td>11</td><td>Behavioral anomaly detection MVP</td><td>Opens AI safety market; unique positioning</td><td>2 weeks</td></tr>
+  <tr><td>12</td><td>Publish "Intelligence Optimization" positioning paper</td><td>Own the category before someone else names it</td><td>1 week</td></tr>
+</table>
+
+<h3>7.4 Disruption Response Playbook (Updated)</h3>
+
+<table>
+  <tr><th>Scenario</th><th>Probability</th><th>Impact</th><th>Cortex Response</th></tr>
+  <tr>
+    <td>Anthropic ships comprehensive memory API</td>
+    <td class="priority-high">60% by Sep</td>
+    <td class="priority-high">HIGH</td>
+    <td>Already happening (Claude memory for Pro/Max). It's shallow. Cortex differentiates on outcome learning + anti-patterns + routing convergence. Position as "intelligence layer on top of provider memory."</td>
+  </tr>
+  <tr>
+    <td>Mem0 adds task orchestration</td>
+    <td class="priority-med">25%</td>
+    <td class="priority-high">HIGH</td>
+    <td>Ship faster. They have 48K stars = network effects. But orchestration + memory + routing convergence is hard to bolt on. Cortex is architecturally integrated.</td>
+  </tr>
+  <tr>
+    <td>LangChain ships fleet intelligence</td>
+    <td class="priority-med">35%</td>
+    <td class="priority-high">HIGH</td>
+    <td>LangSmith Insights Agent already auto-discovers failure modes. If they add outcome learning + cost optimization, they have distribution. Cortex's MCP-native approach is framework-agnostic; LangChain is locked to their ecosystem. Lean into MCP.</td>
+  </tr>
+  <tr>
+    <td>Context windows reach 10M tokens</td>
+    <td class="priority-med">40% by Dec</td>
+    <td class="priority-med">MEDIUM</td>
+    <td>Memory still needed for curation, cost optimization, and outcome learning. 10M tokens at $15/M = $150 per call. Memory-optimized context is the cost story.</td>
+  </tr>
+  <tr>
+    <td>GraphRAG becomes commodity</td>
+    <td class="priority-high">70% by Sep</td>
+    <td class="priority-med">MEDIUM</td>
+    <td>Graph memory becomes table stakes, not differentiator. Cortex's value is outcome learning + anti-patterns + convergence, not the graph itself. Ship graph memory fast so it's not a gap, but don't bet the company on it.</td>
+  </tr>
+</table>
+
+<hr>
+
+<h2>Research Sources</h2>
+
+<h3>Key Papers</h3>
+<table>
+  <tr><th>Paper</th><th>Year</th><th>Relevance</th></tr>
+  <tr><td><a href="https://arxiv.org/abs/2512.13564">Memory in the Age of AI Agents: A Survey</a></td><td>Dec 2025</td><td>Canonical taxonomy</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2601.01885">Agentic Memory: Unified Management</a></td><td>Jan 2026</td><td>Memory-as-tools paradigm</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2502.12110">A-MEM: Zettelkasten for Agents</a></td><td>Feb 2025</td><td>Graph memory architecture</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2501.13956">Zep: Temporal Knowledge Graph</a></td><td>Jan 2025</td><td>Temporal reasoning</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2603.10600">Trajectory-Informed Memory</a></td><td>Mar 2026</td><td>14.3% improvement</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2603.04549">A-MAC: Memory Admission Control</a></td><td>Mar 2026</td><td>What to remember</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2503.19271">MARS: Reflective Self-Improvement</a></td><td>Mar 2025</td><td>Multi-agent reflection</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2601.02553">SimpleMem: 30x Compression</a></td><td>Jan 2026</td><td>Token efficiency</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2603.18272">R3-RAG: Learned Retrieval Timing</a></td><td>Mar 2026</td><td>When to retrieve</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2603.10062">Multi-Agent Memory Architecture</a></td><td>Mar 2026</td><td>Shared memory design</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2511.07800">Experience to Strategy: Graph Memory</a></td><td>Nov 2025</td><td>Trajectory → decision paths</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2512.20237">MemR3: Reflective Reasoning</a></td><td>Dec 2025</td><td>Retrieve vs. reflect router</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2501.09136">Agentic RAG Survey</a></td><td>Jan 2025</td><td>RAG evolution taxonomy</td></tr>
+  <tr><td><a href="https://arxiv.org/abs/2604.03679">LightThinker++</a></td><td>Apr 2026</td><td>70% token reduction</td></tr>
+</table>
+
+<h3>Competitive Intelligence</h3>
+<table>
+  <tr><th>Source</th><th>Key Data Point</th></tr>
+  <tr><td><a href="https://techcrunch.com/2025/10/28/mem0-raises-24m-from-yc-peak-xv-and-basis-set-to-build-the-memory-layer-for-ai-apps/">TechCrunch: Mem0 Series A</a></td><td>$24M raised, 48K stars, 186M API calls/quarter</td></tr>
+  <tr><td><a href="https://techcrunch.com/2024/09/23/letta-one-of-uc-berkeleys-most-anticipated-ai-startups-has-just-come-out-of-stealth/">TechCrunch: Letta Emergence</a></td><td>$10M seed, $70M valuation, Jeff Dean angel</td></tr>
+  <tr><td><a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026">Mem0: State of Agent Memory 2026</a></td><td>Market overview from incumbent</td></tr>
+  <tr><td><a href="https://vectorize.io/articles/mem0-vs-zep">Vectorize: Mem0 vs Zep</a></td><td>Head-to-head comparison</td></tr>
+  <tr><td><a href="https://dev.to/varun_pratapbhardwaj_b13/5-ai-agent-memory-systems-compared-mem0-zep-letta-supermemory-superlocalmemory-2026-benchmark-59p3">5 Memory Systems Compared (2026)</a></td><td>Benchmark comparisons</td></tr>
+  <tr><td><a href="https://onereach.ai/blog/agentic-ai-adoption-rates-roi-market-trends/">OneReach: Agent Adoption 2026</a></td><td>40% enterprise adoption by EOY 2026</td></tr>
+  <tr><td><a href="https://venturebeat.com/orchestration/how-xmemory-cuts-token-costs-and-context-bloat-in-ai-agents/">VentureBeat: xMemory</a></td><td>48% token cost reduction technique</td></tr>
+  <tr><td><a href="https://neurips.cc/virtual/2025/poster/116166">NeurIPS 2025: Plan Caching</a></td><td>90% token savings on cached plans</td></tr>
+  <tr><td><a href="https://icml.cc/virtual/2025/poster/45823">ICML 2025: Failure Attribution</a></td><td>53.5% accuracy on failure identification</td></tr>
+</table>
+
+<h3>Curated Lists</h3>
+<table>
+  <tr><td><a href="https://github.com/Shichun-Liu/Agent-Memory-Paper-List">Agent Memory Paper List</a></td><td>Comprehensive paper collection</td></tr>
+  <tr><td><a href="https://github.com/DEEP-PolyU/Awesome-GraphMemory">Awesome-GraphMemory</a></td><td>Graph memory survey</td></tr>
+  <tr><td><a href="https://github.com/yxf203/Awesome-Efficient-Agents">Awesome-Efficient-Agents</a></td><td>Agent efficiency research</td></tr>
+</table>
+
+<hr>
+<p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2rem;">
+  Generated April 8, 2026. Research covers papers, products, and market data through April 2026. Some arxiv papers may have been updated since initial publication dates shown. Star counts and funding figures are approximate and reflect most recent available data.
+</p>
+
+</body>
+</html>

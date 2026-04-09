@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cortex Beta Readiness Assessment</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --red: #f85149;
+    --orange: #d29922;
+    --green: #3fb950;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { color: var(--accent); font-size: 1.6rem; margin-bottom: 0.3rem; }
+  h2 { color: var(--purple); font-size: 1.2rem; margin: 2.5rem 0 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { color: var(--orange); font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+  p { margin-bottom: 0.8rem; }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 2rem; }
+  .verdict-box {
+    background: var(--surface);
+    border: 2px solid var(--red);
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+  .verdict-box.warn { border-color: var(--orange); }
+  .verdict-box.ok { border-color: var(--green); }
+  .verdict-label { font-weight: bold; font-size: 1rem; }
+  .verdict-label.fail { color: var(--red); }
+  .verdict-label.warn { color: var(--orange); }
+  .verdict-label.pass { color: var(--green); }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .metric-card .val { font-size: 1.8rem; font-weight: bold; color: var(--accent); }
+  .metric-card .label { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.3rem; }
+  .finding {
+    background: var(--surface);
+    border-left: 3px solid var(--border);
+    padding: 0.8rem 1rem;
+    margin: 0.8rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .finding.critical { border-left-color: var(--red); }
+  .finding.warning { border-left-color: var(--orange); }
+  .finding.info { border-left-color: var(--accent); }
+  .finding.good { border-left-color: var(--green); }
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-right: 0.3rem;
+    font-weight: bold;
+  }
+  .tag.crit { background: rgba(248,81,73,0.2); color: var(--red); }
+  .tag.warn { background: rgba(210,153,34,0.2); color: var(--orange); }
+  .tag.info { background: rgba(88,166,255,0.2); color: var(--accent); }
+  .tag.good { background: rgba(63,185,80,0.2); color: var(--green); }
+  code {
+    background: var(--surface2);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-dim); font-weight: normal; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+  .rec-num { color: var(--accent); font-weight: bold; font-size: 1.1rem; margin-right: 0.5rem; }
+  .rec-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.2rem; margin: 0.8rem 0; }
+  .rec-item .effort { color: var(--text-dim); font-size: 0.8rem; }
+  .dead-list { columns: 2; column-gap: 2rem; }
+  .dead-list p { break-inside: avoid; }
+  .bar { display: inline-block; height: 8px; border-radius: 4px; }
+  .bar.red { background: var(--red); }
+  .bar.orange { background: var(--orange); }
+  .bar.green { background: var(--green); }
+  .bar.blue { background: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>CORTEX &mdash; BETA READINESS ASSESSMENT</h1>
+<p class="subtitle">Assessed 2026-04-08 &bull; 602 Python files &bull; 190,638 LOC &bull; 353 commits &bull; repo: jessekemp1/cortex</p>
+
+<div class="verdict-box">
+  <span class="verdict-label fail">VERDICT: NOT READY FOR BETA</span>
+  <p style="margin-top:0.5rem;">The core intelligence loop works. But the repo is carrying ~60% dead weight, the single 5,300-line CLI is a maintenance hazard, duplicate modules will confuse contributors, and a beta user cannot reliably install and run it without manual path surgery. Ship readiness requires 3&ndash;5 days of focused cleanup, not more features.</p>
+</div>
+
+<div class="metric-grid">
+  <div class="metric-card"><div class="val">602</div><div class="label">Python files</div></div>
+  <div class="metric-card"><div class="val">190K</div><div class="label">Lines of Python</div></div>
+  <div class="metric-card"><div class="val">2,056</div><div class="label">Test functions</div></div>
+  <div class="metric-card"><div class="val">~40</div><div class="label">Top-level dirs</div></div>
+  <div class="metric-card"><div class="val">5,325</div><div class="label">Lines in cli.py</div></div>
+  <div class="metric-card"><div class="val">147</div><div class="label">sys.path.insert hacks</div></div>
+</div>
+
+<!-- ============================================================ -->
+<h2>1. ARCHITECTURE</h2>
+
+<h3>The Good</h3>
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>Intelligence layer is well-structured.</strong> The <code>intelligence/</code> module has clear sub-packages (memory, monitoring, recommendations, safety, model_selection, planning). Each has its own models, clear boundaries, and tests. This is the real product and it shows.
+</div>
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>Conductor (multi-provider router) is clean.</strong> Has its own providers, models, cost tracker, registry. Proper <code>__init__.py</code> with public API exports. This could ship as a standalone package.
+</div>
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>MCP server is lightweight and correct.</strong> <code>mcp_server.py</code> delegates to the bridge via HTTP. No heavy imports. Clean tool definitions. This is the right architecture for Claude Code integration.
+</div>
+
+<h3>The Bad</h3>
+<div class="finding critical">
+  <span class="tag crit">CRITICAL</span>
+  <strong>Module sprawl: ~40 top-level directories is incoherent.</strong> A new contributor sees: <code>adapters/</code>, <code>agents/</code>, <code>analysis/</code>, <code>api/</code>, <code>automation/</code>, <code>batch/</code>, <code>conductor/</code>, <code>cortexdbx/</code>, <code>dashboard/</code>, <code>diagnostics/</code>, <code>enforcement/</code>, <code>engines/</code>, <code>features/</code>, <code>guardian/</code>, <code>health/</code>, <code>hooks/</code>, <code>integration/</code>, <code>integrations/</code> (two!), <code>intelligence/</code>, <code>launcher/</code>, <code>lean/</code>, <code>measurement/</code>, <code>mvp/</code>, <code>notifications/</code>, <code>orchestration/</code>, <code>plugins/</code>, <code>protocols/</code>, <code>runtime/</code>, <code>scripts/</code>, <code>site/</code>, <code>skills/</code>, <code>storage/</code>, <code>supervisor/</code>, <code>synthetic/</code>, <code>v2/</code>, <code>v21/</code>, <code>work_absorber/</code>, <code>workflows/</code>. No one can hold this in their head. Many of these are abandoned experiments.
+</div>
+<div class="finding critical">
+  <span class="tag crit">CRITICAL</span>
+  <strong>cli.py is 5,325 lines with 35+ commands.</strong> This is a monolith inside a monolith. Every feature ever conceived gets a CLI command. Many are half-implemented. The file has 54 <code>except Exception</code> blocks and imports everything conditionally via try/except. It should be split into command groups or use a plugin architecture (which exists in <code>plugins/</code> but isn't fully wired).
+</div>
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>Duplicate naming: <code>integration/</code> vs <code>integrations/</code>.</strong> Two separate top-level directories. Confusing and likely accidental.
+</div>
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>Two different <code>RecommendationEngine</code> classes.</strong> <code>recommendations.py</code> has one (portfolio/goals-based). <code>recommendation_engine.py</code> has another (4-layer intelligence stack). Both are imported in different places. A contributor cannot know which is canonical.
+</div>
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>v2/ and v21/ are near-duplicates.</strong> <code>diff -rq</code> shows they share the same structure with minor changes. These are versioned experiments that should have been branches, not directories.
+</div>
+
+<!-- ============================================================ -->
+<h2>2. CODE QUALITY</h2>
+
+<h3>Grading: Prototype-Grade with Production Aspirations</h3>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>5,270 print() calls vs 659 logger calls.</strong> The codebase overwhelmingly uses <code>print()</code> for output. This is fine for a personal CLI tool but disqualifying for production. No structured logging means no log levels, no filtering, no rotation, no observability.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>249 <code>except ImportError</code> blocks.</strong> The entire import system is held together with conditional imports and <code>sys.path.insert</code> hacks (147 of them). This is because the project isn't properly packaged &mdash; it relies on directory-relative imports that break depending on how you run it. The conductor module's <code>__init__.py</code> demonstrates this: it tries absolute imports first, then falls back to relative imports.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>Error handling is uniformly <code>except Exception</code>.</strong> The top offenders: <code>api/bridge_endpoint.py</code> (72 catches), <code>cli.py</code> (54), <code>bridge_system.py</code> (44), <code>bridge_intelligence.py</code> (36). Most catch broadly and either swallow or return generic error dicts. This masks real bugs.
+</div>
+
+<div class="finding info">
+  <span class="tag info">MIXED</span>
+  <strong>Type hints at ~42%.</strong> 2,815 functions have return type annotations out of 6,624 total. The newer modules (conductor, intelligence) are well-typed. The older core files (cli.py, briefing.py, bridge.py) are not.
+</div>
+
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>Dependency management is reasonable.</strong> <code>pyproject.toml</code> has proper optional dependency groups (server, analytics, orchestration, dev). Version constraints are specified. <code>requirements.txt</code> has security CVE comments showing active maintenance.
+</div>
+
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>Security module exists and is used.</strong> <code>security.py</code> handles file permissions, path validation, and is called from <code>config.py</code>. The safety module (<code>intelligence/safety/</code>) has injection detection, guardrails, and input validation. This is more security awareness than most OSS projects at this stage.
+</div>
+
+<!-- ============================================================ -->
+<h2>3. TEST SUITE</h2>
+
+<div class="verdict-box warn">
+  <span class="verdict-label warn">2,056 test functions. Mostly real, but inflated by the metric that matters.</span>
+</div>
+
+<div class="finding info">
+  <span class="tag info">INFO</span>
+  <strong>Tests are spread across 123 files in 17 directories.</strong> The main <code>tests/</code> dir has 60 files. Additional test dirs exist inside <code>synthetic/</code>, <code>v2/</code>, <code>v21/</code>, <code>cortexdbx/</code>, <code>conductor/</code>, <code>batch/</code>, <code>plugins/</code>, and <code>lean/</code>. The quarantined tests (4 files) are an honest signal &mdash; better quarantined than silently skipped.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong>The meta-test <code>test_assertion_quality.py</code> was designed to fail.</strong> Its docstring literally says "Expected state today: FAIL." It scans the test suite for trivial assertions like <code>assert x is not None</code> or <code>isinstance</code> checks. The fact that this test exists means Jesse knows the assertion quality problem is real &mdash; but it hasn't been fixed.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong><code>test_full_stack.py</code> is a print-heavy demo, not a test.</strong> It prints emoji-decorated output and ends with assertions like <code>assert profile is not None or True</code> (which is always True). This pattern &mdash; tests that exist to show the system works visually rather than assert correctness &mdash; appears in multiple places.
+</div>
+
+<div class="finding good">
+  <span class="tag good">SOLID</span>
+  <strong>conftest.py is well-structured.</strong> Proper fixtures for temp databases, layer components, sample data. Tests that use these fixtures (like <code>test_orchestrator.py</code>) are genuinely testing behavior with mocked slow operations. This is the right pattern.
+</div>
+
+<div class="finding info">
+  <span class="tag info">INFO</span>
+  <strong>Test count inflation estimate: ~30% of tests are in dead modules.</strong> Tests in <code>v2/</code>, <code>v21/</code>, <code>synthetic/</code> (if not shipping), <code>cortexdbx/</code>, and quarantined tests add up to significant count but don't test the shipping product.
+</div>
+
+<!-- ============================================================ -->
+<h2>4. SHIPPING BLOCKERS</h2>
+
+<div class="finding critical">
+  <span class="tag crit">BLOCKER</span>
+  <strong>Requires Python 3.11+ but doesn't enforce it at install time.</strong> <code>pyproject.toml</code> says <code>requires-python = ">=3.11"</code> but the <code>cortex</code> entry script has a fallback for Python 3.9 site-packages: <code>site_packages = Path.home() / "Library/Python/3.9/lib/python/site-packages"</code>. A user on 3.10 will get cryptic import errors.
+</div>
+
+<div class="finding critical">
+  <span class="tag crit">BLOCKER</span>
+  <strong>Hardcoded paths to <code>/Users/jesse.kemp/Dev</code>.</strong> Found in: <code>self_audit.py</code> (REPO_ROOT), <code>engines/conversation_ingestor.py</code>, <code>scripts/gen_demo_cast.py</code>, <code>scripts/gen_demo_pdf.py</code>. <code>self_audit.py</code> will crash on any other machine.
+</div>
+
+<div class="finding critical">
+  <span class="tag crit">BLOCKER</span>
+  <strong>Package structure breaks imports.</strong> The project uses both <code>from cortex.X import Y</code> and <code>from X import Y</code> patterns, with 147 <code>sys.path.insert</code> hacks to make either work. A beta user running <code>pip install -e .</code> will hit import failures because <code>setuptools.packages.find</code> excludes many directories that are still imported by the code that IS included.
+</div>
+
+<div class="finding critical">
+  <span class="tag crit">BLOCKER</span>
+  <strong><code>cortex init</code> is required but under-documented.</strong> The install guide mentions it but doesn't explain what it creates. If the <code>~/.cortex/</code> directory structure isn't right, most commands fail silently or with unhelpful errors.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">BLOCKER</span>
+  <strong>Bridge server must be running for MCP/intelligence features.</strong> The MCP server calls <code>http://127.0.0.1:8765</code> via the bridge API. There's no clear documentation on how to start and keep the bridge running. The <code>com.cortex.runtime.plist</code> (macOS launchd) exists but is macOS-only.
+</div>
+
+<div class="finding warning">
+  <span class="tag warn">WARN</span>
+  <strong><code>.env.template</code> contains <code>sk-ant-api03-YOUR_KEY_HERE</code>.</strong> Not a real key, but the prefix format could trigger secret scanners. Use a clearly fake placeholder.
+</div>
+
+<!-- ============================================================ -->
+<h2>5. TECH DEBT INVENTORY</h2>
+
+<h3>Dead / Orphaned Modules</h3>
+<table>
+  <thead><tr><th>Module</th><th>LOC (est)</th><th>Status</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><code>v2/</code></td><td>~3K</td><td>Superseded by v21</td><td>Delete</td></tr>
+    <tr><td><code>v21/</code></td><td>~3.5K</td><td>Near-copy of v2 with minor changes</td><td>Merge into main or delete</td></tr>
+    <tr><td><code>mvp/</code></td><td>~500</td><td>Abandoned MVP CLI wrapper</td><td>Delete</td></tr>
+    <tr><td><code>batch/deprecated/</code></td><td>~4K</td><td>Self-labeled deprecated</td><td>Delete</td></tr>
+    <tr><td><code>site/</code></td><td>~5K (TS/CSS)</td><td>Marketing site / dashboard UI</td><td>Separate repo</td></tr>
+    <tr><td><code>cortexdbx/</code></td><td>~6K</td><td>Databricks-specific variant</td><td>Separate repo or defer</td></tr>
+    <tr><td><code>synthetic/</code></td><td>~8K</td><td>FinServ synthetic data engine</td><td>Separate package or defer</td></tr>
+    <tr><td><code>launcher/</code></td><td>~1K</td><td>Not imported by shipping code</td><td>Delete</td></tr>
+    <tr><td><code>diagnostics/</code></td><td>~1K</td><td>Not imported by shipping code</td><td>Delete or merge into health/</td></tr>
+    <tr><td><code>enforcement/</code></td><td>~1K</td><td>Not imported by shipping code</td><td>Delete</td></tr>
+    <tr><td><code>measurement/</code></td><td>~1K</td><td>Only imported by 1 endpoint</td><td>Fold into intelligence/</td></tr>
+    <tr><td><code>features/</code></td><td>~0</td><td>Contains only subdirs, no .py files</td><td>Delete</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Estimated dead weight: ~34K LOC across 12+ modules (~18% of total).</strong> This doesn't count the ~30 top-level .py files (bridge_intelligence.py, bridge_system.py, etc.) that are effectively the "exploded" internals of the bridge — another ~10K LOC that should be inside a package.</p>
+
+<h3>Mega-File Debt</h3>
+<table>
+  <thead><tr><th>File</th><th>Lines</th><th>Problem</th></tr></thead>
+  <tbody>
+    <tr><td><code>cli.py</code></td><td>5,325</td><td>35+ commands in one file. Split into command modules.</td></tr>
+    <tr><td><code>briefing.py</code></td><td>2,762</td><td>Formatting + generation + data model. At least 3 files.</td></tr>
+    <tr><td><code>bridge_system.py</code></td><td>1,600</td><td>Mixin that should be a proper module.</td></tr>
+    <tr><td><code>bridge_intelligence.py</code></td><td>1,549</td><td>Same &mdash; mixin pattern is code smell at this size.</td></tr>
+    <tr><td><code>recommendation_engine.py</code></td><td>1,080</td><td>Conflicts with <code>recommendations.py</code></td></tr>
+  </tbody>
+</table>
+
+<h3>Structural Debt</h3>
+<div class="finding warning">
+  <span class="tag warn">DEBT</span>
+  <strong>147 <code>sys.path.insert</code> calls.</strong> Every test file, every script, every entry point manually hacks the Python path. This is the #1 indicator that the package structure is broken. Fix the package, delete the path hacks.
+</div>
+<div class="finding warning">
+  <span class="tag warn">DEBT</span>
+  <strong>249 <code>except ImportError</code> blocks make features silently unavailable.</strong> A user who installs only core deps will have 40% of features silently disabled. There's no way to know what's active without reading the source. Need a <code>cortex doctor</code> command that reports what's installed vs what's available.
+</div>
+
+<!-- ============================================================ -->
+<h2>6. TOP 5 FIXES BEFORE BETA</h2>
+
+<div class="rec-item">
+  <p><span class="rec-num">1</span><strong>Delete dead modules. Today.</strong></p>
+  <p>Remove: <code>v2/</code>, <code>v21/</code>, <code>mvp/</code>, <code>batch/deprecated/</code>, <code>launcher/</code>, <code>diagnostics/</code>, <code>enforcement/</code>, <code>features/</code>. Move <code>site/</code>, <code>cortexdbx/</code>, <code>synthetic/</code> to separate repos or a <code>_contrib/</code> directory excluded from the package. This alone removes ~34K LOC and makes the repo comprehensible.</p>
+  <p class="effort">Effort: 2&ndash;4 hours &bull; Risk: Low (these are unused)</p>
+</div>
+
+<div class="rec-item">
+  <p><span class="rec-num">2</span><strong>Fix the package structure so <code>pip install -e .</code> works cold.</strong></p>
+  <p>The import system is broken. Pick one pattern: either everything is <code>from cortex.X</code> (proper package) or everything is relative. Remove all 147 <code>sys.path.insert</code> hacks. Fix the <code>setuptools.packages.find</code> exclude list to match reality. Add a CI step that installs from scratch in a clean venv and runs <code>cortex status</code>.</p>
+  <p class="effort">Effort: 4&ndash;8 hours &bull; Risk: Medium (will break some imports, but you're fixing them)</p>
+</div>
+
+<div class="rec-item">
+  <p><span class="rec-num">3</span><strong>Remove hardcoded paths and add a smoke test.</strong></p>
+  <p>Replace <code>/Users/jesse.kemp/Dev</code> with <code>Path(os.environ.get("CORTEX_ROOT_DIR", Path.cwd()))</code> everywhere. Remove the Python 3.9 fallback in cli.py. Create a single <code>make smoke</code> target that: (a) installs in a clean venv, (b) runs <code>cortex init</code>, (c) runs <code>cortex status</code>, (d) runs <code>cortex health</code>. If this passes on a fresh machine, you can ship.</p>
+  <p class="effort">Effort: 1&ndash;2 hours &bull; Risk: Low</p>
+</div>
+
+<div class="rec-item">
+  <p><span class="rec-num">4</span><strong>Resolve the dual RecommendationEngine.</strong></p>
+  <p>Pick one. The <code>recommendation_engine.py</code> (4-layer) version is clearly more mature. Rename or merge <code>recommendations.py</code> into it. Update all imports. This removes a major confusion vector for anyone reading the code.</p>
+  <p class="effort">Effort: 2&ndash;3 hours &bull; Risk: Medium (import changes)</p>
+</div>
+
+<div class="rec-item">
+  <p><span class="rec-num">5</span><strong>Add a <code>cortex doctor</code> command.</strong></p>
+  <p>One command that reports: Python version, installed optional deps, API key status, bridge server status, data directory health, and feature availability. This replaces the 249 silent <code>except ImportError</code> blocks with an actionable diagnostic. Beta users will run into issues &mdash; this gives them (and you) a way to triage.</p>
+  <p class="effort">Effort: 3&ndash;4 hours &bull; Risk: Low</p>
+</div>
+
+<hr>
+
+<h2>WHAT CAN BE DEFERRED</h2>
+
+<table>
+  <thead><tr><th>Item</th><th>Why it can wait</th></tr></thead>
+  <tbody>
+    <tr><td>Splitting cli.py into command modules</td><td>Ugly but functional. Ship first, refactor after beta feedback.</td></tr>
+    <tr><td>Replacing print() with structured logging</td><td>CLI tools print. It's fine for beta. Add logging when you add a daemon mode.</td></tr>
+    <tr><td>Increasing type hint coverage</td><td>42% is fine for beta. The critical paths (intelligence, conductor) are typed.</td></tr>
+    <tr><td>Test assertion quality improvements</td><td>The meta-test already documents the gap. Fix after beta when you know which tests matter.</td></tr>
+    <tr><td>bridge.py mixin refactor</td><td>The IntelligenceMixin/SystemMixin pattern works. It's not pretty but it's stable.</td></tr>
+    <tr><td>Conductor as standalone package</td><td>Good idea but premature. Ship it bundled, extract later if there's demand.</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>BOTTOM LINE</h2>
+
+<p>Cortex has a real product in it. The intelligence layer, conductor, MCP integration, and briefing system are genuinely useful. The problem isn't code quality in the core &mdash; it's that the core is buried under layers of experiments, abandoned versions, and speculative features that were never pruned.</p>
+
+<p>The pattern is clear from the commit history: 40 commits on March 8 alone, 353 total across ~3 months. Features are being added faster than dead code is being removed. The ROADMAP.md is 34K characters. The DESIGN_PRINCIPLES.md exists. The ICLR pitch exists. The marketing site exists. What doesn't exist is a clean install path for someone who isn't you.</p>
+
+<p><strong>The fix is deletion, not addition.</strong> Delete 30% of the repo, fix the package structure, remove the hardcoded paths, and ship. The intelligence layer is ready. The packaging around it is not. Three focused days gets you to beta. Don't let perfect be the enemy of shipped.</p>
+
+<p style="color: var(--text-dim); margin-top: 2rem; font-size: 0.8rem;">Assessment generated by Claude &bull; 2026-04-08 &bull; Based on full repo analysis of jessekemp1/cortex @ ea3a225</p>
+
+</body>
+</html>

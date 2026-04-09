@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-cortex-border;
+  }
+
+  body {
+    @apply bg-cortex-bg text-cortex-text-primary;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  /* Scanning border — animated cyan line across top of panels */
+  .scanning-border {
+    @apply relative overflow-hidden;
+  }
+
+  .scanning-border::before {
+    content: '';
+    @apply absolute top-0 h-[2px] w-[60px] bg-gradient-to-r from-transparent via-cortex-cyan to-transparent;
+    animation: scan 3s ease-in-out infinite;
+  }
+
+  /* Panel accent — 3px left cyan border */
+  .panel-accent {
+    @apply border-l-[3px] border-l-cortex-cyan;
+  }
+
+  /* Cyan glow effect */
+  .glow-cyan {
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.2), 0 0 30px rgba(6, 182, 212, 0.05);
+  }
+
+  /* Section divider with military styling */
+  .section-divider {
+    @apply border-t border-cortex-border/50 my-4;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar for dark theme */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-cortex-surface;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-cortex-border rounded;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-cortex-text-muted;
+  }
+
+  /* Tactical grid pattern for backgrounds */
+  .tactical-grid {
+    background-image:
+      linear-gradient(rgba(42, 45, 58, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(42, 45, 58, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
