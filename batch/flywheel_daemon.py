@@ -74,6 +74,9 @@ class FlywheelConfig:
     # Fill limits per cycle
     max_fills_per_cycle: int = 10
 
+    # Auto-fill control — set False to make daemon monitor-only (no API spend)
+    auto_fill_enabled: bool = False
+
     # Time windows (don't fill during work hours)
     quiet_start_hour: int = 9  # 9 AM
     quiet_end_hour: int = 17  # 5 PM
@@ -174,6 +177,12 @@ class FlywheelDaemon:
             self.status.health = "warning"
         else:
             self.status.health = "critical"
+
+        # Monitor-only mode — skip all fill logic
+        if not self.config.auto_fill_enabled:
+            self._log(f"Auto-fill disabled (monitor-only). Queue at {queue_depth:.1f}h.")
+            self._update_status()
+            return
 
         # Check if we should fill
         current_hour = datetime.now().hour
