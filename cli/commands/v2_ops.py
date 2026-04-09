@@ -1363,3 +1363,72 @@ def register_runtime_cmds(subparsers) -> None:
     p.add_argument("--limit", "-n", type=int, default=20)
     p.add_argument("--json", "-j", action="store_true")
     p.set_defaults(func=cmd_runtime_history)
+
+
+# ── reflect ───────────────────────────────────────────────────────────────────
+
+
+def cmd_reflect_run(args):
+    """Run nightly reflection pipeline."""
+    dry_run = getattr(args, "dry_run", False)
+    try:
+        _cortex = Path(__file__).resolve().parent.parent.parent
+        if str(_cortex) not in sys.path:
+            sys.path.insert(0, str(_cortex))
+        if str(_cortex.parent) not in sys.path:
+            sys.path.insert(0, str(_cortex.parent))
+        from batch.nightly_reflection import NightlyReflection
+    except ImportError as exc:
+        print(f"Error: could not import NightlyReflection — {exc}")
+        return
+
+    nr = NightlyReflection()
+    reflection = nr.run(dry_run=dry_run)
+    if reflection.get("error"):
+        print(f"Warning: {reflection['error']}")
+    themes = reflection.get("themes", [])
+    print(f"Reflection complete. Themes: {', '.join(themes) if themes else 'none'}")
+
+
+def cmd_reflect_status(args):
+    """Show last reflection date/status."""
+    try:
+        _cortex = Path(__file__).resolve().parent.parent.parent
+        if str(_cortex) not in sys.path:
+            sys.path.insert(0, str(_cortex))
+        if str(_cortex.parent) not in sys.path:
+            sys.path.insert(0, str(_cortex.parent))
+        from batch.nightly_reflection import NightlyReflection
+    except ImportError as exc:
+        print(f"Error: could not import NightlyReflection — {exc}")
+        return
+
+    nr = NightlyReflection()
+    print(nr.status())
+
+
+def register_reflect_cmds(subparsers) -> None:
+    """Register 'reflect' subcommands."""
+    reflect = subparsers.add_parser("reflect", help="Nightly reflection pipeline")
+    subs = reflect.add_subparsers(dest="reflect_command")
+
+    p = subs.add_parser("run", help="Run nightly reflection now")
+    p.add_argument("--dry-run", action="store_true", help="Skip API call and memory seeding")
+    p.set_defaults(func=cmd_reflect_run)
+
+    subs.add_parser("status", help="Show last reflection status").set_defaults(
+        func=cmd_reflect_status
+    )
+
+    # Top-level flags routed directly from 'cortex reflect --run / --status'
+    reflect.add_argument("--run", action="store_true", help="Run nightly reflection")
+    reflect.add_argument("--dry-run", action="store_true", help="Dry run (no API call)")
+    reflect.add_argument("--status", action="store_true", help="Show last reflection status")
+
+    def _reflect_dispatch(args):
+        if getattr(args, "status", False):
+            cmd_reflect_status(args)
+        else:
+            cmd_reflect_run(args)
+
+    reflect.set_defaults(func=_reflect_dispatch)

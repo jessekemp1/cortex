@@ -531,6 +531,31 @@ Deep Mode (Phase 1):
     register_v2_cmds(subparsers)
     register_runtime_cmds(subparsers)
 
+    # ── nightly-reflect ───────────────────────────────────────────────────────
+    from cli.commands.v2_ops import cmd_reflect_run, cmd_reflect_status
+
+    nightly_parser = subparsers.add_parser(
+        "nightly-reflect", help="Nightly reflection pipeline (Phase 3B)"
+    )
+    nightly_subs = nightly_parser.add_subparsers(dest="nightly_reflect_command")
+    nr_run = nightly_subs.add_parser("run", help="Run nightly reflection now")
+    nr_run.add_argument("--dry-run", action="store_true", help="Skip API call and memory seeding")
+    nr_run.set_defaults(func=cmd_reflect_run)
+    nightly_subs.add_parser("status", help="Show last reflection status").set_defaults(
+        func=cmd_reflect_status
+    )
+    nightly_parser.add_argument("--run", action="store_true")
+    nightly_parser.add_argument("--dry-run", action="store_true")
+    nightly_parser.add_argument("--status", action="store_true")
+
+    def _nightly_dispatch(args):
+        if getattr(args, "status", False):
+            cmd_reflect_status(args)
+        else:
+            cmd_reflect_run(args)
+
+    nightly_parser.set_defaults(func=_nightly_dispatch)
+
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
