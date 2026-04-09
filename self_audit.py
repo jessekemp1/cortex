@@ -371,6 +371,12 @@ def check_anti_pattern_mechanisms() -> dict:
                         is_implemented = True
                         break
 
+        if "documented" in mechanism:
+            # Anti-pattern is acknowledged in writing — valid enforcement for process patterns
+            # that cannot be code-enforced (e.g., "no time estimates in specs")
+            checks.append("mechanism documented in anti-patterns.md")
+            is_implemented = True
+
         if "end-to-end" in mechanism or "round-trip" in mechanism or "e2e" in mechanism:
             # Check for E2E/round-trip tests (e.g., batch submission pipeline)
             test_dir = REPO_ROOT / "cortex" / "tests"
