@@ -5,26 +5,30 @@ Cortex MCP Server — Official MCP SDK over stdio.
 Exposes Cortex Bridge intelligence as MCP tools for Claude Code.
 Connects to bridge at :8765 via HTTP (no heavy imports).
 
-Tools (always loaded — 11 core + orchestration):
-  - cortex_service_health: Ecosystem health (all services, tests, EMOS)
+Tools (18 always-loaded):
+  Core:
+  - cortex_service_health: Ecosystem health (all services, tests)
   - cortex_intelligence: Natural language query → insights
   - cortex_recommendations: Next actions and risk alerts
   - cortex_anomalies: Detected anomalies across projects
   - cortex_projects: Project status overview
   - cortex_sessions: Active/recent Claude sessions
-  - cortex_taskboard: Task board items (list/create/update)
-  - cortex_emos_status: EMOS pair counts and readiness
-  - cortex_prompt_refine: Get refinement suggestions for any prompt (cross-model)
+  - cortex_taskboard: Task board items (list/filter)
   - cortex_orchestrate: Discover and dispatch work items via Conductor
-  - cortex_enable_tools: Load deferred tool groups on demand
+  - cortex_prompt_refine: Get refinement suggestions for any prompt
+  - cortex_conductor_compose: Receive composed prompt from Conductor UI
 
-Deferred groups (enable via cortex_enable_tools):
-  - graph (4): graph_query, graph_stats, graph_search, graph_add_node
-  - planning (5): plan_create, plan_list, plan_get, plan_step, plan_progress
-  - ops (6): batch_list, batch_status, queue_list, queue_add, signal_absorb, record_decision
-  - portfolio (5): outcomes, compound_health, docs_tree, docs_content, activity_heatmap
-  - research (3): research_status, research_digest, research_proposals
-  - conductor (2): conductor_compose, conductor_startup
+  Operations (always available — no enable step required):
+  - cortex_graph_query: Search context graph by type or text
+  - cortex_plan_create: Create execution plan from project goals
+  - cortex_plan_progress: Get progress summary of all active plans
+  - cortex_batch_status: Get detailed status of a specific batch job
+  - cortex_outcomes: Outcome tracking (shipped, validated, failed)
+  - cortex_record_decision: Record a decision for the learning loop
+
+  Intelligence:
+  - cortex_research_digest: CRA weekly research digest
+  - cortex_doctor: System health check (Python, deps, API keys, bridge)
 
 Resources:
   - cortex://goals: Current GOALS.md content
@@ -41,7 +45,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
@@ -156,52 +160,6 @@ def cortex_taskboard(status: str = "", project: str = "") -> str:
 
 
 @mcp.tool()
-def cortex_create_task(
-    title: str, description: str = "", priority: str = "medium", project: str = ""
-) -> str:
-    """Create a new task on the Cortex task board."""
-    payload = {"title": title}
-    if description:
-        payload["description"] = description
-    if priority:
-        payload["priority"] = priority
-    if project:
-        payload["project"] = project
-    result = _bridge_post("/taskboard", payload)
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_emos_status() -> str:
-    """Get EMOS calibration pair counts per model and readiness status (threshold: 2000 pairs)."""
-    try:
-        emos_file = METRICS_DIR / "emos.json"
-        if not emos_file.exists():
-            return json.dumps({"error": "No EMOS metrics file found"})
-
-        data = json.loads(emos_file.read_text())
-        pairs = data.get("pairs", {})
-        threshold = 2000
-        ready = {k: v for k, v in pairs.items() if v >= threshold}
-        not_ready = {k: v for k, v in pairs.items() if v < threshold}
-
-        return json.dumps(
-            {
-                "pairs": pairs,
-                "threshold": threshold,
-                "ready_models": list(ready.keys()),
-                "not_ready": {
-                    k: f"{v}/{threshold} ({v / threshold * 100:.0f}%)" for k, v in not_ready.items()
-                },
-                "timestamp": data.get("timestamp", "unknown"),
-            },
-            indent=2,
-        )
-    except Exception as e:
-        return json.dumps({"error": str(e)})
-
-
-@mcp.tool()
 def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     """Get refinement suggestions for a prompt using learned patterns.
 
@@ -289,21 +247,6 @@ def cortex_conductor_compose(
 
 
 @mcp.tool()
-def cortex_conductor_startup(project_id: str = "") -> str:
-    """Get startup intelligence summary from Conductor.
-
-    Returns project health, active goals, recent anomalies, and recommended
-    first actions — everything needed to orient at the start of a session.
-
-    Args:
-        project_id: Optional project to focus the startup summary on.
-    """
-    params = f"?project_id={project_id}" if project_id else ""
-    result = _bridge_get(f"/conductor/startup{params}", timeout=10.0)
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
 def cortex_orchestrate(
     task: str = "",
     project: str = "",
@@ -357,7 +300,7 @@ def cortex_orchestrate(
         return json.dumps({"error": str(e)})
 
 
-# ── Graph Tools (deferred: graph) ──
+# ── Graph Tools ──
 
 
 @mcp.tool()
@@ -384,49 +327,7 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
-def cortex_graph_stats() -> str:
-    """Get context graph statistics: node counts by type, edge counts, density."""
-    result = _bridge_get("/v2/graph/stats")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_graph_search(query: str, node_types: str = "", limit: int = 5) -> str:
-    """Semantic search across the V2 context graph.
-
-    Args:
-        query: Natural language search query.
-        node_types: Comma-separated type filter (e.g., "pattern,lesson").
-        limit: Max results (default 5).
-    """
-    params = [f"q={query}"]
-    if node_types:
-        params.append(f"types={node_types}")
-    if limit != 5:
-        params.append(f"limit={limit}")
-    result = _bridge_get("/v2/graph/search?" + "&".join(params))
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_graph_add_node(node_type: str, name: str, data: str = "{}") -> str:
-    """Add a node to the context graph.
-
-    Args:
-        node_type: One of: goal, project, pattern, lesson, decision, warning.
-        name: Human-readable node name.
-        data: JSON string of additional metadata.
-    """
-    try:
-        extra = json.loads(data)
-    except json.JSONDecodeError:
-        extra = {}
-    result = _bridge_post("/graph/node", {"node_type": node_type, "name": name, "data": extra})
-    return json.dumps(result, indent=2)
-
-
-# ── Planning Tools (deferred: planning) ──
+# ── Planning Tools ──
 
 
 @mcp.tool()
@@ -445,60 +346,13 @@ def cortex_plan_create(project: str, title: str = "") -> str:
 
 
 @mcp.tool()
-def cortex_plan_list(status: str = "") -> str:
-    """List all execution plans, optionally filtered by status.
-
-    Args:
-        status: Filter by status: draft, active, completed, abandoned.
-    """
-    qs = f"?status={status}" if status else ""
-    result = _bridge_get(f"/plans{qs}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_plan_get(plan_id: str) -> str:
-    """Get plan details including steps, progress, and dependencies.
-
-    Args:
-        plan_id: The plan identifier.
-    """
-    result = _bridge_get(f"/plans/{plan_id}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_plan_step(plan_id: str, step_id: str, action: str = "complete", notes: str = "") -> str:
-    """Update a plan step: complete, skip, or block it.
-
-    Args:
-        plan_id: The plan identifier.
-        step_id: The step identifier.
-        action: One of: complete, skip, block.
-        notes: Optional notes about the step outcome.
-    """
-    payload = {"action": action}
-    if notes:
-        payload["notes"] = notes
-    result = _bridge_post(f"/plans/{plan_id}/steps/{step_id}", payload)
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
 def cortex_plan_progress() -> str:
     """Get progress summary of all active plans."""
     result = _bridge_get("/plans/progress")
     return json.dumps(result, indent=2)
 
 
-# ── Ops Tools (deferred: ops) ──
-
-
-@mcp.tool()
-def cortex_batch_list() -> str:
-    """List all batch jobs with status and progress."""
-    result = _bridge_get("/batches")
-    return json.dumps(result, indent=2)
+# ── Ops Tools ──
 
 
 @mcp.tool()
@@ -509,50 +363,6 @@ def cortex_batch_status(batch_id: str) -> str:
         batch_id: The batch job identifier.
     """
     result = _bridge_get(f"/batches/{batch_id}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_queue_list(status: str = "") -> str:
-    """List work queue items, optionally filtered by status.
-
-    Args:
-        status: Filter: pending, running, completed, failed.
-    """
-    qs = f"?status={status}" if status else ""
-    result = _bridge_get(f"/queue{qs}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_queue_add(task: str, project: str = "", priority: str = "medium") -> str:
-    """Add a work item to the Cortex queue.
-
-    Args:
-        task: Task description.
-        project: Target project (vortex, cortex, alpha-arena, pupil, etc.).
-        priority: critical, high, medium, or low.
-    """
-    payload = {"task": task, "priority": priority}
-    if project:
-        payload["project"] = project
-    result = _bridge_post("/queue", payload)
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_signal_absorb(signals: str) -> str:
-    """Feed signals into the Cortex signal bus for processing.
-
-    Args:
-        signals: JSON array of signal objects, each with type, source, and data fields.
-                 Example: '[{"type": "commit", "source": "vortex", "data": {"msg": "..."}}]'
-    """
-    try:
-        parsed = json.loads(signals)
-    except json.JSONDecodeError as e:
-        return json.dumps({"error": f"Invalid JSON: {e}"})
-    result = _bridge_post("/signal/absorb", {"signals": parsed})
     return json.dumps(result, indent=2)
 
 
@@ -579,7 +389,7 @@ def cortex_record_decision(
     return json.dumps(result, indent=2)
 
 
-# ── Portfolio Tools (deferred: portfolio) ──
+# ── Portfolio Tools ──
 
 
 @mcp.tool()
@@ -600,82 +410,7 @@ def cortex_outcomes(project: str = "", limit: int = 20) -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
-def cortex_compound_health() -> str:
-    """Get compound health score across all projects — trends, risk areas, and momentum."""
-    result = _bridge_get("/v2/compound-health")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_docs_tree(project: str = "") -> str:
-    """Browse project documentation tree structure.
-
-    Args:
-        project: Filter by project name. Shows all projects if omitted.
-    """
-    qs = f"?project={project}" if project else ""
-    result = _bridge_get(f"/docs/tree{qs}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_docs_content(path: str) -> str:
-    """Read documentation content by path (use cortex_docs_tree to discover paths).
-
-    Args:
-        path: Document path from docs_tree output.
-    """
-    result = _bridge_get(f"/docs/content?path={path}")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def cortex_activity_heatmap(days: int = 7) -> str:
-    """Get activity heatmap showing where work is concentrated across projects.
-
-    Args:
-        days: Lookback window in days (default 7).
-    """
-    result = _bridge_get(f"/activity/heatmap?days={days}")
-    return json.dumps(result, indent=2)
-
-
 # ── CRA Research Tools ──
-
-
-@mcp.tool()
-def cortex_research_status() -> str:
-    """Get CRA (Cortex Research Agent) pipeline status: discovery, assessment, proposal counts, and baseline score."""
-    try:
-        from cortex.engines.research_agent import CortexResearchAgent
-
-        agent = CortexResearchAgent()
-        discoveries = agent.load_discoveries()
-        assessments = agent.load_assessments()
-        adopt = agent.get_adopt_recommendations()
-        threats = agent.get_urgent_threats()
-        proposals = agent.get_pending_proposals()
-        statuses = agent.status_tracker.get_all()
-
-        status_counts = {}
-        for _file, data in statuses.items():
-            s = data.get("status", "draft")
-            status_counts[s] = status_counts.get(s, 0) + 1
-
-        result = {
-            "discoveries": len(discoveries),
-            "assessments": len(assessments),
-            "adopt_recommendations": len(adopt),
-            "urgent_threats": len(threats),
-            "pending_proposals": len(proposals),
-            "baseline_score": round(agent.get_baseline_score(), 4),
-            "scan_due": agent.should_scan(),
-            "proposal_statuses": status_counts,
-        }
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -690,45 +425,73 @@ def cortex_research_digest() -> str:
         return json.dumps({"error": str(e)})
 
 
+# ── System Tools ──
+
+
 @mcp.tool()
-def cortex_research_proposals(action: str = "list") -> str:
-    """Manage CRA research proposals. List pending proposals or approve one for live execution.
+def cortex_doctor() -> str:
+    """Run Cortex system health check: Python version, dependencies, API keys, bridge, and data dir."""
+    import socket
+    import sys
 
-    Args:
-        action: "list" to show all proposals with status, or "approve:<filename>" to approve a proposal.
-    """
+    checks = []
+
+    # Python version
+    major, minor = sys.version_info[:2]
+    checks.append(
+        {
+            "check": "Python >= 3.11",
+            "pass": (major, minor) >= (3, 11),
+            "detail": f"{major}.{minor}.{sys.version_info.micro}",
+        }
+    )
+
+    # Key dependencies
+    for dep in ("anthropic", "sklearn", "fastapi"):
+        try:
+            mod = __import__(dep)
+            ver = getattr(mod, "__version__", "?")
+            checks.append({"check": f"{dep} importable", "pass": True, "detail": ver})
+        except ImportError:
+            checks.append({"check": f"{dep} importable", "pass": False, "detail": "missing"})
+
+    # API key
+    checks.append(
+        {
+            "check": "ANTHROPIC_API_KEY set",
+            "pass": bool(os.environ.get("ANTHROPIC_API_KEY")),
+            "detail": "present" if os.environ.get("ANTHROPIC_API_KEY") else "missing",
+        }
+    )
+
+    # Data dir
+    data_dir = Path.home() / ".cortex"
+    checks.append(
+        {
+            "check": "~/.cortex/ exists",
+            "pass": data_dir.exists(),
+            "detail": str(data_dir) if data_dir.exists() else "missing",
+        }
+    )
+
+    # Bridge
+    bridge_up = False
     try:
-        from cortex.engines.research_agent import CortexResearchAgent
+        s = socket.create_connection(("127.0.0.1", 8765), timeout=1)
+        s.close()
+        bridge_up = True
+    except OSError:
+        pass
+    checks.append(
+        {
+            "check": "bridge :8765 reachable",
+            "pass": bridge_up,
+            "detail": "up" if bridge_up else "down",
+        }
+    )
 
-        agent = CortexResearchAgent()
-
-        if action.startswith("approve:"):
-            proposal_file = action.split(":", 1)[1].strip()
-            agent.approve_proposal(proposal_file)
-            return json.dumps(
-                {
-                    "approved": proposal_file,
-                    "new_status": agent.status_tracker.get_status(proposal_file),
-                },
-                indent=2,
-            )
-
-        # Default: list proposals with status
-        proposals = agent.get_pending_proposals()
-        result = []
-        for p in proposals:
-            status = agent.status_tracker.get_status(p["file"])
-            result.append(
-                {
-                    "file": p["file"],
-                    "title": p["title"],
-                    "created": p["created"],
-                    "status": status,
-                }
-            )
-        return json.dumps({"proposals": result, "count": len(result)}, indent=2)
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+    all_pass = all(c["pass"] for c in checks)
+    return json.dumps({"checks": checks, "all_pass": all_pass}, indent=2)
 
 
 # ── Resources ──
@@ -769,114 +532,6 @@ def prompt_patterns_resource() -> str:
     return json.dumps(
         {"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"}
     )
-
-
-# ── Deferred Tool Loading ──
-#
-# Low-frequency tools (research, conductor) are removed at import time
-# and re-registered on demand via cortex_enable_tools(). This reduces
-# the initial tools/list payload sent to clients — fewer tokens per session.
-
-_DEFERRED_TOOL_GROUPS = {
-    "graph": {
-        "cortex_graph_query": cortex_graph_query,
-        "cortex_graph_stats": cortex_graph_stats,
-        "cortex_graph_search": cortex_graph_search,
-        "cortex_graph_add_node": cortex_graph_add_node,
-    },
-    "planning": {
-        "cortex_plan_create": cortex_plan_create,
-        "cortex_plan_list": cortex_plan_list,
-        "cortex_plan_get": cortex_plan_get,
-        "cortex_plan_step": cortex_plan_step,
-        "cortex_plan_progress": cortex_plan_progress,
-    },
-    "ops": {
-        "cortex_batch_list": cortex_batch_list,
-        "cortex_batch_status": cortex_batch_status,
-        "cortex_queue_list": cortex_queue_list,
-        "cortex_queue_add": cortex_queue_add,
-        "cortex_signal_absorb": cortex_signal_absorb,
-        "cortex_record_decision": cortex_record_decision,
-    },
-    "portfolio": {
-        "cortex_outcomes": cortex_outcomes,
-        "cortex_compound_health": cortex_compound_health,
-        "cortex_docs_tree": cortex_docs_tree,
-        "cortex_docs_content": cortex_docs_content,
-        "cortex_activity_heatmap": cortex_activity_heatmap,
-    },
-    "research": {
-        "cortex_research_status": cortex_research_status,
-        "cortex_research_digest": cortex_research_digest,
-        "cortex_research_proposals": cortex_research_proposals,
-    },
-    "conductor": {
-        "cortex_conductor_compose": cortex_conductor_compose,
-        "cortex_conductor_startup": cortex_conductor_startup,
-    },
-}
-
-_DEFERRED_TOOL_NAMES = set()
-for _group_tools in _DEFERRED_TOOL_GROUPS.values():
-    _DEFERRED_TOOL_NAMES.update(_group_tools.keys())
-
-# Remove deferred tools from initial registration
-for _name in _DEFERRED_TOOL_NAMES:
-    try:
-        mcp.remove_tool(_name)
-    except Exception:
-        pass  # Tool may not exist if registration order changes
-
-
-def _enable_tool_group(group: str) -> dict:
-    """Enable deferred tools by group name. Returns result dict."""
-    if group == "all":
-        groups_to_enable = list(_DEFERRED_TOOL_GROUPS.keys())
-    elif group in _DEFERRED_TOOL_GROUPS:
-        groups_to_enable = [group]
-    else:
-        valid = ", ".join(sorted(_DEFERRED_TOOL_GROUPS.keys())) + ", all"
-        return {"error": f"Unknown group '{group}'. Valid: {valid}"}
-
-    enabled = []
-    for g in groups_to_enable:
-        for tool_name, tool_fn in _DEFERRED_TOOL_GROUPS[g].items():
-            # Skip if already registered
-            if tool_name in {t for t in mcp._tool_manager._tools}:
-                continue
-            mcp.add_tool(tool_fn, name=tool_name)
-            enabled.append(tool_name)
-
-    return {"enabled": enabled, "group": group}
-
-
-@mcp.tool()
-async def cortex_enable_tools(group: str = "all", ctx: Context | None = None) -> str:
-    """Enable deferred tool groups that were not loaded at startup.
-
-    Available groups:
-    - 'graph': context graph query/search/add (4 tools)
-    - 'planning': plan create/list/get/step/progress (5 tools)
-    - 'ops': batch, queue, signals, decisions (6 tools)
-    - 'portfolio': outcomes, health, docs, activity (5 tools)
-    - 'research': CRA status/digest/proposals (3 tools)
-    - 'conductor': compose/startup (2 tools)
-    - 'all': enable everything
-
-    Args:
-        group: Tool group to enable (see above).
-    """
-    result = _enable_tool_group(group)
-
-    # Notify client that the tool list changed (MCP spec compliance)
-    if result.get("enabled") and ctx is not None:
-        try:
-            await ctx.session.send_tool_list_changed()
-        except Exception:
-            pass  # Best-effort — session may not support notifications
-
-    return json.dumps(result)
 
 
 def main():

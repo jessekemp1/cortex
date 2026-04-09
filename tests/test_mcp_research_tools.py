@@ -198,55 +198,73 @@ class TestMCPResearchProposals:
         assert "proposals" in data
 
 
-class TestDeferredToolLoading:
-    """Deferred tools should not appear in initial tool list."""
+class TestV2AlwaysLoadedTools:
+    """V2: all 18 tools are always-loaded — no deferred groups, no enable step."""
 
     @pytest.fixture(autouse=True)
     def _skip_if_no_mcp(self):
         """Skip if MCP SDK is not installed."""
         pytest.importorskip("mcp")
 
-    def test_deferred_tools_not_in_initial_list(self):
-        from cortex.mcp_server import mcp as mcp_instance, _DEFERRED_TOOL_NAMES
+    # V2 always-loaded tool set
+    _EXPECTED_TOOLS = {
+        "cortex_service_health",
+        "cortex_intelligence",
+        "cortex_recommendations",
+        "cortex_anomalies",
+        "cortex_projects",
+        "cortex_sessions",
+        "cortex_taskboard",
+        "cortex_orchestrate",
+        "cortex_prompt_refine",
+        "cortex_conductor_compose",
+        "cortex_graph_query",
+        "cortex_plan_create",
+        "cortex_plan_progress",
+        "cortex_batch_status",
+        "cortex_outcomes",
+        "cortex_record_decision",
+        "cortex_research_digest",
+        "cortex_doctor",
+    }
+
+    def test_all_tools_always_loaded(self):
+        """All 18 V2 tools are registered at import — no enable step required."""
+        from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        leaked = _DEFERRED_TOOL_NAMES & registered
-        assert leaked == set(), f"Deferred tools still in initial list: {leaked}"
+        missing = self._EXPECTED_TOOLS - registered
+        assert missing == set(), f"Tools not registered: {missing}"
 
-    def test_enable_tools_registers_research(self):
-        from cortex.mcp_server import _enable_tool_group, mcp as mcp_instance
+    def test_exact_tool_count(self):
+        """Exactly 18 tools registered — no extras, no deferred machinery."""
+        from cortex.mcp_server import mcp as mcp_instance
 
-        result = _enable_tool_group("research")
         registered = set(mcp_instance._tool_manager._tools.keys())
-
-        assert "cortex_research_status" in registered
-        assert "cortex_research_digest" in registered
-        assert "cortex_research_proposals" in registered
-        assert len(result["enabled"]) >= 1
-
-    def test_enable_tools_invalid_group(self):
-        from cortex.mcp_server import _enable_tool_group
-
-        result = _enable_tool_group("nonexistent")
-        assert "error" in result
-
-    def test_enable_all_registers_both_groups(self):
-        from cortex.mcp_server import (
-            _enable_tool_group,
-            mcp as mcp_instance,
-            _DEFERRED_TOOL_NAMES,
+        # Only count cortex_ tools (exclude any internal tools)
+        cortex_tools = {t for t in registered if t.startswith("cortex_")}
+        assert len(cortex_tools) == 18, (
+            f"Expected 18 tools, got {len(cortex_tools)}: {cortex_tools}"
         )
 
-        # Re-remove to reset state for this test
-        for name in _DEFERRED_TOOL_NAMES:
-            try:
-                mcp_instance.remove_tool(name)
-            except Exception:
-                pass
+    def test_no_deferred_machinery(self):
+        """Deferred loading internals are gone."""
+        import cortex.mcp_server as mod
 
-        result = _enable_tool_group("all")
+        assert not hasattr(mod, "_DEFERRED_TOOL_GROUPS"), "Deferred tool groups should be removed"
+        assert not hasattr(mod, "_DEFERRED_TOOL_NAMES"), "Deferred tool names should be removed"
+        assert not hasattr(mod, "_enable_tool_group"), "_enable_tool_group should be removed"
+
+    def test_no_enable_tools_tool(self):
+        """cortex_enable_tools no longer exists (deferred loading removed)."""
+        from cortex.mcp_server import mcp as mcp_instance
+
         registered = set(mcp_instance._tool_manager._tools.keys())
+        assert "cortex_enable_tools" not in registered, "cortex_enable_tools should be removed"
 
-        for name in _DEFERRED_TOOL_NAMES:
-            assert name in registered, f"{name} not registered after enable all"
-        assert len(result["enabled"]) == len(_DEFERRED_TOOL_NAMES)
+    def test_research_digest_always_available(self):
+        """cortex_research_digest is always-loaded (was deferred in V1)."""
+        from cortex.mcp_server import mcp as mcp_instance
+
+        registered = set(mcp_instance._tool_manager._tools.keys())
+        assert "cortex_research_digest" in registered
