@@ -3062,6 +3062,39 @@ async def get_activity_heatmap() -> Dict[str, Any]:
 
 
 # ============================================================================
+# Temporal Memory Retrieval
+# ============================================================================
+
+
+@app.get("/memory/temporal")
+async def get_temporal_memory(
+    since: Optional[str] = Query(
+        None, description="Start: '3d', 'yesterday', '2026-04-01', 'last tuesday'"
+    ),
+    until: Optional[str] = Query(None, description="End: ISO date or None (defaults to now)"),
+    text: Optional[str] = Query(None, description="Substring filter"),
+    sources: Optional[str] = Query(
+        None, description="Comma-separated: interaction,reflection,alert,digest"
+    ),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Query Cortex memory stores by time window."""
+    try:
+        from memory.temporal import TemporalQuery
+
+        tq = TemporalQuery()
+        src_list = [s.strip() for s in sources.split(",")] if sources else None
+        summary = tq.summarise(since=since, until=until, text=text)
+        if src_list:
+            summary["entries"] = [e for e in summary["entries"] if e.get("_source") in src_list]
+        summary["entries"] = summary["entries"][:limit]
+        summary["total"] = len(summary["entries"])
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # Main Entry Point
 # ============================================================================
 

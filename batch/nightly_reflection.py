@@ -61,10 +61,11 @@ def load_todays_interactions(path: Path = INTERACTION_QUEUE) -> List[Dict[str, A
                     continue
 
                 entry_type = entry.get("type", "")
-                ts = entry.get("timestamp", entry.get("ts", ""))
+                # queued_at is the canonical field; fall back to timestamp/ts for legacy entries
+                ts = entry.get("queued_at", entry.get("timestamp", entry.get("ts", "")))
 
-                # Accept type == "prompt" (or no type — legacy format)
-                if entry_type not in ("prompt", ""):
+                # Accept prompt_received (current) or prompt/empty (legacy)
+                if entry_type not in ("prompt_received", "prompt", ""):
                     continue
 
                 if ts and ts[:10] == today:

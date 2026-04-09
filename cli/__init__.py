@@ -556,6 +556,11 @@ Deep Mode (Phase 1):
 
     nightly_parser.set_defaults(func=_nightly_dispatch)
 
+    # ── recall (temporal retrieval) ───────────────────────────────────────────
+    from cli.commands.v2_ops import register_recall_cmds
+
+    register_recall_cmds(subparsers)
+
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
 

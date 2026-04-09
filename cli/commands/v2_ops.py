@@ -1432,3 +1432,69 @@ def register_reflect_cmds(subparsers) -> None:
             cmd_reflect_run(args)
 
     reflect.set_defaults(func=_reflect_dispatch)
+
+
+def cmd_recall(args):
+    """Temporal memory recall — query cortex stores by time window."""
+    import json as _json
+
+    try:
+        from memory.temporal import TemporalQuery
+    except ImportError as exc:
+        print(f"Error: memory.temporal not available — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    tq = TemporalQuery()
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    text = getattr(args, "text", None)
+    sources = getattr(args, "sources", None)
+    src_list = [s.strip() for s in sources.split(",")] if sources else None
+    limit = getattr(args, "limit", 20)
+    use_json = getattr(args, "json", False)
+
+    summary = tq.summarise(since=since, until=until, text=text)
+    entries = summary["entries"]
+    if src_list:
+        entries = [e for e in entries if e.get("_source") in src_list]
+    entries = entries[:limit]
+
+    if use_json:
+        print(_json.dumps({"total": len(entries), "entries": entries}, indent=2, default=str))
+        return
+
+    window = f"since {since}" if since else "all time"
+    if until:
+        window += f" until {until}"
+    print(f"Temporal recall — {window}: {len(entries)} entries")
+    print()
+    for e in entries:
+        src = e.get("_source", "?")
+        ts = e.get("_ts", "")[:16]
+        # Best-effort content preview
+        content = (
+            e.get("prompt")
+            or e.get("themes")
+            or e.get("description")
+            or e.get("message")
+            or e.get("content")
+            or ""
+        )
+        if isinstance(content, list):
+            content = ", ".join(str(x) for x in content[:3])
+        content = str(content)[:100]
+        print(f"  [{ts}] {src:12} {content}")
+
+
+def register_recall_cmds(subparsers) -> None:
+    """Register cortex recall subcommand."""
+    p = subparsers.add_parser("recall", help="Temporal memory recall by time window")
+    p.add_argument("--since", default=None, help="Start: 3d, yesterday, 2026-04-01, last tuesday")
+    p.add_argument("--until", default=None, help="End: ISO date (default: now)")
+    p.add_argument("--text", default=None, help="Substring filter")
+    p.add_argument(
+        "--sources", default=None, help="Comma-separated: interaction,reflection,alert,digest"
+    )
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.set_defaults(func=cmd_recall)
