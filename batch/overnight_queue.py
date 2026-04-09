@@ -115,11 +115,25 @@ def cortex_diagnostics_job() -> LocalJob:
     )
 
 
+def self_audit_job() -> LocalJob:
+    """Cortex self-audit — memory bridge, learning loop, test quality, anti-pattern mechanisms."""
+    return LocalJob(
+        description="Cortex self-audit (health report)",
+        command="cortex/.venv/bin/python3 cortex/self_audit.py",
+        task_type="monitoring",
+        working_dir=WORKSPACE,
+        priority="normal",
+        timeout_seconds=60,
+        metadata={"project": "Cortex", "recurring": True},
+    )
+
+
 def build_overnight_queue() -> List[LocalJob]:
     """Build the full overnight job queue."""
     jobs = []
     jobs.extend(test_validation_jobs())
     jobs.append(cortex_diagnostics_job())
+    jobs.append(self_audit_job())
     return jobs
 
 
