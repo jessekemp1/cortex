@@ -533,7 +533,9 @@ def main():
     # intelligence
     intel_parser = subparsers.add_parser("intelligence", help="Query unified intelligence")
     intel_parser.add_argument("request", help="User request")
-    intel_parser.add_argument("--project", required=True, help="Project name")
+    intel_parser.add_argument(
+        "--project", default=None, help="Project name (auto-detected from cwd if omitted)"
+    )
     intel_parser.add_argument(
         "--type", default="spec", help="Query type (spec/impl/analysis/research)"
     )
@@ -541,7 +543,9 @@ def main():
     # similar-work
     similar_parser = subparsers.add_parser("similar-work", help="Find similar work")
     similar_parser.add_argument("domain", help="Domain/topic")
-    similar_parser.add_argument("--project", required=True, help="Project name")
+    similar_parser.add_argument(
+        "--project", default=None, help="Project name (auto-detected from cwd if omitted)"
+    )
     similar_parser.add_argument("--limit", type=int, default=5, help="Max results")
 
     # session-context
@@ -723,12 +727,12 @@ def main():
         else:
             port_parser.print_help()
     elif args.command == "intelligence":
-        result = bridge.query_intelligence(
-            args.request, args.project, getattr(args, "type", "spec")
-        )
+        project = args.project or bridge._detect_current_project()
+        result = bridge.query_intelligence(args.request, project, getattr(args, "type", "spec"))
         print(json.dumps(result, indent=2, default=str))
     elif args.command == "similar-work":
-        result = bridge.find_similar_work(args.domain, args.project, getattr(args, "limit", 5))
+        project = args.project or bridge._detect_current_project()
+        result = bridge.find_similar_work(args.domain, project, getattr(args, "limit", 5))
         print(json.dumps(result, indent=2, default=str))
     elif args.command == "session-context":
         result = bridge.get_session_context()

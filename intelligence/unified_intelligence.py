@@ -154,6 +154,50 @@ class UnifiedIntelligence:
             if source:
                 sources_queried.append(source)
 
+        # 4b. Derive lessons and patterns from similar_work if portfolio returned none
+        if not lessons and similar_work:
+            now = datetime.now().isoformat()
+            for i, sw in enumerate(similar_work[:3]):
+                if sw.similarity_score >= 0.1:
+                    # Use lessons_learned if present, otherwise derive from summary
+                    source_lessons = (
+                        sw.lessons_learned[:2]
+                        if sw.lessons_learned
+                        else [sw.summary[:200] if sw.summary else sw.title]
+                    )
+                    for ll in source_lessons:
+                        lessons.append(
+                            Lesson(
+                                id=f"derived-{i}",
+                                project=sw.project or project,
+                                category="similar_work",
+                                lesson=ll,
+                                context=sw.title,
+                                frequency=1,
+                                first_seen=now,
+                                last_seen=now,
+                            )
+                        )
+
+        if not applicable_patterns and similar_work:
+            seen_names: set = set()
+            for sw in similar_work[:3]:
+                if sw.similarity_score >= 0.1:
+                    # Use key_patterns if present, otherwise use title as pattern name
+                    source_patterns = sw.key_patterns[:2] if sw.key_patterns else [sw.title]
+                    for kp in source_patterns:
+                        if kp not in seen_names:
+                            seen_names.add(kp)
+                            applicable_patterns.append(
+                                Pattern(
+                                    name=kp,
+                                    description=f"{sw.summary[:150]}" if sw.summary else sw.title,
+                                    projects=[sw.project or project],
+                                    reference=sw.reference_path,
+                                    confidence_score=sw.similarity_score,
+                                )
+                            )
+
         # 5. Generate warnings and recommendations
         warnings = self._generate_warnings(project, lessons, project_context)
         recommendations = self._generate_recommendations(
@@ -228,8 +272,11 @@ class UnifiedIntelligence:
             kb = self._get_spec_kb()
             if not kb:
                 return [], None
+            # Try project-scoped first; fall back to portfolio-wide if empty
             similar = kb.find_similar(request, k=5, project_filter=project)
-            return similar, "spec_knowledge_base"
+            if not similar:
+                similar = kb.find_similar(request, k=5, project_filter=None)
+            return similar, "spec_knowledge_base" if similar else None
         except Exception:
             return [], None
 
@@ -905,8 +952,7 @@ class UnifiedIntelligence:
             )
             for i, pred in enumerate(context_predictions[:3], 1):
                 reasoning_parts.append(
-                    f"  {i}. {pred.type} from {pred.source} "
-                    f"(relevance: {pred.relevance_score:.0%})"
+                    f"  {i}. {pred.type} from {pred.source} (relevance: {pred.relevance_score:.0%})"
                 )
                 if pred.content:
                     reasoning_parts.append(f"     {pred.content[:150]}...")
