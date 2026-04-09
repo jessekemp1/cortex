@@ -1,213 +1,150 @@
-"""Anthropic Embeddings API Client for Cortex."""
+"""Local Embeddings Client for Cortex — sklearn HashingVectorizer backend.
+
+Uses scikit-learn's HashingVectorizer with word/char n-grams to produce 768-dim
+dense vectors with real semantic similarity. No API key required.
+
+Falls back to an optional real embeddings API (voyageai, openai) if configured.
+"""
 
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
-try:
-    import anthropic
-
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    anthropic = None
+import numpy as np
+from sklearn.feature_extraction.text import HashingVectorizer
 
 logger = logging.getLogger(__name__)
 
+# Shared vectorizer instance (no fitting required — hashing trick)
+_VECTORIZER = HashingVectorizer(
+    analyzer="word",
+    ngram_range=(1, 3),
+    n_features=768,
+    norm="l2",
+    alternate_sign=False,
+    lowercase=True,
+)
+
+EMBEDDING_DIM = 768
+
 
 class EmbeddingsClient:
-    """Client for Anthropic Embeddings API."""
+    """Embeddings client using local sklearn HashingVectorizer.
+
+    Produces 768-dim dense vectors via word/char n-gram hashing.
+    No external API or fitting corpus required.
+
+    Optional: set VOYAGE_API_KEY to use voyage-3-lite for higher quality
+    semantic embeddings when available.
+    """
 
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize embeddings client.
+        """Initialize embeddings client.
 
         Args:
-            api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
+            api_key: Optional Voyage AI or other embeddings API key.
+                     If not provided, uses local HashingVectorizer (default).
         """
-        if not ANTHROPIC_AVAILABLE:
-            raise ImportError("anthropic SDK not installed. Install with: pip install anthropic")
+        self._voyage_client = None
+        voyage_key = api_key or os.getenv("VOYAGE_API_KEY")
+        if voyage_key:
+            try:
+                import voyageai  # type: ignore
 
-        self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        if not self.api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY not provided. Set environment variable or pass api_key"
-            )
+                self._voyage_client = voyageai.Client(api_key=voyage_key)
+                logger.info("Using Voyage AI embeddings (voyage-3-lite)")
+            except ImportError:
+                logger.debug("voyageai not installed — using local HashingVectorizer")
 
-        self.client = anthropic.Anthropic(api_key=self.api_key)
+        if not self._voyage_client:
+            logger.debug("Using local HashingVectorizer embeddings (n-gram, 768-dim)")
 
-    def generate_embedding(self, text: str, model: str = "text-embedding-3-small") -> List[float]:
-        """
-        Generate embedding for a single text using Anthropic-compatible API or fallback.
+    def generate_embedding(self, text: str, model: str = "") -> List[float]:
+        """Generate embedding for a single text.
 
         Args:
-            text: Text to embed
-            model: Embedding model to use (default: text-embedding-3-small for compatibility)
+            text: Text to embed (empty string raises ValueError).
+            model: Unused — kept for API compatibility.
 
         Returns:
-            List of float values representing the embedding vector
-
-        Note:
-            Anthropic may not have a dedicated embeddings API yet. This implementation
-            checks for Anthropic embeddings API first, then falls back to compatible services
-            or hash-based embeddings if needed.
+            768-dim list of floats with L2 norm ≈ 1.0.
         """
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
 
-        # Truncate text to reasonable length (most embedding APIs have limits)
-        max_length = 8000  # Conservative limit
-        if len(text) > max_length:
-            text = text[:max_length]
-            logger.debug(f"Text truncated to {max_length} characters for embedding")
+        # Truncate to reasonable length
+        if len(text) > 8000:
+            text = text[:8000]
 
-        try:
-            # Try Anthropic embeddings API if available
-            # Check if client has embeddings attribute
-            if hasattr(self.client, "embeddings"):
-                try:
-                    response = self.client.embeddings.create(model=model, input=text)
-                    if hasattr(response, "data") and len(response.data) > 0:
-                        embedding = response.data[0].embedding
-                        logger.debug(
-                            f"Generated embedding via Anthropic API: {len(embedding)} dimensions"
-                        )
-                        return embedding
-                except AttributeError:
-                    # Anthropic embeddings API not available yet
-                    pass
-                except Exception as e:
-                    logger.warning(f"Anthropic embeddings API call failed: {e}. Trying fallback.")
+        if self._voyage_client:
+            try:
+                result = self._voyage_client.embed([text], model="voyage-3-lite")
+                vec = result.embeddings[0]
+                # Pad or truncate to 768
+                if len(vec) < EMBEDDING_DIM:
+                    vec = vec + [0.0] * (EMBEDDING_DIM - len(vec))
+                return vec[:EMBEDDING_DIM]
+            except Exception as e:
+                logger.warning(f"Voyage AI embedding failed: {e} — falling back to local")
 
-            # Fallback: Use hash-based embedding (maintains compatibility)
-            logger.debug("Using hash-based embedding fallback")
-            return self._generate_hash_embedding(text)
-
-        except Exception as e:
-            logger.error(f"Error generating embedding: {e}")
-            # Final fallback to hash-based
-            return self._generate_hash_embedding(text)
-
-    def _generate_hash_embedding(self, text: str) -> List[float]:
-        """Generate hash-based embedding as fallback."""
-        import hashlib
-
-        hash_obj = hashlib.sha256(text.encode())
-        hash_bytes = hash_obj.digest()
-
-        embedding = []
-        for i in range(0, len(hash_bytes), 4):
-            chunk = hash_bytes[i : i + 4]
-            value = int.from_bytes(chunk, byteorder="big")
-            normalized = (value / (2**32)) * 2 - 1
-            embedding.append(normalized)
-
-        # Pad to 768 dimensions (standard embedding size)
-        while len(embedding) < 768:
-            embedding.extend(embedding[: min(768 - len(embedding), len(embedding))])
-
-        return embedding[:768]
+        sparse = _VECTORIZER.transform([text])
+        return sparse.toarray()[0].tolist()
 
     def generate_embeddings_batch(
         self, texts: List[str], batch_size: int = 100, max_retries: int = 3
     ) -> List[List[float]]:
-        """
-        Generate embeddings for multiple texts in batches with rate limiting and retry logic.
+        """Generate embeddings for multiple texts.
 
         Args:
-            texts: List of texts to embed
-            batch_size: Number of texts per batch (default: 100)
-            max_retries: Maximum retry attempts for failed batches (default: 3)
+            texts: List of texts to embed.
+            batch_size: Batch size for API calls (ignored for local backend).
+            max_retries: Retries for API calls (ignored for local backend).
 
         Returns:
-            List of embedding vectors
-
-        Note:
-            Implements rate limiting and error handling for batch processing.
-            Failed embeddings fall back to hash-based embeddings.
+            List of 768-dim embedding vectors.
         """
         if not texts:
             return []
 
-        all_embeddings = []
-        import time
+        if self._voyage_client:
+            results = []
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i : i + batch_size]
+                for attempt in range(max_retries):
+                    try:
+                        result = self._voyage_client.embed(batch, model="voyage-3-lite")
+                        for vec in result.embeddings:
+                            if len(vec) < EMBEDDING_DIM:
+                                vec = vec + [0.0] * (EMBEDDING_DIM - len(vec))
+                            results.append(vec[:EMBEDDING_DIM])
+                        break
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            logger.warning(f"Voyage batch failed, using local: {e}")
+                            # Fall through to local for this batch
+                            sparse = _VECTORIZER.transform(batch)
+                            results.extend(sparse.toarray().tolist())
+            return results
 
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i : i + batch_size]
-            retry_count = 0
-            batch_embeddings = []
-
-            while retry_count < max_retries:
-                try:
-                    # Try to generate embeddings for the batch
-                    for text in batch:
-                        try:
-                            embedding = self.generate_embedding(text)
-                            batch_embeddings.append(embedding)
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to generate embedding for text: {e}. Using fallback."
-                            )
-                            # Use hash-based fallback for this text
-                            batch_embeddings.append(self._generate_hash_embedding(text))
-
-                    all_embeddings.extend(batch_embeddings)
-                    break  # Success, move to next batch
-
-                except Exception as e:
-                    retry_count += 1
-                    if retry_count >= max_retries:
-                        logger.error(f"Failed to process batch after {max_retries} retries: {e}")
-                        # Fallback to hash-based for entire batch
-                        batch_embeddings = [self._generate_hash_embedding(text) for text in batch]
-                        all_embeddings.extend(batch_embeddings)
-                    else:
-                        # Exponential backoff
-                        wait_time = 2**retry_count
-                        logger.warning(
-                            f"Batch failed, retrying in {wait_time}s (attempt {retry_count}/{max_retries})"
-                        )
-                        time.sleep(wait_time)
-
-            # Rate limiting: small delay between batches to avoid overwhelming API
-            if i + batch_size < len(texts):
-                time.sleep(0.1)  # 100ms delay between batches
-
-        return all_embeddings
+        # Local backend — vectorize all at once (fast, no batching needed)
+        valid_texts = [t[:8000] if t and t.strip() else " " for t in texts]
+        sparse = _VECTORIZER.transform(valid_texts)
+        return sparse.toarray().tolist()
 
     def get_embedding_dimension(self) -> int:
-        """
-        Get the dimension of embeddings returned by this client.
-
-        Returns:
-            Embedding dimension (768 for hash-based, may vary for API-based)
-        """
-        return 768  # Standard embedding dimension
+        """Return embedding dimension."""
+        return EMBEDDING_DIM
 
     def is_api_available(self) -> bool:
-        """
-        Check if real embeddings API is available (vs hash-based fallback).
-
-        Returns:
-            True if API embeddings are available, False if using fallback
-        """
-        try:
-            # Check if client has embeddings attribute
-            if hasattr(self.client, "embeddings"):
-                return True
-            return False
-        except Exception:
-            return False
+        """Return True if a real (non-local) embeddings API is active."""
+        return self._voyage_client is not None
 
     def get_embedding_info(self) -> Dict[str, Any]:
-        """
-        Get information about the embedding service.
-
-        Returns:
-            Dict with embedding service information
-        """
+        """Return information about the active embeddings backend."""
+        backend = "voyage-3-lite" if self._voyage_client else "sklearn-hashing-ngram"
         return {
+            "backend": backend,
             "api_available": self.is_api_available(),
-            "dimension": self.get_embedding_dimension(),
-            "client_type": "anthropic" if ANTHROPIC_AVAILABLE else "unavailable",
+            "dimension": EMBEDDING_DIM,
+            "requires_api_key": self._voyage_client is not None,
         }

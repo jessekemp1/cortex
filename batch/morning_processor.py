@@ -12,6 +12,8 @@ This feeds directly into /briefing command results.
 """
 
 import json
+import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -514,8 +516,30 @@ def retrieve_completed_batches():
         print(f"  Error retrieving batch results: {e}")
 
 
+def _validate_env() -> None:
+    """Validate required environment variables before doing any API work.
+
+    Exits with a clear error message if required vars are missing, rather
+    than failing silently mid-run (the failure mode that killed 6 weeks of batch cycles).
+    """
+    required = {
+        "ANTHROPIC_API_KEY": "Anthropic API calls in batch processing",  # pragma: allowlist secret
+    }
+    missing = [f"  {k} ({v})" for k, v in required.items() if not os.getenv(k)]
+    if missing:
+        print("FATAL: Missing required environment variables:", file=sys.stderr)
+        for m in missing:
+            print(m, file=sys.stderr)
+        print(
+            "\nFix: add EnvironmentVariables to com.cortex.batch.morning.plist",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main():
     """Main entry point for morning processor"""
+    _validate_env()
     print(f"Morning processor starting at {datetime.now().isoformat()}")
 
     # Phase 0: Retrieve LLM responses for completed API batches
