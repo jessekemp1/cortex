@@ -1142,12 +1142,12 @@ async def search_v2_graph(
     query: str = Query(..., description="Search query"),
     limit: int = Query(10, description="Max results"),
 ) -> Dict[str, Any]:
-    """Search the v2 knowledge graph for patterns, projects, and outcomes."""
+    """Search the V2 context graph (engines/synthesis.py ContextGraph) for patterns, projects, and outcomes."""
     try:
-        from cortex.v2.memory.graph import GraphMemory
+        from cortex.engines.synthesis import ContextGraph
 
-        graph = GraphMemory()
-        nodes = graph.search_nodes(query, limit=limit)
+        graph = ContextGraph()
+        nodes = graph.query(query, limit=limit)
         return {
             "results": [
                 {
@@ -1165,32 +1165,18 @@ async def search_v2_graph(
             ],
             "total": len(nodes),
         }
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/v2/graph/stats")
 async def get_v2_graph_stats() -> Dict[str, Any]:
-    """Get graph memory statistics (node/edge counts by type)."""
+    """Get V2 context graph statistics (node/edge counts by type)."""
     try:
-        from cortex.v2.memory.graph import GraphMemory
+        from cortex.engines.synthesis import ContextGraph
 
-        graph = GraphMemory()
-        with graph._connect() as conn:
-            node_count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
-            edge_count = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
-            type_counts = dict(
-                conn.execute("SELECT type, COUNT(*) FROM nodes GROUP BY type").fetchall()
-            )
-        return {
-            "total_nodes": node_count,
-            "total_edges": edge_count,
-            "nodes_by_type": type_counts,
-        }
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+        graph = ContextGraph()
+        return graph.get_stats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
