@@ -70,7 +70,21 @@ _MODEL_MAP: Dict[str, str] = {
     "opus": "claude-opus-4-6",
     "sonnet": "claude-sonnet-4-6",
     "haiku": "claude-haiku-4-5-20251001",
+    "local": "llama3.2",
 }
+
+# Task types eligible for local inference (low-stakes, high-volume)
+_LOCAL_ELIGIBLE_TASKS = frozenset(
+    {
+        "batch",
+        "summarize",
+        "briefing",
+        "classify",
+        "quick_qa",
+        "extraction",
+        "data_fetch",
+    }
+)
 
 # --- Task-type complexity heuristic (for callers without a full WorkItem) ---
 
@@ -331,6 +345,34 @@ class ModelRouter:
             )
 
         return selection
+
+    def select_model_local_first(
+        self,
+        work_item: WorkItem,
+    ) -> ModelSelection:
+        """Opt-in routing that prefers local inference for eligible task types.
+
+        If Ollama is available and the task type is in _LOCAL_ELIGIBLE_TASKS,
+        returns a local ModelSelection. Otherwise falls back to select_model().
+        """
+        if work_item.task_type in _LOCAL_ELIGIBLE_TASKS:
+            try:
+                from supervisor.local_provider import OllamaProvider
+
+                provider = OllamaProvider()
+                if provider.is_available():
+                    return ModelSelection(
+                        model_tier="local",
+                        model_id=_MODEL_MAP["local"],
+                        reasoning=f"Local Ollama selected for eligible task type '{work_item.task_type}'",
+                        complexity_score=0.1,
+                        confidence=0.8,
+                        provider="local",
+                    )
+            except Exception as exc:
+                log.debug("local_first probe failed: %s", exc)
+
+        return self.select_model(work_item)
 
     def record_outcome(
         self,

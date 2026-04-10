@@ -1498,3 +1498,42 @@ def register_recall_cmds(subparsers) -> None:
     p.add_argument("--limit", type=int, default=20)
     p.add_argument("--json", action="store_true", help="JSON output")
     p.set_defaults(func=cmd_recall)
+
+
+# ---------------------------------------------------------------------------
+# cortex providers — local inference status
+# ---------------------------------------------------------------------------
+
+
+def cmd_providers_status(args) -> None:
+    """Show status of all inference providers (Anthropic + local)."""
+    import os
+
+    try:
+        from supervisor.local_provider import probe_all_local
+    except ImportError as exc:
+        print(f"[error] Could not import local_provider: {exc}")
+        return
+
+    local = probe_all_local()
+    anthropic_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+    print("Inference Providers")
+    print("─" * 40)
+    status = "✅" if anthropic_ok else "❌"
+    print(f"  {status} anthropic   (API key {'set' if anthropic_ok else 'missing'})")
+
+    for backend, info in local.items():
+        avail = info.get("available", False)
+        model = info.get("model", "")
+        reason = info.get("reason", "")
+        mark = "✅" if avail else "❌"
+        detail = f"model={model}" if avail else (reason or "unavailable")
+        print(f"  {mark} {backend:<10} ({detail})")
+
+
+def register_providers_cmds(subparsers) -> None:
+    """Register cortex providers subcommand."""
+    p = subparsers.add_parser("providers", help="Show inference provider availability")
+    p.add_argument("--status", action="store_true", default=True, help="Show provider status")
+    p.set_defaults(func=cmd_providers_status)

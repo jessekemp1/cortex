@@ -187,15 +187,16 @@ class AgentDispatcher:
         start = time.monotonic()
         async with self._semaphore:
             try:
-                output, tokens = await asyncio.wait_for(
-                    self._run_dispatch(
+                if model_selection.provider == "local":
+                    coro = self._run_local_dispatch(model_selection.model_id, system_prompt, prompt)
+                else:
+                    coro = self._run_dispatch(
                         model_selection.model_id,
                         system_prompt,
                         prompt,
                         project_root=project_root,
-                    ),
-                    timeout=timeout,
-                )
+                    )
+                output, tokens = await asyncio.wait_for(coro, timeout=timeout)
                 elapsed = time.monotonic() - start
                 return DispatchResult(
                     work_item_id=work_item.id,
@@ -500,6 +501,35 @@ class AgentDispatcher:
             return str(work_item.metadata["project_root"])
         # Fall back to CORTEX_ROOT_DIR or cwd
         return os.environ.get("CORTEX_ROOT_DIR", os.getcwd())
+
+    def _get_local_provider(self, model_id: str):
+        """Return the appropriate local provider for the given model ID."""
+        from supervisor.local_provider import MLXProvider, OllamaProvider
+
+        if "mlx" in model_id.lower():
+            return MLXProvider(model=model_id)
+        return OllamaProvider(model=model_id)
+
+    async def _run_local_dispatch(
+        self,
+        model_id: str,
+        system_prompt: str,
+        prompt: str,
+        max_tokens: int = 2048,
+    ) -> tuple[str, int]:
+        """Execute via local inference provider (Ollama or MLX).
+
+        Runs synchronous provider.complete() in a thread to avoid blocking
+        the event loop.
+        """
+        provider = self._get_local_provider(model_id)
+        if not provider.is_available():
+            raise RuntimeError(
+                f"Local provider for model '{model_id}' is not available. "
+                "Is Ollama running? `ollama serve`"
+            )
+        text, tokens = await asyncio.to_thread(provider.complete, prompt, system_prompt, max_tokens)
+        return text, tokens
 
     async def _run_dispatch(
         self,

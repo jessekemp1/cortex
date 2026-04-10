@@ -3094,6 +3094,22 @@ async def get_temporal_memory(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/providers/status")
+async def get_providers_status():
+    """Probe all inference providers — Anthropic API + local (Ollama, MLX)."""
+    try:
+        from supervisor.local_provider import probe_all_local
+
+        local = probe_all_local()
+        anthropic_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
+        return {
+            "anthropic": {"available": anthropic_ok, "backend": "anthropic"},
+            "local": local,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # Main Entry Point
 # ============================================================================

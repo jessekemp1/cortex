@@ -561,6 +561,11 @@ Deep Mode (Phase 1):
 
     register_recall_cmds(subparsers)
 
+    # ── providers (local inference status) ───────────────────────────────────
+    from cli.commands.v2_ops import register_providers_cmds
+
+    register_providers_cmds(subparsers)
+
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
 

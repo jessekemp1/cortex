@@ -44,9 +44,12 @@ def test_parse_window_yesterday():
 
 
 def test_parse_window_today():
+    from datetime import date
+
     start, end = parse_window(since="today")
     assert start is not None
-    assert start.date() == datetime.now(tz=timezone.utc).date()
+    # parse_window uses date.today() (local time) — compare against local date
+    assert start.date() == date.today()
 
 
 def test_parse_window_none_returns_none_start():
