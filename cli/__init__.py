@@ -184,6 +184,13 @@ Deep Mode (Phase 1):
         help="Root directory to scan (default: ~/projects)",
     )
 
+    # Compact dashboard flags (used when no subcommand is given)
+    parser.add_argument("--alerts", action="store_true", help="Show alert detail")
+    parser.add_argument("--goals", action="store_true", help="Show goal progress")
+    parser.add_argument("--batch", action="store_true", help="Show batch health")
+    parser.add_argument("--git-detail", action="store_true", help="Show git detail")
+    parser.add_argument("--full", action="store_true", help="Full briefing (legacy)")
+
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     # ── next ──────────────────────────────────────────────────────────────────
@@ -569,12 +576,20 @@ Deep Mode (Phase 1):
 
     register_providers_cmds(subparsers)
 
+    # ── check-thresholds ──────────────────────────────────────────────────────
+    from cli.commands.v2_ops import register_threshold_cmds
+
+    register_threshold_cmds(subparsers)
+
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
 
     if not hasattr(args, "func"):
-        parser.print_help()
-        sys.exit(1)
+        # No subcommand → compact dashboard (Option C)
+        from cli.commands.compact import cmd_compact
+
+        cmd_compact(args)
+        return
 
     args.func(args)
 
