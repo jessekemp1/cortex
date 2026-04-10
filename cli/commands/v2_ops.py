@@ -1537,3 +1537,33 @@ def register_providers_cmds(subparsers) -> None:
     p = subparsers.add_parser("providers", help="Show inference provider availability")
     p.add_argument("--status", action="store_true", default=True, help="Show provider status")
     p.set_defaults(func=cmd_providers_status)
+
+
+# ── check-thresholds ──────────────────────────────────────────────────────────
+
+
+def cmd_check_thresholds(args) -> None:
+    """Run threshold checks and send alerts for any events."""
+    from notifications.threshold_detector import run_all_checks
+    from notifications.alert_manager import AlertManager
+
+    events = run_all_checks()
+    if not events:
+        print("No threshold events detected.")
+        return
+
+    mgr = AlertManager()
+    for event in events:
+        print(f"[{event.severity}] {event.message}")
+        mgr.send_alert(
+            severity=event.severity,
+            title=f"Threshold: {event.metric}",
+            message=event.message,
+            source="threshold_detector",
+        )
+    print(f"\n{len(events)} event(s) detected and alerted.")
+
+
+def register_threshold_cmds(subparsers) -> None:
+    p = subparsers.add_parser("check-thresholds", help="Run threshold crossing checks")
+    p.set_defaults(func=cmd_check_thresholds)

@@ -19,6 +19,8 @@ import {
   servicesApi,
   predictionsApi,
   activityApi,
+  sessionApi,
+  goalsApi,
 } from './client'
 import type { PendingTask } from './types'
 import type { IntelligenceQuery } from '@/types/cortex'
@@ -46,6 +48,9 @@ export const queryKeys = {
   servicesStatus: ['services', 'status'] as const,
   predictions: ['predictions'] as const,
   activityHeatmap: ['activity', 'heatmap'] as const,
+  resumeContext: ['session', 'resume-context'] as const,
+  staleItems: ['goals', 'stale-items'] as const,
+  sessionDelta: ['session', 'delta'] as const,
 }
 
 // ── Cortex: Health ──
@@ -393,6 +398,39 @@ export function useActivityHeatmapQuery() {
     queryFn: activityApi.getHeatmap,
     staleTime: 1000 * 60 * 5,
     refetchInterval: 1000 * 60 * 5,
+    retry: 1,
+  })
+}
+
+// ── Session: Resume Context ──
+export function useResumeContextQuery() {
+  return useQuery({
+    queryKey: queryKeys.resumeContext,
+    queryFn: sessionApi.getResumeContext,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    retry: 1,
+  })
+}
+
+// ── Goals: Stale Items ──
+export function useStaleItemsQuery() {
+  return useQuery({
+    queryKey: queryKeys.staleItems,
+    queryFn: goalsApi.getStaleItems,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 5,
+    retry: 1,
+  })
+}
+
+// ── Session: Delta ──
+export function useSessionDeltaQuery() {
+  return useQuery({
+    queryKey: queryKeys.sessionDelta,
+    queryFn: sessionApi.getDelta,
+    staleTime: 1000 * 60,
+    refetchInterval: 1000 * 60,
     retry: 1,
   })
 }

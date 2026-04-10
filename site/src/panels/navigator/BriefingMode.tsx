@@ -6,6 +6,9 @@ import {
   usePredictionsQuery,
   useBatchesQuery,
   useAnomaliesQuery,
+  useResumeContextQuery,
+  useStaleItemsQuery,
+  useSessionDeltaQuery,
 } from '@/api/hooks'
 import { cn } from '@/utils/cn'
 
@@ -24,9 +27,14 @@ export default function BriefingMode() {
   const { data: predictions } = usePredictionsQuery()
   const { data: batches } = useBatchesQuery(5)
   const { data: anomalies } = useAnomaliesQuery()
+  const { data: resumeData } = useResumeContextQuery()
+  const { data: staleData } = useStaleItemsQuery()
+  const { data: deltaData } = useSessionDeltaQuery()
 
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [deferred, setDeferred] = useState<Set<string>>(new Set())
+  const [shippedItems, setShippedItems] = useState<Set<number>>(new Set())
+  const [deferredItems, setDeferredItems] = useState<Set<number>>(new Set())
 
   const completedBatches = Array.isArray(batches)
     ? batches.filter((b) => b.status === 'ended').length
@@ -38,10 +46,64 @@ export default function BriefingMode() {
 
   const topPredictions = predictions?.predictions?.slice(0, 3) ?? []
 
+  const resume = resumeData?.resume ?? null
+  const staleItems: Array<{ text: string; age_days: number }> = staleData?.stale_items ?? []
+  const deltaReport: string | null = deltaData?.report ?? null
+
   return (
     <div className="space-y-6 animate-fade-in">
       <SectionHeader title="MORNING BRIEFING" />
 
+      {/* ResumeCard — full width, action first */}
+      <Card variant="elevated" padding="md" className="border border-cortex-processing/40">
+        <h3 className="font-data text-xs text-cortex-processing tracking-wider mb-3">
+          WORKSPACE RESUME
+        </h3>
+        {resume ? (
+          <div className="space-y-3">
+            {resume.directory && (
+              <p className="font-data text-xs text-cortex-text-muted">
+                {resume.directory}
+              </p>
+            )}
+            {Array.isArray(resume.files) && resume.files.length > 0 && (
+              <div className="space-y-1">
+                {(resume.files as Array<{ path: string; insertions?: number; deletions?: number }>).map(
+                  (f, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="font-data text-xs text-cortex-text-primary flex-1 truncate">
+                        {f.path}
+                      </span>
+                      {(f.insertions !== undefined || f.deletions !== undefined) && (
+                        <span className="font-data text-[10px] text-cortex-text-muted shrink-0">
+                          {f.insertions !== undefined && (
+                            <span className="text-cortex-nominal">+{f.insertions}</span>
+                          )}
+                          {f.insertions !== undefined && f.deletions !== undefined && ' '}
+                          {f.deletions !== undefined && (
+                            <span className="text-cortex-critical">-{f.deletions}</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+            {resume.summary && (
+              <p className="font-data text-xs text-cortex-text-secondary pt-1 border-t border-cortex-border">
+                {resume.summary}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="font-data text-xs text-cortex-text-muted">
+            Workspace clean — pick from actions below
+          </p>
+        )}
+      </Card>
+
+      {/* 3-card row: System Health | Session Delta | Predictions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Service Health */}
         <Card variant="accent" padding="md">
@@ -79,7 +141,60 @@ export default function BriefingMode() {
           )}
         </Card>
 
-        {/* Overnight */}
+        {/* Session Delta */}
+        <Card variant="accent" padding="md">
+          <h3 className="font-data text-xs text-cortex-text-muted tracking-wider mb-3">
+            SESSION DELTA
+          </h3>
+          {deltaReport ? (
+            <pre className="font-data text-[10px] text-cortex-text-secondary whitespace-pre-wrap leading-relaxed">
+              {deltaReport}
+            </pre>
+          ) : (
+            <p className="font-data text-xs text-cortex-text-muted text-center py-4">
+              First session — no previous data
+            </p>
+          )}
+        </Card>
+
+        {/* Predictions Summary */}
+        <Card variant="accent" padding="md">
+          <h3 className="font-data text-xs text-cortex-text-muted tracking-wider mb-3">
+            PREDICTIONS
+          </h3>
+          {topPredictions.length > 0 ? (
+            <div className="space-y-2.5">
+              {topPredictions.map((pred) => (
+                <div key={pred.id} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[10px] font-data uppercase',
+                        DOMAIN_COLORS[pred.domain] ?? 'bg-cortex-elevated text-cortex-text-muted'
+                      )}
+                    >
+                      {pred.domain}
+                    </span>
+                    <span className="font-data text-[10px] text-cortex-text-muted ml-auto">
+                      {Math.round(pred.confidence * 100)}%
+                    </span>
+                  </div>
+                  <p className="font-data text-xs text-cortex-text-secondary leading-relaxed line-clamp-2">
+                    {pred.prediction}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="font-data text-xs text-cortex-text-muted text-center py-4">
+              No predictions available
+            </p>
+          )}
+        </Card>
+      </div>
+
+      {/* Overnight row (kept as a standalone card when there's batch/anomaly data) */}
+      {(completedBatches > 0 || failedBatches > 0 || anomalyCount > 0) && (
         <Card variant="accent" padding="md">
           <h3 className="font-data text-xs text-cortex-text-muted tracking-wider mb-3">
             OVERNIGHT
@@ -142,44 +257,66 @@ export default function BriefingMode() {
             )}
           </div>
         </Card>
+      )}
 
-        {/* Predictions Summary */}
-        <Card variant="accent" padding="md">
+      {/* StaleItemBoard — full width, only shown if there are stale items */}
+      {staleItems.length > 0 && (
+        <Card variant="elevated" padding="md">
           <h3 className="font-data text-xs text-cortex-text-muted tracking-wider mb-3">
-            PREDICTIONS
+            STALE ITEMS ({staleItems.length})
           </h3>
-          {topPredictions.length > 0 ? (
-            <div className="space-y-2.5">
-              {topPredictions.map((pred) => (
-                <div key={pred.id} className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'px-1.5 py-0.5 rounded text-[10px] font-data uppercase',
-                        DOMAIN_COLORS[pred.domain] ?? 'bg-cortex-elevated text-cortex-text-muted'
-                      )}
+          <div className="space-y-2">
+            {staleItems.map((item, idx) => {
+              const isCritical = item.age_days > 14
+              const isWarning = item.age_days > 7
+              if (shippedItems.has(idx) || deferredItems.has(idx)) return null
+              return (
+                <div
+                  key={idx}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2 rounded border transition-all',
+                    isCritical
+                      ? 'border-cortex-critical/40 bg-cortex-critical/5'
+                      : isWarning
+                        ? 'border-cortex-warning/40 bg-cortex-warning/5'
+                        : 'border-cortex-border'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'px-1.5 py-0.5 rounded text-[10px] font-data shrink-0',
+                      isCritical
+                        ? 'bg-cortex-critical/20 text-cortex-critical'
+                        : 'bg-cortex-warning/20 text-cortex-warning'
+                    )}
+                  >
+                    {item.age_days}d
+                  </span>
+                  <span className="font-data text-xs text-cortex-text-primary flex-1">
+                    {item.text}
+                  </span>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => setShippedItems(new Set([...shippedItems, idx]))}
+                      className="px-2 py-0.5 rounded text-[10px] font-data bg-cortex-nominal/20 text-cortex-nominal hover:bg-cortex-nominal/30 transition-colors"
                     >
-                      {pred.domain}
-                    </span>
-                    <span className="font-data text-[10px] text-cortex-text-muted ml-auto">
-                      {Math.round(pred.confidence * 100)}%
-                    </span>
+                      SHIP NOW
+                    </button>
+                    <button
+                      onClick={() => setDeferredItems(new Set([...deferredItems, idx]))}
+                      className="px-2 py-0.5 rounded text-[10px] font-data bg-cortex-elevated text-cortex-text-muted hover:text-cortex-text-secondary transition-colors"
+                    >
+                      DEFER
+                    </button>
                   </div>
-                  <p className="font-data text-xs text-cortex-text-secondary leading-relaxed line-clamp-2">
-                    {pred.prediction}
-                  </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="font-data text-xs text-cortex-text-muted text-center py-4">
-              No predictions available
-            </p>
-          )}
+              )
+            })}
+          </div>
         </Card>
-      </div>
+      )}
 
-      {/* Next Actions (full width) */}
+      {/* Recommended Actions (full width) */}
       <Card variant="elevated" padding="md">
         <h3 className="font-data text-xs text-cortex-text-muted tracking-wider mb-3">
           RECOMMENDED ACTIONS

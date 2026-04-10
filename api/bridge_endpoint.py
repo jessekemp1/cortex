@@ -3110,6 +3110,42 @@ async def get_providers_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/session/resume-context")
+async def get_resume_context():
+    """Return uncommitted work context for the dashboard ResumeCard."""
+    try:
+        from briefing import detect_resume_context
+
+        ctx = detect_resume_context()
+        return {"resume": ctx}  # ctx is dict or None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/goals/stale-items")
+async def get_stale_items():
+    """Return GOALS.md items older than threshold days."""
+    try:
+        from briefing import detect_stale_items
+
+        items = detect_stale_items()
+        return {"stale_items": items, "threshold_days": 7}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/session/delta")
+async def get_session_delta():
+    """Return session-to-session delta and projections."""
+    try:
+        from session_delta import get_session_delta_report
+
+        report = get_session_delta_report()
+        return {"report": report}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============================================================================
 # Main Entry Point
 # ============================================================================

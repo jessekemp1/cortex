@@ -360,6 +360,16 @@ export const predictionsApi = {
   },
 }
 
+// ── Session / Goals ──
+export const sessionApi = {
+  getResumeContext: () => cortexApi.get('/session/resume-context').then(r => r.data),
+  getDelta: () => cortexApi.get('/session/delta').then(r => r.data),
+}
+
+export const goalsApi = {
+  getStaleItems: () => cortexApi.get('/goals/stale-items').then(r => r.data),
+}
+
 // ── Co-Navigator: Activity ──
 export const activityApi = {
   getHeatmap: async (): Promise<ActivityHeatmapResponse> => {

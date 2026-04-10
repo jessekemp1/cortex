@@ -119,6 +119,16 @@ class AlertManager:
         if self._should_email_notify(severity):
             self._send_email(alert)
 
+        # Telegram (optional — only if configured)
+        try:
+            from notifications.telegram_channel import is_configured, send_message, format_alert
+
+            if is_configured() and severity in ("CRITICAL", "WARNING"):
+                tg_text = format_alert(severity, title, message, source)
+                send_message(tg_text)
+        except Exception:
+            pass  # Telegram is optional, never crash
+
         return alert
 
     # =========================================================================
