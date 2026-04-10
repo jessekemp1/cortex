@@ -355,6 +355,9 @@ Deep Mode (Phase 1):
     briefing_parser.add_argument("--format", type=str, choices=["text", "json"], default="text")
     briefing_parser.add_argument("--no-color", action="store_true")
     briefing_parser.add_argument("--strict-signal", action="store_true")
+    briefing_parser.add_argument(
+        "--compact", action="store_true", help="Action-first 12-line terminal briefing"
+    )
     briefing_parser.set_defaults(func=cmd_briefing)
 
     briefing_style_parser = subparsers.add_parser(

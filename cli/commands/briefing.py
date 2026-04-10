@@ -8,6 +8,7 @@ from pathlib import Path
 from briefing import (
     format_briefing,
     format_briefing_json,
+    format_compact,
     format_statusline,
     format_statusline_json,
     generate_daily_briefing,
@@ -73,6 +74,17 @@ def cmd_briefing(args):
             sys.exit(1)
         return
 
+    # --compact: fast action-first 12-line terminal box
+    if getattr(args, "compact", False):
+        try:
+            root = Path(args.root)
+            briefing = generate_daily_briefing(root_dir=root)
+            print(format_compact(briefing, use_color=not getattr(args, "no_color", False)))
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
     try:
         root = Path(args.root)
 
@@ -94,8 +106,34 @@ def cmd_briefing(args):
         except Exception:
             pass  # Watch system is optional
 
-        # Generate briefing
-        briefing = generate_daily_briefing(root_dir=root)
+        # Generate briefing — always via resilient path (Tier 1 = normal, graceful fallback)
+        try:
+            from briefing_resilient import (
+                generate_resilient_briefing,
+                format_resilient_briefing,
+            )
+
+            resilient_result = generate_resilient_briefing(root_dir=root)
+            tier = resilient_result.get("tier", 3)
+            data = resilient_result.get("data", {})
+
+            if tier == 1:
+                briefing = data.get("briefing_object")
+                if briefing is None:
+                    raise RuntimeError("Tier 1 returned no briefing object")
+            else:
+                # Degraded mode — print fallback and return early
+                for w in resilient_result.get("warnings", []):
+                    print(f"[cortex] {w}", file=sys.stderr)
+                print(format_resilient_briefing(resilient_result, use_color=not args.no_color))
+                if watch_output:
+                    print("\n--- Watch Tasks ---")
+                    print(watch_output)
+                return
+
+        except ImportError:
+            briefing = generate_daily_briefing(root_dir=root)
+
         signal = get_briefing_signal_quality(briefing)
         _apply_signal_gate_to_briefing(briefing, signal)
 
