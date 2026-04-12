@@ -451,6 +451,49 @@ def get_recent_alerts(minutes: int = 60) -> list[dict]:
     return alerts
 
 
+def _run_threshold_checks() -> list[dict]:
+    """Run threshold detector checks and convert events to alert dicts."""
+    alerts = []
+    try:
+        from notifications.threshold_detector import run_all_checks
+
+        events = run_all_checks()
+        for event in events:
+            alerts.append(
+                {
+                    "ts": _now().isoformat(),
+                    "type": "threshold_crossed",
+                    "severity": event.severity,
+                    "metric": event.metric,
+                    "previous": event.previous_value,
+                    "current": event.current_value,
+                    "direction": event.direction,
+                    "message": event.message,
+                }
+            )
+    except Exception:
+        pass
+    return alerts
+
+
+def _send_telegram_alerts(alerts: list[dict]):
+    """Send critical/high alerts via Telegram if configured."""
+    try:
+        from notifications.telegram_channel import is_configured, send_alert
+
+        if not is_configured():
+            return
+        for alert in alerts:
+            if alert.get("severity") in ("HIGH", "CRITICAL"):
+                send_alert(
+                    alert["message"],
+                    severity=alert.get("severity", "WARNING"),
+                    source="alert_monitor",
+                )
+    except Exception:
+        pass
+
+
 def main():
     prune_old_alerts()
 
@@ -458,12 +501,15 @@ def main():
     all_alerts.extend(check_services())
     all_alerts.extend(check_scheduler_failures())
     all_alerts.extend(check_test_regression())
+    all_alerts.extend(_run_threshold_checks())
 
     for alert in all_alerts:
         _append_alert(alert)
         severity = alert.get("severity", "INFO")
         icon = "🚨" if severity == "HIGH" else "⚠️"
         print(f"{icon} ALERT: {alert['message']}", file=sys.stderr)
+
+    _send_telegram_alerts(all_alerts)
 
     # Update test baseline when all passing
     _save_test_baseline({})

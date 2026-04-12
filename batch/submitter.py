@@ -166,11 +166,20 @@ class BatchSubmitter:
             logger.error(f"Batch submission failed: {e}")
 
             is_rate_limit = any(
-                kw in error_str for kw in ["usage limit", "rate limit", "budget", "429"]
+                kw in error_str
+                for kw in [
+                    "usage limit",
+                    "rate limit",
+                    "budget",
+                    "429",
+                    "reached your specified api",
+                ]
             )
-            is_validation = "400" in error_str or "invalid_request" in error_str
+            is_validation = (
+                "400" in error_str or "invalid_request" in error_str
+            ) and not is_rate_limit
 
-            if is_rate_limit and not is_validation:
+            if is_rate_limit:
                 self._consecutive_failures += 1
                 logger.warning(
                     f"Rate/budget error ({self._consecutive_failures}/"

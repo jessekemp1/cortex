@@ -6,8 +6,8 @@
 
 set -euo pipefail
 
-REPO_ROOT="/Users/jesse/dev"
-VENV_PYTHON="${REPO_ROOT}/venv/bin/python"
+REPO_ROOT="${HOME}/Dev"
+VENV_PYTHON="${REPO_ROOT}/cortex/.venv/bin/python"
 QUEUE_MANAGER="${REPO_ROOT}/cortex/batch/queue_manager.py"
 
 # Load API key from Anthropic config (used by Claude Code)
@@ -27,7 +27,7 @@ if [ -f "${REPO_ROOT}/.env" ]; then
     set +a
 fi
 
-export PYTHONPATH="${REPO_ROOT}"
+export PYTHONPATH="${REPO_ROOT}/cortex:${REPO_ROOT}"
 
 exec "${VENV_PYTHON}" "${QUEUE_MANAGER}" \
     --duration 8 \

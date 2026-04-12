@@ -306,13 +306,16 @@ def test_no_empty_test_bodies():
             # (including inside if-blocks)
             assert_count = sum(1 for node in ast.walk(func) if isinstance(node, ast.Assert))
             # Also check for pytest.raises, pytest.warns (context managers that assert)
+            # and mock.assert_* methods (e.g., assert_called_once_with)
             has_pytest_assert = False
+            has_mock_assert = False
             for node in ast.walk(func):
                 if isinstance(node, ast.Attribute) and node.attr in ("raises", "warns"):
                     has_pytest_assert = True
-                    break
+                if isinstance(node, ast.Attribute) and node.attr.startswith("assert_"):
+                    has_mock_assert = True
 
-            if assert_count == 0 and not has_pytest_assert:
+            if assert_count == 0 and not has_pytest_assert and not has_mock_assert:
                 assertionless_tests.append(f"  {test_file.name}::{func.name}")
 
     assert not assertionless_tests, (

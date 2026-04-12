@@ -276,11 +276,20 @@ Please provide a comprehensive implementation plan and any code changes needed."
             # issues that won't resolve by waiting. Skipping the bad job and
             # continuing is the correct behavior.
             is_rate_limit = any(
-                kw in error_str for kw in ["usage limit", "rate limit", "budget", "429"]
+                kw in error_str
+                for kw in [
+                    "usage limit",
+                    "rate limit",
+                    "budget",
+                    "429",
+                    "reached your specified api",
+                ]
             )
-            is_validation_error = "400" in error_str or "invalid_request" in error_str
+            is_validation_error = (
+                "400" in error_str or "invalid_request" in error_str
+            ) and not is_rate_limit
 
-            if is_rate_limit and not is_validation_error:
+            if is_rate_limit:
                 self._consecutive_failures += 1
                 logger.warning(
                     f"API rate/budget error ({self._consecutive_failures}/"
