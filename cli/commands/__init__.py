@@ -30,6 +30,7 @@ from cli.commands.system import (
     cmd_watch,
     cmd_batch_fill,
 )
+from cli.commands.onboarding import cmd_onboard
 
 __all__ = [
     "cmd_next",
@@ -64,4 +65,5 @@ __all__ = [
     "cmd_bandwidth",
     "cmd_watch",
     "cmd_batch_fill",
+    "cmd_onboard",
 ]

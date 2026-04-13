@@ -40,17 +40,39 @@ Cortex stores all data locally in `~/.cortex/`. Nothing leaves your machine unle
 ## First Commands to Try
 
 ```bash
-# 1. Status — shows your current session context (git branch, recent work, goals)
+# 1. Onboard — auto-detect your projects and seed memory
+cortex onboard --root ~/Dev
+
+# 2. Status — shows your current session context (git branch, recent work, goals)
 cortex status
 
-# 2. Intelligence query — ask Cortex anything about your project
+# 3. Health check — verify all subsystems
+cortex doctor
+```
+
+## Starting the Bridge Server
+
+The bridge server (`api/bridge_endpoint.py`) powers intelligence queries and MCP integration. Basic commands (`status`, `onboard`, `doctor`) work without it.
+
+```bash
+# Start the bridge (runs on :8765)
+python api/bridge_endpoint.py
+
+# Or with uvicorn directly
+uvicorn api.bridge_endpoint:app --host 127.0.0.1 --port 8765
+
+# Verify it's running
+curl http://127.0.0.1:8765/health
+```
+
+Once the bridge is running, you can use:
+
+```bash
+# Intelligence query — ask Cortex anything about your project
 cortex intelligence "What patterns should I watch out for?"
 
-# 3. Briefing — daily context summary
+# Briefing — daily context summary
 cortex briefing
-
-# 4. Health check — verify all subsystems
-cortex health
 ```
 
 ## Claude Code / MCP Integration

@@ -26,11 +26,14 @@ pip install -e .
 # 4. Initialize (point to your projects)
 cortex init --root-dir ~/Dev
 
-# 5. Verify
-cortex status
+# 5. Onboard — auto-detect projects and seed memory
+cortex onboard --root ~/Dev
+
+# 6. Verify
+cortex doctor
 ```
 
-You should see git branch, recent commits, and GOALS.md context. If you see module errors, run `pip install -e ".[all]"`.
+You should see your projects listed with languages and test frameworks detected. If you see module errors, run `pip install -e ".[all]"`.
 
 ## Wire Into Claude Code (Critical Step)
 
@@ -52,28 +55,40 @@ Cortex talks to Claude Code through MCP. Update `.mcp.json` at your Dev root:
 
 Replace `YOUR_USER` with your actual username. Claude Code will pick this up on next restart.
 
+## Start the Bridge (For Intelligence Queries)
+
+Basic commands (`status`, `onboard`, `doctor`) work immediately. For intelligence queries and MCP tools, start the bridge server:
+
+```bash
+# Start bridge in background (runs on :8765)
+python api/bridge_endpoint.py &
+
+# Verify
+curl -s http://127.0.0.1:8765/health | python3 -m json.tool
+```
+
 ## First Session (Verify It Works)
 
 ```bash
 # 1. Status — shows your context
 cortex status
 
-# 2. Query intelligence — try asking about your project
+# 2. Query intelligence (requires bridge running)
 cortex intelligence "What are the key gotchas in this codebase?"
 
 # 3. Daily briefing
 cortex briefing
 ```
 
-In Claude Code, you'll now have three new tools: `cortex_intelligence`, `cortex_recommendations`, `cortex_anomalies`.
+In Claude Code, you'll now have 18 MCP tools: `cortex_intelligence`, `cortex_recommendations`, `cortex_anomalies`, `cortex_doctor`, and more.
 
 ## What to Expect
 
-**First 2–3 sessions**: Intelligence is sparse. Cortex is learning your git history and patterns.
+**After onboarding**: Your projects are detected, recent git history is seeded, and 37 anti-pattern seeds are loaded. Intelligence queries will already have context.
 
-**After a week**: Cross-session context emerges. Briefings surface relevant errors before you hit them.
+**After a few sessions**: Cross-session patterns emerge. Briefings surface relevant context before you ask.
 
-**Key**: The more you use it, the more useful it gets. Don't expect magic on day one.
+**Key**: The more you use it, the more useful it gets. Onboarding gives you a head start.
 
 ## Issues & Feedback
 

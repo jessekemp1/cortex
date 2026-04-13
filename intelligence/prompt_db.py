@@ -80,6 +80,7 @@ def write_log(entries: list[dict]) -> None:
 
 # === SCORING ===
 
+
 def rescore_entry(entry: dict, category_performance: dict) -> float:
     """Re-score a single entry incorporating outcome data.
 
@@ -159,7 +160,10 @@ def _compute_category_performance(curated: list[dict]) -> dict:
 
 # === DEDUP ===
 
-def find_duplicates(entries: list[dict], similarity_threshold: float = 0.8) -> list[tuple[int, int]]:
+
+def find_duplicates(
+    entries: list[dict], similarity_threshold: float = 0.8
+) -> list[tuple[int, int]]:
     """Find duplicate pairs based on prompt_hash and word overlap.
 
     Returns list of (lower_idx, higher_idx) pairs where higher is the duplicate.
@@ -181,15 +185,16 @@ def find_duplicates(entries: list[dict], similarity_threshold: float = 0.8) -> l
                 duplicates.append((indices[0], idx))
 
     # Word overlap for near-duplicates (only on non-trivial entries)
-    significant = [(i, entry) for i, entry in enumerate(entries)
-                   if entry.get("word_count", 0) >= 10]
+    significant = [
+        (i, entry) for i, entry in enumerate(entries) if entry.get("word_count", 0) >= 10
+    ]
 
     for i, (idx_a, entry_a) in enumerate(significant):
         words_a = set(entry_a.get("prompt_text", "").lower().split())
         if not words_a:
             continue
 
-        for idx_b, entry_b in significant[i + 1:]:
+        for idx_b, entry_b in significant[i + 1 :]:
             words_b = set(entry_b.get("prompt_text", "").lower().split())
             if not words_b:
                 continue
@@ -229,6 +234,7 @@ def dedup_entries(entries: list[dict]) -> tuple[list[dict], int]:
 
 # === PURGE ===
 
+
 def purge_entries(entries: list[dict], threshold: float = 0.15) -> tuple[list[dict], int]:
     """Remove entries below value threshold.
 
@@ -239,6 +245,7 @@ def purge_entries(entries: list[dict], threshold: float = 0.15) -> tuple[list[di
 
 
 # === PATTERN EXTRACTION ===
+
 
 def extract_patterns(entries: list[dict], curated: list[dict] | None = None) -> dict:
     """Extract high-value patterns and build the patterns.json cache.
@@ -254,24 +261,28 @@ def extract_patterns(entries: list[dict], curated: list[dict] | None = None) -> 
 
     top_patterns = []
     for entry in top:
-        top_patterns.append({
-            "text": entry.get("prompt_text", "")[:100],
-            "category": entry.get("category", "request"),
-            "value_score": entry.get("value_score", 0),
-            "word_count": entry.get("word_count", 0),
-        })
+        top_patterns.append(
+            {
+                "text": entry.get("prompt_text", "")[:100],
+                "category": entry.get("category", "request"),
+                "value_score": entry.get("value_score", 0),
+                "word_count": entry.get("word_count", 0),
+            }
+        )
 
     # Also include curated prompts (manual high-quality)
     for prompt in curated:
         quality = str(prompt.get("prompt_quality", "")).lower()
         if "high" in quality:
-            top_patterns.append({
-                "text": prompt.get("prompt_text", "")[:100],
-                "category": prompt.get("category", "request"),
-                "value_score": 0.9 if "very high" in quality else 0.8,
-                "word_count": prompt.get("word_count", 0),
-                "curated": True,
-            })
+            top_patterns.append(
+                {
+                    "text": prompt.get("prompt_text", "")[:100],
+                    "category": prompt.get("category", "request"),
+                    "value_score": 0.9 if "very high" in quality else 0.8,
+                    "word_count": prompt.get("word_count", 0),
+                    "curated": True,
+                }
+            )
 
     # Dedup top patterns by text similarity
     seen_texts = set()
@@ -316,9 +327,7 @@ def extract_patterns(entries: list[dict], curated: list[dict] | None = None) -> 
     # Frequency analysis of notable patterns
     pattern_freq = Counter(notable)
     recurring_patterns = [
-        {"pattern": p, "frequency": c}
-        for p, c in pattern_freq.most_common(10)
-        if c >= 2
+        {"pattern": p, "frequency": c} for p, c in pattern_freq.most_common(10) if c >= 2
     ]
 
     result = {
@@ -339,12 +348,14 @@ def extract_patterns(entries: list[dict], curated: list[dict] | None = None) -> 
 
 # === RANKING ===
 
+
 def rank(entries: list[dict], top_n: int = 20) -> list[dict]:
     """Return top N prompts by value score."""
     return sorted(entries, key=lambda e: e.get("value_score", 0), reverse=True)[:top_n]
 
 
 # === STATISTICS ===
+
 
 def compute_stats(entries: list[dict]) -> dict:
     """Compute database statistics."""
@@ -384,6 +395,7 @@ def compute_stats(entries: list[dict]) -> dict:
 
 # === FULL MAINTENANCE ===
 
+
 def full_maintenance(purge_threshold: float = 0.15) -> dict:
     """Run full maintenance cycle: score → dedup → purge → patterns."""
     entries = read_log()
@@ -405,7 +417,7 @@ def full_maintenance(purge_threshold: float = 0.15) -> dict:
     write_log(entries)
 
     # 5. Extract patterns
-    patterns = extract_patterns(entries)
+    extract_patterns(entries)
 
     # 6. Save scores summary
     stats = compute_stats(entries)
@@ -423,6 +435,7 @@ def full_maintenance(purge_threshold: float = 0.15) -> dict:
 
 
 # === CLI ===
+
 
 def main():
     """CLI entry point."""
@@ -452,9 +465,9 @@ def main():
     elif command == "rank":
         n = int(sys.argv[2]) if len(sys.argv) > 2 else 20
         top = rank(entries, n)
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f" TOP {len(top)} PROMPTS BY VALUE SCORE")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
         for i, entry in enumerate(top, 1):
             score = entry.get("value_score", 0)
             cat = entry.get("category", "?")
@@ -482,23 +495,27 @@ def main():
         print(f"  Top patterns: {len(patterns.get('top_patterns', []))}")
         print(f"  Categories: {json.dumps(patterns.get('category_stats', {}), indent=2)}")
         if patterns.get("recurring_patterns"):
-            print(f"\n  Recurring notable patterns:")
+            print("\n  Recurring notable patterns:")
             for p in patterns["recurring_patterns"]:
                 print(f"    [{p['frequency']}x] {p['pattern']}")
 
     elif command == "stats":
         stats = compute_stats(entries)
-        print(f"\n{'='*60}")
-        print(f" PROMPT DATABASE STATISTICS")
-        print(f"{'='*60}\n")
+        print(f"\n{'=' * 60}")
+        print(" PROMPT DATABASE STATISTICS")
+        print(f"{'=' * 60}\n")
         print(f"  Total captured:  {stats['total']}")
         print(f"  Curated (manual): {stats.get('curated_count', 0)}")
-        print(f"  Score avg/max:   {stats.get('score_avg', 0):.2f} / {stats.get('score_max', 0):.2f}")
+        print(
+            f"  Score avg/max:   {stats.get('score_avg', 0):.2f} / {stats.get('score_max', 0):.2f}"
+        )
         print(f"  Word count avg:  {stats.get('word_count_avg', 0):.0f}")
         print(f"  Injection rate:  {stats.get('injection_rate', 0):.0%}")
         print(f"  Duplicate rate:  {stats.get('duplicate_rate', 0):.0%}")
-        print(f"\n  Categories:")
-        for cat, count in sorted(stats.get("categories", {}).items(), key=lambda x: x[1], reverse=True):
+        print("\n  Categories:")
+        for cat, count in sorted(
+            stats.get("categories", {}).items(), key=lambda x: x[1], reverse=True
+        ):
             print(f"    {cat:15s}: {count}")
         dr = stats.get("date_range", {})
         if dr.get("earliest"):

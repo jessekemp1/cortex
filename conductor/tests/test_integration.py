@@ -557,7 +557,7 @@ class TestDelegationFlow:
                 "cortex.conductor.caller._create_provider", side_effect=side_effect_create_provider
             ),
         ):
-            response = call("Test prompt", use_case="research")
+            call("Test prompt", use_case="research")
 
         # Cost should be recorded from the fallback provider
         spend = tracker.get_daily_spend()
@@ -611,7 +611,7 @@ class TestDelegationFlow:
             patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
             patch("cortex.conductor.caller._create_provider", return_value=mock_provider),
         ):
-            response = call(
+            call(
                 "Classify this",
                 use_case="classification",
                 system="You are a classifier.",
@@ -847,7 +847,7 @@ class TestAsyncCall:
             patch("cortex.conductor.caller._get_cost_tracker", return_value=tracker),
             patch("cortex.conductor.caller._create_provider", return_value=mock_async_provider),
         ):
-            response = await async_call("Test", use_case="quick_qa")
+            await async_call("Test", use_case="quick_qa")
 
         spend = tracker.get_daily_spend()
         assert spend["total"] == pytest.approx(0.0009, abs=1e-6)

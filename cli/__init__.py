@@ -113,6 +113,7 @@ from cli.commands import (
     cmd_bandwidth,
     cmd_watch,
     cmd_batch_fill,
+    cmd_onboard,
 )
 
 # V2 Ops — inline functions extracted to keep main() slim
@@ -213,6 +214,18 @@ Deep Mode (Phase 1):
         "--root-dir", type=str, default="", help="Set workspace root directory in config"
     )
     init_parser.set_defaults(func=cmd_init)
+
+    # ── onboard ──────────────────────────────────────────────────────────────
+    onboard_parser = subparsers.add_parser(
+        "onboard", help="Auto-detect projects and seed memory for immediate value"
+    )
+    onboard_parser.add_argument(
+        "--root", type=str, default="", help="Project root directory to scan"
+    )
+    onboard_parser.add_argument(
+        "--non-interactive", action="store_true", help="Skip interactive questions"
+    )
+    onboard_parser.set_defaults(func=cmd_onboard)
 
     # ── status ────────────────────────────────────────────────────────────────
     subparsers.add_parser("status", help="Show current state").set_defaults(func=cmd_status)

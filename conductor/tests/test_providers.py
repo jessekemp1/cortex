@@ -165,9 +165,7 @@ class TestGroqProvider:
     def test_parses_response(self):
         p = _make_provider("groq")
         with patch(OPENAI_COMPAT_HTTPX) as MockClient:
-            mock_client = _setup_mock_client(
-                MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE)
-            )
+            _setup_mock_client(MockClient, _mock_response(200, OPENAI_COMPAT_RESPONSE))
 
             result = p.complete(SAMPLE_MESSAGES, model="llama-3.1-8b-instant")
 
