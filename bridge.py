@@ -340,6 +340,11 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
             # Engine C: Action Broker
             self.broker = ActionBroker()
 
+            # Engine D: Universal Signal Bus (connects A-C)
+            from cortex.engines.universal_signal_bus import UniversalSignalBus
+
+            self.signal_bus = UniversalSignalBus()
+
             # IAP Handler
             if IAP_AVAILABLE:
                 self.iap = IAPHandler(synthesis_core=self.synthesis, action_broker=self.broker)
@@ -353,6 +358,7 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
             self.absorber = None
             self.synthesis = None
             self.broker = None
+            self.signal_bus = None
             self.iap = None
 
     def end_session(self) -> None:

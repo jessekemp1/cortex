@@ -121,7 +121,7 @@ class ContextGraph:
     """
 
     def __init__(self, storage_path: Optional[Path] = None):
-        self.storage_path = storage_path or Path.home() / ".claude" / "graph"
+        self.storage_path = storage_path or Path.home() / ".cortex" / "graph"
         self.nodes: Dict[str, Node] = {}
         self.edges: List[Edge] = []
         self._adjacency: Dict[str, Set[str]] = {}  # node_id -> connected node_ids

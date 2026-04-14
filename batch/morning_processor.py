@@ -29,6 +29,29 @@ SESSION_CACHE = CORTEX_DIR / "session_cache.json"
 BRIEFING_CACHE = CORTEX_DIR / "briefing_cache.json"
 
 
+def get_overnight_v2_lessons() -> List[Dict[str, Any]]:
+    """Read LESSON nodes created in last 24h from ContextGraph."""
+    try:
+        from cortex.engines.synthesis import ContextGraph, NodeType
+
+        graph = ContextGraph(storage_path=Path.home() / ".cortex" / "graph")
+        all_nodes = (
+            graph.get_nodes_by_type(NodeType.LESSON) if hasattr(graph, "get_nodes_by_type") else []
+        )
+        cutoff = datetime.now() - timedelta(hours=24)
+        recent: List[Dict[str, Any]] = []
+        for n in all_nodes:
+            try:
+                updated = n.updated_at if hasattr(n, "updated_at") else n.created_at
+                if updated > cutoff:
+                    recent.append({"name": n.name, "data": n.data, "type": str(n.type)})
+            except Exception:
+                continue
+        return recent
+    except Exception:
+        return []
+
+
 def get_overnight_results() -> List[Dict[str, Any]]:
     """
     Fetch batch job results from overnight processing.
@@ -331,6 +354,9 @@ def generate_briefing_summary(results: List[Dict]) -> Dict[str, Any]:
         "tokens": {"total_used": total_tokens, "estimated_savings": int(savings_estimate)},
         "alerts": [],
     }
+
+    # V2: Add overnight lessons from ContextGraph
+    summary["v2_lessons"] = get_overnight_v2_lessons()
 
     # Add alerts for critical findings
     critical_findings = [f for f in findings if f["priority"] == "high"]

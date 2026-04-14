@@ -466,7 +466,26 @@ class IntelligentBatchOrchestrator:
             except Exception as e:
                 summary["sync_error"] = str(e)
 
+        # Run reflection agent before returning (non-blocking)
+        reflection = self._run_reflection_agent(dry_run=dry_run)
+        if reflection:
+            summary["reflection_agent"] = reflection
+
         return summary
+
+    def _run_reflection_agent(self, dry_run: bool = False) -> Dict[str, Any]:
+        """Run the reflection agent to consolidate patterns into lessons."""
+        try:
+            from cortex.batch.reflection_agent import ReflectionAgent
+
+            result = ReflectionAgent().run(dry_run=dry_run)
+            print(
+                f"  ReflectionAgent: {result.get('patterns_found', 0)} patterns → {result.get('lessons_added', 0)} lessons"
+            )
+            return result
+        except Exception as e:
+            print(f"  ReflectionAgent: failed — {e}")
+            return {}
 
     def print_summary(self, summary: Dict[str, Any]) -> None:
         """Pretty print submission summary"""

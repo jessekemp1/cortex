@@ -12,7 +12,6 @@ Extended with:
 
 try:
     from cortex.engines.absorber import ContextAbsorber, Signal, SignalType
-    from cortex.engines.augmentation_engine import AugmentationEngine, AugmentedIdea
     from cortex.engines.broker import (
         ActionBroker,
         Intervention,
@@ -51,7 +50,6 @@ try:
 except ImportError:
     # Fallback for direct execution
     from .absorber import ContextAbsorber, Signal, SignalType
-    from .augmentation_engine import AugmentationEngine, AugmentedIdea
     from .broker import ActionBroker, Intervention, InterventionType, Severity
     from .claude_session_absorber import (
         ClaudeSessionSource,
@@ -104,9 +102,6 @@ __all__ = [
     "LearningInsight",
     # Sprint 2: Universal Signal Bus
     "UniversalSignalBus",
-    # Sprint 2: Augmentation Engine
-    "AugmentationEngine",
-    "AugmentedIdea",
     # Sprint 2: Pattern Surfacer
     "PatternSurfacer",
     "SurfacedPattern",

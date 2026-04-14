@@ -658,6 +658,45 @@ class IntelligenceMixin:
             )
             result_dict = result.to_dict()
 
+            # 1b. V2 Engine Enrichment: Add graph context from Signal Bus
+            if getattr(self, "signal_bus", None):
+                try:
+                    v2_ctx = self.signal_bus.query(
+                        context=request,
+                        project=project,
+                        tool_source="query_intelligence",
+                    )
+                    result_dict["v2_context"] = {
+                        "graph_nodes": v2_ctx.get("graph_nodes", []),
+                        "recent_signals": v2_ctx.get("recent_signals", []),
+                        "cross_project_patterns": (
+                            self.signal_bus.get_cross_project_patterns(project)
+                        ),
+                    }
+                except Exception:
+                    pass  # V2 enrichment is non-critical
+
+            # 1c. V2 Signal Recording: Record this query as a workspace signal
+            if getattr(self, "signal_bus", None):
+                try:
+                    from cortex.engines.workstream_orchestrator import (
+                        WorkspaceSignal,
+                        SignalSource,
+                        WorkstreamPhase,
+                    )
+
+                    sig = WorkspaceSignal(
+                        source=SignalSource.CLAUDE_CODE,
+                        timestamp=datetime.now(),
+                        project=project,
+                        workstream=WorkstreamPhase.BUILD,
+                        content_type=query_type,
+                        content=request[:500],
+                    )
+                    self.signal_bus.absorb(sig)
+                except Exception:
+                    pass  # Signal recording is non-critical
+
             # 2. HybridRetriever: Add related patterns
             if self.hybrid_retriever:
                 try:
@@ -684,6 +723,18 @@ class IntelligenceMixin:
                 except Exception:
                     pass
 
+            # 3b. V2 Reasoning: Synthesize retrieved context via LLM
+            try:
+                from cortex.intelligence.reasoning import ReasoningLayer, classify_query
+
+                tier = classify_query(request)
+                if tier > 1:
+                    reasoner = ReasoningLayer()
+                    reasoning_result = reasoner.reason(request, result_dict, tier)
+                    result_dict["reasoning"] = reasoning_result
+            except Exception:
+                pass  # Reasoning failure never blocks response
+
             # 4. TieredMemory: Record query for learning
             if self.tiered_memory and TIERED_MEMORY_AVAILABLE and MemoryItem:
                 try:
@@ -709,6 +760,18 @@ class IntelligenceMixin:
             return result_dict
         except Exception as e:
             return {"error": str(e)}
+
+    def get_interventions(self, project: str, context: str = "") -> list:
+        """Return proactive interventions from V2 reasoning layer."""
+        if not getattr(self, "synthesis", None):
+            return []
+        try:
+            from cortex.intelligence.v2_reasoning import V2ReasoningLayer
+
+            layer = V2ReasoningLayer(self.synthesis)
+            return layer.evaluate(context=context, project=project)
+        except Exception:
+            return []
 
     def get_prompt_template(self, prompt_name: str, **variables) -> Optional[str]:
         """
