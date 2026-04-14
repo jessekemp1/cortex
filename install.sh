@@ -72,11 +72,10 @@ chmod 700 "$CORTEX_STATE"
 if [ ! -f "$CORTEX_DIR/.env" ]; then
     if [ -f "$CORTEX_DIR/.env.template" ]; then
         cp "$CORTEX_DIR/.env.template" "$CORTEX_DIR/.env"
-        warn ".env created from template — edit $CORTEX_DIR/.env to add API keys"
     else
         cat > "$CORTEX_DIR/.env" <<ENVEOF
 # Cortex Environment Configuration
-CORTEX_ROOT_DIR=$DEV_DIR
+CORTEX_ROOT_DIR=/path/to/your/projects
 CORTEX_STATE_DIR=$CORTEX_STATE
 
 # Required: Anthropic API key
@@ -87,10 +86,38 @@ CORTEX_STATE_DIR=$CORTEX_STATE
 # GROQ_API_KEY=
 # DEEPSEEK_API_KEY=
 ENVEOF
-        warn ".env created — edit $CORTEX_DIR/.env to add ANTHROPIC_API_KEY"
     fi
+    log ".env created"
 else
     log ".env already exists"
+fi
+
+# Prompt for ANTHROPIC_API_KEY
+if ! grep -q "^ANTHROPIC_API_KEY=sk-" "$CORTEX_DIR/.env" 2>/dev/null && [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+    echo ""
+    echo "  Anthropic API key required for intelligence features."
+    echo "  Get yours at: https://console.anthropic.com/settings/keys"
+    while true; do
+        read -rp "  Enter ANTHROPIC_API_KEY (sk-ant-...): " INPUT_KEY
+        if [[ "$INPUT_KEY" == sk-* ]]; then
+            sed -i '' "s|^# ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$INPUT_KEY|" "$CORTEX_DIR/.env"
+            export ANTHROPIC_API_KEY="$INPUT_KEY"
+            log "ANTHROPIC_API_KEY saved"
+            break
+        else
+            warn "Key must start with 'sk-'. Try again (or press Ctrl+C to skip)."
+        fi
+    done
+fi
+
+# Prompt for CORTEX_ROOT_DIR
+if grep -q "CORTEX_ROOT_DIR=/path/to/your/projects" "$CORTEX_DIR/.env" 2>/dev/null; then
+    echo ""
+    read -rp "  Enter your projects root directory (e.g. ~/Dev): " INPUT_ROOT
+    INPUT_ROOT="${INPUT_ROOT/#\~/$HOME}"
+    INPUT_ROOT="${INPUT_ROOT:-$DEV_DIR}"
+    sed -i '' "s|CORTEX_ROOT_DIR=.*|CORTEX_ROOT_DIR=$INPUT_ROOT|" "$CORTEX_DIR/.env"
+    log "CORTEX_ROOT_DIR set to $INPUT_ROOT"
 fi
 
 # Store API key for batch daemons if available
