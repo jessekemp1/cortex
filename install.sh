@@ -180,10 +180,10 @@ echo "╚═══════════════════════�
 echo ""
 
 # Check venv
-"$VENV/bin/python" -c "import cortex; print('  ✅ cortex package importable')" 2>/dev/null || echo "  ❌ cortex package import failed"
+"$VENV/bin/python" -c "from cli import main; print('  ✅ cortex package importable')" 2>/dev/null || echo "  ❌ cortex package import failed"
 
 # Check CLI
-"$VENV/bin/python" "$CORTEX_DIR/cli.py" health 2>&1 | grep -q "All Systems Operational" && echo "  ✅ cortex health: all systems operational" || echo "  ⚠️  cortex health: some systems degraded"
+"$VENV/bin/python" -m cli health 2>&1 | grep -q "All Systems Operational" && echo "  ✅ cortex health: all systems operational" || echo "  ⚠️  cortex health: some systems degraded"
 
 # Check state dir
 [ -d "$CORTEX_STATE/logs" ] && echo "  ✅ ~/.cortex/ state directory ready" || echo "  ❌ ~/.cortex/ state directory missing"
@@ -197,7 +197,13 @@ grep -q "ANTHROPIC_API_KEY=sk-" "$CORTEX_DIR/.env" 2>/dev/null && echo "  ✅ AN
 
 echo ""
 log "Install complete. Next steps:"
-echo "  1. Edit $CORTEX_DIR/.env and set ANTHROPIC_API_KEY"
-echo "  2. Run: source $VENV/bin/activate"
-echo "  3. Run: python cli.py status"
-echo "  4. Load agents: launchctl load ~/Library/LaunchAgents/com.cortex.*.plist"
+STEP=1
+if ! grep -q "ANTHROPIC_API_KEY=sk-" "$CORTEX_DIR/.env" 2>/dev/null; then
+    echo "  $STEP. Edit $CORTEX_DIR/.env and set ANTHROPIC_API_KEY"
+    STEP=$((STEP + 1))
+fi
+echo "  $STEP. Activate: source $VENV/bin/activate"
+STEP=$((STEP + 1))
+echo "  $STEP. Run: cortex status"
+STEP=$((STEP + 1))
+echo "  $STEP. Load agents: launchctl load ~/Library/LaunchAgents/com.cortex.*.plist"

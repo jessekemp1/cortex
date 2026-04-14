@@ -20,7 +20,8 @@ sys.path.insert(0, str(cortex_dir))
 sys.path.insert(0, str(cortex_dir.parent))
 
 # Fallback: Add user site-packages if dependencies are missing (e.g. structlog)
-site_packages = Path.home() / "Library/Python/3.9/lib/python/site-packages"
+_py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+site_packages = Path.home() / f"Library/Python/{_py_ver}/lib/python/site-packages"
 if site_packages.exists() and str(site_packages) not in sys.path:
     sys.path.append(str(site_packages))
 
