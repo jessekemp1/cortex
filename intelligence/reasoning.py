@@ -83,23 +83,25 @@ class ReasoningLayer:
     def reason(self, query: str, retrieved_context: dict, tier: int) -> dict:
         """Route query to appropriate reasoning tier."""
         if tier == 1:
-            return self._format_direct(retrieved_context)
+            return self._format_direct(retrieved_context, tier=1)
         if self._budget_exceeded():
-            return self._format_direct(retrieved_context)
+            return self._format_direct(retrieved_context, tier=tier, reason="budget_exceeded")
         model = "claude-haiku-4-5" if tier == 2 else "claude-sonnet-4-5-20250514"
         try:
             return self._reason_with_llm(query, retrieved_context, model, tier)
         except Exception:
-            return self._format_direct(retrieved_context)
+            return self._format_direct(retrieved_context, tier=tier, reason="llm_fallback")
 
-    def _format_direct(self, context: dict) -> dict:
-        """Tier 1: format retrieved results without LLM."""
+    def _format_direct(self, context: dict, tier: int = 1, reason: str = "direct") -> dict:
+        """Format retrieved results without LLM. Used for Tier 1 and as fallback."""
         return {
             "analysis": "Direct retrieval results",
             "evidence": context.get("related_patterns", []),
             "recommended_actions": [],
             "confidence": 0.6,
-            "tier": 1,
+            "tier": tier,
+            "tier_requested": tier,
+            "fallback_reason": reason,
             "cost": 0.0,
         }
 

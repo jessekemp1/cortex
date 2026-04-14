@@ -728,10 +728,8 @@ class IntelligenceMixin:
                 from cortex.intelligence.reasoning import ReasoningLayer, classify_query
 
                 tier = classify_query(request)
-                if tier > 1:
-                    reasoner = ReasoningLayer()
-                    reasoning_result = reasoner.reason(request, result_dict, tier)
-                    result_dict["reasoning"] = reasoning_result
+                reasoner = ReasoningLayer()
+                result_dict["reasoning"] = reasoner.reason(request, result_dict, tier)
             except Exception:
                 pass  # Reasoning failure never blocks response
 

@@ -108,7 +108,8 @@ class TestBudgetExceeded:
 
         result = layer.reason("assess the risk of V2 rollout", {}, tier=3)
 
-        assert result["tier"] == 1  # Fell back to Tier 1
+        assert result["tier"] == 3  # Preserves requested tier
+        assert result["fallback_reason"] == "budget_exceeded"
         assert result["cost"] == 0.0
         mock_client.messages.create.assert_not_called()
 
@@ -150,6 +151,7 @@ class TestReasoningFailure:
 
         result = layer.reason("assess risk", {}, tier=3)
 
-        assert result["tier"] == 1
+        assert result["tier"] == 3  # Preserves requested tier
+        assert result["fallback_reason"] == "llm_fallback"
         assert result["cost"] == 0.0
         assert result["analysis"] == "Direct retrieval results"
