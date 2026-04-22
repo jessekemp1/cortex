@@ -56,8 +56,8 @@ class DynamicAgent(BaseAgent):
 
     # Modules allowed in dynamic agent scripts (import whitelist).
     _ALLOWED_IMPORTS = frozenset({
-        "json", "re", "os", "os.path", "pathlib", "datetime",
-        "collections", "itertools", "functools", "math", "hashlib",
+        "json", "re", "datetime", "math", "hashlib",
+        "collections", "itertools", "functools",
         "logging", "typing", "dataclasses", "textwrap", "copy",
     })
 
