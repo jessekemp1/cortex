@@ -46,6 +46,17 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/../cortex/hooks/precompact_capture.py",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }
