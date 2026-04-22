@@ -14,6 +14,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
+try:
+    from cortex.prompts.rollover_policy import (
+        ROLLOVER_POLICY_SHORT,
+        ROLLOVER_POLICY_TEXT,
+    )
+except ImportError:  # pragma: no cover - fallback when imported without cortex package root
+    from prompts.rollover_policy import (  # type: ignore[no-redef]
+        ROLLOVER_POLICY_SHORT,
+        ROLLOVER_POLICY_TEXT,
+    )
+
 
 @dataclass
 class AgentProfile:
@@ -33,10 +44,19 @@ class AgentProfile:
         return task_type in self.task_types
 
     def build_system_prompt(self, project: str = "", context: str = "") -> str:
-        return self.system_prompt_template.format(
+        # Haiku-tier tasks get the compact policy to conserve tokens; every
+        # other tier gets the full CLAUDE.md body so dispatched agents operate
+        # under the same rollover discipline as interactive sessions.
+        policy = (
+            ROLLOVER_POLICY_SHORT
+            if self.preferred_model_tier == "haiku"
+            else ROLLOVER_POLICY_TEXT
+        )
+        role = self.system_prompt_template.format(
             project=project or "unknown",
             context=context or "No additional context.",
         )
+        return f"{policy}\n\n---\n\n{role}"
 
 
 AGENT_REGISTRY: Dict[str, AgentProfile] = {

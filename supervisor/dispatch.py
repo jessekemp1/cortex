@@ -457,10 +457,19 @@ class AgentDispatcher:
         work item's task type, providing specialized instructions instead
         of the generic fallback.
         """
-        if work_item.system_prompt:
-            return work_item.system_prompt
+        # Explicit system_prompt from the work item still gets the rollover
+        # policy prepended — callers that hand in bespoke prompts haven't
+        # been audited for self-rotation language.
+        try:
+            from cortex.prompts.rollover_policy import ROLLOVER_POLICY_TEXT
+        except ImportError:  # pragma: no cover
+            from prompts.rollover_policy import ROLLOVER_POLICY_TEXT  # type: ignore[no-redef]
 
-        # Try to use a registered agent profile for better prompts
+        if work_item.system_prompt:
+            return f"{ROLLOVER_POLICY_TEXT}\n\n---\n\n{work_item.system_prompt}"
+
+        # Try to use a registered agent profile for better prompts. Profile
+        # build_system_prompt() already prepends the policy.
         from cortex.supervisor.agents import get_agent_for_task
 
         agent = get_agent_for_task(work_item.task_type)
@@ -472,6 +481,8 @@ class AgentDispatcher:
 
         # Fallback for unmatched task types
         parts: list[str] = [
+            ROLLOVER_POLICY_TEXT,
+            "---",
             "You are a focused execution agent.",
             f"Task type: {work_item.task_type}",
         ]
@@ -482,7 +493,7 @@ class AgentDispatcher:
             "Complete the task precisely. Return structured output when possible. "
             "If the task cannot be completed, explain why clearly."
         )
-        return " ".join(parts)
+        return "\n\n".join(parts)
 
     # ------------------------------------------------------------------
     # Agent creation / execution

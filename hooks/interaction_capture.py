@@ -413,15 +413,46 @@ def _check_project_switch(cwd: str) -> None:
         pass  # Never break interaction capture
 
 
+_SELF_ROTATE_PATTERNS: tuple[str, ...] = (
+    "/compact",
+    "/clear",
+    "fresh session",
+    "new session",
+    "start a new session",
+    "context at ",
+    "context is tight",
+    "context tight",
+    "checkpointing before",
+    "checkpoint progress before",
+    "recommend /compact",
+    "recommend /clear",
+)
+
+
 def get_contextual_hint(hook_input: dict) -> str:
     """
-    Generate a contextual hint based on detected patterns.
+    Inject a rollover-policy corrective when the user's prompt echoes a
+    self-rotation pattern (typically because the agent just recommended one).
 
-    This is optional and provides real-time guidance based on
-    historical patterns without blocking the user.
+    Emits a single-line <cortex-hint> that the assistant sees via the
+    UserPromptSubmit hook stdout. CLAUDE.md covers the steady-state policy;
+    this hook is the runtime corrective for sessions that started before
+    CLAUDE.md was installed or that drifted despite it.
     """
-    # DEAD: engines module archived — ClaudeSessionSource no longer available
-    return ""
+    prompt = (hook_input.get("prompt") or "").lower()
+    if not prompt:
+        return ""
+
+    if not any(pat in prompt for pat in _SELF_ROTATE_PATTERNS):
+        return ""
+
+    return (
+        "Rollover policy reminder (CLAUDE.md §1): do not recommend /compact, "
+        "/clear, or 'fresh session'. Do not estimate context-%. If context is "
+        "tight, write up to six YAML fields to .workflow/current/handoff.yaml "
+        "and finish the atomic unit. Delegate via Task() instead of asking "
+        "the user to open a new session."
+    )
 
 
 def trigger_conversation_ingestion(transcript_path: str) -> None:

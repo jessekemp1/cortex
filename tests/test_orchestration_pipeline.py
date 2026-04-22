@@ -182,7 +182,11 @@ class TestAgentDispatcher:
     def test_build_system_prompt_custom(self, dispatcher, work_item):
         work_item.system_prompt = "You are a specialized tester."
         sys_prompt = dispatcher._build_system_prompt(work_item)
-        assert sys_prompt == "You are a specialized tester."
+        # Custom system prompts get the rollover policy prepended so
+        # caller-supplied text inherits the same anti-self-rotate discipline
+        # as registry prompts.
+        assert "You are a specialized tester." in sys_prompt
+        assert "Rollover" in sys_prompt or "/compact" in sys_prompt
 
     @patch("cortex.supervisor.dispatch.ANTHROPIC_SDK_AVAILABLE", False)
     def test_dispatch_uses_direct_api_fallback(self, dispatcher, work_item, model_selection):
