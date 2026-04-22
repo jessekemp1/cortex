@@ -9,8 +9,10 @@ def cmd_orchestrate(args):
     """Run one orchestration cycle."""
     from supervisor.config import SupervisorConfig
     from supervisor.core import CortexSupervisor
+    from supervisor.logging_config import configure_supervisor_logging
 
     config = SupervisorConfig(dry_run=args.dry_run)
+    configure_supervisor_logging(config.log_file, json_format=True)
     supervisor = CortexSupervisor(config=config)
 
     work_items = None

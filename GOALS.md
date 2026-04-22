@@ -27,13 +27,13 @@
 ### API Hardening
 - [x] Add slowapi rate limiting middleware (60 req/min)
 - [x] Add ge/le bounds to all Query(limit=) params (7 endpoints)
-- [ ] Add Pydantic field constraints (max_length, regex) to request models
-- [ ] Validate graph query filters against schema before passing to bridge
+- [x] Add Pydantic field constraints (min_length, max_length, pattern) to all request models
+- [x] Validate graph query filters against allowlisted keys before passing to bridge
 
-### Logging (deferred to Phase 3+)
-- [ ] Add structured JSON logging (structlog or python-json-logger)
-- [ ] Implement log rotation (RotatingFileHandler)
-- [ ] Audit all error paths for sensitive data leakage
+### Logging
+- [x] Add structured JSON logging (supervisor/logging_config.py — JSONFormatter)
+- [x] Implement log rotation (RotatingFileHandler, 10MB, 5 backups)
+- [ ] Audit all error paths for sensitive data leakage (deferred)
 
 ## Phase 3: Test Quality & Enterprise Credibility (COMPLETE)
 
@@ -63,8 +63,13 @@
 - [x] Coverage at 69.43% across supervisor/, guardian/, intelligence/storage/, workflows/
 - [x] Key modules: quality_evaluator 100%, config 97%, approval 96%, snapshots 91%
 
+### E2E Integration Tests
+- [x] Add 3 unmocked e2e tests:
+  - supervisor tick → state persistence (3 ticks, state file roundtrip)
+  - guardian claim → snapshot → modify → recover (full lifecycle)
+  - consolidated store → log metrics → query → verify integrity
+
 ### Remaining (future sprints)
 - [ ] Add property-based tests (Hypothesis) for core invariants
 - [ ] Expand intelligence/ tests from 24 to 120+
 - [ ] Reduce over-mocking in integration tests
-- [ ] Add 3 unmocked e2e tests (supervisor→execution→outcome, guardian claim→snap→recover)

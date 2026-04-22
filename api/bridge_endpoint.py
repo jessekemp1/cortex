@@ -93,10 +93,14 @@ except ImportError as e:
 class IntelligenceQuery(BaseModel):
     """Request model for intelligence queries."""
 
-    request: str = Field(..., description="User request or query")
-    project: str = Field(default="cortex", description="Project name")
+    request: str = Field(..., min_length=1, max_length=10000, description="User request or query")
+    project: str = Field(
+        default="cortex", min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-]+$",
+        description="Project name",
+    )
     query_type: str = Field(
-        default="spec", description="Query type: spec, impl, analysis, research"
+        default="spec", pattern=r"^(spec|impl|analysis|research)$",
+        description="Query type: spec, impl, analysis, research",
     )
     use_cache: bool = Field(default=True, description="Use query cache")
     parallel: bool = Field(default=True, description="Query sources in parallel")
@@ -112,12 +116,12 @@ class RecommendationRequest(BaseModel):
 class BriefingExecutionRequest(BaseModel):
     """Request model for recording recommendation execution events."""
 
-    execution_id: str = Field(..., description="Unique execution identifier")
-    recommendation_id: str = Field(..., description="Recommendation identifier")
-    recommendation_title: str = Field(..., description="Recommendation title")
-    project: str = Field(..., description="Project name")
-    mode: str = Field(..., description="Execution mode (queue/manual/etc)")
-    status: str = Field(..., description="Execution status")
+    execution_id: str = Field(..., min_length=1, max_length=200, description="Unique execution identifier")
+    recommendation_id: str = Field(..., min_length=1, max_length=200, description="Recommendation identifier")
+    recommendation_title: str = Field(..., min_length=1, max_length=500, description="Recommendation title")
+    project: str = Field(..., min_length=1, max_length=100, description="Project name")
+    mode: str = Field(..., min_length=1, max_length=50, description="Execution mode (queue/manual/etc)")
+    status: str = Field(..., min_length=1, max_length=50, description="Execution status")
     source_version: Optional[str] = Field(default=None, description="Source version or channel")
     metadata: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional execution metadata"
@@ -127,9 +131,9 @@ class BriefingExecutionRequest(BaseModel):
 class GuardianClaimRequest(BaseModel):
     """Request to claim a file for exclusive editing."""
 
-    file: str = Field(..., description="Absolute path to file")
-    agent_id: str = Field(..., description="Unique agent session identifier")
-    ttl: int = Field(default=300, description="Claim TTL in seconds (max 1800)")
+    file: str = Field(..., min_length=1, max_length=4096, description="Absolute path to file")
+    agent_id: str = Field(..., min_length=1, max_length=200, description="Unique agent session identifier")
+    ttl: int = Field(default=300, ge=1, le=1800, description="Claim TTL in seconds (max 1800)")
 
 
 class GuardianReleaseRequest(BaseModel):
@@ -653,14 +657,33 @@ async def query_graph(
     Returns nodes matching the specified type and filters.
     """
     try:
-        import json
+        import json as _json
 
         bridge = get_bridge()
 
-        filter_dict = json.loads(filters) if filters else None
+        filter_dict = None
+        if filters:
+            try:
+                filter_dict = _json.loads(filters)
+            except _json.JSONDecodeError:
+                raise HTTPException(status_code=422, detail="Invalid JSON in filters parameter")
+            if not isinstance(filter_dict, dict):
+                raise HTTPException(status_code=422, detail="Filters must be a JSON object")
+            # Only allow known filter keys to prevent injection
+            allowed_keys = {"project", "status", "category", "tags", "since", "until", "limit"}
+            unknown = set(filter_dict.keys()) - allowed_keys
+            if unknown:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown filter keys: {', '.join(sorted(unknown))}. "
+                    f"Allowed: {', '.join(sorted(allowed_keys))}",
+                )
+
         nodes = bridge.query_graph(node_type=node_type, filters=filter_dict)
 
         return {"node_type": node_type, "count": len(nodes), "nodes": nodes}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -766,13 +789,14 @@ async def get_queue():
 class AddTaskRequest(BaseModel):
     """Request model for adding a task to the queue."""
 
-    title: str = Field(..., description="Task title")
-    description: str = Field(..., description="Task description")
+    title: str = Field(..., min_length=1, max_length=500, description="Task title")
+    description: str = Field(..., min_length=1, max_length=10000, description="Task description")
     priority: str = Field(
-        default="NORMAL", description="Task priority: CRITICAL, HIGH, NORMAL, LOW"
+        default="NORMAL", pattern=r"^(CRITICAL|HIGH|NORMAL|LOW)$",
+        description="Task priority: CRITICAL, HIGH, NORMAL, LOW",
     )
-    estimated_tokens: int = Field(default=5000, description="Estimated token count")
-    tasks: List[Dict[str, Any]] = Field(default_factory=list, description="Subtasks to execute")
+    estimated_tokens: int = Field(default=5000, ge=1, le=1000000, description="Estimated token count")
+    tasks: List[Dict[str, Any]] = Field(default_factory=list, max_length=100, description="Subtasks to execute")
 
 
 @app.post("/queue")
@@ -1657,11 +1681,14 @@ async def guardian_recover(req: GuardianRecoverRequest) -> Dict[str, Any]:
 class SignalAbsorbRequest(BaseModel):
     """Request model for absorbing a workspace signal via HTTP."""
 
-    source: str = Field(..., description="Signal source: claude_code, iterm, git, manual, etc.")
-    project: str = Field(..., description="Project name")
-    workstream: str = Field(default="build", description="Work phase: build, plan, test, etc.")
-    content_type: str = Field(..., description="Content type: idea, decision, code, insight, error")
-    content: str = Field(..., description="Signal content")
+    source: str = Field(..., min_length=1, max_length=100, description="Signal source: claude_code, iterm, git, manual, etc.")
+    project: str = Field(..., min_length=1, max_length=100, description="Project name")
+    workstream: str = Field(default="build", max_length=50, description="Work phase: build, plan, test, etc.")
+    content_type: str = Field(
+        ..., pattern=r"^(idea|decision|code|insight|error)$",
+        description="Content type: idea, decision, code, insight, error",
+    )
+    content: str = Field(..., min_length=1, max_length=50000, description="Signal content")
     confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Confidence 0-1")
     context: Dict[str, Any] = Field(default_factory=dict, description="Extra context")
 
