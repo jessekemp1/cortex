@@ -61,6 +61,9 @@ When a work unit is genuinely large or context is getting tight:
   resumption.
 - `progress.md` is rebuilt by the daemon from `handoff.yaml` plus git state.
   Do not write to it directly; you will race the daemon.
+- The sanctioned writer is `cortex.runtime.handoff.write_handoff` — use
+  that, not `Write`/`Edit` on the YAML directly. It writes atomically and
+  adds `_written_at` / `_branch` metadata.
 
 ## 4. Scope discipline — project, not monorepo
 
