@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -650,18 +650,27 @@ async def get_v2_outcomes(
     days: int = Query(7, description="Look back N days"),
     limit: int = Query(50, description="Max outcomes to return"),
 ) -> Dict[str, Any]:
-    """Get recent outcomes from OutcomeDetector (v2 compound learning)."""
+    """Get recent outcomes from JSONL storage."""
     try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
+        outcomes_file = Path.home() / ".cortex" / "model_outcomes.jsonl"
+        if not outcomes_file.exists():
+            return {"outcomes": [], "total": 0}
 
-        detector = OutcomeDetector()
-        outcomes = detector.get_recent_outcomes(project=project, days=days)
-        return {
-            "outcomes": [o.to_dict() for o in outcomes[:limit]],
-            "total": len(outcomes),
-        }
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+        cutoff = datetime.now() - timedelta(days=days)
+        entries = []
+        with open(outcomes_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                ts = datetime.fromisoformat(entry.get("timestamp", ""))
+                if ts < cutoff:
+                    continue
+                if project and entry.get("project_name") != project:
+                    continue
+                entries.append(entry)
+        return {"outcomes": entries[-limit:], "total": len(entries)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -673,12 +682,41 @@ async def get_v2_outcome_stats(
 ) -> Dict[str, Any]:
     """Get outcome statistics for compound learning measurement."""
     try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
+        outcomes_file = Path.home() / ".cortex" / "model_outcomes.jsonl"
+        if not outcomes_file.exists():
+            return {"by_model": {}, "total_outcomes": 0, "days": days}
 
-        detector = OutcomeDetector()
-        return detector.get_outcome_stats(project=project, days=days)
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+        cutoff = datetime.now() - timedelta(days=days)
+        entries = []
+        with open(outcomes_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                entry = json.loads(line)
+                ts = datetime.fromisoformat(entry.get("timestamp", ""))
+                if ts < cutoff:
+                    continue
+                if project and entry.get("project_name") != project:
+                    continue
+                entries.append(entry)
+
+        by_model: Dict[str, Dict[str, Any]] = {}
+        for e in entries:
+            m = e.get("model_used", "unknown")
+            if m not in by_model:
+                by_model[m] = {"total": 0, "success": 0, "failed": 0, "tokens": 0}
+            by_model[m]["total"] += 1
+            if e.get("outcome") == "success":
+                by_model[m]["success"] += 1
+            elif e.get("outcome") == "failed":
+                by_model[m]["failed"] += 1
+            by_model[m]["tokens"] += e.get("tokens_used", 0)
+        for stats in by_model.values():
+            if stats["total"]:
+                stats["success_rate"] = round(stats["success"] / stats["total"], 3)
+
+        return {"by_model": by_model, "total_outcomes": len(entries), "days": days}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
