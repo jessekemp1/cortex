@@ -49,18 +49,6 @@ except ImportError as e:
 # ============================================================================
 
 
-class IntelligenceQuery(BaseModel):
-    """Request model for intelligence queries."""
-
-    request: str = Field(..., description="User request or query")
-    project: str = Field(default="cortex", description="Project name")
-    query_type: str = Field(
-        default="spec", description="Query type: spec, impl, analysis, research"
-    )
-    use_cache: bool = Field(default=True, description="Use query cache")
-    parallel: bool = Field(default=True, description="Query sources in parallel")
-
-
 class RecommendationRequest(BaseModel):
     """Request model for recommendations."""
 
@@ -136,25 +124,6 @@ class DecisionRecordRequest(BaseModel):
     override_reason: Optional[str] = Field(
         default=None, description="Reason if user overrode all scenarios"
     )
-
-
-class DecisionFreeformRequest(BaseModel):
-    """Free-form decision capture from MCP cortex_record_decision tool."""
-
-    decision: str = Field(..., description="What was decided")
-    context: str = Field(default="", description="Why the decision was needed")
-    alternatives: str = Field(default="", description="What other options existed")
-    rationale: str = Field(default="", description="Why this option was chosen")
-    project: str = Field(default="", description="Project the decision applies to")
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Decision confidence")
-    tags: str = Field(default="", description="Comma-separated tags")
-
-
-class PlanCreateRequest(BaseModel):
-    """Create an execution plan from project goals."""
-
-    project: str = Field(..., description="Target project (vortex, cortex, ...)")
-    title: Optional[str] = Field(default=None, description="Optional plan title")
 
 
 # ============================================================================
@@ -296,29 +265,6 @@ async def status():
 # ============================================================================
 
 
-@app.post("/intelligence/query")
-async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
-    """
-    Query Cortex unified intelligence.
-
-    Returns ranked results, confidence scores, and detailed reasoning.
-    """
-    try:
-        bridge = get_bridge()
-        result = bridge.query_intelligence(
-            request=query.request,
-            project=query.project,
-            query_type=query.query_type,
-            use_cache=query.use_cache,
-            parallel=query.parallel,
-        )
-
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ReasonQuery(BaseModel):
@@ -689,107 +635,6 @@ async def get_anomalies(
 # ============================================================================
 
 
-@app.get("/graph/query")
-async def query_graph(
-    node_type: str = Query("", description="Node type filter (empty = all types)"),
-    q: Optional[str] = Query(None, description="Text search across node name + data"),
-    limit: int = Query(10, ge=1, le=500, description="Max results"),
-    filters: Optional[str] = Query(None, description="JSON filters (advanced)"),
-) -> Dict[str, Any]:
-    """
-    Query Cortex context graph.
-
-    All parameters are optional. With no params, returns nodes across all
-    types capped at `limit`. With `node_type` set, restricts to that type.
-    With `q` set, post-filters by case-insensitive substring match against
-    the stringified node dict.
-    """
-    try:
-        import json as _json
-
-        bridge = get_bridge()
-        filter_dict = _json.loads(filters) if filters else None
-
-        if node_type:
-            node_types_to_query = [node_type]
-        else:
-            try:
-                from cortex.engines.synthesis import NodeType
-
-                node_types_to_query = [nt.value for nt in NodeType]
-            except ImportError:
-                node_types_to_query = [
-                    "goal",
-                    "project",
-                    "pattern",
-                    "lesson",
-                    "decision",
-                    "warning",
-                ]
-
-        all_nodes: List[Dict[str, Any]] = []
-        for nt in node_types_to_query:
-            try:
-                nodes = bridge.query_graph(node_type=nt, filters=filter_dict)
-            except Exception:
-                continue
-            if isinstance(nodes, list):
-                # bridge.query_graph returns [{"error": ...}] on failure; skip those.
-                for n in nodes:
-                    if isinstance(n, dict) and "error" not in n:
-                        all_nodes.append(n)
-
-        if q:
-            needle = q.lower()
-            all_nodes = [
-                n for n in all_nodes if needle in _json.dumps(n, default=str).lower()
-            ]
-
-        truncated = all_nodes[:limit]
-        return {
-            "node_type": node_type or None,
-            "q": q,
-            "count": len(truncated),
-            "total_matched": len(all_nodes),
-            "nodes": truncated,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# Batch Management Endpoints
-# ============================================================================
-
-# Lazy-loaded batch client and queue manager
-_batch_client: Optional[Any] = None
-_queue_manager: Optional[Any] = None
-
-
-def get_batch_client():
-    """Get or create batch API client."""
-    global _batch_client
-    if _batch_client is None:
-        try:
-            from cortex.batch.batch_api_client import BatchAPIClient
-
-            _batch_client = BatchAPIClient()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to initialize batch client: {e}")
-    return _batch_client
-
-
-def get_queue_manager():
-    """Get or create queue manager."""
-    global _queue_manager
-    if _queue_manager is None:
-        try:
-            from cortex.batch.queue_manager import BatchQueueManager
-
-            _queue_manager = BatchQueueManager()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to initialize queue manager: {e}")
-    return _queue_manager
 
 
 @app.get("/batches")
@@ -807,34 +652,8 @@ async def list_batches(limit: int = Query(20, description="Max batches to return
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/batches/{batch_id}")
-async def get_batch_status(batch_id: str):
-    """
-    Get detailed status for a specific batch.
-
-    Returns progress, request counts, and completion status.
-    """
-    try:
-        client = get_batch_client()
-        status = client.get_batch_status(batch_id)
-        return status
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Batch not found: {e}")
 
 
-@app.post("/batches/{batch_id}/cancel")
-async def cancel_batch(batch_id: str):
-    """
-    Cancel a running batch job.
-
-    Returns updated batch status after cancellation.
-    """
-    try:
-        client = get_batch_client()
-        result = client.cancel_batch(batch_id)
-        return {"status": "cancelled", "batch_id": batch_id, "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/queue")
@@ -993,97 +812,10 @@ async def get_metrics(days: int = Query(7, description="Days of history to inclu
 # ============================================================================
 
 
-@app.get("/projects")
-async def list_projects() -> List[Dict[str, Any]]:
-    """List available projects with status, detected from filesystem."""
-    import subprocess
-
-    workspace = Path.home() / "Dev"
-    projects = []
-
-    # Project definitions: (dir_name, display_name, test_dir)
-    project_defs = [
-        ("Vortex/backend", "Vortex Backend", "Vortex/backend/tests"),
-        ("Vortex/frontend", "Vortex Frontend", "Vortex/frontend/src"),
-        ("cortex", "Cortex", "cortex/tests"),
-        ("alpha_arena", "Alpha Arena", "alpha_arena/tests"),
-        ("pupil", "Pupil", "pupil/tests"),
-    ]
-
-    for dir_name, display_name, test_dir in project_defs:
-        project_path = workspace / dir_name
-        if not project_path.exists():
-            continue
-
-        # Get last commit touching this directory
-        last_activity = datetime.now().isoformat()
-        try:
-            result = subprocess.run(
-                ["git", "log", "-1", "--format=%aI", "--", dir_name],
-                cwd=str(workspace),
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                last_activity = result.stdout.strip()
-        except Exception:
-            pass
-
-        projects.append(
-            {
-                "name": display_name,
-                "path": dir_name,
-                "status": "healthy",
-                "last_activity": last_activity,
-            }
-        )
-
-    return projects
 
 
-# ============================================================================
-# V2 Intelligence Endpoints (lazy-import for fast startup)
-# ============================================================================
 
 
-@app.get("/v2/outcomes")
-async def get_v2_outcomes(
-    project: Optional[str] = Query(None, description="Filter by project"),
-    days: int = Query(7, description="Look back N days"),
-    limit: int = Query(50, description="Max outcomes to return"),
-) -> Dict[str, Any]:
-    """Get recent outcomes from OutcomeDetector (v2 compound learning)."""
-    try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
-
-        detector = OutcomeDetector()
-        outcomes = detector.get_recent_outcomes(project=project, days=days)
-        return {
-            "outcomes": [o.to_dict() for o in outcomes[:limit]],
-            "total": len(outcomes),
-        }
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/v2/outcomes/stats")
-async def get_v2_outcome_stats(
-    project: Optional[str] = Query(None, description="Filter by project"),
-    days: int = Query(30, description="Look back N days"),
-) -> Dict[str, Any]:
-    """Get outcome statistics for compound learning measurement."""
-    try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
-
-        detector = OutcomeDetector()
-        return detector.get_outcome_stats(project=project, days=days)
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/v2/graph/search")
@@ -1220,109 +952,10 @@ async def list_briefing_executions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/sessions")
-async def get_sessions(
-    active_only: bool = Query(False, description="Only return active/waiting sessions"),
-    limit: int = Query(20, description="Max sessions to return"),
-) -> Dict[str, Any]:
-    """
-    Scan Claude Code session JSONL files for real-time session visibility.
-
-    Derives session state from last event age:
-    - ACTIVE: last event < 60s (Claude or tool running)
-    - WAITING: last event type is 'user' and age < 60s
-    - IDLE: last event age 60s-300s
-    - STALE: last event age > 300s
-    """
-    import json as _json
-
-    try:
-        sessions = []
-        now = time.time()
-
-        if not CLAUDE_PROJECTS_DIR.exists():
-            return {"sessions": [], "total": 0, "active_count": 0}
-
-        # Scan all project directories for session JSONL files
-        for project_dir in CLAUDE_PROJECTS_DIR.iterdir():
-            if not project_dir.is_dir():
-                continue
-
-            # Strip Claude project path prefix (format: -Users-<username>-<path>)
-            import re
-
-            project_name = re.sub(r"^-Users-[^-]+-", "", project_dir.name).replace("-", "/")
-
-            for jsonl_file in project_dir.glob("*.jsonl"):
-                try:
-                    mtime = jsonl_file.stat().st_mtime
-                    age_seconds = now - mtime
-
-                    # Read last few lines for state detection
-                    content = jsonl_file.read_bytes()
-                    lines = content.strip().split(b"\n")
-                    if not lines:
-                        continue
-
-                    last_event = {}
-                    event_count = len(lines)
-                    first_event = {}
-
-                    # Parse last line
-                    try:
-                        last_event = _json.loads(lines[-1])
-                    except (ValueError, _json.JSONDecodeError):
-                        pass
-
-                    # Parse first line for start time
-                    try:
-                        first_event = _json.loads(lines[0])
-                    except (ValueError, _json.JSONDecodeError):
-                        pass
-
-                    # Derive status
-                    last_type = last_event.get("type", "")
-                    if age_seconds < 60:
-                        status = "WAITING" if last_type == "user" else "ACTIVE"
-                    elif age_seconds < 300:
-                        status = "IDLE"
-                    else:
-                        status = "STALE"
-
-                    if active_only and status in ("STALE",):
-                        continue
-
-                    session_id = jsonl_file.stem
-                    sessions.append(
-                        {
-                            "id": session_id,
-                            "project": project_name,
-                            "status": status,
-                            "git_branch": last_event.get("gitBranch", ""),
-                            "last_event_type": last_type,
-                            "last_event_age_seconds": round(age_seconds, 1),
-                            "started_at": first_event.get("timestamp", ""),
-                            "last_activity": last_event.get("timestamp", ""),
-                            "event_count": event_count,
-                            "model": last_event.get("model", ""),
-                            "cwd": last_event.get("cwd", ""),
-                        }
-                    )
-                except Exception:
-                    continue
-
-        # Sort by most recent activity
-        sessions.sort(key=lambda s: s.get("last_event_age_seconds", 999999))
-        sessions = sessions[:limit]
-
-        active_count = sum(1 for s in sessions if s["status"] in ("ACTIVE", "WAITING"))
-        return {"sessions": sessions, "total": len(sessions), "active_count": active_count}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================
-# TaskBoard — Spec-driven task management
+# TaskBoard — helpers and models (restored after Phase 5 endpoint trim)
 # ============================================================================
 
 TASKBOARD_DIR = Path.home() / ".cortex" / "taskboard"
@@ -1928,16 +1561,6 @@ class ConductorStartupRequest(BaseModel):
     project_id: Optional[str] = Field(default=None, description="Focus on specific project")
 
 
-class PromptComposeRequest(BaseModel):
-    """Request to compose an optimized prompt."""
-
-    intent: str = Field(..., description="What the user wants to accomplish")
-    project_id: str = Field(..., description="Target project ID")
-    intent_level: str = Field(
-        default="collaborative", description="advisory|collaborative|autonomous|supervisory"
-    )
-    include_context: bool = Field(default=True, description="Include project context in prompt")
-
 
 @app.get("/conductor/startup")
 async def conductor_startup(
@@ -2110,138 +1733,6 @@ async def conductor_startup(
     return result
 
 
-@app.post("/conductor/compose")
-async def conductor_compose_prompt(req: PromptComposeRequest) -> Dict[str, Any]:
-    """
-    Compose an optimized prompt based on intent, project, and context.
-
-    Enriches the user's natural-language intent with:
-    - Project-specific context (recent commits, state)
-    - Intent level framing
-    - Relevant .next_session content
-    - Anti-patterns and gotchas for the project
-    """
-    import subprocess
-
-    sections: List[str] = []
-
-    # Intent level framing
-    level_frames = {
-        "advisory": "Research and recommend only. Do not modify any files.",
-        "collaborative": "Propose changes and wait for my approval before executing.",
-        "autonomous": "Execute end-to-end. Test, fix, and report results when done.",
-        "supervisory": "Orchestrate sub-agents for parallel execution. Report aggregate results.",
-    }
-    frame = level_frames.get(req.intent_level, level_frames["collaborative"])
-
-    # Find project info
-    proj_info = next((p for p in CONDUCTOR_PROJECTS if p["id"] == req.project_id), None)
-
-    # Header
-    sections.append(f"**Intent Level**: {req.intent_level.upper()} — {frame}")
-    if proj_info:
-        sections.append(f"**Project**: {proj_info['name']} (`{proj_info['path']}`)")
-
-    # User intent
-    sections.append(f"\n## Task\n{req.intent}")
-
-    # Project context
-    if req.include_context and proj_info:
-        try:
-            r = subprocess.run(
-                ["git", "log", "-5", "--format=%h %s", "--", proj_info["path"]],
-                cwd=str(WORKSPACE),
-                capture_output=True,
-                text=True,
-                timeout=3,
-            )
-            if r.returncode == 0 and r.stdout.strip():
-                sections.append(f"\n## Recent Commits\n```\n{r.stdout.strip()}\n```")
-        except Exception:
-            pass
-
-        # .next_session content
-        ns_file = NEXT_SESSION_FILES.get(req.project_id)
-        if ns_file and ns_file.exists():
-            try:
-                content = ns_file.read_text(encoding="utf-8")[:1000]
-                sections.append(f"\n## Previous Session Context\n{content}")
-            except Exception:
-                pass
-
-    composed = "\n".join(sections)
-    token_estimate = len(composed.split()) * 2  # rough estimate
-
-    # Persist to prompt history
-    try:
-        history_dir = Path.home() / ".cortex" / "conductor"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        history_file = history_dir / "prompt_history.jsonl"
-        entry = {
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-            "intent": req.intent,
-            "project_id": req.project_id,
-            "intent_level": req.intent_level,
-            "prompt": composed,
-            "token_estimate": token_estimate,
-        }
-        with open(history_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass  # Non-critical — don't fail compose if history write fails
-
-    return {
-        "prompt": composed,
-        "project": req.project_id,
-        "intent_level": req.intent_level,
-        "token_estimate": token_estimate,
-    }
-
-
-PROMPT_TEMPLATES = [
-    {
-        "id": "investigate",
-        "label": "Investigate",
-        "icon": "🔍",
-        "template": "Investigate: {intent}\n\nDo NOT modify any files. Research the codebase, identify root causes, and report findings with file:line references.",
-        "intent_level": "advisory",
-    },
-    {
-        "id": "fix",
-        "label": "Fix Bug",
-        "icon": "🔧",
-        "template": "Fix: {intent}\n\nIdentify root cause, implement the fix, run tests, and verify green before reporting.",
-        "intent_level": "autonomous",
-    },
-    {
-        "id": "implement",
-        "label": "Implement Feature",
-        "icon": "⚡",
-        "template": "Implement: {intent}\n\nPlan the implementation, propose changes for review, then execute after approval.",
-        "intent_level": "collaborative",
-    },
-    {
-        "id": "ship",
-        "label": "Ship It",
-        "icon": "🚀",
-        "template": "Ship: {intent}\n\nImplement, test, validate, commit, and prepare for deployment. Full autonomous execution.",
-        "intent_level": "autonomous",
-    },
-    {
-        "id": "review",
-        "label": "Code Review",
-        "icon": "📋",
-        "template": "Review: {intent}\n\nAnalyze the code for bugs, performance issues, security vulnerabilities, and style. Report findings only.",
-        "intent_level": "advisory",
-    },
-    {
-        "id": "orchestrate",
-        "label": "Orchestrate",
-        "icon": "🎯",
-        "template": "Orchestrate: {intent}\n\nDecompose into parallel work streams. Use sub-agents for independent tasks. Report aggregate results.",
-        "intent_level": "supervisory",
-    },
-]
 
 
 @app.get("/conductor/templates")
@@ -2896,144 +2387,10 @@ async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
 
 
-@app.post("/decisions/record-freeform")
-async def record_decision_freeform(req: DecisionFreeformRequest) -> Dict[str, Any]:
-    """Record a free-form decision from MCP cortex_record_decision tool.
-
-    Phase 1 fix for the original /decisions/record endpoint, which expected
-    the Co-Navigator UI scenario-picker schema. The MCP tool sends a
-    free-form decision (decision/context/alternatives/rationale + optional
-    project/confidence/tags). Stored alongside scenario-picker decisions
-    in ~/.cortex/decisions.jsonl, discriminated by the `kind` field.
-    """
-    try:
-        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        decision_id = f"dec_{int(time.time())}_{abs(hash(req.decision)) % 100000:05d}"
-        tags = [t.strip() for t in req.tags.split(",") if t.strip()] if req.tags else []
-        entry = {
-            "kind": "freeform",
-            "decision_id": decision_id,
-            "decision": req.decision,
-            "context": req.context,
-            "alternatives": req.alternatives,
-            "rationale": req.rationale,
-            "project": req.project,
-            "confidence": req.confidence,
-            "tags": tags,
-            "timestamp": datetime.now().isoformat(),
-        }
-        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-        return {
-            "recorded": True,
-            "decision_id": decision_id,
-            "timestamp": entry["timestamp"],
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
 
 
-# ─── Plans ───
 
 
-PLANS_DIR = Path.home() / ".cortex" / "plans"
-
-
-@app.post("/plans/create")
-async def create_plan(req: PlanCreateRequest) -> Dict[str, Any]:
-    """Create an execution plan from project goals.
-
-    Reuses cortex.goal_parser.GoalParser to parse ACTION_PLAN.md (or GOALS.md
-    if CORTEX_GOALS_FILE is set). Filters parsed goals by project, writes the
-    resulting plan to ~/.cortex/plans/{project}_{timestamp}.json.
-    """
-    try:
-        PLANS_DIR.mkdir(parents=True, exist_ok=True)
-        # Lazy import keeps the bridge importable even when goal_parser has
-        # an unrelated breakage (Phase 5 will replace this with a direct call).
-        try:
-            from cortex.goal_parser import GoalParser  # type: ignore
-        except ImportError:
-            from goal_parser import GoalParser  # type: ignore
-
-        goals_override = os.environ.get("CORTEX_GOALS_FILE")
-        action_plan_path = Path(goals_override) if goals_override else None
-        parser = GoalParser(action_plan_path=action_plan_path)
-        all_goals = parser.parse()
-
-        project_lower = req.project.lower()
-        project_goals = [
-            g
-            for g in all_goals
-            if not g.project or g.project.lower() == project_lower
-        ]
-
-        ts = int(time.time())
-        plan_id = f"plan_{req.project}_{ts}"
-        items = [
-            {
-                "id": g.id,
-                "title": g.title,
-                "priority": g.priority,
-                "status": g.status,
-                "actions": list(g.actions),
-                "success_criteria": g.success_criteria,
-                "blockers": list(g.blockers),
-            }
-            for g in project_goals
-        ]
-        plan = {
-            "plan_id": plan_id,
-            "project": req.project,
-            "title": req.title or f"Plan for {req.project}",
-            "created_at": datetime.now(tz=timezone.utc).isoformat(),
-            "source": str(parser.action_plan_path),
-            "item_count": len(items),
-            "items": items,
-        }
-        plan_path = PLANS_DIR / f"{req.project}_{ts}.json"
-        plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
-        return {"plan_id": plan_id, "path": str(plan_path), "item_count": len(items)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create plan: {e}")
-
-
-@app.get("/plans/progress")
-async def plans_progress() -> Dict[str, Any]:
-    """Summarize all active plans in ~/.cortex/plans/.
-
-    For each plan file, reports item counts grouped by status. Does not
-    cross-reference git log (the plan's "git log cross-reference" is Phase 4
-    work — for Phase 1 we ship the file-scan baseline).
-    """
-    try:
-        if not PLANS_DIR.exists():
-            return {"plans": [], "total": 0}
-        summaries = []
-        for plan_path in sorted(PLANS_DIR.glob("*.json")):
-            try:
-                plan = json.loads(plan_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            items = plan.get("items", [])
-            status_counts: Dict[str, int] = {}
-            for item in items:
-                s = item.get("status", "unknown")
-                status_counts[s] = status_counts.get(s, 0) + 1
-            summaries.append(
-                {
-                    "plan_id": plan.get("plan_id"),
-                    "project": plan.get("project"),
-                    "title": plan.get("title"),
-                    "created_at": plan.get("created_at"),
-                    "item_count": len(items),
-                    "by_status": status_counts,
-                    "path": str(plan_path),
-                }
-            )
-        return {"plans": summaries, "total": len(summaries)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read plans: {e}")
 
 
 @app.get("/activity/heatmap")
