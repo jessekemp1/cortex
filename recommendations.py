@@ -1,17 +1,19 @@
 import os
 """
-Cortex Recommendations Engine
+Cortex Portfolio Recommender — portfolio-level recommendations.
 
-Generates intelligent, actionable recommendations based on:
-- Project health scores and trends
-- Dependency analysis
-- GOALS.md priorities
-- Portfolio patterns and lessons
+NOTE on naming: this module's class was previously named `RecommendationEngine`,
+which collided with `recommendation_engine.RecommendationEngine` (a separate,
+task-level recommendation generator). The two classes have entirely different
+APIs and serve different concerns:
 
-Provides:
-- Priority project recommendations
-- Risk alerts
-- Next action suggestions
+  - PortfolioRecommender (here): portfolio-level reports — priority projects,
+    risk alerts, next action across the whole codebase portfolio.
+  - recommendation_engine.RecommendationEngine: task-level smart recommendation
+    generation for specific work items.
+
+`RecommendationEngine` is still aliased below for backward compatibility with
+any in-flight branches; new code should use `PortfolioRecommender`.
 """
 
 import json
@@ -26,8 +28,8 @@ except ImportError:  # Backward compatibility for legacy direct execution contex
     from portfolio_memory import PortfolioMemory
 
 
-class RecommendationEngine:
-    """Generate smart recommendations based on portfolio health and goals."""
+class PortfolioRecommender:
+    """Generate portfolio-level recommendations based on health and goals."""
 
     def __init__(self, dev_path: Path = None):
         self.dev_path = dev_path or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
@@ -368,10 +370,15 @@ class RecommendationEngine:
 
 
 # CLI interface
+# Backward-compatibility alias for the old class name. Remove once all
+# callers migrate to PortfolioRecommender.
+RecommendationEngine = PortfolioRecommender
+
+
 if __name__ == "__main__":
     import sys
 
-    engine = RecommendationEngine()
+    engine = PortfolioRecommender()
 
     if len(sys.argv) < 2:
         print("Usage: python recommendations.py <command>")

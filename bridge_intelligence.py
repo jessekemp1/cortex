@@ -1042,9 +1042,9 @@ class IntelligenceMixin:
             >>> print(recs["next_action"]["action"])
         """
         try:
-            from cortex.recommendations import RecommendationEngine
+            from cortex.recommendations import PortfolioRecommender
 
-            engine = RecommendationEngine(self.root_dir)
+            engine = PortfolioRecommender(self.root_dir)
             return engine.get_full_report()
         except Exception as e:
             return {"error": str(e)}
@@ -1062,9 +1062,9 @@ class IntelligenceMixin:
             >>> print(f"[{action['priority']}] {action['action']}")
         """
         try:
-            from cortex.recommendations import RecommendationEngine
+            from cortex.recommendations import PortfolioRecommender
 
-            engine = RecommendationEngine(self.root_dir)
+            engine = PortfolioRecommender(self.root_dir)
             return engine.get_recommended_next_action()
         except Exception as e:
             return {"error": str(e)}
@@ -1083,9 +1083,9 @@ class IntelligenceMixin:
             ...     print(f"[{alert['severity']}] {alert['message']}")
         """
         try:
-            from cortex.recommendations import RecommendationEngine
+            from cortex.recommendations import PortfolioRecommender
 
-            engine = RecommendationEngine(self.root_dir)
+            engine = PortfolioRecommender(self.root_dir)
             return engine.get_risk_alerts()
         except Exception as e:
             return [{"error": str(e)}]
@@ -1107,9 +1107,9 @@ class IntelligenceMixin:
             ...     print(f"[{p['priority']}] {p['project']}: {p['reason']}")
         """
         try:
-            from cortex.recommendations import RecommendationEngine
+            from cortex.recommendations import PortfolioRecommender
 
-            engine = RecommendationEngine(self.root_dir)
+            engine = PortfolioRecommender(self.root_dir)
             return engine.get_priority_projects(limit=limit)
         except Exception as e:
             return [{"error": str(e)}]

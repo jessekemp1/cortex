@@ -108,7 +108,7 @@ def cmd_briefing(args):
 
         # Generate briefing — always via resilient path (Tier 1 = normal, graceful fallback)
         try:
-            from briefing_resilient import (
+            from briefing import (
                 generate_resilient_briefing,
                 format_resilient_briefing,
             )

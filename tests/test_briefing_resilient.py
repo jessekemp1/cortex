@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Tests for briefing_resilient.py — tiered fallback briefing."""
+"""Tests for the resilient tiered briefing path in briefing.py.
+
+Originally lived in briefing_resilient.py; folded into briefing.py in Phase 4b
+of the slim-down. Filename kept for git-blame continuity.
+"""
 
 import json
 import sys
@@ -12,7 +16,7 @@ import pytest
 cortex_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(cortex_dir))
 
-from briefing_resilient import (
+from briefing import (
     format_resilient_briefing,
     generate_resilient_briefing,
     _extract_immediate_actions,
@@ -80,7 +84,7 @@ class TestTier1:
         mock_briefing = MagicMock()
 
         with patch(
-            "briefing_resilient._tier1_full_briefing",
+            "briefing._tier1_full_briefing",
             return_value={"briefing_object": mock_briefing},
         ):
             result = generate_resilient_briefing(root_dir=tmp_path)
@@ -104,8 +108,8 @@ class TestTier1:
             "cortex_state": {},
         }
 
-        with patch("briefing_resilient._tier1_full_briefing", side_effect=raise_import):
-            with patch("briefing_resilient._tier2_file_based", return_value=fake_tier2):
+        with patch("briefing._tier1_full_briefing", side_effect=raise_import):
+            with patch("briefing._tier2_file_based", return_value=fake_tier2):
                 result = generate_resilient_briefing(root_dir=tmp_path)
 
         assert result["tier"] == 2
@@ -124,7 +128,7 @@ class TestTier2:
         def raise_import(root_dir):
             raise ImportError("no module named briefing")
 
-        with patch("briefing_resilient._tier1_full_briefing", side_effect=raise_import):
+        with patch("briefing._tier1_full_briefing", side_effect=raise_import):
             result = generate_resilient_briefing(root_dir=tmp_goals)
 
         assert result["tier"] == 2
@@ -231,8 +235,8 @@ class TestTier3:
             raise RuntimeError("file-based failed")
 
         with (
-            patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1),
-            patch("briefing_resilient._tier2_file_based", side_effect=raise_t2),
+            patch("briefing._tier1_full_briefing", side_effect=raise_t1),
+            patch("briefing._tier2_file_based", side_effect=raise_t2),
         ):
             result = generate_resilient_briefing(root_dir=tmp_path)
 
@@ -251,8 +255,8 @@ class TestTier3:
             raise RuntimeError("file fail")
 
         with (
-            patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1),
-            patch("briefing_resilient._tier2_file_based", side_effect=raise_t2),
+            patch("briefing._tier1_full_briefing", side_effect=raise_t1),
+            patch("briefing._tier2_file_based", side_effect=raise_t2),
         ):
             result = generate_resilient_briefing(root_dir=tmp_path)
 
@@ -277,7 +281,7 @@ class TestFormatters:
         def raise_t1(root_dir):
             raise ImportError("no briefing")
 
-        with patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1):
+        with patch("briefing._tier1_full_briefing", side_effect=raise_t1):
             result = generate_resilient_briefing(root_dir=tmp_goals)
 
         assert result["tier"] == 2
@@ -294,7 +298,7 @@ class TestFormatters:
         def raise_t1(root_dir):
             raise ImportError("no briefing")
 
-        with patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1):
+        with patch("briefing._tier1_full_briefing", side_effect=raise_t1):
             result = generate_resilient_briefing(root_dir=tmp_goals)
 
         output = format_resilient_briefing(result, use_color=False)
@@ -310,8 +314,8 @@ class TestFormatters:
             raise RuntimeError("file fail")
 
         with (
-            patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1),
-            patch("briefing_resilient._tier2_file_based", side_effect=raise_t2),
+            patch("briefing._tier1_full_briefing", side_effect=raise_t1),
+            patch("briefing._tier2_file_based", side_effect=raise_t2),
         ):
             result = generate_resilient_briefing(root_dir=tmp_path)
 
@@ -324,7 +328,7 @@ class TestFormatters:
         mock_formatted = "FULL BRIEFING OUTPUT"
 
         with patch(
-            "briefing_resilient._tier1_full_briefing",
+            "briefing._tier1_full_briefing",
             return_value={"briefing_object": mock_briefing},
         ):
             result = generate_resilient_briefing(root_dir=Path("/tmp"))
@@ -356,8 +360,8 @@ class TestWarnings:
             "cortex_state": {},
         }
 
-        with patch("briefing_resilient._tier1_full_briefing", side_effect=raise_t1):
-            with patch("briefing_resilient._tier2_file_based", return_value=fake_t2):
+        with patch("briefing._tier1_full_briefing", side_effect=raise_t1):
+            with patch("briefing._tier2_file_based", return_value=fake_t2):
                 result = generate_resilient_briefing(root_dir=tmp_path)
 
         assert len(result["warnings"]) >= 1
@@ -371,7 +375,7 @@ class TestWarnings:
         mock_briefing = MagicMock()
 
         with patch(
-            "briefing_resilient._tier1_full_briefing",
+            "briefing._tier1_full_briefing",
             return_value={"briefing_object": mock_briefing},
         ):
             result = generate_resilient_briefing(root_dir=tmp_path)

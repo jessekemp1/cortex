@@ -12,9 +12,11 @@ Synthesizes:
 import inspect
 import json
 import os
+import re
+import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -3024,6 +3026,414 @@ def format_compact(briefing: BriefingData, use_color: bool = True) -> str:
     # Bottom border
     lines.append("└" + "─" * (WIDTH + 2) + "┘")
 
+    return "\n".join(lines)
+
+
+# ─── Resilient briefing (folded from former briefing_resilient.py) ───
+#
+# Tiered fallback for environments where the full BriefingGenerator may fail
+# (missing optional deps, no GOALS.md, no .cortex/ state). Tier 1 = full
+# generator, Tier 2 = file-based intelligence, Tier 3 = bare git status.
+# `generate_resilient_briefing` always returns *something* — never raises.
+
+
+def generate_resilient_briefing(root_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """Generate briefing with tiered fallback. Always returns a result.
+
+    Returns dict with keys:
+        tier (int):  which tier succeeded (1, 2, or 3)
+        data (dict): briefing payload (shape varies by tier)
+        warnings (list[str]): degradation messages
+    """
+    if root_dir is None:
+        root_dir = Path(__file__).parent.parent
+
+    warnings: List[str] = []
+
+    try:
+        data = _tier1_full_briefing(root_dir)
+        return {"tier": 1, "data": data, "warnings": warnings}
+    except Exception as exc:
+        warnings.append(f"Tier 1 (BriefingGenerator) failed: {exc}")
+
+    try:
+        data = _tier2_file_based(root_dir, warnings)
+        return {"tier": 2, "data": data, "warnings": warnings}
+    except Exception as exc:
+        warnings.append(f"Tier 2 (file-based) failed: {exc}")
+
+    try:
+        data = _tier3_minimal_git(root_dir, warnings)
+        return {"tier": 3, "data": data, "warnings": warnings}
+    except Exception as exc:
+        warnings.append(f"Tier 3 (git status) failed: {exc}")
+        return {
+            "tier": 3,
+            "data": {"git": {"status_lines": [], "recent_commits": [], "branch": "unknown"}},
+            "warnings": warnings,
+        }
+
+
+def format_resilient_briefing(result: Dict[str, Any], use_color: bool = True) -> str:
+    """Format a resilient briefing result based on which tier succeeded."""
+    tier = result.get("tier", 3)
+    data = result.get("data", {})
+    warnings = result.get("warnings", [])
+    if tier == 1:
+        return _format_tier1(data, use_color)
+    if tier == 2:
+        return _format_tier2(data, warnings, use_color)
+    return _format_tier3(data, warnings, use_color)
+
+
+# ─── Tier 1: full BriefingGenerator ───
+
+def _tier1_full_briefing(root_dir: Path) -> Dict[str, Any]:
+    """In-module call to generate_daily_briefing — no late-binding import."""
+    briefing = generate_daily_briefing(root_dir=root_dir)
+    return {"briefing_object": briefing}
+
+
+# ─── Tier 2: GOALS.md + git + ~/.cortex/ state ───
+
+def _tier2_file_based(root_dir: Path, warnings: List[str]) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+
+    goals_path = root_dir / "GOALS.md"
+    try:
+        data.update(_parse_goals_md(goals_path))
+    except Exception as exc:
+        warnings.append(f"GOALS.md parse failed: {exc}")
+        data["immediate_actions"] = []
+        data["active_goals"] = []
+        data["high_priority"] = []
+
+    try:
+        data["git"] = _get_git_info(root_dir)
+    except Exception as exc:
+        warnings.append(f"git info failed: {exc}")
+        data["git"] = {}
+
+    try:
+        data["cortex_state"] = _get_cortex_state()
+    except Exception as exc:
+        warnings.append(f"cortex state read failed: {exc}")
+        data["cortex_state"] = {}
+
+    return data
+
+
+def _parse_goals_md(goals_path: Path) -> Dict[str, Any]:
+    if not goals_path.exists():
+        raise FileNotFoundError(f"GOALS.md not found at {goals_path}")
+    lines = goals_path.read_text(encoding="utf-8").splitlines()
+    return {
+        "immediate_actions": _extract_immediate_actions(lines),
+        "active_goals": _extract_active_goals(lines),
+        "high_priority": _extract_high_priority(lines),
+    }
+
+
+def _extract_immediate_actions(lines: List[str]) -> List[Dict[str, str]]:
+    in_section = False
+    actions: List[Dict[str, str]] = []
+    status_map = {"[ ]": "pending", "[x]": "done", "[X]": "done", "[~]": "on-hold", "[!]": "blocked"}
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^##\s+Immediate Actions", stripped):
+            in_section = True
+            continue
+        if in_section and re.match(r"^##\s+", stripped) and not re.match(r"^###", stripped):
+            break
+        if not in_section:
+            continue
+        if re.match(r"^###\s+This Week", stripped):
+            continue
+        if re.match(r"^###\s+", stripped):
+            continue
+        m = re.match(r"^-\s+(\[[xX~! ]\])\s+(.*)", stripped)
+        if m:
+            text = re.sub(r"\*\*(.*?)\*\*", r"\1", m.group(2).strip())
+            actions.append({"text": text, "status": status_map.get(m.group(1), "pending")})
+    return actions
+
+
+def _extract_active_goals(lines: List[str]) -> List[Dict[str, str]]:
+    in_section = False
+    goals: List[Dict[str, str]] = []
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^##\s+Active Goals", stripped):
+            in_section = True
+            continue
+        if in_section and re.match(r"^##\s+(?!#)", stripped):
+            break
+        if not in_section:
+            continue
+        m = re.match(r"^###\s+Goal\s+\d+:\s+(.*)", stripped)
+        if m:
+            goals.append({"title": m.group(1).strip(), "priority": "", "status": ""})
+            continue
+        if goals:
+            pm = re.search(r"\*\*Priority:\*\*\s*(\S+)", stripped)
+            sm = re.search(r"\*\*Status:\*\*\s*(.+?)(?:\s*\||\s*$)", stripped)
+            if pm:
+                goals[-1]["priority"] = pm.group(1).strip(" |")
+            if sm:
+                goals[-1]["status"] = sm.group(1).strip()
+    return goals
+
+
+def _extract_high_priority(lines: List[str]) -> List[str]:
+    in_immediate = False
+    in_high = False
+    items: List[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if re.match(r"^##\s+Immediate Actions", stripped):
+            in_immediate = True
+            continue
+        if in_immediate and re.match(r"^##\s+(?!#)", stripped):
+            break
+        if not in_immediate:
+            continue
+        if re.match(r"^###\s+High Priority", stripped):
+            in_high = True
+            continue
+        if re.match(r"^###\s+", stripped):
+            in_high = False
+            continue
+        if in_high:
+            m = re.match(r"^\d+\.\s+(.*)", stripped)
+            if m:
+                items.append(re.sub(r"\*\*(.*?)\*\*", r"\1", m.group(1).strip()))
+    return items
+
+
+def _get_git_info(root_dir: Path) -> Dict[str, Any]:
+    cwd = str(root_dir)
+
+    def run(cmd: List[str]) -> str:
+        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=10)
+        return result.stdout.strip()
+
+    branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"]) or "unknown"
+    status_short = run(["git", "status", "--short"])
+    log_oneline = run(["git", "log", "-5", "--oneline"])
+    last_commit_date = run(["git", "log", "-1", "--format=%ci"])
+
+    uncommitted_lines = [l for l in status_short.splitlines() if l.strip()]
+    last_commit_ago = ""
+    if last_commit_date:
+        try:
+            dt = datetime.strptime(last_commit_date[:19], "%Y-%m-%d %H:%M:%S")
+            delta = datetime.now() - dt
+            hours = int(delta.total_seconds() // 3600)
+            if hours < 1:
+                last_commit_ago = "just now"
+            elif hours < 24:
+                last_commit_ago = f"{hours}h ago"
+            else:
+                last_commit_ago = f"{hours // 24}d ago"
+        except Exception:
+            last_commit_ago = last_commit_date[:10]
+
+    return {
+        "branch": branch,
+        "last_commit": last_commit_ago,
+        "uncommitted_count": len(uncommitted_lines),
+        "uncommitted_files": [l.strip() for l in uncommitted_lines[:10]],
+        "recent_log": [l.strip() for l in log_oneline.splitlines()],
+    }
+
+
+def _get_cortex_state() -> Dict[str, Any]:
+    cortex_home = Path.home() / ".cortex"
+    state: Dict[str, Any] = {}
+
+    outcomes_path = cortex_home / "learning" / "outcomes.jsonl"
+    if outcomes_path.exists():
+        try:
+            state["outcomes_count"] = sum(1 for _ in outcomes_path.open(encoding="utf-8"))
+        except Exception:
+            state["outcomes_count"] = 0
+    else:
+        state["outcomes_count"] = 0
+
+    batch_dir = cortex_home / "batch"
+    if batch_dir.exists():
+        try:
+            state["batch_files"] = len(list(batch_dir.iterdir()))
+        except Exception:
+            state["batch_files"] = 0
+
+    recent_alerts: List[str] = []
+    alerts_path = cortex_home / "alerts.jsonl"
+    if alerts_path.exists():
+        try:
+            for raw in reversed(alerts_path.read_text(encoding="utf-8").splitlines()[-20:]):
+                try:
+                    obj = json.loads(raw)
+                    recent_alerts.append((obj.get("message") or obj.get("msg") or str(obj))[:120])
+                    if len(recent_alerts) >= 3:
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    state["recent_alerts"] = recent_alerts
+    return state
+
+
+# ─── Tier 3: bare git status ───
+
+def _tier3_minimal_git(root_dir: Path, warnings: List[str]) -> Dict[str, Any]:
+    cwd = str(root_dir)
+
+    def run(cmd: List[str]) -> List[str]:
+        try:
+            return subprocess.run(
+                cmd, cwd=cwd, capture_output=True, text=True, timeout=10
+            ).stdout.strip().splitlines()
+        except Exception:
+            return []
+
+    try:
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip() or "unknown"
+    except Exception:
+        branch = "unknown"
+
+    return {
+        "git": {
+            "status_lines": [l.strip() for l in run(["git", "status", "--short"])],
+            "recent_commits": [l.strip() for l in run(["git", "log", "-3", "--oneline"])],
+            "branch": branch,
+        }
+    }
+
+
+# ─── Resilient formatters ───
+
+_R_RESET = "\033[0m"
+_R_BOLD = "\033[1m"
+_R_YELLOW = "\033[33m"
+_R_CYAN = "\033[36m"
+_R_RED = "\033[31m"
+_R_DIM = "\033[2m"
+
+
+def _r_c(text: str, code: str, use_color: bool) -> str:
+    return f"{code}{text}{_R_RESET}" if use_color else text
+
+
+def _format_tier1(data: Dict[str, Any], use_color: bool) -> str:
+    briefing = data.get("briefing_object")
+    if briefing is not None:
+        try:
+            return format_briefing(briefing, use_color=use_color)
+        except Exception:
+            pass
+    return str(data)
+
+
+def _format_tier2(data: Dict[str, Any], warnings: List[str], use_color: bool) -> str:
+    lines: List[str] = []
+    header = "CORTEX BRIEFING (local mode — bridge unavailable)"
+    lines.append(_r_c(header, _R_BOLD, use_color))
+    lines.append("─" * len(header))
+    lines.append("")
+
+    git = data.get("git", {})
+    git_line = f"Branch: {git.get('branch', 'unknown')} | Last commit: {git.get('last_commit', '?')}"
+    if git.get("uncommitted_count"):
+        prefixes = sorted({
+            f.split("/")[0].lstrip("? MAD")
+            for f in git.get("uncommitted_files", []) if f
+        })
+        files_hint = f" ({', '.join(prefixes[:3])})" if prefixes else ""
+        git_line += f" | Uncommitted: {git['uncommitted_count']} files{files_hint}"
+    lines.append(git_line)
+    lines.append("")
+
+    actions = data.get("immediate_actions", [])
+    if actions:
+        lines.append(_r_c("Immediate Actions:", _R_BOLD, use_color))
+        symbol = {"pending": "[ ]", "done": "[x]", "on-hold": "[~]", "blocked": "[!]"}
+        for a in actions:
+            sym = symbol.get(a.get("status", "pending"), "[ ]")
+            text = a.get("text", "")
+            if a.get("status") in ("done", "on-hold"):
+                lines.append(f"  {_r_c(sym + ' ' + text, _R_DIM, use_color)}")
+            elif a.get("status") == "blocked":
+                lines.append(f"  {_r_c(sym + ' ' + text, _R_RED, use_color)}")
+            else:
+                lines.append(f"  {sym} {text}")
+        lines.append("")
+
+    high = data.get("high_priority", [])
+    if high:
+        lines.append(_r_c("High Priority:", _R_BOLD, use_color))
+        for i, item in enumerate(high, 1):
+            lines.append(f"  {i}. {item}")
+        lines.append("")
+
+    goals = data.get("active_goals", [])
+    if goals:
+        lines.append(_r_c("Active Goals:", _R_BOLD, use_color))
+        for g in goals[:5]:
+            meta = " | ".join(filter(None, [g.get("priority", ""), g.get("status", "")]))
+            lines.append(f"  {g.get('title', '')}  [{meta}]" if meta else f"  {g.get('title', '')}")
+        if len(goals) > 5:
+            lines.append(f"  ... and {len(goals) - 5} more")
+        lines.append("")
+
+    cs = data.get("cortex_state", {})
+    if cs.get("outcomes_count"):
+        lines.append(f"Cortex outcomes: {cs['outcomes_count']}")
+    if cs.get("recent_alerts"):
+        lines.append("Recent alerts:")
+        for a in cs["recent_alerts"]:
+            lines.append(f"  - {a}")
+    if cs:
+        lines.append("")
+
+    lines.append(_r_c("Running in local mode. Start bridge: cortex serve", _R_YELLOW, use_color))
+    return "\n".join(lines)
+
+
+def _format_tier3(data: Dict[str, Any], warnings: List[str], use_color: bool) -> str:
+    lines: List[str] = []
+    header = "CORTEX BRIEFING (MINIMAL MODE — local files unavailable)"
+    lines.append(_r_c(header, _R_BOLD + _R_RED, use_color))
+    lines.append("=" * len(header))
+    lines.append("")
+
+    git = data.get("git", {})
+    lines.append(f"Branch: {git.get('branch', 'unknown')}")
+    lines.append("")
+    if git.get("status_lines"):
+        lines.append("Uncommitted changes:")
+        for sl in git["status_lines"][:20]:
+            lines.append(f"  {sl}")
+        lines.append("")
+    if git.get("recent_commits"):
+        lines.append("Recent commits:")
+        for c in git["recent_commits"]:
+            lines.append(f"  {c}")
+        lines.append("")
+    if warnings:
+        lines.append(_r_c("Degradation warnings:", _R_YELLOW, use_color))
+        for w in warnings:
+            lines.append(f"  - {w}")
+        lines.append("")
+    lines.append(_r_c("MINIMAL MODE ACTIVE — bridge and local files unavailable.", _R_RED, use_color))
+    lines.append("To restore full briefing: ensure cortex/ modules are importable and run 'cortex serve'.")
     return "\n".join(lines)
 
 
