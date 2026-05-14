@@ -161,43 +161,83 @@ def cortex_intelligence(query: str, query_type: str = "research") -> str:
 @mcp.tool()
 def cortex_recommendations() -> str:
     """Get strategic recommendations: next action, risk alerts, and priority projects."""
-    result = _bridge_get("/intelligence/recommendations")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct call to CortexBridge.get_recommendations (no HTTP).
+    try:
+        bridge = _get_bridge()
+        recommendations = bridge.get_recommendations()
+        # Apply the same default-limit normalization the HTTP route does.
+        if isinstance(recommendations, dict) and "recommendations" in recommendations:
+            recommendations["recommendations"] = recommendations["recommendations"][:5]
+        return json.dumps(recommendations, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
 def cortex_anomalies() -> str:
     """Get detected anomalies across all projects with severity and recommendations."""
-    result = _bridge_get("/anomalies")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct call to OrchestrationAnomalyManager.
+    try:
+        from orchestration.anomaly_detector import OrchestrationAnomalyManager
+        from orchestration.database import OrchestrationDatabase
+
+        manager = OrchestrationAnomalyManager(OrchestrationDatabase())
+        context = {
+            "active_projects": ["cortex", "vortex", "alpha_arena"],
+            "total_projects": 4,
+            "goals_in_progress": 2,
+            "goals_pending": 1,
+        }
+        anomalies = manager.detect_all(context=context)
+        # Manager returns Anomaly objects; convert to dicts for JSON.
+        result = []
+        for a in anomalies:
+            sev = getattr(a.severity, "value", a.severity) if hasattr(a, "severity") else None
+            result.append(
+                {
+                    "id": getattr(a, "id", None),
+                    "type": getattr(a, "type", None),
+                    "severity": sev,
+                    "message": getattr(a, "message", None),
+                    "recommendation": getattr(a, "recommendation", None),
+                }
+            )
+        return json.dumps({"anomalies": result, "total": len(result)}, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
 def cortex_projects() -> str:
     """Get status overview of all active projects (health, test counts, recent activity)."""
-    result = _bridge_get("/projects")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct filesystem scan via mcp_handlers.
+    import mcp_handlers
+
+    return json.dumps(mcp_handlers.compute_projects(), indent=2)
 
 
 @mcp.tool()
 def cortex_sessions(active_only: bool = False) -> str:
     """Get Claude Code sessions (active or recent). Shows session IDs, duration, and projects touched."""
-    param = "?active_only=true" if active_only else ""
-    result = _bridge_get(f"/sessions{param}")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct filesystem scan via mcp_handlers.
+    import mcp_handlers
+
+    return json.dumps(mcp_handlers.scan_sessions(active_only=active_only), indent=2)
 
 
 @mcp.tool()
 def cortex_taskboard(status: str = "", project: str = "") -> str:
     """Get task board items, optionally filtered by status (pending/in_progress/done) or project name."""
-    params = []
-    if status:
-        params.append(f"status={status}")
-    if project:
-        params.append(f"project={project}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/taskboard{qs}")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct filesystem read via mcp_handlers.
+    import mcp_handlers
+
+    return json.dumps(
+        mcp_handlers.query_taskboard(
+            status=status or None,
+            project=project or None,
+        ),
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -356,16 +396,52 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
         query: Text search across node names and data (optional).
         limit: Max results (default 10).
     """
-    params = []
-    if node_type:
-        params.append(f"node_type={node_type}")
-    if query:
-        params.append(f"q={query}")
-    if limit != 10:
-        params.append(f"limit={limit}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/graph/query{qs}")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct CortexBridge.query_graph call (no HTTP).
+    try:
+        bridge = _get_bridge()
+        if node_type:
+            types_to_query = [node_type]
+        else:
+            try:
+                from engines.synthesis import NodeType
+
+                types_to_query = [nt.value for nt in NodeType]
+            except ImportError:
+                types_to_query = [
+                    "goal",
+                    "project",
+                    "pattern",
+                    "lesson",
+                    "decision",
+                    "warning",
+                ]
+
+        all_nodes: list[dict] = []
+        for nt in types_to_query:
+            try:
+                nodes = bridge.query_graph(node_type=nt)
+            except Exception:
+                continue
+            if isinstance(nodes, list):
+                for n in nodes:
+                    if isinstance(n, dict) and "error" not in n:
+                        all_nodes.append(n)
+
+        if query:
+            needle = query.lower()
+            all_nodes = [n for n in all_nodes if needle in json.dumps(n, default=str).lower()]
+
+        truncated = all_nodes[:limit]
+        result = {
+            "node_type": node_type or None,
+            "q": query or None,
+            "count": len(truncated),
+            "total_matched": len(all_nodes),
+            "nodes": truncated,
+        }
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # ── Planning Tools ──
@@ -389,8 +465,13 @@ def cortex_plan_create(project: str, title: str = "") -> str:
 @mcp.tool()
 def cortex_plan_progress() -> str:
     """Get progress summary of all active plans."""
-    result = _bridge_get("/plans/progress")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct filesystem scan via mcp_handlers.
+    import mcp_handlers
+
+    try:
+        return json.dumps(mcp_handlers.plans_progress(), indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # ── Ops Tools ──
@@ -403,8 +484,14 @@ def cortex_batch_status(batch_id: str) -> str:
     Args:
         batch_id: The batch job identifier.
     """
-    result = _bridge_get(f"/batches/{batch_id}")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct BatchAPIClient call.
+    try:
+        from batch.batch_api_client import BatchAPIClient
+
+        client = BatchAPIClient()
+        return json.dumps(client.get_batch_status(batch_id), indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -452,14 +539,23 @@ def cortex_outcomes(project: str = "", limit: int = 20) -> str:
         project: Filter by project name.
         limit: Max results (default 20).
     """
-    params = []
-    if project:
-        params.append(f"project={project}")
-    if limit != 20:
-        params.append(f"limit={limit}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/v2/outcomes{qs}")
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 2: direct OutcomeDetector call.
+    try:
+        from v2.learning.outcomes import OutcomeDetector
+
+        detector = OutcomeDetector()
+        outcomes = detector.get_recent_outcomes(project=project or None, days=7)
+        return json.dumps(
+            {
+                "outcomes": [o.to_dict() for o in outcomes[:limit]],
+                "total": len(outcomes),
+            },
+            indent=2,
+        )
+    except ImportError as e:
+        return json.dumps({"error": f"v2 module not available: {e}"})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # ── CRA Research Tools ──

@@ -99,3 +99,88 @@ def test_get_bridge_not_called_at_import():
     assert mcp_server._bridge_singleton is None, (
         "_bridge_singleton must remain None after import — lazy initialization is required"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Step 2: 9 read-only tools migrated to direct calls
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_projects_no_http():
+    """cortex_projects must call mcp_handlers.compute_projects, not _bridge_get."""
+    from mcp_server import cortex_projects
+
+    fake = [{"name": "Cortex", "path": "cortex", "status": "healthy", "last_activity": ""}]
+    with patch("mcp_handlers.compute_projects", return_value=fake) as h:
+        with patch("mcp_server._bridge_get") as bridge_get:
+            result = json.loads(cortex_projects())
+    h.assert_called_once()
+    bridge_get.assert_not_called()
+    assert result == fake
+
+
+def test_sessions_no_http():
+    """cortex_sessions must call mcp_handlers.scan_sessions, not _bridge_get."""
+    from mcp_server import cortex_sessions
+
+    fake = {"sessions": [], "total": 0, "active_count": 0}
+    with patch("mcp_handlers.scan_sessions", return_value=fake) as h:
+        with patch("mcp_server._bridge_get") as bridge_get:
+            result = json.loads(cortex_sessions(active_only=True))
+    h.assert_called_once_with(active_only=True)
+    bridge_get.assert_not_called()
+    assert result == fake
+
+
+def test_taskboard_no_http():
+    """cortex_taskboard must call mcp_handlers.query_taskboard, not _bridge_get."""
+    from mcp_server import cortex_taskboard
+
+    fake = {"tasks": [], "total": 0}
+    with patch("mcp_handlers.query_taskboard", return_value=fake) as h:
+        with patch("mcp_server._bridge_get") as bridge_get:
+            result = json.loads(cortex_taskboard(status="pending", project="cortex"))
+    h.assert_called_once_with(status="pending", project="cortex")
+    bridge_get.assert_not_called()
+    assert result == fake
+
+
+def test_plan_progress_no_http():
+    """cortex_plan_progress must call mcp_handlers.plans_progress, not _bridge_get."""
+    from mcp_server import cortex_plan_progress
+
+    fake = {"plans": [], "total": 0}
+    with patch("mcp_handlers.plans_progress", return_value=fake) as h:
+        with patch("mcp_server._bridge_get") as bridge_get:
+            result = json.loads(cortex_plan_progress())
+    h.assert_called_once()
+    bridge_get.assert_not_called()
+    assert result == fake
+
+
+def test_recommendations_no_http():
+    """cortex_recommendations must call _get_bridge().get_recommendations, not _bridge_get."""
+    import mcp_server
+
+    fake_bridge = MagicMock()
+    fake_bridge.get_recommendations.return_value = {"recommendations": [], "next_action": None}
+    with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
+        with patch.object(mcp_server, "_bridge_get") as bridge_get:
+            result = json.loads(mcp_server.cortex_recommendations())
+    fake_bridge.get_recommendations.assert_called_once()
+    bridge_get.assert_not_called()
+    assert isinstance(result, dict)
+
+
+def test_graph_query_no_http():
+    """cortex_graph_query must call _get_bridge().query_graph, not _bridge_get."""
+    import mcp_server
+
+    fake_bridge = MagicMock()
+    fake_bridge.query_graph.return_value = []
+    with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
+        with patch.object(mcp_server, "_bridge_get") as bridge_get:
+            result = json.loads(mcp_server.cortex_graph_query(node_type="pattern", limit=5))
+    fake_bridge.query_graph.assert_called_with(node_type="pattern")
+    bridge_get.assert_not_called()
+    assert result["node_type"] == "pattern"
