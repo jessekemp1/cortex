@@ -151,11 +151,17 @@ def cortex_intelligence(query: str, query_type: str = "research") -> str:
     valid_types = {"spec", "architecture", "implementation", "research"}
     if query_type not in valid_types:
         query_type = "research"
-    result = _bridge_post(
-        "/intelligence/query",
-        {"request": query, "domain": DOMAIN, "query_type": query_type},
-    )
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 3: direct CortexBridge.query_intelligence call.
+    try:
+        bridge = _get_bridge()
+        result = bridge.query_intelligence(
+            request=query,
+            project=DOMAIN,
+            query_type=query_type,
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -317,14 +323,19 @@ def cortex_conductor_compose(
     if intent_level not in valid_levels:
         intent_level = "collaborative"
 
-    payload = {
-        "intent": intent,
-        "project_id": project,
-        "intent_level": intent_level,
-        "include_context": include_context,
-    }
-    result = _bridge_post("/conductor/compose", payload, timeout=10.0)
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 3: direct call to mcp_handlers.compose_conductor_prompt.
+    import mcp_handlers
+
+    try:
+        result = mcp_handlers.compose_conductor_prompt(
+            intent=intent,
+            project_id=project,
+            intent_level=intent_level,
+            include_context=include_context,
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -455,11 +466,14 @@ def cortex_plan_create(project: str, title: str = "") -> str:
         project: Target project (vortex, cortex, alpha-arena, pupil, etc.).
         title: Optional plan title. Auto-generated from goals if omitted.
     """
-    payload = {"project": project}
-    if title:
-        payload["title"] = title
-    result = _bridge_post("/plans/create", payload)
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 3: direct call to mcp_handlers.create_plan.
+    import mcp_handlers
+
+    try:
+        result = mcp_handlers.create_plan(project=project, title=title or None)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -515,17 +529,22 @@ def cortex_record_decision(
         confidence: Optional confidence 0.0-1.0.
         tags: Optional comma-separated tags.
     """
-    payload: dict = {
-        "decision": decision,
-        "context": context,
-        "alternatives": alternatives,
-        "rationale": rationale,
-        "project": project,
-        "confidence": confidence,
-        "tags": tags,
-    }
-    result = _bridge_post("/decisions/record-freeform", payload)
-    return json.dumps(result, indent=2)
+    # Phase 5 Step 3: direct call to mcp_handlers.record_freeform_decision.
+    import mcp_handlers
+
+    try:
+        result = mcp_handlers.record_freeform_decision(
+            decision=decision,
+            context=context,
+            alternatives=alternatives,
+            rationale=rationale,
+            project=project,
+            confidence=confidence,
+            tags=tags,
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # ── Portfolio Tools ──

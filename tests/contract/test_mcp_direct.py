@@ -184,3 +184,79 @@ def test_graph_query_no_http():
     fake_bridge.query_graph.assert_called_with(node_type="pattern")
     bridge_get.assert_not_called()
     assert result["node_type"] == "pattern"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Step 3: 4 POST tools migrated to direct calls
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_intelligence_no_http():
+    """cortex_intelligence must call _get_bridge().query_intelligence, not _bridge_post."""
+    import mcp_server
+
+    fake_bridge = MagicMock()
+    fake_bridge.query_intelligence.return_value = {"answer": "ok", "patterns": []}
+    with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
+        with patch.object(mcp_server, "_bridge_post") as bridge_post:
+            result = json.loads(mcp_server.cortex_intelligence(query="test", query_type="research"))
+    fake_bridge.query_intelligence.assert_called_once()
+    bridge_post.assert_not_called()
+    assert result == {"answer": "ok", "patterns": []}
+
+
+def test_conductor_compose_no_http():
+    """cortex_conductor_compose must call mcp_handlers.compose_conductor_prompt, not _bridge_post."""
+    from mcp_server import cortex_conductor_compose
+
+    fake = {"prompt": "x", "project": "cortex", "intent_level": "advisory", "token_estimate": 5}
+    with patch("mcp_handlers.compose_conductor_prompt", return_value=fake) as h:
+        with patch("mcp_server._bridge_post") as bridge_post:
+            result = json.loads(
+                cortex_conductor_compose(
+                    intent="test", project="cortex", intent_level="advisory", include_context=False
+                )
+            )
+    h.assert_called_once_with(
+        intent="test", project_id="cortex", intent_level="advisory", include_context=False
+    )
+    bridge_post.assert_not_called()
+    assert result == fake
+
+
+def test_plan_create_no_http():
+    """cortex_plan_create must call mcp_handlers.create_plan, not _bridge_post."""
+    from mcp_server import cortex_plan_create
+
+    fake = {"plan_id": "plan_cortex_1", "path": "/tmp/x.json", "item_count": 0}
+    with patch("mcp_handlers.create_plan", return_value=fake) as h:
+        with patch("mcp_server._bridge_post") as bridge_post:
+            result = json.loads(cortex_plan_create(project="cortex"))
+    h.assert_called_once_with(project="cortex", title=None)
+    bridge_post.assert_not_called()
+    assert result == fake
+
+
+def test_record_decision_no_http():
+    """cortex_record_decision must call mcp_handlers.record_freeform_decision, not _bridge_post."""
+    from mcp_server import cortex_record_decision
+
+    fake = {"recorded": True, "decision_id": "dec_1", "timestamp": "2026-05-14T00:00:00"}
+    with patch("mcp_handlers.record_freeform_decision", return_value=fake) as h:
+        with patch("mcp_server._bridge_post") as bridge_post:
+            result = json.loads(
+                cortex_record_decision(
+                    decision="use X", context="why", project="cortex", confidence=0.7
+                )
+            )
+    h.assert_called_once_with(
+        decision="use X",
+        context="why",
+        alternatives="",
+        rationale="",
+        project="cortex",
+        confidence=0.7,
+        tags="",
+    )
+    bridge_post.assert_not_called()
+    assert result == fake

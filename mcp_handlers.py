@@ -31,10 +31,31 @@ from typing import Any, Dict, List, Optional
 
 # ─── Filesystem locations (kept in sync with api/bridge_endpoint.py) ───
 
+import os
+
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 TASKBOARD_DIR = Path.home() / ".cortex" / "taskboard"
 TASKBOARD_FILE = TASKBOARD_DIR / "tasks.json"
 PLANS_DIR = Path.home() / ".cortex" / "plans"
+DECISIONS_FILE = Path.home() / ".cortex" / "decisions.jsonl"
+CONDUCTOR_HISTORY_FILE = Path.home() / ".cortex" / "conductor" / "prompt_history.jsonl"
+
+WORKSPACE = Path.home() / "Dev"
+NEXT_SESSION_FILES = {
+    "cortex": WORKSPACE / "cortex" / ".next_session.md",
+    "vortex": WORKSPACE / "Vortex" / "backend" / ".next_session.md",
+    "alpha_arena": WORKSPACE / "alpha_arena" / ".next_session.md",
+}
+
+# Subset of CONDUCTOR_PROJECTS needed for compose. Full list lives in
+# api/bridge_endpoint.py — keep these two in sync if either changes.
+CONDUCTOR_PROJECTS = [
+    {"id": "vortex-backend", "name": "Vortex Backend", "path": "Vortex/backend"},
+    {"id": "vortex-frontend", "name": "Vortex Frontend", "path": "Vortex/frontend"},
+    {"id": "cortex", "name": "Cortex", "path": "cortex"},
+    {"id": "alpha_arena", "name": "Alpha Arena", "path": "alpha_arena"},
+    {"id": "pupil", "name": "Pupil", "path": "pupil"},
+]
 
 
 # ─── /projects ─────────────────────────────────────────────────────────
@@ -234,3 +255,169 @@ def plans_progress() -> Dict[str, Any]:
             }
         )
     return {"plans": summaries, "total": len(summaries)}
+
+
+# ─── /decisions/record-freeform ───────────────────────────────────────
+
+
+def record_freeform_decision(
+    decision: str,
+    context: str = "",
+    alternatives: str = "",
+    rationale: str = "",
+    project: str = "",
+    confidence: float = 0.0,
+    tags: str = "",
+) -> Dict[str, Any]:
+    """Append a free-form decision to ~/.cortex/decisions.jsonl."""
+    DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    decision_id = f"dec_{int(time.time())}_{abs(hash(decision)) % 100000:05d}"
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+    entry = {
+        "kind": "freeform",
+        "decision_id": decision_id,
+        "decision": decision,
+        "context": context,
+        "alternatives": alternatives,
+        "rationale": rationale,
+        "project": project,
+        "confidence": confidence,
+        "tags": tag_list,
+        "timestamp": datetime.now().isoformat(),
+    }
+    with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    return {
+        "recorded": True,
+        "decision_id": decision_id,
+        "timestamp": entry["timestamp"],
+    }
+
+
+# ─── /plans/create ─────────────────────────────────────────────────────
+
+
+def create_plan(project: str, title: Optional[str] = None) -> Dict[str, Any]:
+    """Parse goals for `project` and write a plan JSON to ~/.cortex/plans/."""
+    PLANS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Lazy import keeps mcp_handlers stdlib-only for the typical path; the
+    # GoalParser dependency only loads when this handler is actually called.
+    from goal_parser import GoalParser  # type: ignore
+
+    goals_override = os.environ.get("CORTEX_GOALS_FILE")
+    action_plan_path = Path(goals_override) if goals_override else None
+    parser = GoalParser(action_plan_path=action_plan_path)
+    all_goals = parser.parse()
+
+    project_lower = project.lower()
+    project_goals = [
+        g for g in all_goals if not g.project or g.project.lower() == project_lower
+    ]
+
+    ts = int(time.time())
+    plan_id = f"plan_{project}_{ts}"
+    items = [
+        {
+            "id": g.id,
+            "title": g.title,
+            "priority": g.priority,
+            "status": g.status,
+            "actions": list(g.actions),
+            "success_criteria": g.success_criteria,
+            "blockers": list(g.blockers),
+        }
+        for g in project_goals
+    ]
+    plan = {
+        "plan_id": plan_id,
+        "project": project,
+        "title": title or f"Plan for {project}",
+        "created_at": datetime.utcnow().isoformat() + "+00:00",
+        "source": str(parser.action_plan_path),
+        "item_count": len(items),
+        "items": items,
+    }
+    plan_path = PLANS_DIR / f"{project}_{ts}.json"
+    plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
+    return {"plan_id": plan_id, "path": str(plan_path), "item_count": len(items)}
+
+
+# ─── /conductor/compose ───────────────────────────────────────────────
+
+
+_INTENT_LEVEL_FRAMES = {
+    "advisory": "Research and recommend only. Do not modify any files.",
+    "collaborative": "Propose changes and wait for my approval before executing.",
+    "autonomous": "Execute end-to-end. Test, fix, and report results when done.",
+    "supervisory": "Orchestrate sub-agents for parallel execution. Report aggregate results.",
+}
+
+
+def compose_conductor_prompt(
+    intent: str,
+    project_id: str,
+    intent_level: str = "collaborative",
+    include_context: bool = True,
+) -> Dict[str, Any]:
+    """Compose an optimized prompt with intent framing + project context.
+
+    Mirrors the api/bridge_endpoint.py:/conductor/compose body. Writes each
+    composed prompt to ~/.cortex/conductor/prompt_history.jsonl.
+    """
+    sections: List[str] = []
+    frame = _INTENT_LEVEL_FRAMES.get(intent_level, _INTENT_LEVEL_FRAMES["collaborative"])
+    proj_info = next((p for p in CONDUCTOR_PROJECTS if p["id"] == project_id), None)
+
+    sections.append(f"**Intent Level**: {intent_level.upper()} — {frame}")
+    if proj_info:
+        sections.append(f"**Project**: {proj_info['name']} (`{proj_info['path']}`)")
+    sections.append(f"\n## Task\n{intent}")
+
+    if include_context and proj_info:
+        try:
+            r = subprocess.run(
+                ["git", "log", "-5", "--format=%h %s", "--", proj_info["path"]],
+                cwd=str(WORKSPACE),
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                sections.append(f"\n## Recent Commits\n```\n{r.stdout.strip()}\n```")
+        except Exception:
+            pass
+
+        ns_file = NEXT_SESSION_FILES.get(project_id)
+        if ns_file and ns_file.exists():
+            try:
+                content = ns_file.read_text(encoding="utf-8")[:1000]
+                sections.append(f"\n## Previous Session Context\n{content}")
+            except Exception:
+                pass
+
+    composed = "\n".join(sections)
+    token_estimate = len(composed.split()) * 2
+
+    # Persist to history (non-fatal on error).
+    try:
+        CONDUCTOR_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "timestamp": datetime.utcnow().isoformat() + "+00:00",
+            "intent": intent,
+            "project_id": project_id,
+            "intent_level": intent_level,
+            "prompt": composed,
+            "token_estimate": token_estimate,
+        }
+        with open(CONDUCTOR_HISTORY_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+    return {
+        "prompt": composed,
+        "project": project_id,
+        "intent_level": intent_level,
+        "token_estimate": token_estimate,
+    }
