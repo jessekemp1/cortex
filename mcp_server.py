@@ -41,60 +41,16 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.request
-import urllib.error
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
 GOALS_FILE = Path(os.environ.get("CORTEX_ROOT_DIR", Path.home() / "Dev")) / "GOALS.md"
 PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
 DOMAIN = os.environ.get("CORTEX_DOMAIN", "aidev")
 
 mcp = FastMCP("cortex")
-
-
-def _bridge_get(path: str, timeout: float = 3.0) -> dict:
-    """GET from bridge API. Returns parsed JSON or error dict.
-
-    DEPRECATED in Phase 5 — tools should call `_get_bridge().<method>()` instead.
-    Retained while migration is in progress; will be removed when no MCP tool
-    references it.
-    """
-    try:
-        req = urllib.request.Request(
-            f"{BRIDGE_URL}{path}",
-            headers={"Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except urllib.error.URLError as e:
-        return {"error": f"Bridge unavailable: {e.reason}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
-    """POST to bridge API. Returns parsed JSON or error dict.
-
-    DEPRECATED in Phase 5 — see _bridge_get.
-    """
-    try:
-        data = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            f"{BRIDGE_URL}{path}",
-            data=data,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except urllib.error.URLError as e:
-        return {"error": f"Bridge unavailable: {e.reason}"}
-    except Exception as e:
-        return {"error": str(e)}
 
 
 # Phase 5: Lazy singleton for direct CortexBridge access.

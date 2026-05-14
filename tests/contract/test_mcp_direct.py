@@ -2,58 +2,86 @@
 Phase 5 direct-call contract tests.
 
 For MCP tools migrated off HTTP (Phase 5), this file verifies:
-  1. The tool produces a valid response.
-  2. The tool does NOT touch `urllib.request.urlopen` — i.e., it really
-     bypasses the HTTP bridge.
-  3. Where applicable, the right `CortexBridge` method is invoked with the
-     right kwargs.
-
-As tools migrate in Steps 1-3, add a `test_<tool>_no_http` test here.
+  1. mcp_server.py does NOT contain HTTP-bridge plumbing
+     (_bridge_get/_bridge_post/BRIDGE_URL/urllib). One module-level AST
+     scan catches any reintroduction.
+  2. Each migrated tool calls the right handler/method with the right kwargs.
 """
 
 from __future__ import annotations
 
+import ast
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 # ──────────────────────────────────────────────────────────────────────
-# cortex_service_health (Step 1 — migrated)
+# Invariant: mcp_server.py is HTTP-free
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_service_health_no_http():
-    """cortex_service_health must NOT call urllib.request.urlopen from the
-    MCP module path. It now uses health_probe.compute_service_health directly."""
-    from mcp_server import cortex_service_health
+def test_mcp_server_has_no_http_plumbing():
+    """After Phase 5, mcp_server.py must not import urllib or reference
+    _bridge_get/_bridge_post/BRIDGE_URL. The lazy CortexBridge singleton
+    is the only allowed cross-module call.
 
-    # The MCP server function should bypass urlopen entirely. health_probe
-    # itself calls urlopen to reach external services — that's expected, the
-    # contract is that mcp_server.cortex_service_health does NOT use the
-    # HTTP bridge (port 8765) anymore.
-    with patch("mcp_server._bridge_get") as bridge_get:
-        result_str = cortex_service_health()
-        bridge_get.assert_not_called()
+    This is the canonical no-HTTP enforcement. Per-tool patch-based
+    bridge_get.assert_not_called() checks are redundant once this passes.
+    """
+    src = (Path(__file__).parent.parent.parent / "mcp_server.py").read_text()
+    tree = ast.parse(src)
 
-    data = json.loads(result_str)
-    assert "overall" in data
-    assert "services" in data
-    assert isinstance(data["services"], dict)
-    assert "bridge" in data["services"]
+    banned_names = {"_bridge_get", "_bridge_post", "BRIDGE_URL"}
+    banned_imports = {"urllib", "urllib.request", "urllib.error"}
+
+    offenders = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in banned_imports or alias.name.startswith("urllib."):
+                    offenders.append(f"line {node.lineno}: import {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in banned_imports or (
+                node.module and node.module.startswith("urllib")
+            ):
+                offenders.append(f"line {node.lineno}: from {node.module} import ...")
+        elif isinstance(node, ast.Name) and node.id in banned_names:
+            offenders.append(f"line {node.lineno}: {node.id}")
+        elif isinstance(node, ast.Attribute) and node.attr in banned_names:
+            offenders.append(f"line {node.lineno}: .{node.attr}")
+    assert not offenders, (
+        "mcp_server.py contains banned HTTP-bridge plumbing:\n  "
+        + "\n  ".join(offenders)
+    )
 
 
-def test_service_health_uses_health_probe_helper():
-    """The tool delegates to compute_service_health, not the FastAPI route."""
+# ──────────────────────────────────────────────────────────────────────
+# cortex_service_health (Step 1)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_service_health_delegates_to_health_probe():
+    """The tool calls compute_service_health and wraps with overall status."""
     from mcp_server import cortex_service_health
 
     fake_services = {"bridge": {"status": "healthy", "port": 8765}}
     with patch("health_probe.compute_service_health", return_value=fake_services):
-        result_str = cortex_service_health()
+        result = json.loads(cortex_service_health())
+    assert result == {"overall": "healthy", "services": fake_services}
 
-    data = json.loads(result_str)
-    assert data == {"overall": "healthy", "services": fake_services}
+
+def test_service_health_overall_degraded_when_any_service_offline():
+    """If any service has non-healthy status, overall is 'degraded'."""
+    from mcp_server import cortex_service_health
+
+    fake_services = {
+        "bridge": {"status": "healthy", "port": 8765},
+        "vortex_backend": {"status": "offline", "port": 8000},
+    }
+    with patch("health_probe.compute_service_health", return_value=fake_services):
+        result = json.loads(cortex_service_health())
+    assert result["overall"] == "degraded"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -62,17 +90,9 @@ def test_service_health_uses_health_probe_helper():
 
 
 def test_get_bridge_singleton_caches():
-    """_get_bridge() must return the SAME instance across calls.
-
-    Note: we can't reliably patch CortexBridge here because mcp_server's
-    `from bridge import CortexBridge` happens lazily inside _get_bridge,
-    and the imported binding is captured before any patch site can intercept
-    it. Instead, prove the caching property: two calls return identical
-    objects, and the cached singleton survives a third call.
-    """
+    """_get_bridge() must return the SAME instance across calls."""
     import mcp_server
 
-    # Reset state so this test is independent of any earlier MCP tool calls.
     mcp_server._bridge_singleton = None
 
     first = mcp_server._get_bridge()
@@ -83,172 +103,135 @@ def test_get_bridge_singleton_caches():
 
 
 def test_get_bridge_not_called_at_import():
-    """Importing mcp_server must not eagerly instantiate CortexBridge.
-
-    Bridge instantiation triggers ~16s of optional ML imports. Lazy startup
-    is essential for MCP responsiveness — the first tool call pays the cost,
-    not module load.
-    """
-    # Force a fresh import to observe module-load behavior.
+    """Importing mcp_server must not eagerly instantiate CortexBridge."""
     import importlib
     import sys
 
     if "mcp_server" in sys.modules:
         del sys.modules["mcp_server"]
     mcp_server = importlib.import_module("mcp_server")
-    assert mcp_server._bridge_singleton is None, (
-        "_bridge_singleton must remain None after import — lazy initialization is required"
-    )
+    assert mcp_server._bridge_singleton is None
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Step 2: 9 read-only tools migrated to direct calls
+# Step 2: read-only tools delegate to the right handler
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_projects_no_http():
-    """cortex_projects must call mcp_handlers.compute_projects, not _bridge_get."""
+def test_projects_delegates_to_mcp_handlers():
     from mcp_server import cortex_projects
 
     fake = [{"name": "Cortex", "path": "cortex", "status": "healthy", "last_activity": ""}]
     with patch("mcp_handlers.compute_projects", return_value=fake) as h:
-        with patch("mcp_server._bridge_get") as bridge_get:
-            result = json.loads(cortex_projects())
+        result = json.loads(cortex_projects())
     h.assert_called_once()
-    bridge_get.assert_not_called()
     assert result == fake
 
 
-def test_sessions_no_http():
-    """cortex_sessions must call mcp_handlers.scan_sessions, not _bridge_get."""
+def test_sessions_delegates_to_mcp_handlers():
     from mcp_server import cortex_sessions
 
     fake = {"sessions": [], "total": 0, "active_count": 0}
     with patch("mcp_handlers.scan_sessions", return_value=fake) as h:
-        with patch("mcp_server._bridge_get") as bridge_get:
-            result = json.loads(cortex_sessions(active_only=True))
+        result = json.loads(cortex_sessions(active_only=True))
     h.assert_called_once_with(active_only=True)
-    bridge_get.assert_not_called()
     assert result == fake
 
 
-def test_taskboard_no_http():
-    """cortex_taskboard must call mcp_handlers.query_taskboard, not _bridge_get."""
+def test_taskboard_delegates_to_mcp_handlers():
     from mcp_server import cortex_taskboard
 
     fake = {"tasks": [], "total": 0}
     with patch("mcp_handlers.query_taskboard", return_value=fake) as h:
-        with patch("mcp_server._bridge_get") as bridge_get:
-            result = json.loads(cortex_taskboard(status="pending", project="cortex"))
+        result = json.loads(cortex_taskboard(status="pending", project="cortex"))
     h.assert_called_once_with(status="pending", project="cortex")
-    bridge_get.assert_not_called()
     assert result == fake
 
 
-def test_plan_progress_no_http():
-    """cortex_plan_progress must call mcp_handlers.plans_progress, not _bridge_get."""
+def test_plan_progress_delegates_to_mcp_handlers():
     from mcp_server import cortex_plan_progress
 
     fake = {"plans": [], "total": 0}
     with patch("mcp_handlers.plans_progress", return_value=fake) as h:
-        with patch("mcp_server._bridge_get") as bridge_get:
-            result = json.loads(cortex_plan_progress())
+        result = json.loads(cortex_plan_progress())
     h.assert_called_once()
-    bridge_get.assert_not_called()
     assert result == fake
 
 
-def test_recommendations_no_http():
-    """cortex_recommendations must call _get_bridge().get_recommendations, not _bridge_get."""
+def test_recommendations_delegates_to_bridge_method():
     import mcp_server
 
     fake_bridge = MagicMock()
     fake_bridge.get_recommendations.return_value = {"recommendations": [], "next_action": None}
     with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
-        with patch.object(mcp_server, "_bridge_get") as bridge_get:
-            result = json.loads(mcp_server.cortex_recommendations())
+        result = json.loads(mcp_server.cortex_recommendations())
     fake_bridge.get_recommendations.assert_called_once()
-    bridge_get.assert_not_called()
     assert isinstance(result, dict)
 
 
-def test_graph_query_no_http():
-    """cortex_graph_query must call _get_bridge().query_graph, not _bridge_get."""
+def test_graph_query_delegates_to_bridge_method():
     import mcp_server
 
     fake_bridge = MagicMock()
     fake_bridge.query_graph.return_value = []
     with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
-        with patch.object(mcp_server, "_bridge_get") as bridge_get:
-            result = json.loads(mcp_server.cortex_graph_query(node_type="pattern", limit=5))
+        result = json.loads(mcp_server.cortex_graph_query(node_type="pattern", limit=5))
     fake_bridge.query_graph.assert_called_with(node_type="pattern")
-    bridge_get.assert_not_called()
     assert result["node_type"] == "pattern"
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Step 3: 4 POST tools migrated to direct calls
+# Step 3: POST tools delegate to the right handler
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_intelligence_no_http():
-    """cortex_intelligence must call _get_bridge().query_intelligence, not _bridge_post."""
+def test_intelligence_delegates_to_bridge_method():
     import mcp_server
 
     fake_bridge = MagicMock()
     fake_bridge.query_intelligence.return_value = {"answer": "ok", "patterns": []}
     with patch.object(mcp_server, "_get_bridge", return_value=fake_bridge):
-        with patch.object(mcp_server, "_bridge_post") as bridge_post:
-            result = json.loads(mcp_server.cortex_intelligence(query="test", query_type="research"))
+        result = json.loads(mcp_server.cortex_intelligence(query="test", query_type="research"))
     fake_bridge.query_intelligence.assert_called_once()
-    bridge_post.assert_not_called()
     assert result == {"answer": "ok", "patterns": []}
 
 
-def test_conductor_compose_no_http():
-    """cortex_conductor_compose must call mcp_handlers.compose_conductor_prompt, not _bridge_post."""
+def test_conductor_compose_delegates_to_mcp_handlers():
     from mcp_server import cortex_conductor_compose
 
     fake = {"prompt": "x", "project": "cortex", "intent_level": "advisory", "token_estimate": 5}
     with patch("mcp_handlers.compose_conductor_prompt", return_value=fake) as h:
-        with patch("mcp_server._bridge_post") as bridge_post:
-            result = json.loads(
-                cortex_conductor_compose(
-                    intent="test", project="cortex", intent_level="advisory", include_context=False
-                )
+        result = json.loads(
+            cortex_conductor_compose(
+                intent="test", project="cortex", intent_level="advisory", include_context=False
             )
+        )
     h.assert_called_once_with(
         intent="test", project_id="cortex", intent_level="advisory", include_context=False
     )
-    bridge_post.assert_not_called()
     assert result == fake
 
 
-def test_plan_create_no_http():
-    """cortex_plan_create must call mcp_handlers.create_plan, not _bridge_post."""
+def test_plan_create_delegates_to_mcp_handlers():
     from mcp_server import cortex_plan_create
 
     fake = {"plan_id": "plan_cortex_1", "path": "/tmp/x.json", "item_count": 0}
     with patch("mcp_handlers.create_plan", return_value=fake) as h:
-        with patch("mcp_server._bridge_post") as bridge_post:
-            result = json.loads(cortex_plan_create(project="cortex"))
+        result = json.loads(cortex_plan_create(project="cortex"))
     h.assert_called_once_with(project="cortex", title=None)
-    bridge_post.assert_not_called()
     assert result == fake
 
 
-def test_record_decision_no_http():
-    """cortex_record_decision must call mcp_handlers.record_freeform_decision, not _bridge_post."""
+def test_record_decision_delegates_to_mcp_handlers():
     from mcp_server import cortex_record_decision
 
     fake = {"recorded": True, "decision_id": "dec_1", "timestamp": "2026-05-14T00:00:00"}
     with patch("mcp_handlers.record_freeform_decision", return_value=fake) as h:
-        with patch("mcp_server._bridge_post") as bridge_post:
-            result = json.loads(
-                cortex_record_decision(
-                    decision="use X", context="why", project="cortex", confidence=0.7
-                )
+        result = json.loads(
+            cortex_record_decision(
+                decision="use X", context="why", project="cortex", confidence=0.7
             )
+        )
     h.assert_called_once_with(
         decision="use X",
         context="why",
@@ -258,5 +241,4 @@ def test_record_decision_no_http():
         confidence=0.7,
         tags="",
     )
-    bridge_post.assert_not_called()
     assert result == fake
