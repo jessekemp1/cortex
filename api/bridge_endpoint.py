@@ -138,6 +138,25 @@ class DecisionRecordRequest(BaseModel):
     )
 
 
+class DecisionFreeformRequest(BaseModel):
+    """Free-form decision capture from MCP cortex_record_decision tool."""
+
+    decision: str = Field(..., description="What was decided")
+    context: str = Field(default="", description="Why the decision was needed")
+    alternatives: str = Field(default="", description="What other options existed")
+    rationale: str = Field(default="", description="Why this option was chosen")
+    project: str = Field(default="", description="Project the decision applies to")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Decision confidence")
+    tags: str = Field(default="", description="Comma-separated tags")
+
+
+class PlanCreateRequest(BaseModel):
+    """Create an execution plan from project goals."""
+
+    project: str = Field(..., description="Target project (vortex, cortex, ...)")
+    title: Optional[str] = Field(default=None, description="Optional plan title")
+
+
 # ============================================================================
 # FastAPI App
 # ============================================================================
@@ -816,23 +835,68 @@ async def get_anomalies(
 
 @app.get("/graph/query")
 async def query_graph(
-    node_type: str = Query(..., description="Node type to query"),
-    filters: Optional[str] = Query(None, description="JSON filters"),
+    node_type: str = Query("", description="Node type filter (empty = all types)"),
+    q: Optional[str] = Query(None, description="Text search across node name + data"),
+    limit: int = Query(10, ge=1, le=500, description="Max results"),
+    filters: Optional[str] = Query(None, description="JSON filters (advanced)"),
 ) -> Dict[str, Any]:
     """
     Query Cortex context graph.
 
-    Returns nodes matching the specified type and filters.
+    All parameters are optional. With no params, returns nodes across all
+    types capped at `limit`. With `node_type` set, restricts to that type.
+    With `q` set, post-filters by case-insensitive substring match against
+    the stringified node dict.
     """
     try:
-        import json
+        import json as _json
 
         bridge = get_bridge()
+        filter_dict = _json.loads(filters) if filters else None
 
-        filter_dict = json.loads(filters) if filters else None
-        nodes = bridge.query_graph(node_type=node_type, filters=filter_dict)
+        if node_type:
+            node_types_to_query = [node_type]
+        else:
+            try:
+                from cortex.engines.synthesis import NodeType
 
-        return {"node_type": node_type, "count": len(nodes), "nodes": nodes}
+                node_types_to_query = [nt.value for nt in NodeType]
+            except ImportError:
+                node_types_to_query = [
+                    "goal",
+                    "project",
+                    "pattern",
+                    "lesson",
+                    "decision",
+                    "warning",
+                ]
+
+        all_nodes: List[Dict[str, Any]] = []
+        for nt in node_types_to_query:
+            try:
+                nodes = bridge.query_graph(node_type=nt, filters=filter_dict)
+            except Exception:
+                continue
+            if isinstance(nodes, list):
+                # bridge.query_graph returns [{"error": ...}] on failure; skip those.
+                for n in nodes:
+                    if isinstance(n, dict) and "error" not in n:
+                        all_nodes.append(n)
+
+        if q:
+            needle = q.lower()
+            all_nodes = [
+                n for n in all_nodes if needle in _json.dumps(n, default=str).lower()
+            ]
+
+        truncated = all_nodes[:limit]
+        return {
+            "node_type": node_type or None,
+            "q": q,
+            "count": len(truncated),
+            "total_matched": len(all_nodes),
+            "nodes": truncated,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2951,11 +3015,12 @@ async def get_predictions_current() -> Dict[str, Any]:
 
 @app.post("/decisions/record")
 async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
-    """Record a user decision from the Co-Navigator UI."""
+    """Record a user decision from the Co-Navigator UI (scenario-picker schema)."""
     try:
         DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
         decision_id = f"dec_{int(time.time())}_{req.prediction_id[:8]}"
         entry = {
+            "kind": "scenario",
             "decision_id": decision_id,
             "prediction_id": req.prediction_id,
             "scenario_chosen": req.scenario_chosen,
@@ -2973,6 +3038,146 @@ async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
+
+
+@app.post("/decisions/record-freeform")
+async def record_decision_freeform(req: DecisionFreeformRequest) -> Dict[str, Any]:
+    """Record a free-form decision from MCP cortex_record_decision tool.
+
+    Phase 1 fix for the original /decisions/record endpoint, which expected
+    the Co-Navigator UI scenario-picker schema. The MCP tool sends a
+    free-form decision (decision/context/alternatives/rationale + optional
+    project/confidence/tags). Stored alongside scenario-picker decisions
+    in ~/.cortex/decisions.jsonl, discriminated by the `kind` field.
+    """
+    try:
+        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        decision_id = f"dec_{int(time.time())}_{abs(hash(req.decision)) % 100000:05d}"
+        tags = [t.strip() for t in req.tags.split(",") if t.strip()] if req.tags else []
+        entry = {
+            "kind": "freeform",
+            "decision_id": decision_id,
+            "decision": req.decision,
+            "context": req.context,
+            "alternatives": req.alternatives,
+            "rationale": req.rationale,
+            "project": req.project,
+            "confidence": req.confidence,
+            "tags": tags,
+            "timestamp": datetime.now().isoformat(),
+        }
+        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return {
+            "recorded": True,
+            "decision_id": decision_id,
+            "timestamp": entry["timestamp"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
+
+
+# ─── Plans ───
+
+
+PLANS_DIR = Path.home() / ".cortex" / "plans"
+
+
+@app.post("/plans/create")
+async def create_plan(req: PlanCreateRequest) -> Dict[str, Any]:
+    """Create an execution plan from project goals.
+
+    Reuses cortex.goal_parser.GoalParser to parse ACTION_PLAN.md (or GOALS.md
+    if CORTEX_GOALS_FILE is set). Filters parsed goals by project, writes the
+    resulting plan to ~/.cortex/plans/{project}_{timestamp}.json.
+    """
+    try:
+        PLANS_DIR.mkdir(parents=True, exist_ok=True)
+        # Lazy import keeps the bridge importable even when goal_parser has
+        # an unrelated breakage (Phase 5 will replace this with a direct call).
+        try:
+            from cortex.goal_parser import GoalParser  # type: ignore
+        except ImportError:
+            from goal_parser import GoalParser  # type: ignore
+
+        goals_override = os.environ.get("CORTEX_GOALS_FILE")
+        action_plan_path = Path(goals_override) if goals_override else None
+        parser = GoalParser(action_plan_path=action_plan_path)
+        all_goals = parser.parse()
+
+        project_lower = req.project.lower()
+        project_goals = [
+            g
+            for g in all_goals
+            if not g.project or g.project.lower() == project_lower
+        ]
+
+        ts = int(time.time())
+        plan_id = f"plan_{req.project}_{ts}"
+        items = [
+            {
+                "id": g.id,
+                "title": g.title,
+                "priority": g.priority,
+                "status": g.status,
+                "actions": list(g.actions),
+                "success_criteria": g.success_criteria,
+                "blockers": list(g.blockers),
+            }
+            for g in project_goals
+        ]
+        plan = {
+            "plan_id": plan_id,
+            "project": req.project,
+            "title": req.title or f"Plan for {req.project}",
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+            "source": str(parser.action_plan_path),
+            "item_count": len(items),
+            "items": items,
+        }
+        plan_path = PLANS_DIR / f"{req.project}_{ts}.json"
+        plan_path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
+        return {"plan_id": plan_id, "path": str(plan_path), "item_count": len(items)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create plan: {e}")
+
+
+@app.get("/plans/progress")
+async def plans_progress() -> Dict[str, Any]:
+    """Summarize all active plans in ~/.cortex/plans/.
+
+    For each plan file, reports item counts grouped by status. Does not
+    cross-reference git log (the plan's "git log cross-reference" is Phase 4
+    work — for Phase 1 we ship the file-scan baseline).
+    """
+    try:
+        if not PLANS_DIR.exists():
+            return {"plans": [], "total": 0}
+        summaries = []
+        for plan_path in sorted(PLANS_DIR.glob("*.json")):
+            try:
+                plan = json.loads(plan_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            items = plan.get("items", [])
+            status_counts: Dict[str, int] = {}
+            for item in items:
+                s = item.get("status", "unknown")
+                status_counts[s] = status_counts.get(s, 0) + 1
+            summaries.append(
+                {
+                    "plan_id": plan.get("plan_id"),
+                    "project": plan.get("project"),
+                    "title": plan.get("title"),
+                    "created_at": plan.get("created_at"),
+                    "item_count": len(items),
+                    "by_status": status_counts,
+                    "path": str(plan_path),
+                }
+            )
+        return {"plans": summaries, "total": len(summaries)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read plans: {e}")
 
 
 @app.get("/activity/heatmap")

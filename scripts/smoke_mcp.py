@@ -71,12 +71,10 @@ TOOL_ARGS: dict[str, dict] = {
 # Tools known broken pre-Phase-1 (real code bugs). Smoke records their status
 # but does not fail the run on them. Phase 1 fixes flip these to green —
 # remove the entry the moment a fix lands.
-KNOWN_BROKEN: set[str] = {
-    "cortex_conductor_compose",  # mcp_server.py:241 sends "project", bridge wants "project_id"
-    "cortex_record_decision",  # bridge schema is scenario-picker, MCP sends free-form
-    "cortex_plan_create",  # endpoint doesn't exist (404)
-    "cortex_plan_progress",  # endpoint doesn't exist (404)
-}
+#
+# Phase 1 cleared the original 4 entries (conductor_compose, record_decision,
+# plan_create, plan_progress). Set is empty as of Phase 1 ship.
+KNOWN_BROKEN: set[str] = set()
 
 # Tools whose smoke result depends on local environment (data files, optional
 # packages, valid IDs) rather than code correctness. Failures here are

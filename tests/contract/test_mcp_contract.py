@@ -170,99 +170,114 @@ def test_prompt_refine_is_local():
 # ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BROKEN: mcp_server.py:241 sends 'project' but bridge expects 'project_id'. "
-    "Phase 1 fixes this — one-line rename in mcp_server.py.",
-)
-def test_conductor_compose_contract_broken():
+def test_conductor_compose_contract():
     """cortex_conductor_compose → POST /conductor/compose.
 
-    Current MCP payload (mcp_server.py:239-244):
-        {"intent": str, "project": str, "intent_level": str, "include_context": bool}
-
-    Bridge model (api/bridge_endpoint.py:2011-2019) requires 'project_id'.
-    Result: every call returns 422.
+    Fixed in Phase 1: mcp_server.py now sends 'project_id' (matching the bridge
+    PromptComposeRequest model at api/bridge_endpoint.py:2011-2019).
     """
     mcp_payload = {
         "intent": "build a thing",
-        "project": "cortex",  # ← BUG: bridge wants 'project_id'
+        "project_id": "cortex",
         "intent_level": "collaborative",
         "include_context": True,
     }
     resp = client.post("/conductor/compose", json=mcp_payload)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert "prompt" in body
+    assert body.get("project") == "cortex" or body.get("project_id") == "cortex"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BROKEN: bridge /graph/query accepts only node_type+filters; MCP sends q/limit "
-    "which FastAPI silently drops. With empty node_type, returns 422. "
-    "Phase 1 will extend the bridge to accept q+limit OR fix MCP signature.",
-)
-def test_graph_query_contract_broken():
+def test_graph_query_contract():
     """cortex_graph_query → GET /graph/query.
 
-    MCP signature (mcp_server.py:307-327) advertises (node_type, query, limit).
-    Bridge endpoint accepts only (node_type, filters). The 'query' and 'limit'
-    params are silently dropped by FastAPI.
-
-    When MCP user omits node_type (default ""), nothing is sent → bridge 422
-    (node_type is required).
+    Phase 1 extended the bridge to accept (node_type, q, limit). node_type is
+    now optional; with empty node_type the bridge queries all node types and
+    applies an optional case-insensitive text filter via `q`.
     """
-    # Reproduces the case where MCP user passes only a text query
+    # Case 1: text-only query, no node_type
     resp = client.get("/graph/query?q=patterns&limit=5")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert "nodes" in body
+    assert "count" in body
+    assert "q" in body and body["q"] == "patterns"
+    assert len(body["nodes"]) <= 5
+
+    # Case 2: node_type only, no q
+    resp2 = client.get("/graph/query?node_type=pattern&limit=10")
+    assert resp2.status_code == 200, resp2.text
+    assert resp2.json()["node_type"] == "pattern"
+
+    # Case 3: no params at all (most common MCP-default scenario)
+    resp3 = client.get("/graph/query")
+    assert resp3.status_code == 200, resp3.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BROKEN: bridge /decisions/record requires scenario-picker schema "
-    "(prediction_id, scenario_chosen, scenario_name, domain) but MCP sends "
-    "free-form decision schema (decision, context, alternatives, rationale). "
-    "Phase 1 will add /decisions/record-freeform with matching Pydantic model.",
-)
-def test_record_decision_contract_broken():
-    """cortex_record_decision → POST /decisions/record.
+def test_record_decision_contract():
+    """cortex_record_decision → POST /decisions/record-freeform.
 
-    Current MCP payload (mcp_server.py:381-389):
-        {"decision": str, "context": str, "alternatives": str, "rationale": str}
-
-    Bridge model (api/bridge_endpoint.py:126-138) requires:
-        prediction_id, scenario_chosen, scenario_name, domain (all Field(...))
-
-    Every MCP call returns 422.
+    Phase 1 added a new endpoint that matches the MCP free-form schema.
+    The original /decisions/record (scenario-picker) is preserved for the
+    Co-Navigator UI.
     """
     mcp_payload = {
         "decision": "use postgres",
         "context": "needed durable storage",
         "alternatives": "sqlite, dynamodb",
         "rationale": "team familiarity",
+        "project": "cortex",
+        "confidence": 0.8,
+        "tags": "infra,storage",
     }
-    resp = client.post("/decisions/record", json=mcp_payload)
+    resp = client.post("/decisions/record-freeform", json=mcp_payload)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert body.get("recorded") is True
+    assert body.get("decision_id", "").startswith("dec_")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BROKEN: bridge has no /plans/create endpoint. Returns 404. "
-    "Phase 1 will add POST /plans/create using existing goal_parser.GoalParser.",
-)
-def test_plan_create_contract_missing():
-    """cortex_plan_create → POST /plans/create (does not exist)."""
-    resp = client.post("/plans/create", json={"project": "cortex", "title": "test"})
+def test_plan_create_contract(tmp_path, monkeypatch):
+    """cortex_plan_create → POST /plans/create."""
+    # Point goals file at a temp ACTION_PLAN.md so we don't depend on the
+    # caller's repo state.
+    goals = tmp_path / "ACTION_PLAN.md"
+    goals.write_text(
+        "## Priority A\n\n"
+        "### A1: Test goal for cortex\n"
+        "- Project: cortex\n"
+        "- Status: pending\n"
+        "- Description: smoke test\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CORTEX_GOALS_FILE", str(goals))
+
+    # Plans should be written under a temp HOME so test runs don't litter.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # Re-import PLANS_DIR-using module path is not necessary — the endpoint
+    # reads Path.home() at request time.
+
+    resp = client.post("/plans/create", json={"project": "cortex", "title": "test plan"})
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert "plan_id" in body
+    assert body["plan_id"].startswith("plan_cortex_")
+    assert "path" in body
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BROKEN: bridge has no /plans/progress endpoint. Returns 404. "
-    "Phase 1 will add GET /plans/progress reading ~/.cortex/plans/*.json.",
-)
-def test_plan_progress_contract_missing():
-    """cortex_plan_progress → GET /plans/progress (does not exist)."""
+def test_plan_progress_contract():
+    """cortex_plan_progress → GET /plans/progress.
+
+    Phase 1 added the endpoint. Plans dir may be empty in the test env —
+    contract is that the route exists and returns a well-formed response.
+    """
     resp = client.get("/plans/progress")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+    body = resp.json()
+    assert "plans" in body
+    assert "total" in body
+    assert isinstance(body["plans"], list)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -326,9 +341,14 @@ def test_mcp_payloads_match_bridge_pydantic_models():
         PromptComposeRequest,
     )
 
+    # Map endpoint path → Pydantic model used by the bridge route.
+    # /decisions/record-freeform takes DecisionFreeformRequest (Phase 1).
+    from api.bridge_endpoint import DecisionFreeformRequest, PlanCreateRequest
+
     endpoint_models = {
         "/conductor/compose": PromptComposeRequest,
-        "/decisions/record": DecisionRecordRequest,
+        "/decisions/record-freeform": DecisionFreeformRequest,
+        "/plans/create": PlanCreateRequest,
     }
 
     mcp_src = Path(__file__).parent.parent.parent / "mcp_server.py"
@@ -359,7 +379,10 @@ def test_mcp_payloads_match_bridge_pydantic_models():
         if endpoint not in endpoint_models:
             continue
 
-        # Collect keys: dict literal + payload[...] = ... assignments
+        # Collect keys from any of:
+        #   _bridge_post(endpoint, {literal dict})
+        #   payload = {literal dict}                    ← dict-literal assign
+        #   payload[KEY] = ...                          ← per-key subscript assign
         # scoped to THIS function only.
         sent_keys: set[str] = set()
         payload_arg = call_node.args[1]
@@ -368,15 +391,36 @@ def test_mcp_payloads_match_bridge_pydantic_models():
                 if isinstance(k, ast.Constant) and isinstance(k.value, str):
                     sent_keys.add(k.value)
         for assign in ast.walk(fn):
+            # Handle both `payload = {...}` (Assign) and
+            # `payload: dict = {...}` (AnnAssign).
+            if isinstance(assign, ast.Assign):
+                if len(assign.targets) != 1:
+                    continue
+                target = assign.targets[0]
+                value = assign.value
+            elif isinstance(assign, ast.AnnAssign):
+                target = assign.target
+                value = assign.value
+            else:
+                continue
+
+            # payload = {...} or payload: dict = {...}
             if (
-                isinstance(assign, ast.Assign)
-                and len(assign.targets) == 1
-                and isinstance(assign.targets[0], ast.Subscript)
-                and isinstance(assign.targets[0].value, ast.Name)
-                and assign.targets[0].value.id == "payload"
-                and isinstance(assign.targets[0].slice, ast.Constant)
+                isinstance(target, ast.Name)
+                and target.id == "payload"
+                and isinstance(value, ast.Dict)
             ):
-                sent_keys.add(assign.targets[0].slice.value)
+                for k in value.keys:
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                        sent_keys.add(k.value)
+            # payload[KEY] = ...
+            elif (
+                isinstance(target, ast.Subscript)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "payload"
+                and isinstance(target.slice, ast.Constant)
+            ):
+                sent_keys.add(target.slice.value)
 
         model = endpoint_models[endpoint]
         required_fields = {
@@ -391,11 +435,6 @@ def test_mcp_payloads_match_bridge_pydantic_models():
                 f"(sends {sent_keys})"
             )
 
-    # NOTE: This test is EXPECTED to fail today (2 drifts: conductor_compose
-    # and record_decision). Phase 1 fixes them. When it passes, remove this
-    # marker.
-    if drift:
-        pytest.xfail(
-            "MCP payloads drift from bridge Pydantic models (Phase 1 fixes):\n"
-            + "\n".join(drift)
-        )
+    assert not drift, (
+        "MCP payloads drift from bridge Pydantic models:\n" + "\n".join(drift)
+    )

@@ -238,7 +238,7 @@ def cortex_conductor_compose(
 
     payload = {
         "intent": intent,
-        "project": project,
+        "project_id": project,
         "intent_level": intent_level,
         "include_context": include_context,
     }
@@ -368,7 +368,13 @@ def cortex_batch_status(batch_id: str) -> str:
 
 @mcp.tool()
 def cortex_record_decision(
-    decision: str, context: str = "", alternatives: str = "", rationale: str = ""
+    decision: str,
+    context: str = "",
+    alternatives: str = "",
+    rationale: str = "",
+    project: str = "",
+    confidence: float = 0.0,
+    tags: str = "",
 ) -> str:
     """Record a decision for the Cortex learning loop.
 
@@ -377,15 +383,20 @@ def cortex_record_decision(
         context: Why this decision was needed.
         alternatives: What other options existed (comma-separated or prose).
         rationale: Why this option was chosen over alternatives.
+        project: Optional project the decision applies to (vortex, cortex, …).
+        confidence: Optional confidence 0.0-1.0.
+        tags: Optional comma-separated tags.
     """
-    payload = {"decision": decision}
-    if context:
-        payload["context"] = context
-    if alternatives:
-        payload["alternatives"] = alternatives
-    if rationale:
-        payload["rationale"] = rationale
-    result = _bridge_post("/decisions/record", payload)
+    payload: dict = {
+        "decision": decision,
+        "context": context,
+        "alternatives": alternatives,
+        "rationale": rationale,
+        "project": project,
+        "confidence": confidence,
+        "tags": tags,
+    }
+    result = _bridge_post("/decisions/record-freeform", payload)
     return json.dumps(result, indent=2)
 
 
