@@ -123,11 +123,14 @@ def _goals_checksum() -> str:
 
 
 def _collect_emos() -> dict:
-    """Try to get EMOS counts from the service-health endpoint."""
-    data = _curl_json("http://localhost:8765/service-health")
-    if not data:
+    """Try to get EMOS counts via direct health_probe call (Phase 5: no HTTP)."""
+    try:
+        import health_probe
+
+        services = health_probe.compute_service_health()
+    except Exception:
         return {}
-    emos = data.get("emos", {})
+    emos = services.get("emos", {}).get("pairs", {}) if isinstance(services.get("emos"), dict) else {}
     result = {}
     for model in ("ecmwf", "gfs", "hrrr", "ensemble"):
         val = emos.get(model)
@@ -171,16 +174,17 @@ def _collect_last_commit() -> str:
 
 
 def _collect_bridge_status() -> str:
-    """Return 'healthy', 'degraded', or 'down'."""
-    data = _curl_json("http://localhost:8765/health")
-    if not data:
-        return "down"
-    status = str(data.get("status", "")).lower()
-    if status in ("healthy", "ok"):
-        return "healthy"
-    if status:
-        return "degraded"
-    return "down"
+    """Return 'healthy', 'degraded', or 'down' for the bridge.
+
+    Phase 5: replaced HTTP probe with cheap import-spec check. If
+    bridge.py is on PYTHONPATH the bridge is structurally available
+    ("healthy"); else "down". Distinct ("degraded") states no longer
+    apply now that there's no separate process to fail.
+    """
+    import importlib.util
+
+    spec = importlib.util.find_spec("bridge")
+    return "healthy" if spec is not None else "down"
 
 
 # ---------------------------------------------------------------------------

@@ -440,18 +440,32 @@ class WorkIntake:
             log.warning("httpx not installed; skipping recommendations API")
             return []
 
+        # Phase 5: direct CortexBridge call instead of HTTP roundtrip to :8765.
+        # Falls back to the HTTP path only if the bridge module can't be imported
+        # in this environment.
         items: List[WorkItem] = []
+        data = None
         try:
-            resp = httpx.get(
-                "http://localhost:8765/intelligence/recommendations",
-                timeout=5.0,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPError, OSError) as exc:
+            from bridge import CortexBridge  # type: ignore
+
+            data = CortexBridge().get_recommendations()
+        except ImportError:
+            try:
+                resp = httpx.get(
+                    "http://localhost:8765/intelligence/recommendations",
+                    timeout=5.0,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            except (httpx.HTTPError, OSError) as exc:
+                log.warning("Failed to fetch recommendations from bridge: %s", exc)
+                return []
+        except Exception as exc:
             log.warning("Failed to fetch recommendations from bridge: %s", exc)
             return []
 
+        if data is None:
+            return []
         recs = data if isinstance(data, list) else data.get("recommendations", [])
         for rec in recs:
             if rec.get("title") or rec.get("description"):
