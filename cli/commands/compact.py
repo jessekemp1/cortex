@@ -18,7 +18,7 @@ from rich.console import Console
 # Allow imports from cortex root
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from tui.data import CortexSnapshot, collect_snapshot
+from cortex_extras.tui.data import CortexSnapshot, collect_snapshot
 
 BAR_CHARS = "░▏▎▍▌▊▉█"
 

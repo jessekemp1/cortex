@@ -169,7 +169,7 @@ app = FastAPI(
 
 # Mount web chat gateway
 try:
-    from cortex.gateway.web_chat import router as chat_router
+    from cortex_extras.gateway.web_chat import router as chat_router
 
     app.include_router(chat_router)
 except ImportError:

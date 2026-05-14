@@ -42,8 +42,8 @@ except ImportError:
     MemoryItem = None
 
 try:
-    from synthetic.generator import SyntheticGenerator
-    from synthetic.schemas import GenerationRequest
+    from cortex_extras.synthetic.generator import SyntheticGenerator
+    from cortex_extras.synthetic.schemas import GenerationRequest
 
     SYNTHETIC_AVAILABLE = True
 except ImportError:
