@@ -57,7 +57,12 @@ mcp = FastMCP("cortex")
 
 
 def _bridge_get(path: str, timeout: float = 3.0) -> dict:
-    """GET from bridge API. Returns parsed JSON or error dict."""
+    """GET from bridge API. Returns parsed JSON or error dict.
+
+    DEPRECATED in Phase 5 — tools should call `_get_bridge().<method>()` instead.
+    Retained while migration is in progress; will be removed when no MCP tool
+    references it.
+    """
     try:
         req = urllib.request.Request(
             f"{BRIDGE_URL}{path}",
@@ -72,7 +77,10 @@ def _bridge_get(path: str, timeout: float = 3.0) -> dict:
 
 
 def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
-    """POST to bridge API. Returns parsed JSON or error dict."""
+    """POST to bridge API. Returns parsed JSON or error dict.
+
+    DEPRECATED in Phase 5 — see _bridge_get.
+    """
     try:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(
@@ -89,14 +97,47 @@ def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
         return {"error": str(e)}
 
 
+# Phase 5: Lazy singleton for direct CortexBridge access.
+# Importing CortexBridge triggers ~16s of optional ML imports — DO NOT eagerly
+# instantiate at module load. First MCP tool call pays the cost; subsequent
+# calls reuse the cached instance.
+_bridge_singleton = None
+
+
+def _get_bridge():
+    """Lazy CortexBridge instance — instantiated on first call, then cached.
+
+    Uses a single canonical import path (`bridge`) to guarantee one shared
+    CortexBridge instance across all callers. Importing via both `bridge`
+    and `cortex.bridge` produces two distinct module objects with distinct
+    classes — a real-world hazard before Phase 5 standardized on the bare
+    name (bridge.py adds CORTEX_ROOT to sys.path on import).
+    """
+    global _bridge_singleton
+    if _bridge_singleton is None:
+        from bridge import CortexBridge  # noqa: WPS433  type: ignore
+
+        _bridge_singleton = CortexBridge()
+    return _bridge_singleton
+
+
 # ── Tools ──
 
 
 @mcp.tool()
 def cortex_service_health() -> str:
     """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts."""
-    result = _bridge_get("/service-health")
-    return json.dumps(result, indent=2)
+    # Phase 5: direct call to standalone health_probe — no HTTP, no CortexBridge.
+    # Single canonical import path to avoid the double-import hazard
+    # (`bridge` vs `cortex.bridge` produced two distinct module objects).
+    import health_probe
+
+    services = health_probe.compute_service_health()
+    statuses = [
+        s.get("status") for s in services.values() if isinstance(s, dict) and "status" in s
+    ]
+    overall = "healthy" if all(s == "healthy" for s in statuses) else "degraded"
+    return json.dumps({"overall": overall, "services": services}, indent=2)
 
 
 @mcp.tool()

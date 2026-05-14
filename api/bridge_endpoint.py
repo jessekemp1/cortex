@@ -248,163 +248,19 @@ async def service_health():
     """
     Check health of all ecosystem services.
 
-    Returns status of bridge, Vortex backend, Navigator, and EMOS readiness.
+    Delegates to the standalone health_probe.compute_service_health helper
+    so the same logic can be used by mcp_server.py without going through HTTP.
     """
-    import urllib.request
-
-    services = {
-        "bridge": {"status": "healthy", "port": 8765},
-    }
-
-    # Check Vortex Backend (:8000)
     try:
-        req = urllib.request.Request("http://localhost:8000/api/v2/health")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read())
-            services["vortex_backend"] = {
-                "status": "healthy" if data.get("status") == "healthy" else "degraded",
-                "port": 8000,
-                "scheduler_jobs": data.get("scheduler", {}).get("jobs_count", 0),
-                "version": data.get("version", "unknown"),
-            }
-    except Exception:
-        services["vortex_backend"] = {"status": "offline", "port": 8000}
+        from cortex.health_probe import compute_service_health  # type: ignore
+    except ImportError:
+        from health_probe import compute_service_health  # type: ignore
 
-    # Check Navigator (subsystem of Vortex Backend on :8000)
-    try:
-        req = urllib.request.Request("http://localhost:8000/api/v2/navigator/health")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            nav_status = data.get("status", "unknown")
-            checks = data.get("checks", {})
-            subsystems = {
-                k: v.get("status", "unknown") for k, v in checks.items() if isinstance(v, dict)
-            }
-            services["navigator"] = {
-                "status": nav_status,
-                "port": 8000,
-                "subsystems": subsystems,
-                "version": data.get("version", "unknown"),
-            }
-    except Exception:
-        services["navigator"] = {"status": "offline", "port": 8000}
-
-    # Check Vortex Frontend (:5173 dev / :3000 prod)
-    vortex_frontend_port = None
-    for port in [5173, 3000]:
-        try:
-            req = urllib.request.Request(f"http://localhost:{port}/")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                if resp.status == 200:
-                    services["vortex_frontend"] = {
-                        "status": "healthy",
-                        "port": port,
-                        "label": "Vortex UI (React)",
-                    }
-                    vortex_frontend_port = port
-                    break
-        except Exception:
-            continue
-    if vortex_frontend_port is None:
-        services["vortex_frontend"] = {
-            "status": "offline",
-            "port": 5173,
-            "label": "Vortex UI (React)",
-        }
-
-    # Check Alpha Arena (:8502)
-    try:
-        req = urllib.request.Request("http://localhost:8502/healthz")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            services["alpha_arena"] = {
-                "status": "healthy" if resp.status == 200 else "degraded",
-                "port": 8502,
-                "label": "Alpha Arena (Streamlit)",
-            }
-    except Exception:
-        # Streamlit healthz may 200 but not JSON — just check connectivity
-        try:
-            req = urllib.request.Request("http://localhost:8502/")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                services["alpha_arena"] = {
-                    "status": "healthy" if resp.status == 200 else "degraded",
-                    "port": 8502,
-                    "label": "Alpha Arena (Streamlit)",
-                }
-        except Exception:
-            services["alpha_arena"] = {
-                "status": "offline",
-                "port": 8502,
-                "label": "Alpha Arena (Streamlit)",
-            }
-
-    # Check Cortex Runtime API (:8003)
-    try:
-        req = urllib.request.Request("http://localhost:8003/api/v1/runtime/health")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            data = json.loads(resp.read())
-            services["cortex_runtime"] = {
-                "status": "healthy" if data.get("status") == "healthy" else "degraded",
-                "port": 8003,
-                "label": "Cortex Runtime API",
-            }
-    except Exception:
-        services["cortex_runtime"] = {
-            "status": "offline",
-            "port": 8003,
-            "label": "Cortex Runtime API",
-        }
-
-    # Check Mission Control site (:3001)
-    try:
-        req = urllib.request.Request("http://localhost:3001/")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            services["mission_control"] = {
-                "status": "healthy" if resp.status == 200 else "degraded",
-                "port": 3001,
-            }
-    except Exception:
-        services["mission_control"] = {"status": "offline", "port": 3001}
-
-    # Test metrics from ~/.cortex/metrics/tests.json
-    tests_file = Path.home() / ".cortex" / "metrics" / "tests.json"
-    if tests_file.exists():
-        try:
-            test_data = json.loads(tests_file.read_text())
-            total_failed = sum(
-                v.get("failed", 0) for v in test_data.values() if isinstance(v, dict)
-            )
-            services["tests"] = {
-                "total_failures": total_failed,
-                "projects": {
-                    k: {"passed": v.get("passed", 0), "failed": v.get("failed", 0)}
-                    for k, v in test_data.items()
-                    if isinstance(v, dict)
-                },
-            }
-        except Exception:
-            pass
-
-    # EMOS readiness from ~/.cortex/metrics/emos.json
-    emos_file = Path.home() / ".cortex" / "metrics" / "emos.json"
-    if emos_file.exists():
-        try:
-            emos_data = json.loads(emos_file.read_text())
-            pairs = emos_data.get("pairs", {})
-            threshold = 2000
-            services["emos"] = {
-                "pairs": pairs,
-                "threshold": threshold,
-                "ready_models": [m for m, c in pairs.items() if c >= threshold],
-                "timestamp": emos_data.get("timestamp"),
-            }
-        except Exception:
-            pass
-
-    # Overall status
-    statuses = [s.get("status") for s in services.values() if isinstance(s, dict) and "status" in s]
+    services = compute_service_health()
+    statuses = [
+        s.get("status") for s in services.values() if isinstance(s, dict) and "status" in s
+    ]
     overall = "healthy" if all(s == "healthy" for s in statuses) else "degraded"
-
     return {"overall": overall, "services": services}
 
 
