@@ -50,22 +50,10 @@ cortex status
 cortex doctor
 ```
 
-## Starting the Bridge Server
+## Intelligence Queries — No Server Needed
 
-The bridge server (`api/bridge_endpoint.py`) powers intelligence queries and MCP integration. Basic commands (`status`, `onboard`, `doctor`) work without it.
-
-```bash
-# Start the bridge (runs on :8765)
-python api/bridge_endpoint.py
-
-# Or with uvicorn directly
-uvicorn api.bridge_endpoint:app --host 127.0.0.1 --port 8765
-
-# Verify it's running
-curl http://127.0.0.1:8765/health
-```
-
-Once the bridge is running, you can use:
+Intelligence runs **in-process**. There is no bridge daemon to start for normal
+use:
 
 ```bash
 # Intelligence query — ask Cortex anything about your project
@@ -74,6 +62,10 @@ cortex intelligence "What patterns should I watch out for?"
 # Briefing — daily context summary
 cortex briefing
 ```
+
+The optional HTTP bridge (`api/bridge_endpoint.py`, installed via
+`pip install -e ".[server]"`) exists only for local agents that consume Cortex
+over HTTP. MCP clients and the CLI never require it.
 
 ## Claude Code / MCP Integration
 
@@ -109,15 +101,6 @@ result = bridge.query_intelligence("implement caching", project="my-api")
 # Get session context
 session = bridge.get_session_context()
 ```
-
-## Gateway — Telegram Bot + Web Chat (Coming Soon)
-
-Cortex includes a Gateway module for Telegram (`@KempionBot`) and web chat (`:8765/chat`). **This feature is not yet active by default.** To enable it, you'll need:
-
-- A Telegram bot token (`CORTEX_TELEGRAM_TOKEN`) from [@BotFather](https://t.me/BotFather)
-- The bridge server running (`cortex serve`)
-
-See `cortex/gateway/` for configuration details.
 
 ## What to Expect
 

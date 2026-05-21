@@ -219,7 +219,10 @@ print(f"Branch: {session['git']['branch']}")
 print(f"Active goals: {session['goals']}")
 ```
 
-Performance: bridge initialization under 10ms, context retrieval under 100ms, intelligence queries under 1s.
+Performance: context retrieval under 100ms, intelligence queries under 1s. First
+`CortexBridge()` construction loads ML/embedding modules and can take a few
+seconds — the MCP server defers this with a lazy singleton so tool calls stay
+responsive.
 
 ---
 

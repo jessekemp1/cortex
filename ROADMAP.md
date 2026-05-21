@@ -298,7 +298,14 @@ Beyond just discovering papers, Cortex needs to evolve its own capabilities:
 
 ### 6-Month Roadmap (Phased)
 
-#### Phase 1: Ship + Validate (Mar 12 — Mar 28) — CURRENT
+> **Status (2026-05-21):** Phase dates below are the original plan. Phases 1-3
+> ran roughly to schedule (see per-item status columns). A parallel
+> engineering-stabilization track also landed in May — gap analysis, a
+> contract-test safety net, repair of the broken MCP tools, the bridge
+> HTTP collapse (MCP now runs fully in-process), and the install-process
+> fixes for Linux. Phase 6 (batch redesign) was added from that track.
+
+#### Phase 1: Ship + Validate (Mar 12 — Mar 28)
 
 | Item | Priority | Status | Dependency |
 |------|----------|--------|------------|
