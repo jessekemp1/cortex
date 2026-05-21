@@ -226,11 +226,29 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
         prompt: The raw user prompt to refine.
         category: Optional override for category (direction/investigation/meta/idea/decision/request).
     """
-    patterns_file = PROMPTS_DIR / "patterns.json"
+    # Use prompt_db's own PATTERNS_FILE as the single source of truth for the
+    # cache location — guarantees the tool reads exactly where extract_patterns
+    # writes (mcp_server having its own PROMPTS_DIR constant risked drift).
+    try:
+        from intelligence import prompt_db
+    except ImportError as e:
+        return json.dumps({"error": f"prompt_db unavailable: {e}"})
+
+    patterns_file = prompt_db.PATTERNS_FILE
     if not patterns_file.exists():
-        return json.dumps(
-            {"error": "No patterns cache. Run: python cortex/intelligence/prompt_db.py patterns"}
-        )
+        # Auto-seed the cache on first use instead of failing. extract_patterns
+        # writes patterns.json and works even with zero prompt history (empty
+        # top_patterns; the tool still serves category-hint defaults).
+        try:
+            patterns_file.parent.mkdir(parents=True, exist_ok=True)
+            prompt_db.extract_patterns(prompt_db.read_log())
+        except Exception as e:
+            return json.dumps(
+                {
+                    "error": "No prompt-pattern cache and auto-seed failed. "
+                    f"Run `python cortex/intelligence/prompt_db.py patterns` manually. ({e})"
+                }
+            )
 
     try:
         patterns = json.loads(patterns_file.read_text())
@@ -474,7 +492,17 @@ def cortex_batch_status(batch_id: str) -> str:
         client = BatchAPIClient()
         return json.dumps(client.get_batch_status(batch_id), indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        msg = str(e)
+        # BatchAPIClient construction raises an opaque SDK error when no
+        # Anthropic credentials are configured — translate it for the user.
+        if "authentication" in msg.lower() or "api_key" in msg.lower():
+            return json.dumps(
+                {
+                    "error": "cortex_batch_status requires an Anthropic API key. "
+                    "Set ANTHROPIC_API_KEY in cortex/.env or your environment."
+                }
+            )
+        return json.dumps({"error": msg})
 
 
 @mcp.tool()
@@ -527,21 +555,15 @@ def cortex_outcomes(project: str = "", limit: int = 20) -> str:
         project: Filter by project name.
         limit: Max results (default 20).
     """
-    # Phase 5 Step 2: direct OutcomeDetector call.
-    try:
-        from v2.learning.outcomes import OutcomeDetector
+    # Reads the real outcome store (~/.cortex/outcomes.jsonl written by
+    # feedback.OutcomeLogger). The previous implementation imported a
+    # `v2.learning.outcomes` module that was never built — see mcp_handlers.
+    import mcp_handlers
 
-        detector = OutcomeDetector()
-        outcomes = detector.get_recent_outcomes(project=project or None, days=7)
+    try:
         return json.dumps(
-            {
-                "outcomes": [o.to_dict() for o in outcomes[:limit]],
-                "total": len(outcomes),
-            },
-            indent=2,
+            mcp_handlers.read_outcomes(project=project, limit=limit), indent=2
         )
-    except ImportError as e:
-        return json.dumps({"error": f"v2 module not available: {e}"})
     except Exception as e:
         return json.dumps({"error": str(e)})
 

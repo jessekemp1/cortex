@@ -80,10 +80,7 @@ KNOWN_BROKEN: set[str] = set()
 # packages, valid IDs) rather than code correctness. Failures here are
 # reported but don't fail the run. Fixes belong in later phases.
 KNOWN_ENV_DEPENDENT: set[str] = {
-    "cortex_orchestrate",  # needs psutil + supervisor stack
-    "cortex_outcomes",  # needs cortex.v2.learning.outcomes module
-    "cortex_prompt_refine",  # needs ~/.cortex/prompts/patterns.json seeded
-    "cortex_batch_status",  # smoke uses a fake batch_id → 404 is correct
+    "cortex_batch_status",  # needs ANTHROPIC_API_KEY (returns a clear message without)
 }
 
 

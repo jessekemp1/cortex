@@ -275,3 +275,59 @@ def test_record_decision_delegates_to_mcp_handlers():
         tags="",
     )
     assert result == fake
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Env-dependent tool gaps (item 3) — outcomes, prompt_refine, batch_status
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_outcomes_reads_real_jsonl_not_phantom_v2():
+    """cortex_outcomes must read ~/.cortex/outcomes.jsonl via mcp_handlers,
+    not import the non-existent `v2.learning.outcomes` module."""
+    from mcp_server import cortex_outcomes
+
+    fake = {"outcomes": [{"outcome": "success"}], "total": 1}
+    with patch("mcp_handlers.read_outcomes", return_value=fake) as h:
+        result = json.loads(cortex_outcomes(project="cortex", limit=5))
+    h.assert_called_once_with(project="cortex", limit=5)
+    assert result == fake
+    # Guard against the phantom import regressing.
+    assert "v2" not in (result.get("error") or "")
+
+
+def test_batch_status_gives_clear_auth_error():
+    """Without ANTHROPIC_API_KEY, cortex_batch_status must return an
+    actionable message, not the raw SDK 'Could not resolve authentication
+    method' string."""
+    from mcp_server import cortex_batch_status
+
+    class _AuthError(Exception):
+        pass
+
+    with patch("batch.batch_api_client.BatchAPIClient", side_effect=_AuthError(
+        "Could not resolve authentication method. Expected one of api_key..."
+    )):
+        result = json.loads(cortex_batch_status("any_batch_id"))
+    assert "error" in result
+    assert "ANTHROPIC_API_KEY" in result["error"]
+
+
+def test_prompt_refine_autoseeds_patterns(tmp_path, monkeypatch):
+    """cortex_prompt_refine must auto-seed the patterns cache when missing
+    rather than erroring out. The tool uses prompt_db.PATTERNS_FILE as the
+    single source of truth — extract_patterns writes exactly there."""
+    from intelligence import prompt_db
+    from mcp_server import cortex_prompt_refine
+
+    # Redirect the canonical cache path to an empty temp location so the
+    # cache is guaranteed absent at the start of the test.
+    fake_cache = tmp_path / "prompts" / "patterns.json"
+    monkeypatch.setattr(prompt_db, "PATTERNS_FILE", fake_cache)
+
+    assert not fake_cache.exists()
+    result = json.loads(cortex_prompt_refine("add a login feature"))
+
+    # Auto-seed must have run and produced a real refinement — not an error.
+    assert "classified_category" in result, f"auto-seed failed: {result}"
+    assert fake_cache.exists(), "extract_patterns did not write the cache"

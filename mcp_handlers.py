@@ -38,6 +38,7 @@ TASKBOARD_DIR = Path.home() / ".cortex" / "taskboard"
 TASKBOARD_FILE = TASKBOARD_DIR / "tasks.json"
 PLANS_DIR = Path.home() / ".cortex" / "plans"
 DECISIONS_FILE = Path.home() / ".cortex" / "decisions.jsonl"
+OUTCOMES_FILE = Path.home() / ".cortex" / "outcomes.jsonl"
 CONDUCTOR_HISTORY_FILE = Path.home() / ".cortex" / "conductor" / "prompt_history.jsonl"
 
 WORKSPACE = Path.home() / "Dev"
@@ -421,3 +422,46 @@ def compose_conductor_prompt(
         "intent_level": intent_level,
         "token_estimate": token_estimate,
     }
+
+
+# ─── outcomes ──────────────────────────────────────────────────────────
+
+
+def read_outcomes(project: str = "", limit: int = 20) -> Dict[str, Any]:
+    """Read recorded outcomes from ~/.cortex/outcomes.jsonl.
+
+    This is the real outcome store written by feedback.OutcomeLogger
+    (OutcomeEntry schema: timestamp, recommendation_id, outcome, followed,
+    confidence, context, ...). The MCP cortex_outcomes tool used to import a
+    `v2.learning.outcomes` module that was never built; this handler points
+    it at the data that actually exists.
+
+    Filters by project (matched against the entry's `context.project`),
+    returns the most recent `limit` entries newest-first.
+    """
+    if not OUTCOMES_FILE.exists():
+        return {"outcomes": [], "total": 0}
+
+    entries: List[Dict[str, Any]] = []
+    for line in OUTCOMES_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    if project:
+        proj_lower = project.lower()
+        entries = [
+            e
+            for e in entries
+            if isinstance(e.get("context"), dict)
+            and str(e["context"].get("project", "")).lower() == proj_lower
+        ]
+
+    # Newest first by timestamp string (ISO-8601 sorts lexically).
+    entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
+    total = len(entries)
+    return {"outcomes": entries[: max(0, limit)], "total": total}
