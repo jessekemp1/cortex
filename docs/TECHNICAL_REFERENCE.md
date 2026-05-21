@@ -981,11 +981,8 @@ python cortex/bridge.py mine-anti-patterns --days 30 --dry-run
 ### Installation
 
 ```bash
-# Add to shell profile
-alias cortex='python3 /path/to/cortex/cli.py'
-
-# Or create symlink
-ln -s /path/to/cortex/cli.py /usr/local/bin/cortex
+# `pip install -e .` installs the `cortex` console script on your PATH.
+# No alias or symlink is needed — just run `cortex` after install.
 ```
 
 ### Command Overview
@@ -1304,7 +1301,7 @@ Add to Claude Code MCP configuration:
 # In .claude/hooks/
 cat > session_start.sh << 'EOF'
 #!/bin/bash
-python3 /path/to/cortex/cli.py briefing --format=json
+cortex briefing --format=json
 EOF
 chmod +x session_start.sh
 ```

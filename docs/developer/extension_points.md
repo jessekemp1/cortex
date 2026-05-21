@@ -100,7 +100,7 @@ class CortexBridge:
 **Add command to CLI**:
 
 ```python
-# In cli.py or bridge.py
+# In a module under cli/commands/
 def cmd_your_command(args):
     """Your command implementation"""
     bridge = CortexBridge()

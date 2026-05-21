@@ -125,3 +125,6 @@ docs/TESTING_FAILURE_ANALYSIS.md
 
 # Phase 0 — captured goldens are environment-specific
 goldens/
+
+# Live state written by work_absorber daemon — not source
+WORK_PROGRESS_REPORT.md

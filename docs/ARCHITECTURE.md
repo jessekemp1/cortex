@@ -19,9 +19,9 @@ Cortex is organized into four layers: Entry Points, Safety, Retrieval/Memory, an
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                         ENTRY POINTS                                    │ │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │ │
-│  │  │bridge.py │  │  cli.py  │  │briefing  │  │ plugins  │  │   API    │ │ │
-│  │  │(Universal│  │(Commands)│  │  .py     │  │ system   │  │endpoints │ │ │
-│  │  │Interface)│  │          │  │          │  │          │  │          │ │ │
+│  │  │mcp_server│  │  cli/    │  │bridge.py │  │briefing  │  │api/ shim │ │ │
+│  │  │(primary  │  │(commands)│  │(intellig.│  │  .py     │  │(optional │ │ │
+│  │  │ MCP)     │  │          │  │ backing) │  │          │  │ HTTP)    │ │ │
 │  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘ │ │
 │  └───────┼─────────────┼─────────────┼─────────────┼─────────────┼───────┘ │
 │          └─────────────┴─────────────┼─────────────┴─────────────┘         │

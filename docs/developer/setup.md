@@ -92,8 +92,9 @@ ruff check .
 ```
 cortex/
 ├── __init__.py              # Package initialization
-├── bridge.py                # Bridge API (unified interface)
-├── cli.py                   # Main CLI
+├── bridge.py                # CortexBridge class (intelligence backing)
+├── mcp_server.py            # MCP server — primary interface, in-process
+├── cli/                     # CLI package (commands/ + dispatcher)
 ├── portfolio_memory.py      # Portfolio memory
 ├── metrics_tracker.py       # Metrics tracking
 ├── orchestrator.py          # Core orchestration
