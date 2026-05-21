@@ -1169,6 +1169,8 @@ def cmd_doctor(args):
     checks.append(("ANTHROPIC_API_KEY set", key_set, "set" if key_set else "missing"))
     cortex_home = Path.home() / ".cortex"
     checks.append(("~/.cortex/ exists", cortex_home.exists(), str(cortex_home)))
+    # Bridge is optional infrastructure since Phase 5 — the MCP server and CLI
+    # run fully in-process. Report status but never fail the overall check.
     bridge_ok = False
     try:
         s = socket.create_connection(("127.0.0.1", 8765), timeout=1)
@@ -1176,7 +1178,13 @@ def cmd_doctor(args):
         bridge_ok = True
     except OSError:
         pass
-    checks.append(("bridge :8765 reachable", bridge_ok, "up" if bridge_ok else "not running"))
+    checks.append(
+        (
+            "bridge :8765 (optional)",
+            True,  # informational — never fails the overall check
+            "up" if bridge_ok else "down (optional — only needed by local agents)",
+        )
+    )
     all_pass = all(ok for _, ok, _ in checks)
     width = 44
     print(

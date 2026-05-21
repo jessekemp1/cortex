@@ -42,6 +42,15 @@ warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 fail() { echo -e "${RED}[x]${NC} $1"; exit 1; }
 info() { echo -e "${BLUE}[i]${NC} $1"; }
 
+# Portable in-place sed. GNU sed (Linux) and BSD sed (macOS) disagree on the
+# `-i` flag syntax; the temp-file form works on both, plus busybox.
+# Usage: sed_inplace <sed-expression> <file>
+sed_inplace() {
+    local expr="$1" file="$2" tmp
+    tmp="$(mktemp)" || fail "mktemp failed"
+    sed "$expr" "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
 # ─── Step 0: Prerequisites ────────────────────────────────────────────────────
 log "Checking prerequisites..."
 
@@ -155,8 +164,8 @@ else
     while true; do
         read -rp "  Enter ANTHROPIC_API_KEY (sk-ant-...): " INPUT_KEY || true
         if _key_is_real "${INPUT_KEY:-}"; then
-            sed -i '' "s|^# ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$INPUT_KEY|" "$CORTEX_DIR/.env"
-            sed -i '' "s|^ANTHROPIC_API_KEY=sk-ant-api03-YOUR_KEY_HERE|ANTHROPIC_API_KEY=$INPUT_KEY|" "$CORTEX_DIR/.env"
+            sed_inplace "s|^# ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$INPUT_KEY|" "$CORTEX_DIR/.env"
+            sed_inplace "s|^ANTHROPIC_API_KEY=sk-ant-api03-YOUR_KEY_HERE|ANTHROPIC_API_KEY=$INPUT_KEY|" "$CORTEX_DIR/.env"
             export ANTHROPIC_API_KEY="$INPUT_KEY"
             log "ANTHROPIC_API_KEY saved"
             break
@@ -174,7 +183,7 @@ if grep -q "CORTEX_ROOT_DIR=/path/to/your/projects" "$CORTEX_DIR/.env" 2>/dev/nu
     [ -t 0 ] && { read -rp "  Projects root directory [${DEV_DIR}]: " INPUT_ROOT || true; }
     INPUT_ROOT="${INPUT_ROOT/#\~/$HOME}"
     INPUT_ROOT="${INPUT_ROOT:-$DEV_DIR}"
-    sed -i '' "s|CORTEX_ROOT_DIR=.*|CORTEX_ROOT_DIR=$INPUT_ROOT|" "$CORTEX_DIR/.env"
+    sed_inplace "s|CORTEX_ROOT_DIR=.*|CORTEX_ROOT_DIR=$INPUT_ROOT|" "$CORTEX_DIR/.env"
     log "CORTEX_ROOT_DIR set to $INPUT_ROOT"
 else
     INPUT_ROOT=$(grep "^CORTEX_ROOT_DIR=" "$CORTEX_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "$DEV_DIR")
@@ -257,7 +266,7 @@ HOOKS_DIR="$DEV_DIR/.claude/hooks"
 if [ -d "$HOOKS_DIR" ]; then
     for hook in "$HOOKS_DIR"/*.py; do
         if grep -q 'REPO_ROOT.*=.*"/Users/' "$hook" 2>/dev/null; then
-            sed -i '' "s|REPO_ROOT.*=.*/Users/[^\"]*\"|REPO_ROOT = \"$DEV_DIR\"|g" "$hook"
+            sed_inplace "s|REPO_ROOT.*=.*/Users/[^\"]*\"|REPO_ROOT = \"$DEV_DIR\"|g" "$hook"
         fi
     done
     log "Claude Code hooks updated with correct REPO_ROOT"
