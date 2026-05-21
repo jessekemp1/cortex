@@ -2,8 +2,12 @@
 """
 Cortex MCP Server — Official MCP SDK over stdio.
 
-Exposes Cortex Bridge intelligence as MCP tools for Claude Code.
-Connects to bridge at :8765 via HTTP (no heavy imports).
+Exposes Cortex intelligence as MCP tools for Claude Code.
+
+Since Phase 5, every tool runs IN-PROCESS — no HTTP, no bridge daemon.
+Tools call either a lazy CortexBridge singleton (see _get_bridge) or the
+stdlib-only helpers in mcp_handlers.py / health_probe.py. The HTTP bridge
+at :8765 is optional infrastructure used only by local agents (Hermes).
 
 Tools (18 always-loaded):
   Core:
@@ -41,6 +45,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -58,6 +63,7 @@ mcp = FastMCP("cortex")
 # instantiate at module load. First MCP tool call pays the cost; subsequent
 # calls reuse the cached instance.
 _bridge_singleton = None
+_bridge_lock = threading.Lock()
 
 
 def _get_bridge():
@@ -68,12 +74,19 @@ def _get_bridge():
     and `cortex.bridge` produces two distinct module objects with distinct
     classes — a real-world hazard before Phase 5 standardized on the bare
     name (bridge.py adds CORTEX_ROOT to sys.path on import).
+
+    Thread-safe: FastMCP can dispatch tool calls concurrently. Without the
+    lock, two tools racing on a cold process could both see `None` and each
+    construct a CortexBridge — a 16s double-init plus two divergent instances.
+    Double-checked locking keeps the hot path lock-free after warm-up.
     """
     global _bridge_singleton
     if _bridge_singleton is None:
-        from bridge import CortexBridge  # noqa: WPS433  type: ignore
+        with _bridge_lock:
+            if _bridge_singleton is None:
+                from bridge import CortexBridge  # noqa: WPS433  type: ignore
 
-        _bridge_singleton = CortexBridge()
+                _bridge_singleton = CortexBridge()
     return _bridge_singleton
 
 
@@ -597,7 +610,9 @@ def cortex_doctor() -> str:
         }
     )
 
-    # Bridge
+    # Bridge — INFORMATIONAL ONLY. Since Phase 5 the MCP server runs fully
+    # in-process; the HTTP bridge is optional infrastructure used only by
+    # local agents (Hermes). "down" is not a failure for MCP users.
     bridge_up = False
     try:
         s = socket.create_connection(("127.0.0.1", 8765), timeout=1)
@@ -607,9 +622,9 @@ def cortex_doctor() -> str:
         pass
     checks.append(
         {
-            "check": "bridge :8765 reachable",
-            "pass": bridge_up,
-            "detail": "up" if bridge_up else "down",
+            "check": "bridge :8765 reachable (optional)",
+            "pass": True,  # informational — never fails the overall check
+            "detail": "up" if bridge_up else "down (optional — only needed by Hermes)",
         }
     )
 

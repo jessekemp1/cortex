@@ -102,6 +102,39 @@ def test_get_bridge_singleton_caches():
     assert first is second is third, "Singleton must be cached — three calls produced different objects"
 
 
+def test_get_bridge_is_thread_safe():
+    """Concurrent first-callers must all receive the SAME CortexBridge.
+
+    FastMCP can dispatch tool calls on multiple threads. Without the lock in
+    _get_bridge, a cold-start race could construct two CortexBridge instances.
+    This test resets the singleton and hammers _get_bridge from many threads.
+    """
+    import threading
+
+    import mcp_server
+
+    mcp_server._bridge_singleton = None
+
+    results: list = []
+    barrier = threading.Barrier(12)
+
+    def worker():
+        barrier.wait()  # maximize the race — all threads hit _get_bridge together
+        results.append(mcp_server._get_bridge())
+
+    threads = [threading.Thread(target=worker) for _ in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(results) == 12
+    assert all(r is results[0] for r in results), (
+        "Concurrent _get_bridge calls produced more than one instance — "
+        "the double-checked lock is not working"
+    )
+
+
 def test_get_bridge_not_called_at_import():
     """Importing mcp_server must not eagerly instantiate CortexBridge."""
     import importlib

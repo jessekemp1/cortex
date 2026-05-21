@@ -266,6 +266,10 @@ Cortex exposes a Model Context Protocol server so Claude Desktop and compatible 
 
 Once registered, Claude can call `cortex_intelligence`, `cortex_recommendations`, and `cortex_anomalies` without prompt engineering on your end.
 
+All 18 MCP tools run **in-process** — no background server, no HTTP daemon. The
+optional FastAPI bridge (`pip install -e ".[server]"`) is only needed by local
+agents that consume Cortex over HTTP; MCP clients never require it.
+
 ---
 
 ## Comparison with Alternatives
@@ -307,8 +311,8 @@ All data is local by default. Nothing leaves your machine unless you configure a
 ```bash
 git clone https://github.com/jessekemp1/cortex
 cd cortex
-pip install -e .            # core only
-pip install -e ".[server]"  # + FastAPI server (uvicorn, apscheduler)
+pip install -e .            # core only — MCP server + CLI, all in-process
+pip install -e ".[server]"  # + optional HTTP bridge (uvicorn) for local agents
 pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
 ```
 

@@ -55,17 +55,11 @@ Cortex talks to Claude Code through MCP. Update `.mcp.json` at your Dev root:
 
 Replace `YOUR_USER` with your actual username. Claude Code will pick this up on next restart.
 
-## Start the Bridge (For Intelligence Queries)
+## No Bridge Needed
 
-Basic commands (`status`, `onboard`, `doctor`) work immediately. For intelligence queries and MCP tools, start the bridge server:
-
-```bash
-# Start bridge in background (runs on :8765)
-python api/bridge_endpoint.py &
-
-# Verify
-curl -s http://127.0.0.1:8765/health | python3 -m json.tool
-```
+The MCP server runs fully in-process — all 18 tools work without starting any
+background server. (The optional HTTP bridge at `:8765` exists only for local
+agents like Hermes; MCP users can ignore it.)
 
 ## First Session (Verify It Works)
 
@@ -73,14 +67,14 @@ curl -s http://127.0.0.1:8765/health | python3 -m json.tool
 # 1. Status — shows your context
 cortex status
 
-# 2. Query intelligence (requires bridge running)
+# 2. Query intelligence
 cortex intelligence "What are the key gotchas in this codebase?"
 
 # 3. Daily briefing
 cortex briefing
 ```
 
-In Claude Code, you'll now have 18 MCP tools: `cortex_intelligence`, `cortex_recommendations`, `cortex_anomalies`, `cortex_doctor`, and more.
+In Claude Code, you'll now have 18 MCP tools: `cortex_intelligence`, `cortex_recommendations`, `cortex_anomalies`, `cortex_doctor`, and more — all served in-process.
 
 ## What to Expect
 
