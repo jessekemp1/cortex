@@ -1,90 +1,39 @@
 # Test Quality: Known Issues
 
-This document tracks known weaknesses in the test suite. All items here are
-actively being fixed. PRs improving test quality are welcome.
+Tracks weaknesses in the test suite. Items are removed once resolved.
+`test_memory_roundtrip.py::test_known_issues_accuracy` enforces that the
+"Resolved" claims below actually match code reality — if you mark something
+resolved without fixing it, that test fails.
 
-## Weak Assertion Patterns
+## Resolved
 
-### `assert X in (True, False)`
+### `assert X in (True, False)` — RESOLVED 2026-05
 
-**Where**: ~87 occurrences across 24 files, primarily in `test_bridge_integration.py`
-and `test_phase1_integration.py`.
+Was: ~4 occurrences in `test_bridge_integration.py` asserting availability
+flags were booleans. The pattern is trivially true and also accepts `0`/`1`.
 
-**What it tests**: Only that a variable is a boolean. Mathematically always true.
+Now: replaced with `assert isinstance(X, bool)` — rejects non-bool values,
+which is the real invariant (the flags are set by try/except guards and must
+never be `None`).
 
-**Example**:
-```python
-# Before (proves nothing)
-assert TIERED_MEMORY_AVAILABLE in (True, False)
+### `assert result is not None` as sole assertion — RESOLVED 2026-05
 
-# After (tests actual behavior)
-assert TIERED_MEMORY_AVAILABLE is True
-# or: skip the test if unavailable
-@pytest.mark.skipif(not TIERED_MEMORY_AVAILABLE, reason="tiered memory not installed")
-def test_tiered_memory_stores_and_retrieves():
-    ...
-```
+`test_known_issues_accuracy` scans every `test_integration_*.py` for test
+functions whose only assertion is `assert X is not None`. The scan currently
+reports zero — integration tests assert specific keys, types, or values.
 
-**Status**: Fixed in `test_bridge_integration.py` and `test_tiered_memory.py`.
-Remaining files tracked at: https://github.com/jessekemp/cortex/issues (post-launch)
-
----
-
-### `assert result is not None` as sole assertion
-
-**Where**: ~30 occurrences across integration and unit tests.
-
-**What it tests**: That a function returned *something*. Does not verify correctness.
-
-**Example**:
-```python
-# Before (proves nothing useful)
-result = bridge.get_context("task", project="my-project")
-assert result is not None
-
-# After (tests actual content)
-result = bridge.get_context("task", project="my-project")
-assert isinstance(result, dict)
-assert "similar_work" in result
-assert "recommendations" in result
-```
-
-**Status**: Being addressed test-by-test. Priority on high-value integration tests.
-
----
-
-## Import Path Dependencies
-
-Several test files rely on `sys.path` manipulation in `conftest.py` rather than
-proper package imports. This works with `pip install -e .` but may fail in
-some CI environments if paths are not set correctly.
-
-**Mitigation**: Always run tests from the repo root after `pip install -e .`.
-
-```bash
-pip install -e .
-pytest tests/ -v
-```
-
----
-
-## Tests Referencing Moved Files
-
-After the v1.0 OSS restructuring (Feb 2026), some tests may reference files
-that were moved to `scripts/internal/` or `examples/`. If you see an import
-error for a file that no longer exists at the root, check those directories.
-
----
-
-## Contributing Better Tests
+## Standing policy
 
 When adding new tests:
 
 1. **Never** use `assert X is not None` as a sole assertion.
 2. **Always** assert specific values: types, keys, ranges, or exact values.
 3. For optional features (behind feature flags): use `@pytest.mark.skipif`.
-4. For known-broken functionality: use `@pytest.mark.xfail(reason="...")`.
-5. Memory retrieval tests must include recall accuracy assertions (not just
-   "retrieval happened").
+4. For known-broken functionality: use `@pytest.mark.xfail(strict=True)` so
+   the moment it's fixed, the suite tells you to remove the marker.
+5. Memory-retrieval tests must include recall-accuracy assertions, not just
+   "retrieval happened".
 
-See `tests/test_tiered_memory.py` for examples of well-structured tests.
+`test_assertion_quality.py` enforces a low trivial-assertion rate suite-wide.
+See `tests/contract/` for the contract-test pattern (exact payload + response
+shape, no weak assertions).

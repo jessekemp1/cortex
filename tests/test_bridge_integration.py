@@ -35,30 +35,29 @@ class TestBridgeImports:
     """Test that AI Engineering imports work correctly."""
 
     def test_tiered_memory_import(self):
-        """TieredMemory imports with availability flag."""
+        """TIERED_MEMORY_AVAILABLE must be a genuine bool set by the
+        try/except guard in bridge.py — never None or a truthy object."""
         from cortex.bridge import TIERED_MEMORY_AVAILABLE
 
-        # Should be importable (may be None if deps missing)
-        assert TIERED_MEMORY_AVAILABLE in (True, False)
+        assert isinstance(TIERED_MEMORY_AVAILABLE, bool)
 
     def test_hybrid_retriever_import(self):
-        """HybridRetriever imports with availability flag."""
+        """HYBRID_RETRIEVER_AVAILABLE must be a genuine bool."""
         from cortex.bridge import HYBRID_RETRIEVER_AVAILABLE
 
-        # Should be importable (may be None if deps missing)
-        assert HYBRID_RETRIEVER_AVAILABLE in (True, False)
+        assert isinstance(HYBRID_RETRIEVER_AVAILABLE, bool)
 
     def test_context_optimizer_import(self):
-        """ContextOptimizer imports with availability flag."""
+        """CONTEXT_OPTIMIZER_AVAILABLE must be a genuine bool."""
         from cortex.bridge import CONTEXT_OPTIMIZER_AVAILABLE
 
-        assert CONTEXT_OPTIMIZER_AVAILABLE in (True, False)
+        assert isinstance(CONTEXT_OPTIMIZER_AVAILABLE, bool)
 
     def test_implicit_feedback_import(self):
-        """ImplicitFeedbackCollector imports with availability flag."""
+        """IMPLICIT_FEEDBACK_AVAILABLE must be a genuine bool."""
         from cortex.bridge import IMPLICIT_FEEDBACK_AVAILABLE
 
-        assert IMPLICIT_FEEDBACK_AVAILABLE in (True, False)
+        assert isinstance(IMPLICIT_FEEDBACK_AVAILABLE, bool)
 
 
 class TestBridgeInitialization:

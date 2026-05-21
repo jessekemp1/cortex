@@ -253,10 +253,6 @@ def test_anti_pattern_mechanism_implemented():
 # ── TEST 4: KNOWN_ISSUES.md Accuracy ────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN_ISSUES.md contains 'Fixed' claims that contradict code reality",
-)
 def test_known_issues_accuracy():
     """
     WHY: KNOWN_ISSUES.md claims certain patterns are 'Fixed' in specific files.
