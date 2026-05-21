@@ -522,6 +522,74 @@ class CortexMemoryBackend:
 | **Cross-repo transfer** (memory sharing across repos) | P2 | 2 weeks | Portfolio value |
 | **CRA self-improvement** (research agent learns what to scan) | P3 | 1 week | Meta-learning |
 
+#### Phase 6: Batch Subsystem Redesign — Local-First Tiered Routing
+
+**Context.** The `batch/` subsystem was 17,994 LOC built around one strategy:
+keep the Anthropic Batch API queue permanently full ("the flywheel"). For a
+solo dev / small-portfolio user this is over-built — 5 competing orchestrators,
+a daemon that *invents* work to fill the queue, and a large fraction of "batch
+intelligence" that is actually mechanical data-processing wrongly routed
+through a paid async API. A first gut removed 3,227 LOC of verified-dead code
+(deprecated/, 2 orphan orchestrators, weather cruft) — batch/ is now 14,764
+LOC. The remaining redesign replaces "always-full cloud queue" with a
+**local-first, 4-tier router** that escalates to Claude only when the task
+genuinely needs it.
+
+| Item | Priority | Effort | Impact |
+|------|----------|--------|--------|
+| **Step 1 — Tier 0 reclassification** (pull mechanical work off the API) | P1 | 3-4 days | High — removes 40-60% of batch volume; free, instant, robust |
+| **Step 2 — Unify 3 orchestrators → one `BatchOrchestrator`** | P1 | 1 week | High — migrate ~8 callers; deletes ~5-6K LOC + optimizer trio |
+| **Step 3 — Delete the flywheel daemon** (after `frontier_scout` migrated) | P2 | 1 day | Medium — kills the make-work loop + a macOS-only daemon |
+| **Step 4 — Build the 4-tier router** (extend `routing_framework.py`) | P1 | 3-4 days | High — the new decision brain; ~300-500 LOC |
+| **Step 5 — Add Ollama Tier 1** (optional, degrades to Tier 2) | P2 | 3-4 days | Medium — free local LLM for bulk summarization |
+
+**The 4-tier router (routing by task stakes, local-first default):**
+
+| Tier | Engine | Work | Cost |
+|------|--------|------|------|
+| 0 | Local, no LLM | Pattern extraction, dedup, scoring, scans | Free, instant |
+| 1 | Local LLM (Ollama) | Bulk summarization, triage, draft briefings | Free, minutes |
+| 2 | Claude Batch API | Real reasoning, non-urgent | 50% off, async |
+| 3 | Claude real-time | Interactive / in-session (MCP tools) | Full price |
+
+```python
+# Extend batch/routing_framework.py from 2-way (interactive|batch) to 4-tier.
+# Default to the lowest tier that can do the job; escalate, never default high.
+class TieredRouter:
+    def route(self, task: BatchTask) -> Tier:
+        if task.is_mechanical:          # no LLM needed at all
+            return Tier.LOCAL_COMPUTE  # Tier 0
+        if task.quality_tolerant and self.ollama_available:
+            return Tier.LOCAL_LLM      # Tier 1
+        if not task.time_sensitive:
+            return Tier.CLAUDE_BATCH   # Tier 2 — 50% off
+        return Tier.CLAUDE_REALTIME    # Tier 3
+```
+
+**Sequencing rules:**
+- Step 1 first — highest ROI, lowest risk, no caller migration (just stop
+  routing data-processing through Claude).
+- Step 2 is gated by the contract suite — migrate one caller at a time
+  (`briefing.py`, `cli/v2_ops.py`, `cli/system.py`, `cli/batch.py`,
+  `engines/frontier_scout.py`, `orchestration/models.py`, `health/monitor.py`,
+  `batch/overnight_queue.py`), run `pytest tests/contract/` + `smoke_mcp.py`
+  between each.
+- Step 5 (Ollama) must be **optional** — if no local model is reachable, the
+  router degrades Tier 1 → Tier 2. Never make local a hard dependency
+  (a CPU-only Hetzner VM runs 8B models slowly).
+
+**Why this is more robust:** removes the hard dependency on Batch-API uptime /
+network / API key for the bulk path; overnight work runs offline on the box;
+no "queue stuck for 24h" failure mode; Claude becomes an escalation, not a
+single point of failure. Cost becomes bounded — local is free, you pay Claude
+only for the escalated high-stakes slice.
+
+**Success criteria:** `batch/` ≤ 4,000 LOC (from 17,994). One orchestrator,
+not five. Zero "invent work to fill the queue" code. Tier 0 work makes zero
+API calls. The router degrades cleanly with no Ollama and no Batch API
+(everything still completes, just at a higher tier or on-demand).
+
+
 ---
 
 ### Research Papers to Track (Priority Queue)
