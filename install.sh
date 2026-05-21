@@ -77,7 +77,6 @@ fi
 log "Python $PYTHON_VERSION OK"
 
 command -v git >/dev/null 2>&1 || fail "git not found. Install via Xcode CLT: xcode-select --install"
-command -v node >/dev/null 2>&1 || warn "node not found — site dashboard will not work (optional)"
 
 # ─── Step 1: Virtual environment ─────────────────────────────────────────────
 if [ ! -f "$VENV/bin/python" ]; then
@@ -213,18 +212,7 @@ for profile in "$HOME_DIR/.zprofile" "$HOME_DIR/.zshrc" "$HOME_DIR/.bash_profile
 done
 export PATH="$LOCAL_BIN:$PATH"
 
-# ─── Step 5: Site dashboard ──────────────────────────────────────────────────
-if [ -f "$CORTEX_DIR/site/package.json" ] && command -v npm >/dev/null 2>&1; then
-    if [ ! -d "$CORTEX_DIR/site/node_modules" ]; then
-        log "Installing site dashboard dependencies..."
-        cd "$CORTEX_DIR/site" && npm install --silent 2>/dev/null
-        cd "$CORTEX_DIR"
-    else
-        log "Site dashboard node_modules already present"
-    fi
-fi
-
-# ─── Step 6: LaunchAgents (macOS only) ──────────────────────────────────────
+# ─── Step 5: LaunchAgents (macOS only) ──────────────────────────────────────
 if [ "$(uname)" = "Darwin" ]; then
     echo ""
     info "Background agents run nightly analysis, batch jobs, and session monitoring."
@@ -264,7 +252,7 @@ if [ "$(uname)" = "Darwin" ]; then
     fi
 fi
 
-# ─── Step 7: Fix Claude Code hooks REPO_ROOT (if present) ───────────────────
+# ─── Step 6: Fix Claude Code hooks REPO_ROOT (if present) ───────────────────
 HOOKS_DIR="$DEV_DIR/.claude/hooks"
 if [ -d "$HOOKS_DIR" ]; then
     for hook in "$HOOKS_DIR"/*.py; do
@@ -275,7 +263,7 @@ if [ -d "$HOOKS_DIR" ]; then
     log "Claude Code hooks updated with correct REPO_ROOT"
 fi
 
-# ─── Step 8: Verify ──────────────────────────────────────────────────────────
+# ─── Step 7: Verify ──────────────────────────────────────────────────────────
 echo ""
 echo "╔════════════════════════════════════════╗"
 echo "║      CORTEX INSTALL VERIFICATION       ║"
@@ -306,9 +294,6 @@ fi
 "$VENV/bin/python" -m cli health 2>&1 | grep -q "All Systems Operational" \
     && echo "  ✅ cortex health: all systems operational" \
     || echo "  ⚠️  cortex health: some systems degraded"
-[ -d "$CORTEX_DIR/site/node_modules" ] \
-    && echo "  ✅ site dashboard ready" \
-    || echo "  ⚠️  site dashboard not set up (optional)"
 
 echo ""
 log "Install complete."
@@ -319,7 +304,7 @@ fi
 echo "  Run: cortex status"
 echo ""
 
-# ─── Step 9: Onboard ─────────────────────────────────────────────────────────
+# ─── Step 8: Onboard ─────────────────────────────────────────────────────────
 if [ -n "${INPUT_ROOT:-}" ] && [ -d "${INPUT_ROOT:-}" ]; then
     echo ""
     info "cortex onboard scans $INPUT_ROOT, detects projects, and seeds memory."

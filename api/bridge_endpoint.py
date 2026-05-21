@@ -136,14 +136,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Mount web chat gateway
-try:
-    from cortex_extras.gateway.web_chat import router as chat_router
-
-    app.include_router(chat_router)
-except ImportError:
-    pass  # gateway module not available
-
 # CORS - Allow Moltbot, React frontend, and localhost
 app.add_middleware(
     CORSMiddleware,

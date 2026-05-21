@@ -17,11 +17,14 @@ temporarily so that:
 |---|---|---|---|
 | `synthetic/` | ~16,000 | `cortex-synthetic` | Used by bridge via optional import; 2 core sites updated |
 | `cortexdbx/` | ~1,900 | `cortex-databricks` | Self-contained, zero core imports |
-| `gateway/` | ~1,500 | `cortex-gateway` | Used by `api/bridge_endpoint.py` optional mount; 1 site updated |
 | `mvp/` | ~1,100 | `cortex-dashboard` | Self-contained Streamlit dashboard |
 | `plugins/` | ~2,900 | `cortex-plugins` | Loader+registry exist but CLI never wires them |
 | `tui/` | ~700 | `cortex-tui` | Used by `cli/commands/compact.py` optional code path; 1 site updated |
 | `lean/` | ~800 | (delete) | Per-ROADMAP research artifact, zero importers |
+
+Note: `gateway/` (telegram bot + web chat) was moved to `archive/gateway/`
+when the UI surfaces were archived — the bridge now serves only local
+agents (Hermes).
 
 ## Migrating an item to its sibling repo
 
@@ -45,7 +48,6 @@ After Phase 3 (this move):
 
 - `bridge.py:146-147` — `from cortex_extras.synthetic.generator/.schemas import ...`
 - `bridge_intelligence.py:45-46` — same
-- `api/bridge_endpoint.py:172` — `from cortex_extras.gateway.web_chat import router`
 - `cli/commands/compact.py:21` — `from cortex_extras.tui.data import ...`
 
-All four are wrapped in try/except so a missing extra degrades gracefully.
+All are wrapped in try/except so a missing extra degrades gracefully.

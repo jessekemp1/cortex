@@ -78,10 +78,9 @@ EXPECTED_ENDPOINTS = {
     ("GET", "/docs"),
     ("GET", "/docs/oauth2-redirect"),
     ("GET", "/redoc"),
-    # Web chat router (mounted from cortex_extras/gateway/web_chat.py)
-    ("GET", "/chat"),
-    ("GET", "/chat/manifest.json"),
-    "/ws/chat",  # WebSocket route, no HTTP method
+    # NOTE: the web-chat router (/chat, /ws/chat) was removed when the UI
+    # surfaces were archived (archive/gateway/). The bridge now serves only
+    # local agents (Hermes) + monitoring probes.
     # Root + liveness
     ("GET", "/"),
     ("GET", "/health"),
