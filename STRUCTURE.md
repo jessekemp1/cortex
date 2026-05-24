@@ -42,9 +42,6 @@ cortex/
 │
 ├── batch/                  # Async batch infrastructure (Phase 6 redesign planned)
 ├── engines/, supervisor/   # Orchestration + research agent
-├── cortex_extras/          # Subsystems staged for extraction to sibling repos
-│   │                       #   (synthetic, cortexdbx, mvp, plugins, tui, lean)
-├── archive/                # Frozen code — not built/tested (site UI, gateway)
 │
 ├── tests/
 │   ├── contract/           # MCP-tool + bridge-endpoint contract tests

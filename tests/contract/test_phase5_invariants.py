@@ -79,8 +79,8 @@ EXPECTED_ENDPOINTS = {
     ("GET", "/docs/oauth2-redirect"),
     ("GET", "/redoc"),
     # NOTE: the web-chat router (/chat, /ws/chat) was removed when the UI
-    # surfaces were archived (archive/gateway/). The bridge now serves only
-    # local agents (Hermes) + monitoring probes.
+    # surfaces (vite dashboard + gateway) were removed from the beta tree.
+    # The bridge now serves only local agents (Hermes) + monitoring probes.
     # Root + liveness
     ("GET", "/"),
     ("GET", "/health"),

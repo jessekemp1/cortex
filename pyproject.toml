@@ -74,7 +74,7 @@ Homepage = "https://github.com/jessekemp1/cortex"
 Repository = "https://github.com/jessekemp1/cortex"
 
 [tool.setuptools]
-py-modules = ["bridge", "bridge_intelligence", "bridge_system", "orchestrator", "formatter", "briefing", "feedback", "goal_parser", "learning", "mcp_server", "mcp_handlers", "health_probe"]
+py-modules = ["bridge", "bridge_intelligence", "bridge_system", "orchestrator", "formatter", "briefing", "feedback", "goal_parser", "learning", "mcp_server", "mcp_handlers", "health_probe", "compact_data"]
 
 [tool.setuptools.packages.find]
 exclude = [
@@ -102,7 +102,6 @@ exclude = [
     "automation*",
     "v2*",
     "v21*",
-    "archive*",
 ]
 
 [tool.pytest.ini_options]

@@ -141,10 +141,11 @@ try:
 except ImportError:
     load_config = None
 
-# Synthetic Data Engine
+# Synthetic Data Engine — optional. The synthetic subsystem was removed from
+# the beta tree; it can return as the `cortex-synthetic` sibling package.
 try:
-    from cortex_extras.synthetic.generator import SyntheticGenerator
-    from cortex_extras.synthetic.schemas import GenerationRequest
+    from cortex_synthetic.generator import SyntheticGenerator  # type: ignore
+    from cortex_synthetic.schemas import GenerationRequest  # type: ignore
 
     SYNTHETIC_AVAILABLE = True
 except ImportError:
