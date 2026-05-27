@@ -5,7 +5,8 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1342%2B%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2361%2B%20passing-green.svg)](tests/)
+[![Version](https://img.shields.io/badge/version-v0.3.3-blue.svg)](https://github.com/jessekemp1/cortex/releases/tag/v0.3.3)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
@@ -75,7 +76,7 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 |---|---|
 | **Three-tier memory** | Working (session) → episodic (past events) → semantic with hybrid BM25 + embedding retrieval |
 | **Anti-pattern database** | Stores learned mistakes with prevention context. Surfaces them on relevant queries. |
-| **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by complexity. Learns from outcome data to adjust selection. |
+| **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by complexity. Short prompts (<800 tokens) auto-downgrade to haiku. Learns from outcome data to adjust selection. |
 | **Goal-to-task pipeline** | Parses GOALS.md into prioritized work items. Discovers tasks from multiple sources. |
 | **Interaction capture** | Hooks capture prompts, tool outcomes, and session patterns. Derives implicit feedback signals (corrections, approvals, failure rates). |
 
@@ -322,7 +323,7 @@ pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
 pytest tests/ -v
 ```
 
-1342+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+2361+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
 
 ---
 
