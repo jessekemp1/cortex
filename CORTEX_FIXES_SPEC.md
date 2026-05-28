@@ -1,4 +1,4 @@
-z# Cortex Gap Analysis & Fix Spec
+# Cortex Gap Analysis & Fix Spec
 _Assessed 2026-05-13 against cortex-dbx (E2E tested baseline)_
 
 ## Executive Summary
