@@ -34,8 +34,8 @@ produces about a 50% reduction in API spend compared to routing everything to th
 largest model.
 
 The system has 2,361 passing tests across unit, integration, and end-to-end
-suites. The architecture is covered in a 9-page preprint if you want the full
-technical treatment.
+suites. The architecture is covered in a 9-page preprint [1] if you want the
+full technical treatment.
 
 There are two direct comparisons worth being honest about. Mem0 (49K stars) is
 the established player in agent memory — it's general-purpose and has a large
@@ -53,6 +53,8 @@ protocol level), and it's not a hosted service. Everything lives in ~/.cortex/
 and nothing leaves your machine unless you configure an external backend.
 
 It's Apache 2.0. The repo is at https://github.com/jessekemp1/cortex.
+
+[1] https://github.com/jessekemp1/cortex/blob/main/docs/cortex_paper.pdf
 
 The feedback I'd most value from this audience: (1) If you've tried to build or
 use agent memory systems before, where did the friction actually come from? My
