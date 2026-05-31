@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-2361%2B%20passing-green.svg)](tests/)
-[![Version](https://img.shields.io/badge/version-v0.3.3-blue.svg)](https://github.com/jessekemp1/cortex/releases/tag/v0.3.3)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jessekemp1/cortex/releases)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 ---
@@ -237,15 +237,12 @@ cortex intelligence "<query>"             # query the intelligence system
 cortex learn                              # show learning metrics and patterns
 
 # Portfolio (multi-project)
-python bridge.py portfolio stats          # cross-project statistics
-python bridge.py portfolio patterns       # cross-project patterns
-python bridge.py portfolio lessons        # lessons learned
+cortex portfolio patterns                 # cross-project patterns
+cortex portfolio patterns --switching-cost  # incl. switching-cost analysis
 
 # Dependency analysis
-python bridge.py deps <project>           # dependency graph
-python bridge.py deps-health <project>    # health score
-python bridge.py deps-circular <project>  # circular dependency detection
-python bridge.py deps-graph <project> mermaid  # visual export
+cortex deps <project>                     # dependency graph
+cortex deps <project> --cross-project     # cross-project dependencies
 ```
 
 ---
