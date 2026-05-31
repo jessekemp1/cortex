@@ -548,6 +548,13 @@ Deep Mode (Phase 1):
         func=cmd_doctor
     )
 
+    # `cortex demo` — self-contained 30s proof of the prompt→outcome FK loop.
+    from cli.commands.demo import cmd_demo
+
+    subparsers.add_parser(
+        "demo", help="30-second proof of the prompt→outcome FK loop (no API key)"
+    ).set_defaults(func=cmd_demo)
+
     # ── complex nested commands (delegated to register_* helpers) ─────────────
     register_process_cmds(subparsers)
     register_batch_local_cmds(subparsers)

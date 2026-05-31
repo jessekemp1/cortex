@@ -3,8 +3,25 @@
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
+
+
+def require_api_key() -> None:
+    """Pre-flight: exit 2 with actionable message if ANTHROPIC_API_KEY is unset.
+
+    Use at the top of any command that issues an Anthropic API call. Without
+    this, commands hang silently when the key is missing — the most common
+    first-failure mode for new users.
+    """
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.stderr.write(
+            "ERROR: ANTHROPIC_API_KEY is not set.\n"
+            "  Set it with:  export ANTHROPIC_API_KEY=sk-ant-...\n"
+            "  Diagnose:     cortex doctor\n"
+        )
+        sys.exit(2)
 
 try:
     from ai_intelligence import ProjectScanner

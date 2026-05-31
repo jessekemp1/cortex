@@ -17,9 +17,11 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+import os
+
 CORTEX_DIR = Path.home() / ".cortex"
 CLAUDE_DIR = Path.home() / ".claude"
-REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+REPO_ROOT = Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
 METRICS_DIR = CORTEX_DIR / "metrics"
 OUTPUT_FILE = METRICS_DIR / "self_audit.json"
 

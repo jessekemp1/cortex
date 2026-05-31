@@ -56,7 +56,7 @@ echo "" | tee -a "$REPORT_LOG"
 # Recent improvements
 echo "🎯 Recent Improvements:" | tee -a "$REPORT_LOG"
 
-VORTEX_CONFIG="/Users/jesse.kemp/Dev/Vortex/VortexV2/data/validation/production_config.json"
+VORTEX_CONFIG="${VORTEX_CONFIG:-$HOME/Dev/Vortex/VortexV2/data/validation/production_config.json}"
 if [ -f "$VORTEX_CONFIG" ]; then
     echo "  VortexV2 Production Config:" | tee -a "$REPORT_LOG"
     MOD_TIME=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$VORTEX_CONFIG" 2>/dev/null || echo "Unknown")
@@ -67,7 +67,7 @@ if [ -f "$VORTEX_CONFIG" ]; then
 import json
 from pathlib import Path
 
-config_file = Path("/Users/jesse.kemp/Dev/Vortex/VortexV2/data/validation/production_config.json")
+config_file = Path("${VORTEX_CONFIG:-$HOME/Dev/Vortex/VortexV2/data/validation/production_config.json}")
 if config_file.exists():
     try:
         config = json.loads(config_file.read_text())

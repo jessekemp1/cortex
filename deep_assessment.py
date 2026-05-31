@@ -26,10 +26,14 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+import os
+
+REPO_ROOT = Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
 CORTEX_DIR = Path.home() / ".cortex"
 CLAUDE_DIR = Path.home() / ".claude"
-MEMORY_DIR = CLAUDE_DIR / "projects" / "-Users-jesse-kemp-Dev" / "memory"
+# Derive Claude's projects-dir key from REPO_ROOT (Claude encodes the path
+# with slashes replaced by dashes, e.g. /Users/foo/Dev -> -Users-foo-Dev).
+MEMORY_DIR = CLAUDE_DIR / "projects" / (f"-{str(REPO_ROOT).replace('/', '-').lstrip('-')}") / "memory"
 GOALS_FILE = REPO_ROOT / "GOALS.md"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 MEMORY_MD = MEMORY_DIR / "MEMORY.md"

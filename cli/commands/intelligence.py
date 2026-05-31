@@ -180,6 +180,10 @@ def cmd_config(args):
 
 def cmd_intelligence(args):
     """Query Cortex intelligence for context, patterns, and recommendations."""
+    from cli.commands._helpers import require_api_key
+
+    require_api_key()
+
     try:
         from bridge import CortexBridge
     except ImportError:

@@ -30,7 +30,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+import os
+
+REPO_ROOT = Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
 GOALS_FILE = REPO_ROOT / "GOALS.md"
 
 MONTH_MAP = {

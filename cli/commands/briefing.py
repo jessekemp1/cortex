@@ -26,7 +26,9 @@ except ImportError:
 
 def cmd_briefing(args):
     """Generate and display daily briefing."""
-    from cli.commands._helpers import _apply_signal_gate_to_briefing
+    from cli.commands._helpers import _apply_signal_gate_to_briefing, require_api_key
+
+    require_api_key()
 
     # Handle --portfolio flag
     if getattr(args, "portfolio", False):
