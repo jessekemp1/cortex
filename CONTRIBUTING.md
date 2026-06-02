@@ -36,7 +36,7 @@ If `pytest --collect-only` reports errors, that's a release blocker — file an 
 
 - Bugs → use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml). Include `cortex doctor` output and the commit SHA you saw the bug on (`git rev-parse HEAD`).
 - Feature requests → use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml). Check `ROADMAP.md` first.
-- Audit findings / depth-probe critique → especially welcome. See `SHIP_PUNCHLIST.md` for what's already known.
+- Audit findings / depth-probe critique → especially welcome. See `docs/AUDIT_FINDINGS.md` for what the maintainer has already found and resolved.
 
 ## Where to start reading
 
@@ -46,7 +46,8 @@ If `pytest --collect-only` reports errors, that's a release blocker — file an 
 | Run the 30-second proof | `cortex demo` (then `cli/commands/demo.py`) |
 | Understand the FK loop | `intelligence/outcome_linker.py` (≤ 130 LOC) |
 | Understand routing | `supervisor/router.py` |
-| Understand the audit posture | `SHIP_PUNCHLIST.md`, `CORTEX_VERIFICATION_*.md` |
+| Understand the audit posture (what was probed, what was fixed) | `docs/AUDIT_FINDINGS.md` |
+| Understand release history | `CHANGELOG.md` |
 | Understand strategy | `ROADMAP.md` |
 
 ## Style
@@ -60,4 +61,4 @@ If `pytest --collect-only` reports errors, that's a release blocker — file an 
 
 If the README claims something the code doesn't do, the README is the bug. File the issue against the docs.
 
-Cortex's principal author runs an adversarial audit of the public repo periodically (see `SHIP_PUNCHLIST.md` for the most recent). External findings that lower the next audit's score are particularly appreciated.
+Cortex's principal author runs an adversarial audit of the public repo periodically (see `docs/AUDIT_FINDINGS.md` for the most recent). External findings that lower the next audit's score are particularly appreciated.

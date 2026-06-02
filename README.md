@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2361%2B%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1855%20passing-green.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jessekemp1/cortex/releases)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
@@ -87,16 +87,30 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 ```bash
 # 1. Install from source
 git clone https://github.com/jessekemp1/cortex && cd cortex
-pip install -e .
+pip install -e ".[server]"
 
-# 2. Set your API key (required for intelligence features)
-export ANTHROPIC_API_KEY=sk-...
-
-# 3. Try it out
-cortex status                              # see current session context
-cortex intelligence "What should I work on next?"   # query the intelligence system
-cortex briefing                            # daily context briefing
+# 2. Run the 30-second proof — NO API key, NO network
+cortex demo
 ```
+
+The demo synthesizes 5 prompts and 3 commits, runs the real `outcome_linker`
+against them, and prints the FK trail with computed scores. If you see three
+linked entries with `score 0.80`, the compounding-intelligence claim is live
+in your install. This is the falsifiable headline artifact — try it before
+you trust anything else here.
+
+```bash
+# 3. For the LLM-backed surface, set your key
+export ANTHROPIC_API_KEY=sk-ant-...
+
+cortex doctor                              # full environment health check
+cortex status                              # see current session context
+cortex briefing                            # daily context briefing
+cortex intelligence "what should I work on next?"
+```
+
+Without `ANTHROPIC_API_KEY` set, the LLM-backed commands exit fast with an
+actionable message — no silent hangs.
 
 Set `CORTEX_ROOT_DIR=/path/to/projects` to point Cortex at your workspace.
 

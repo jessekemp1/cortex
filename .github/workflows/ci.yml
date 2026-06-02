@@ -1,0 +1,61 @@
+name: ci
+
+# Minimal CI: prove a fresh clone installs cleanly and the headline
+# falsifiable artifact (`cortex demo`) runs to completion on every PR.
+# Full pytest is intentionally NOT in the default workflow — many tests
+# depend on a populated ~/.cortex/ that CI won't have; running them would
+# yield false failures and erode the signal.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install (core + server extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[server]"
+
+      - name: pytest --collect-only must succeed
+        run: |
+          # Excluding optional-dep paths is honest: scipy/sklearn aren't
+          # core. The 1908 collected tests must be discoverable.
+          python -m pip install pytest pytest-asyncio pytest-timeout
+          python -m pytest --collect-only -q \
+            --ignore=synthetic/tests \
+            --ignore=tests/test_hybrid_retriever.py
+
+      - name: cortex demo must print the FK trail
+        run: |
+          output="$(cortex demo)"
+          echo "$output"
+          # Three synthesized prompts must each appear as a linked entry
+          # with score 0.80. If this assertion ever fails, the headline
+          # 'compounding intelligence' claim is broken on this build.
+          echo "$output" | grep -c 'score 0.80' | grep -q '^3$'
+
+      - name: cortex briefing must exit 2 without ANTHROPIC_API_KEY
+        run: |
+          # Pre-flight contract: missing key → exit 2 with actionable msg.
+          # Anything else (silent hang, exit 0, exit 1) regresses Phase 1.
+          set +e
+          cortex briefing > /tmp/preflight.out 2>&1
+          code=$?
+          set -e
+          test "$code" = "2"
+          grep -q "ANTHROPIC_API_KEY is not set" /tmp/preflight.out
