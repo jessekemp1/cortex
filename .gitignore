@@ -123,3 +123,4 @@ docs/REFLECT_*.md
 docs/REORGANIZATION_COMPLETE_*.md
 docs/TESTING_FAILURE_ANALYSIS.md
 launcher/launcher_data.json
+.venv-fresh/
