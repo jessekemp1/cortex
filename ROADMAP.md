@@ -298,20 +298,26 @@ Beyond just discovering papers, Cortex needs to evolve its own capabilities:
 
 ### 6-Month Roadmap (Phased)
 
-#### Phase 1: Ship + Validate (Mar 12 — Mar 28) — CURRENT
+#### Phase 1: Ship + Validate (Mar — May 2026) — ✅ COMPLETE (as of 2026-05-31)
 
 | Item | Priority | Status | Dependency |
 |------|----------|--------|------------|
-| OSS launch (subtree, DOI, HN) | P0 | 80% done (audit: LAUNCH READY) | None |
+| OSS launch (public repo, install path) | P0 | ✅ SHIPPED — `github.com/jessekemp1/cortex` v1.0.0 | None |
 | Learning pipeline verified (outcomes flowing) | P0 | ✅ SHIPPED | None |
-| **Conversation history ingestion** | P0 | ✅ SHIPPED | None |
-| **CRA discovery engine** | P1 | ✅ SHIPPED (21 discoveries ingested, 35 tests) | None |
-| **CRA batch assessment pipeline** | P1 | ✅ SHIPPED (CRABatcher in research_batcher.py) | CRA discovery |
-| External benchmark (AMA-Bench or LongMemEval) | P1 | Not started | OSS launch |
-| First 3 beta users with feedback | P1 | Not started | OSS launch |
-| **Batch API deep conversation analysis** | P2 | Not started | Conversation ingestion validated |
+| Conversation history ingestion | P0 | ✅ SHIPPED | None |
+| CRA discovery engine | P1 | ✅ SHIPPED (engines/research_agent.py, 35 tests) | None |
+| CRA batch assessment pipeline | P1 | ✅ SHIPPED (CRABatcher in research_batcher.py) | CRA discovery |
+| External benchmark (LongMemEval) | P1 | ✅ SHIPPED — `benchmarks/longmemeval.py` + dataset cached | None |
+| Cost baseline (pre-routing) | P1 | ✅ SHIPPED — `benchmarks/capture_cost_baseline.py` | None |
+| FK contract (prompt→outcome) live | P0 | ✅ SHIPPED — `intelligence/outcome_linker.py` + scheduled linker | None |
+| API-key pre-flight on LLM commands | P0 | ✅ SHIPPED — `cli.commands._helpers.require_api_key` | None |
+| Falsifiable demo (`cortex demo`) | P0 | ✅ SHIPPED — `cli/commands/demo.py` | FK contract |
+| First 3 beta users with feedback | P1 | In progress — passive (issue templates ship in this phase) | OSS launch |
+| Zenodo DOI + Show HN | P2 | Tracked separately (maintainer action) | v1.0.0 release tag |
 
-**Success criteria:** 5+ GitHub stars from non-Jesse users. 1 external person runs `cortex status` successfully.
+**Success criteria (revised, current):** A brilliant external developer can clone the repo, run `cortex demo` in <60s, and watch the prompt→outcome FK contract resolve with no API key and no network call.
+
+**Original criterion ("5+ GitHub stars from non-Jesse users") is tracked under Phase 4 — Brilliant-Tester Invite.**
 
 #### Phase 2: Strengthen the Moat (Apr 1 — Apr 30)
 
@@ -600,10 +606,11 @@ Week of Mar 12-13 (SHIP WEEK):
   ├── [x] CRA batch assessment pipeline (CRABatcher in research_batcher.py)
   ├── [x] ROADMAP updated: 4 papers, 2 threat sources, 1 disruption scenario
   ├── [x] OSS audit: LAUNCH READY (all 14 categories pass)
-  ├── [ ] git push cortex-oss main:main
-  ├── [ ] Zenodo DOI
-  ├── [ ] Show HN post
-  └── [ ] Share with beta users
+  ├── [x] OSS launch (parallel-clone workflow, NOT subtree push — see SHIP_PUNCHLIST.md S3)
+  ├── [x] v1.0.0 on `github.com/jessekemp1/cortex` (commit fe7e0d1 + later)
+  ├── [ ] Zenodo DOI (maintainer action, after v1.0.0 release tag)
+  ├── [ ] Show HN post (Phase 4 — Brilliant-Tester Invite)
+  └── [ ] Share with beta users (Phase 4)
 
 Week of Mar 17-21 (RESEARCH AGENT FOUNDATION):
   ├── [ ] Read survey paper (2603.07670) — inform all decisions

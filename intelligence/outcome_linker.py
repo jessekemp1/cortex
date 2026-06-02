@@ -5,8 +5,9 @@ is attributed to that prompt. Writes FK linkage to ~/.cortex/prompt_outcomes.jso
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 QUEUE = Path.home() / ".cortex" / "interaction_queue.jsonl"
 OUTCOMES = Path.home() / ".cortex" / "prompt_outcomes.jsonl"
@@ -17,13 +18,19 @@ def _parse_ts(ts_str: str) -> datetime:
     return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
 
 
-def link_outcomes() -> list[dict]:
-    """Read interaction_queue, link outcomes to prompts within WINDOW_SECONDS."""
-    if not QUEUE.exists():
+def link_outcomes(queue_path: Optional[Path] = None) -> list[dict]:
+    """Read interaction queue, link outcomes to prompts within WINDOW_SECONDS.
+
+    Args:
+        queue_path: Optional path to read the interaction queue from.
+            Defaults to the module-level QUEUE.
+    """
+    queue = queue_path if queue_path is not None else QUEUE
+    if not queue.exists():
         return []
 
     entries = []
-    for line in QUEUE.read_text().strip().splitlines():
+    for line in queue.read_text().strip().splitlines():
         if not line:
             continue
         try:
@@ -90,11 +97,12 @@ def _compute_outcome_score(outcomes: list[dict]) -> float:
     )
 
 
-def _existing_prompt_ids() -> set[str]:
-    if not OUTCOMES.exists():
+def _existing_prompt_ids(outcomes_path: Optional[Path] = None) -> set[str]:
+    path = outcomes_path if outcomes_path is not None else OUTCOMES
+    if not path.exists():
         return set()
     seen = set()
-    for line in OUTCOMES.read_text().splitlines():
+    for line in path.read_text().splitlines():
         if not line:
             continue
         try:
@@ -104,9 +112,18 @@ def _existing_prompt_ids() -> set[str]:
     return seen
 
 
-def write_linked_outcomes(linked: list[dict]) -> None:
-    existing = _existing_prompt_ids()
-    with open(OUTCOMES, "a") as f:
+def write_linked_outcomes(
+    linked: list[dict], outcomes_path: Optional[Path] = None
+) -> None:
+    """Append new linked entries; skips prompt_ids already on disk (idempotent).
+
+    Args:
+        linked: List of linked entries from link_outcomes().
+        outcomes_path: Optional override for the destination jsonl file.
+    """
+    path = outcomes_path if outcomes_path is not None else OUTCOMES
+    existing = _existing_prompt_ids(path)
+    with open(path, "a") as f:
         for entry in linked:
             if entry.get("prompt_id") in existing:
                 continue

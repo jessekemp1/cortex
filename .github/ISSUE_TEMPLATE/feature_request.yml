@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a new capability or a meaningful change to an existing one.
+title: "feat: <one-line summary>"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check `ROADMAP.md` — your idea may already be on the roadmap. If so, link to that section instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What can't you do today? Be concrete — describe the workflow, not the desired solution.
+      placeholder: |
+        When I'm working across 3+ projects in a day, `cortex status` shows only the most recent. I want to see which project I last shipped to, without remembering.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would the cortex CLI look like? Sketch the command, flags, output shape.
+      placeholder: |
+        `cortex sessions --recent N` — shows last N work sessions across all projects, with timestamps and last commit per project.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you try first that didn't work? What workaround do you use today?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope estimate
+      description: How big do you think this is? (You can guess; we'll refine.)
+      options:
+        - Small — single file, < 1 day
+        - Medium — multiple files, ~1 week
+        - Large — new subsystem, > 1 week
+        - Don't know
+    validations:
+      required: true

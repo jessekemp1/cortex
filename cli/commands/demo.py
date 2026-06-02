@@ -75,18 +75,11 @@ def cmd_demo(args) -> None:
             for e in events:
                 f.write(json.dumps(e) + "\n")
 
-        # Use the real linker module; redirect its module-level paths so it
-        # operates against the synthesized tempdir queue.
-        import intelligence.outcome_linker as ol
+        # Pass paths as kwargs — no module-global mutation, fully isolated.
+        from intelligence.outcome_linker import link_outcomes, write_linked_outcomes
 
-        original_queue, original_outcomes = ol.QUEUE, ol.OUTCOMES
-        ol.QUEUE = queue
-        ol.OUTCOMES = outcomes
-        try:
-            linked = ol.link_outcomes()
-            ol.write_linked_outcomes(linked)
-        finally:
-            ol.QUEUE, ol.OUTCOMES = original_queue, original_outcomes
+        linked = link_outcomes(queue_path=queue)
+        write_linked_outcomes(linked, outcomes_path=outcomes)
 
     print(f"• Ran intelligence.outcome_linker.link_outcomes() → {len(linked)} prompts linked")
     print()

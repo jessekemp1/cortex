@@ -48,17 +48,31 @@ def _load_dotenv() -> None:
             os.environ[key] = value
 
 
-_load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 # Module-level singletons (lazy-initialized)
 _cost_tracker: Optional[CostTracker] = None
 _router: Optional[Any] = None
+_dotenv_loaded: bool = False
+
+
+def _ensure_dotenv_loaded() -> None:
+    """Call _load_dotenv() exactly once, on first request.
+
+    Importing this module no longer side-effects os.environ. The .env load
+    happens when an API call is actually issued (via _get_cost_tracker or
+    _get_router), so pre-flight checks in cli.commands._helpers see the
+    real shell environment at the moment they run.
+    """
+    global _dotenv_loaded
+    if not _dotenv_loaded:
+        _load_dotenv()
+        _dotenv_loaded = True
 
 
 def _get_cost_tracker() -> CostTracker:
     global _cost_tracker
+    _ensure_dotenv_loaded()
     if _cost_tracker is None:
         _cost_tracker = CostTracker()
     return _cost_tracker
@@ -66,6 +80,7 @@ def _get_cost_tracker() -> CostTracker:
 
 def _get_router() -> Any:
     global _router
+    _ensure_dotenv_loaded()
     if _router is None:
         try:
             try:

@@ -8,10 +8,19 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
+# NOTE: .env loading is deferred to RuntimeConfig instantiation / first use
+# (see RuntimeConfig.__post_init__) so that `import runtime.config` does NOT
+# side-effect os.environ. This protects pre-flight checks in cli helpers.
+_dotenv_loaded: bool = False
 
-# Load environment variables
-load_dotenv()
+
+def _ensure_dotenv_loaded() -> None:
+    global _dotenv_loaded
+    if not _dotenv_loaded:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        _dotenv_loaded = True
 
 
 def _get_default_root_dir() -> Path:
@@ -77,7 +86,8 @@ class RuntimeConfig:
 _default_config: RuntimeConfig | None = None
 
 
-def get_config() -> RuntimeConfig:
+def get_config() -> RuntimeConfig:  # noqa: D401
+    _ensure_dotenv_loaded()
     """Get or create the default runtime configuration."""
     global _default_config
     if _default_config is None:

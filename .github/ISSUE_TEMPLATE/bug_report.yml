@@ -1,0 +1,72 @@
+name: Bug report
+description: Something behaves incorrectly. Include enough detail to reproduce.
+title: "bug: <one-line summary>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Run `cortex doctor` first — its output goes in the "Environment" section below.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: One paragraph. What did you do, what did you expect, what did you get?
+      placeholder: |
+        I ran `cortex briefing` expecting a daily summary. Instead it hung for 30 seconds and exited with no output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: The exact commands you ran, in order. Include `git rev-parse HEAD` so we know which commit you saw this on.
+      render: shell
+      placeholder: |
+        git clone git@github.com:jessekemp1/cortex.git
+        cd cortex
+        pip install -e .
+        git rev-parse HEAD          # 13a22ed
+        cortex briefing             # <-- hangs here
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What did the docs / README / `cortex --help` lead you to expect? What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: cortex doctor output
+      description: Paste the full output of `cortex doctor` (redact any keys).
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS
+        - Linux
+        - Windows (WSL)
+        - Other (describe in repro)
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+      placeholder: "Python 3.12.4"
+    validations:
+      required: true
