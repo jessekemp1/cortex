@@ -14,6 +14,7 @@ Usage:
 """
 
 import json
+import socket
 import subprocess
 import sys
 import time
@@ -22,7 +23,25 @@ from pathlib import Path
 import pytest
 import requests
 
-pytestmark = pytest.mark.integration
+
+def _bridge_running() -> bool:
+    """Quick TCP probe — is the Cortex Bridge listening on 127.0.0.1:8765?"""
+    try:
+        with socket.create_connection(("127.0.0.1", 8765), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+# These tests require a running Cortex Bridge (port 8765). Skip when it's
+# not up — brilliant testers running `pytest` cold won't have it.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _bridge_running(),
+        reason="Cortex Bridge not running on 127.0.0.1:8765 (start with `python -m api.bridge_endpoint`)",
+    ),
+]
 
 # Colors for output
 GREEN = "\033[92m"

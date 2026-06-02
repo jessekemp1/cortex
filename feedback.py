@@ -243,9 +243,19 @@ class FeedbackLogger:
                 pass  # Silently fail - tiered memory is optional
 
     def load_outcomes(self) -> List[OutcomeEntry]:
-        """Load all outcome entries from JSONL file."""
+        """Load all outcome entries from JSONL file.
+
+        Tolerates schema drift: unknown keys (e.g., fields added in newer
+        versions and persisted to disk) are dropped so older code can read
+        newer files without crashing. This keeps the learning loop resilient
+        when the writer and reader are on different versions.
+        """
         if not self.outcomes_file.exists():
             return []
+
+        from dataclasses import fields as _dc_fields
+
+        known = {f.name for f in _dc_fields(OutcomeEntry)}
 
         outcomes = []
         try:
@@ -254,7 +264,8 @@ class FeedbackLogger:
                     line = line.strip()
                     if line:
                         data = json.loads(line)
-                        outcomes.append(OutcomeEntry(**data))
+                        filtered = {k: v for k, v in data.items() if k in known}
+                        outcomes.append(OutcomeEntry(**filtered))
         except (json.JSONDecodeError, IOError):
             return []
 

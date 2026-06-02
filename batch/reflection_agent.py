@@ -69,7 +69,16 @@ def load_recent_outcomes(days: int = 7, path: Path = OUTCOMES_FILE) -> List[Dict
                 if ts_str:
                     try:
                         ts = datetime.fromisoformat(ts_str)
-                        if ts < cutoff:
+                        # Normalize TZ — record timestamps may be aware
+                        # (ISO with +00:00) or naive; cutoff may be either.
+                        # Compare by stripping tzinfo so a stray TZ-aware
+                        # record doesn't raise TypeError.
+                        if ts.tzinfo is not None:
+                            ts = ts.replace(tzinfo=None)
+                        cutoff_naive = (
+                            cutoff.replace(tzinfo=None) if cutoff.tzinfo else cutoff
+                        )
+                        if ts < cutoff_naive:
                             continue
                     except ValueError:
                         pass  # keep records with unparseable timestamps

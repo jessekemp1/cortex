@@ -6,6 +6,11 @@ from pathlib import Path
 
 import pytest
 
+# Conversation ingestor's digest-to-pattern path requires sklearn for embedding
+# similarity. Skip the affected tests when sklearn isn't installed instead of
+# erroring at collection time.
+sklearn = pytest.importorskip("sklearn", reason="conversation ingestor digest path requires scikit-learn (optional)")
+
 
 @pytest.fixture
 def tmp_conversation(tmp_path):

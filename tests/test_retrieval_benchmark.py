@@ -18,6 +18,12 @@ from typing import List
 
 import pytest
 
+# Retrieval benchmark depends on HybridRetriever which imports scikit-learn.
+# scikit-learn is not a core dep — it's only needed for retrieval evaluation.
+# Skip the whole module when sklearn isn't installed instead of erroring at
+# collection time.
+pytest.importorskip("sklearn", reason="retrieval benchmark requires scikit-learn (optional)")
+
 # ---------------------------------------------------------------------------
 # Ground-truth query corpus
 # ---------------------------------------------------------------------------

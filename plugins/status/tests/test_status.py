@@ -226,9 +226,16 @@ class TestStatusIntegration:
         """Create plugin instance."""
         return StatusPlugin(plugin_dir)
 
+    @pytest.mark.skipif(
+        Path(__file__).parent.parent.parent.parent.parent.name != "Dev",
+        reason="integration test requires checkout living under ~/Dev (maintainer setup)",
+    )
     def test_full_workflow_in_real_repo(self, plugin):
-        """Test full workflow in actual Dev repo."""
-        # This tests against the real repository
+        """Test full workflow in the maintainer's ~/Dev/cortex checkout.
+
+        Skips on any other layout — brilliant testers cloning into /tmp,
+        ~/code, etc. won't trip this.
+        """
         dev_dir = Path(__file__).parent.parent.parent.parent.parent
         assert dev_dir.name == "Dev"
 

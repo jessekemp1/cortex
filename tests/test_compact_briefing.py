@@ -324,6 +324,10 @@ def test_compact_flag_in_cli():
     compact_output = "┌─ CORTEX ─┐\n│ ▸ test   │\n└──────────┘"
 
     with (
+        # require_api_key() at the top of cmd_briefing would sys.exit(2) when
+        # ANTHROPIC_API_KEY is unset. This test exercises CLI plumbing, not
+        # the API; bypass the pre-flight.
+        patch("cli.commands._helpers.require_api_key"),
         patch("cli.commands.briefing.generate_daily_briefing", return_value=mock_briefing),
         patch("cli.commands.briefing.format_compact", return_value=compact_output) as mock_fc,
         patch("builtins.print") as mock_print,

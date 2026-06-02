@@ -291,6 +291,9 @@ class InsightBatcher:
     def __init__(self):
         """Initialize insight batcher"""
         self.client = BatchAPIClient()
+        # Model policy mirrors RecommendationBatcher: BatchModels picks the
+        # appropriate Anthropic batch model for briefing/insight workloads.
+        self.model_policy = BatchModels()
         self.system_prompt = """You are a learning system analyzing execution patterns.
 Provide insights based on:
 1. Historical execution results

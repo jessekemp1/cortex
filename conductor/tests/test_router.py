@@ -40,7 +40,7 @@ class TestRegistry:
 
     def test_all_providers_exist(self):
         """All expected providers are registered."""
-        expected = {"groq", "xai", "minimax", "anthropic", "openai", "deepseek"}
+        expected = {"groq", "xai", "minimax", "anthropic", "openai", "deepseek", "qwen"}
         actual = set(get_all_providers().keys())
         assert actual == expected
 
@@ -48,7 +48,7 @@ class TestRegistry:
         """list_providers returns sorted names."""
         providers = list_providers()
         assert providers == sorted(providers)
-        assert len(providers) == 6
+        assert len(providers) == 7
 
     def test_get_provider_valid(self):
         """get_provider returns config for known providers."""
@@ -275,7 +275,11 @@ class TestConductorRouter:
         assert decision.model_id == "MiniMax-M2.1"
 
     def test_context_token_override_forces_long_context(self, router):
-        """Requests with >200K tokens get routed to long_context provider."""
+        """Requests with >200K tokens get routed to long_context provider.
+
+        long_context primary route is qwen/qwen-turbo (cost-optimized);
+        xai/grok-3-fast is the fallback. See ROUTING_TABLE in config.py.
+        """
         request = RoutingRequest(
             task_description="Classify these tickets",
             use_case="classification",
@@ -284,8 +288,10 @@ class TestConductorRouter:
         decision = router.route(request)
 
         # Should override classification -> long_context
-        assert decision.provider == "xai"
-        assert decision.model_id == "grok-3-fast"
+        assert decision.provider == "qwen"
+        assert decision.model_id == "qwen-turbo"
+        assert decision.fallback_provider == "xai"
+        assert decision.fallback_model_id == "grok-3-fast"
         assert "overridden to 'long_context'" in decision.reasoning
         assert decision.confidence <= 0.8  # Penalty for override
 
@@ -440,23 +446,23 @@ class TestSpecificRoutes:
         assert decision.fallback_provider == "deepseek"
         assert decision.fallback_model_id == "deepseek-chat"
 
-    def test_long_context_routes_to_xai(self, router):
-        """Long context routes to Grok 4.1 Fast."""
+    def test_long_context_routes_to_qwen(self, router):
+        """Long context routes to qwen-turbo (cost-optimized primary)."""
         request = RoutingRequest(task_description="test", use_case="long_context")
         decision = router.route(request)
-        assert decision.provider == "xai"
-        assert decision.model_id == "grok-3-fast"
-        assert decision.fallback_provider == "minimax"
-        assert decision.fallback_model_id == "MiniMax-M1"
+        assert decision.provider == "qwen"
+        assert decision.model_id == "qwen-turbo"
+        assert decision.fallback_provider == "xai"
+        assert decision.fallback_model_id == "grok-3-fast"
 
-    def test_research_routes_to_xai(self, router):
-        """Research routes to Grok 4.1 Fast."""
+    def test_research_routes_to_deepseek(self, router):
+        """Research routes to deepseek-chat (cost-optimized primary)."""
         request = RoutingRequest(task_description="test", use_case="research")
         decision = router.route(request)
-        assert decision.provider == "xai"
-        assert decision.model_id == "grok-3-fast"
-        assert decision.fallback_provider == "deepseek"
-        assert decision.fallback_model_id == "deepseek-chat"
+        assert decision.provider == "deepseek"
+        assert decision.model_id == "deepseek-chat"
+        assert decision.fallback_provider == "xai"
+        assert decision.fallback_model_id == "grok-3-fast"
 
     def test_quick_qa_routes_to_groq(self, router):
         """Quick Q&A routes to Groq GPT-OSS 20B."""
