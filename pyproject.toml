@@ -101,6 +101,9 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
+addopts = "--strict-markers"
 markers = [
     "integration: requires running services or monorepo environment",
+    "requires_network: hits a real network endpoint",
+    "requires_anthropic_key: requires ANTHROPIC_API_KEY in env",
 ]

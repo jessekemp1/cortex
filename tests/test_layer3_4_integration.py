@@ -252,7 +252,7 @@ class TestLayer4Components:
             recs = smart_generator.generate_alert_recommendations(alerts=[adapted])
 
             assert isinstance(recs, list)
-        except (AttributeError, TypeError):
+        except AttributeError:  # tightened: surface TypeError instead of skip
             # Method may not exist or have different signature - that's okay
             pytest.skip("generate_alert_recommendations not implemented or different API")
 
@@ -312,7 +312,7 @@ class TestRecommendationEngine:
 
             assert isinstance(recs, list)
             assert len(recs) <= 10
-        except (AttributeError, TypeError):
+        except AttributeError:  # tightened: surface TypeError instead of skip
             # SmartGenerator methods may not match - skip
             pytest.skip("SmartGenerator API mismatch")
 
@@ -324,7 +324,7 @@ class TestRecommendationEngine:
             recs = recommendation_engine.generate_recommendations(tasks=tasks, goals=[], context={})
 
             assert isinstance(recs, list)
-        except (AttributeError, TypeError):
+        except AttributeError:  # tightened: surface TypeError instead of skip
             pytest.skip("SmartGenerator API mismatch")
 
     def test_generate_recommendations_with_goals(self, recommendation_engine):
@@ -343,7 +343,7 @@ class TestRecommendationEngine:
             recs = recommendation_engine.generate_recommendations(tasks=[], goals=goals, context={})
 
             assert isinstance(recs, list)
-        except (AttributeError, TypeError):
+        except AttributeError:  # tightened: surface TypeError instead of skip
             pytest.skip("SmartGenerator API mismatch")
 
     def test_priority_scoring(self, recommendation_engine):
@@ -367,7 +367,7 @@ class TestRecommendationEngine:
 
             # Should return a list (may be empty)
             assert isinstance(recs, list)
-        except (AttributeError, TypeError):
+        except AttributeError:  # tightened: surface TypeError instead of skip
             pytest.skip("SmartGenerator API mismatch")
 
 

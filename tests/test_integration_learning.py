@@ -1,7 +1,15 @@
-"""Tests for learning and adaptation"""
+"""Tests for learning and adaptation.
+
+These tests exercise the public contract of `integration.feedback_loop` and
+`integration.history_analyzer` with real value-bearing assertions, not type
+theater. Each assertion either inspects a returned value or proves a
+documented invariant (accuracy bounds, confidence direction, domain isolation).
+"""
 
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add cortex to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -10,38 +18,42 @@ from integration.feedback_loop import FeedbackLoop
 from integration.history_analyzer import ExecutionHistoryAnalyzer
 
 
-def test_history_analyzer_import():
-    """Test that history analyzer can be imported and has required methods."""
-    assert ExecutionHistoryAnalyzer is not None
-    assert callable(getattr(ExecutionHistoryAnalyzer, "is_available", None))
+def test_history_analyzer_public_api_is_callable():
+    """ExecutionHistoryAnalyzer exposes is_available() as a callable method."""
+    method = getattr(ExecutionHistoryAnalyzer, "is_available", None)
+    assert callable(method), "ExecutionHistoryAnalyzer.is_available must be callable"
 
 
-def test_feedback_loop_import():
-    """Test that feedback loop can be imported and has required methods."""
-    assert FeedbackLoop is not None
-    assert callable(getattr(FeedbackLoop, "get_learning_metrics", None))
+def test_feedback_loop_public_api_is_callable():
+    """FeedbackLoop exposes get_learning_metrics() as a callable method."""
+    method = getattr(FeedbackLoop, "get_learning_metrics", None)
+    assert callable(method), "FeedbackLoop.get_learning_metrics must be callable"
 
 
-def test_analyzer_initialization():
-    """Test analyzer can be initialized and reports availability."""
+def test_analyzer_initialization_returns_concrete_availability():
+    """is_available() must return a bool (True or False) — never None or truthy stand-in."""
     analyzer = ExecutionHistoryAnalyzer()
     available = analyzer.is_available()
-    assert isinstance(available, bool)
+    assert available is True or available is False, (
+        f"is_available() must be a strict bool, got {available!r}"
+    )
 
 
-def test_feedback_loop_initialization():
-    """Test feedback loop initializes and returns metrics."""
+def test_feedback_loop_initialization_returns_metrics_dict():
+    """get_learning_metrics() must return a dict with at least the 'available' key."""
     feedback = FeedbackLoop()
     metrics = feedback.get_learning_metrics()
-    assert isinstance(metrics, dict)
+    assert isinstance(metrics, dict), f"expected dict, got {type(metrics).__name__}"
+    assert "available" in metrics, f"missing 'available' key; got keys: {list(metrics.keys())}"
 
 
-def test_get_learning_metrics():
-    """Test learning metrics contain expected keys."""
+def test_get_learning_metrics_available_is_bool():
+    """The 'available' field is a strict bool."""
     feedback = FeedbackLoop()
     metrics = feedback.get_learning_metrics()
-    assert isinstance(metrics, dict)
-    assert "available" in metrics
+    assert metrics["available"] is True or metrics["available"] is False, (
+        f"metrics['available'] must be a strict bool, got {metrics['available']!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +69,6 @@ def _make_outcome(
     domain: str = "aidev",
 ):
     """Create a fake OutcomeEntry for testing without hitting disk."""
-    import sys
-
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from feedback import OutcomeEntry
 
@@ -79,8 +89,6 @@ def _make_outcome(
 
 def test_learning_loop_accuracy_calculates(monkeypatch):
     """calculate_recommendation_accuracy() returns > 0 when followed outcomes exist."""
-    import sys
-
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from learning import LearningSystem
 
@@ -100,8 +108,6 @@ def test_learning_loop_accuracy_calculates(monkeypatch):
 
 def test_learning_loop_confidence_adjustment(monkeypatch):
     """adjust_confidence_based_on_history() modifies confidence when history exists."""
-    import sys
-
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from learning import LearningSystem
 
@@ -112,18 +118,16 @@ def test_learning_loop_confidence_adjustment(monkeypatch):
 
     adjusted, explanation = ls.adjust_confidence_based_on_history("goal_progress", 0.5)
 
-    assert isinstance(adjusted, float)
-    assert 0.0 <= adjusted <= 1.0
-    assert isinstance(explanation, str)
-    assert len(explanation) > 0
+    assert 0.0 <= adjusted <= 1.0, f"adjusted out of bounds: {adjusted}"
+    assert isinstance(explanation, str) and explanation, (
+        f"explanation must be a non-empty string, got {explanation!r}"
+    )
     # With 5 successes, adjusted should be >= base (history pulls it up)
     assert adjusted >= 0.5, f"Confidence should increase with good history, got {adjusted}"
 
 
 def test_learning_loop_no_history_uses_calibrated_weight(monkeypatch):
     """adjust_confidence_based_on_history() falls back to calibrated weight with no data."""
-    import sys
-
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from learning import LearningSystem
 
@@ -132,15 +136,16 @@ def test_learning_loop_no_history_uses_calibrated_weight(monkeypatch):
 
     adjusted, explanation = ls.adjust_confidence_based_on_history("goal_progress", 0.7)
 
-    assert isinstance(adjusted, float)
-    assert 0.0 <= adjusted <= 1.0
-    assert "calibrated weight" in explanation.lower() or "weight" in explanation.lower()
+    assert 0.0 <= adjusted <= 1.0, f"adjusted out of bounds: {adjusted}"
+    # No history → explanation must mention the fallback path so the operator
+    # can distinguish "no signal" from "signal said this".
+    assert "calibrated weight" in explanation.lower() or "weight" in explanation.lower(), (
+        f"explanation should mention calibration/weight when no history; got: {explanation!r}"
+    )
 
 
 def test_learning_loop_domain_filter(monkeypatch):
     """calculate_recommendation_accuracy() domain filter scopes correctly."""
-    import sys
-
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from learning import LearningSystem
 
@@ -154,6 +159,3 @@ def test_learning_loop_domain_filter(monkeypatch):
 
     assert aidev_acc == pytest.approx(1.0, abs=0.01), "All aidev outcomes are success"
     assert dbx_acc == pytest.approx(0.0, abs=0.01), "All databricks outcomes are failed"
-
-
-import pytest
