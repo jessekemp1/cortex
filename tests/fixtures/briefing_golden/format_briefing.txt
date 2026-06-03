@@ -1,0 +1,38 @@
++--------------------------------------------------------------+
+|           CORTEX DAILY BRIEFING - <DATE>           |
++--------------------------------------------------------------+
+
+TL;DR
+  --------
+
+  • Portfolio: 3 active projects, 42 commits this week, 2 blockers
+    Health ratio: [###.......] 34% clear
+  • Top Priority: [HIGH] Ship outcome_linker idempotency
+
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+
+EXECUTIVE SUMMARY
+  • Top move: [HIGH] Ship outcome_linker idempotency
+  • Blockers concentrated in: alpha, beta
+
+PORTFOLIO PULSE
+  Active projects: 3 (alpha, beta, gamma)
+  Recent commits: 7 in last 24h, 42 in last 7d
+  Commit trend (24h→7d): ▁█
+  Commit pulse meter: [##........] 17%
+  Blockers: 2
+    - alpha: auth refactor
+    - beta: deploy pipeline
+
+PRIORITY ACTIONS
+  1. [HIGH] Ship outcome_linker idempotency (alpha)
+
+  2. [NORMAL] Wire MCP contract tests (beta)
+
+
+PATTERNS NOTICED
+  deepseek/deepseek-chat now primary for research routes (was xai/grok-3-fast)
+  qwen-turbo now primary for long_context (was xai/grok-3-fast)
+================================================================

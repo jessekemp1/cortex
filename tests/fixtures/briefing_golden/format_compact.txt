@@ -1,0 +1,10 @@
+┌─CORTEX──────────────────────────────Jan 1─┐
+│ ▸ RESUME: api (1 file)                     │
+│   bridge_endpoint.py +116                  │
+│                                            │
+│ ⚠  ·                                       │
+│ Vortex: check localhost:8000               │
+│                                            │
+│ ▸ cortex briefing --detail                 │
+│ ▸ http://localhost:3001/briefing           │
+└────────────────────────────────────────────┘
