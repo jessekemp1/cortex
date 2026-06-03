@@ -184,7 +184,7 @@ deferred to focused post-v1.0.0 PRs, not pretended-done:
 
 - **God-file split — in progress, pattern proven.**
   `api/bridge_endpoint.py` was 3158 LOC / 58 routes in one file at the
-  start of the audit. Seven coherent clusters have been extracted:
+  start of the audit. Nine coherent clusters have been extracted:
     - `api/routes/guardian.py`  (6 routes — `4f14a71`)
     - `api/routes/batch.py`     (3 routes — `369ddc6`)
     - `api/routes/queue.py`     (4 routes — `73778ef`)
@@ -192,9 +192,11 @@ deferred to focused post-v1.0.0 PRs, not pretended-done:
     - `api/routes/conductor.py` (4 routes — `bb66ea7`)
     - `api/routes/decisions.py` (1 route  — `52a5b80`)
     - `api/routes/meta.py`      (3 routes — `af0d347`)
+    - `api/routes/activity.py`  (1 route  — `3f527c6`)
+    - `api/routes/sessions.py`  (3 routes — `592b016`)
 
-  bridge_endpoint.py is now **2105 LOC** (down from 3158, −33%). 26 of
-  58 routes extracted. The remaining 32 routes follow the same pattern:
+  bridge_endpoint.py is now **1906 LOC** (down from 3158, −40%). 30 of
+  58 routes extracted. The remaining 28 routes follow the same pattern:
   create `api/routes/<concern>.py`, define an APIRouter, move handlers
   + their Pydantic request models + their module-level helpers, replace
   the inline definitions in bridge_endpoint.py with
