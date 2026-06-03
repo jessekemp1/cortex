@@ -1,6 +1,6 @@
 ┌─CORTEX──────────────────────────────Jan 1─┐
-│ ▸ RESUME: api (1 file)                     │
-│   bridge_endpoint.py +116                  │
+│ ▸ Ship outcome_linker idempotency          │
+│                                            │
 │                                            │
 │ ⚠  ·                                       │
 │ Vortex: check localhost:8000               │

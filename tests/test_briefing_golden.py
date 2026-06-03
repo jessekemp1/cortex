@@ -24,6 +24,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -33,6 +34,20 @@ from briefing import (
     format_compact,
     format_statusline,
 )
+
+
+# format_compact reads the CWD's git state via detect_resume_context() and
+# detect_stale_items(). For a pure golden capture, neutralize those reads —
+# we want to test the formatter, not the environment it happens to run in.
+# (This patch is also what tests/test_compact_briefing.py uses, so the
+# golden output here will match what that test exercises.)
+@pytest.fixture(autouse=True)
+def _isolate_briefing_environment():
+    with (
+        patch("briefing.detect_resume_context", return_value=None),
+        patch("briefing.detect_stale_items", return_value=[]),
+    ):
+        yield
 
 
 GOLDEN_DIR = Path(__file__).parent / "fixtures" / "briefing_golden"
