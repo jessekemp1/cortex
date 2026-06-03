@@ -845,49 +845,10 @@ def get_queue_manager():
     return _queue_manager
 
 
-@app.get("/batches")
-async def list_batches(limit: int = Query(20, description="Max batches to return")):
-    """
-    List active and recent batch jobs.
+# /batches routes extracted to api/routes/batch.py.
+from api.routes.batch import router as _batch_router
 
-    Returns batch status from Anthropic API.
-    """
-    try:
-        client = get_batch_client()
-        batches = client.list_batches(limit=limit)
-        return {"batches": batches}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/batches/{batch_id}")
-async def get_batch_status(batch_id: str):
-    """
-    Get detailed status for a specific batch.
-
-    Returns progress, request counts, and completion status.
-    """
-    try:
-        client = get_batch_client()
-        status = client.get_batch_status(batch_id)
-        return status
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Batch not found: {e}")
-
-
-@app.post("/batches/{batch_id}/cancel")
-async def cancel_batch(batch_id: str):
-    """
-    Cancel a running batch job.
-
-    Returns updated batch status after cancellation.
-    """
-    try:
-        client = get_batch_client()
-        result = client.cancel_batch(batch_id)
-        return {"status": "cancelled", "batch_id": batch_id, "result": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+app.include_router(_batch_router)
 
 
 @app.get("/queue")
