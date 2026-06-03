@@ -1114,105 +1114,10 @@ async def list_briefing_executions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/sessions")
-async def get_sessions(
-    active_only: bool = Query(False, description="Only return active/waiting sessions"),
-    limit: int = Query(20, description="Max sessions to return"),
-) -> Dict[str, Any]:
-    """
-    Scan Claude Code session JSONL files for real-time session visibility.
+# /sessions, /session/resume-context, /session/delta extracted to api/routes/sessions.py.
+from api.routes.sessions import router as _sessions_router
 
-    Derives session state from last event age:
-    - ACTIVE: last event < 60s (Claude or tool running)
-    - WAITING: last event type is 'user' and age < 60s
-    - IDLE: last event age 60s-300s
-    - STALE: last event age > 300s
-    """
-    import json as _json
-
-    try:
-        sessions = []
-        now = time.time()
-
-        if not CLAUDE_PROJECTS_DIR.exists():
-            return {"sessions": [], "total": 0, "active_count": 0}
-
-        # Scan all project directories for session JSONL files
-        for project_dir in CLAUDE_PROJECTS_DIR.iterdir():
-            if not project_dir.is_dir():
-                continue
-
-            # Strip Claude project path prefix (format: -Users-<username>-<path>)
-            import re
-
-            project_name = re.sub(r"^-Users-[^-]+-", "", project_dir.name).replace("-", "/")
-
-            for jsonl_file in project_dir.glob("*.jsonl"):
-                try:
-                    mtime = jsonl_file.stat().st_mtime
-                    age_seconds = now - mtime
-
-                    # Read last few lines for state detection
-                    content = jsonl_file.read_bytes()
-                    lines = content.strip().split(b"\n")
-                    if not lines:
-                        continue
-
-                    last_event = {}
-                    event_count = len(lines)
-                    first_event = {}
-
-                    # Parse last line
-                    try:
-                        last_event = _json.loads(lines[-1])
-                    except (ValueError, _json.JSONDecodeError):
-                        pass
-
-                    # Parse first line for start time
-                    try:
-                        first_event = _json.loads(lines[0])
-                    except (ValueError, _json.JSONDecodeError):
-                        pass
-
-                    # Derive status
-                    last_type = last_event.get("type", "")
-                    if age_seconds < 60:
-                        status = "WAITING" if last_type == "user" else "ACTIVE"
-                    elif age_seconds < 300:
-                        status = "IDLE"
-                    else:
-                        status = "STALE"
-
-                    if active_only and status in ("STALE",):
-                        continue
-
-                    session_id = jsonl_file.stem
-                    sessions.append(
-                        {
-                            "id": session_id,
-                            "project": project_name,
-                            "status": status,
-                            "git_branch": last_event.get("gitBranch", ""),
-                            "last_event_type": last_type,
-                            "last_event_age_seconds": round(age_seconds, 1),
-                            "started_at": first_event.get("timestamp", ""),
-                            "last_activity": last_event.get("timestamp", ""),
-                            "event_count": event_count,
-                            "model": last_event.get("model", ""),
-                            "cwd": last_event.get("cwd", ""),
-                        }
-                    )
-                except Exception:
-                    continue
-
-        # Sort by most recent activity
-        sessions.sort(key=lambda s: s.get("last_event_age_seconds", 999999))
-        sessions = sessions[:limit]
-
-        active_count = sum(1 for s in sessions if s["status"] in ("ACTIVE", "WAITING"))
-        return {"sessions": sessions, "total": len(sessions), "active_count": active_count}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+app.include_router(_sessions_router)
 
 
 # ============================================================================
@@ -1977,18 +1882,6 @@ async def get_providers_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/session/resume-context")
-async def get_resume_context():
-    """Return uncommitted work context for the dashboard ResumeCard."""
-    try:
-        from briefing import detect_resume_context
-
-        ctx = detect_resume_context()
-        return {"resume": ctx}  # ctx is dict or None
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/goals/stale-items")
 async def get_stale_items():
     """Return GOALS.md items older than threshold days."""
@@ -1997,18 +1890,6 @@ async def get_stale_items():
 
         items = detect_stale_items()
         return {"stale_items": items, "threshold_days": 7}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/session/delta")
-async def get_session_delta():
-    """Return session-to-session delta and projections."""
-    try:
-        from session_delta import get_session_delta_report
-
-        report = get_session_delta_report()
-        return {"report": report}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
