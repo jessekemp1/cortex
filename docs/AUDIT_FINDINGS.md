@@ -182,10 +182,31 @@ with an actionable message in <100ms.
 Honest gaps that brilliant testers will spot. These are deliberately
 deferred to focused post-v1.0.0 PRs, not pretended-done:
 
-- **God-file splits.** `briefing.py` (122 KB / 3035 LOC) and
-  `api/bridge_endpoint.py` (109 KB / 3158 LOC / 58 routes) are intimidating
-  to read. Each will be split by concern in its own PR with golden-file
-  route/output regression before merge.
+- **God-file split — in progress, pattern proven.**
+  `api/bridge_endpoint.py` was 3158 LOC / 58 routes in one file at the
+  start of the audit. Two coherent clusters have been extracted as
+  proof-of-pattern:
+    - `api/routes/guardian.py` (6 routes — `4f14a71`)
+    - `api/routes/batch.py` (3 routes — `369ddc6`)
+
+  bridge_endpoint.py is now 2982 LOC. The remaining 49 routes follow the
+  same pattern: create `api/routes/<concern>.py`, define an APIRouter,
+  move handlers + their Pydantic request models + their module-level
+  helpers, replace the inline definitions in bridge_endpoint.py with
+  `app.include_router(...)`, and verify with `TestClient` that every
+  path still resolves to the expected status code. The remaining
+  extractions are tracked as separate PRs to keep each blast radius
+  small:
+    - `api/routes/queue.py` — `/queue`, `/queue/{task_id}`
+    - `api/routes/taskboard.py` — `/taskboard`, `/taskboard/{task_id}`, `/taskboard/decompose`
+    - `api/routes/intelligence.py` — `/intelligence/*`, `/recommendations`, `/meta/compounding/*`
+    - `api/routes/conductor.py` — `/conductor/*`, `/decisions/record`
+    - `api/routes/sessions.py` — `/sessions`, `/session/*`, `/activity/heatmap`
+
+- **`briefing.py` split.** Still 122 KB / 3035 LOC. Refactor requires
+  golden-file regression on `cortex briefing` output across multiple
+  fixture projects before merge. This is the highest-risk single
+  refactor in the codebase; it gets its own focused PR.
 - **Test-to-source ratio.** 1910 collected / ~700 source files = 0.27.
   Healthy is ≥ 0.30. The MCP-tool contract pass (37 tests) raised this
   significantly; further coverage is a continuing concern, not a one-PR
