@@ -1417,7 +1417,7 @@ app.include_router(_meta_router)
 
 _docs_tree_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
 _predictions_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
-_heatmap_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
+# _heatmap_cache moved to api/routes/activity.py with its consumer.
 
 DOCS_INDEX = Path.home() / "Dev" / "DOCS_INDEX.md"
 OUTCOMES_FILE = Path.home() / ".cortex" / "outcomes.jsonl"
@@ -1922,90 +1922,10 @@ from api.routes.decisions import router as _decisions_router
 app.include_router(_decisions_router)
 
 
-@app.get("/activity/heatmap")
-async def get_activity_heatmap() -> Dict[str, Any]:
-    """Codebase activity visualization data - file change frequency over 30 days."""
-    now = time.time()
-    if _heatmap_cache["data"] and (now - _heatmap_cache["timestamp"]) < 300:
-        return _heatmap_cache["data"]
+# /activity/heatmap route + its _heatmap_cache extracted to api/routes/activity.py.
+from api.routes.activity import router as _activity_router
 
-    try:
-        file_changes: Dict[str, Dict[str, Any]] = {}
-
-        result = subprocess.run(
-            [
-                "git",
-                "log",
-                "--name-only",
-                "--since=30 days ago",
-                "--format=|COMMIT|%ai",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=str(WORKSPACE),
-        )
-
-        if result.returncode == 0:
-            current_date = ""
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                if line.startswith("|COMMIT|"):
-                    current_date = line.split("|")[2].strip() if len(line.split("|")) >= 3 else ""
-                    continue
-
-                # Each non-empty, non-COMMIT line is a file path
-                file_part = line
-                if file_part:
-                    if file_part not in file_changes:
-                        project = file_part.split("/")[0] if "/" in file_part else "root"
-                        file_changes[file_part] = {
-                            "path": file_part,
-                            "changes_30d": 0,
-                            "last_changed": current_date,
-                            "project": project,
-                        }
-                    file_changes[file_part]["changes_30d"] += 1
-                    if current_date and (
-                        not file_changes[file_part]["last_changed"]
-                        or current_date > file_changes[file_part]["last_changed"]
-                    ):
-                        file_changes[file_part]["last_changed"] = current_date
-
-        # Sort by change count, take top 50
-        sorted_files = sorted(file_changes.values(), key=lambda x: x["changes_30d"], reverse=True)[
-            :50
-        ]
-
-        # Hotspots = files with > 5 changes
-        hotspots = [f for f in sorted_files if f["changes_30d"] > 5]
-
-        # Cross-reference with batch targets
-        batch_dir = Path.home() / ".cortex" / "batch"
-        batch_targets: List[str] = []
-        if batch_dir.exists():
-            for bf in batch_dir.glob("*.json"):
-                try:
-                    data = json.loads(bf.read_text(encoding="utf-8"))
-                    if "target" in data:
-                        batch_targets.append(data["target"])
-                except Exception:
-                    continue
-
-        result_data = {
-            "files": sorted_files,
-            "hotspots": hotspots,
-            "period_days": 30,
-            "batch_targets": batch_targets,
-        }
-        _heatmap_cache["data"] = result_data
-        _heatmap_cache["timestamp"] = now
-        return result_data
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate activity heatmap: {e}")
+app.include_router(_activity_router)
 
 
 # ============================================================================
