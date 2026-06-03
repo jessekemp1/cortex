@@ -980,9 +980,17 @@ async def get_bus_stats() -> Dict[str, Any]:
 # Conductor — Human-AI Collaboration Cockpit
 # ============================================================================
 
-WORKSPACE = Path.home() / "Dev"
+WORKSPACE = Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
+# Claude encodes project paths as a flattened directory under
+# ~/.claude/projects/, e.g. /Users/foo/Dev → -Users-foo-Dev.
+# Derive from WORKSPACE rather than hardcoding the maintainer's machine name.
 MEMORY_FILE = (
-    Path.home() / ".claude" / "projects" / "-Users-jesse-kemp-Dev" / "memory" / "MEMORY.md"
+    Path.home()
+    / ".claude"
+    / "projects"
+    / f"-{str(WORKSPACE).replace('/', '-').lstrip('-')}"
+    / "memory"
+    / "MEMORY.md"
 )
 GOALS_FILE = WORKSPACE / "GOALS.md"
 CLAUDE_MD_FILE = WORKSPACE / "CLAUDE.md"
