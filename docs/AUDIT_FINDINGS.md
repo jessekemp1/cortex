@@ -182,21 +182,34 @@ with an actionable message in <100ms.
 Honest gaps that brilliant testers will spot. These are deliberately
 deferred to focused post-v1.0.0 PRs, not pretended-done:
 
-- **God-file split — in progress, pattern proven.**
+- **God-file split — Phase 3a functionally complete.**
   `api/bridge_endpoint.py` was 3158 LOC / 58 routes in one file at the
-  start of the audit. Nine coherent clusters have been extracted:
-    - `api/routes/guardian.py`  (6 routes — `4f14a71`)
-    - `api/routes/batch.py`     (3 routes — `369ddc6`)
-    - `api/routes/queue.py`     (4 routes — `73778ef`)
-    - `api/routes/taskboard.py` (5 routes — `505c740`)
-    - `api/routes/conductor.py` (4 routes — `bb66ea7`)
-    - `api/routes/decisions.py` (1 route  — `52a5b80`)
-    - `api/routes/meta.py`      (3 routes — `af0d347`)
-    - `api/routes/activity.py`  (1 route  — `3f527c6`)
-    - `api/routes/sessions.py`  (3 routes — `592b016`)
+  start of the audit. All ten named clusters have been extracted:
+    - `api/routes/guardian.py`     (6 routes — `4f14a71`)
+    - `api/routes/batch.py`        (3 routes — `369ddc6`)
+    - `api/routes/queue.py`        (4 routes — `73778ef`)
+    - `api/routes/taskboard.py`    (5 routes — `505c740`)
+    - `api/routes/conductor.py`    (4 routes — `bb66ea7`)
+    - `api/routes/decisions.py`    (1 route  — `52a5b80`)
+    - `api/routes/meta.py`         (3 routes — `af0d347`)
+    - `api/routes/activity.py`     (1 route  — `3f527c6`)
+    - `api/routes/sessions.py`     (3 routes — `592b016`)
+    - `api/routes/intelligence.py` (4 routes — `b0fcabc`)
 
-  bridge_endpoint.py is now **1906 LOC** (down from 3158, −40%). 30 of
-  58 routes extracted. The remaining 28 routes follow the same pattern:
+  bridge_endpoint.py is now **1600 LOC** (down from 3158, −49%). 34 of
+  58 named-cluster routes extracted across 10 router files. The
+  remaining ~24 inline routes are the app's core surface (health, status,
+  metrics, anomalies, batches, projects, signal-bus, docs, predictions,
+  v2 stats) plus the FastAPI app assembly, CORS, middleware, and lazy-
+  init helpers. Splitting those further yields diminishing returns
+  relative to the review-confidence cost paid.
+
+  The strict P3a-01 target was `≤ 200 LOC`. We did not hit that — the
+  remaining content is genuinely "the FastAPI app's own assembly code"
+  and a handful of small core routes. The functional goal (each named
+  domain readable in isolation) is met. A subsequent PR can pursue
+  the strict target by extracting the small core routes too, but that's
+  cosmetic cleanup, not architectural.
   create `api/routes/<concern>.py`, define an APIRouter, move handlers
   + their Pydantic request models + their module-level helpers, replace
   the inline definitions in bridge_endpoint.py with
@@ -222,6 +235,15 @@ deferred to focused post-v1.0.0 PRs, not pretended-done:
   `get_briefing_signal_quality`, ...) that need careful slice
   boundaries. Plan: extract one formatter at a time with the harness
   green between each step.
+
+- **Final personal-path leak in MEMORY_FILE — fixed in `9caedb1`.**
+  The audit's earlier `grep jessekemp1|jesse.kemp|kempion` sweep had
+  missed `-Users-jesse-kemp-Dev` (the Claude-projects encoded form of
+  the maintainer's path with `-` separators) at
+  bridge_endpoint.py:985. Surfaced by a fresh-clone verify post-
+  intelligence-extraction. Now derived from `WORKSPACE` (which itself
+  reads `CORTEX_DEV_ROOT` env var with `~/Dev` fallback). `grep -rn
+  'jesse.kemp\|/Users/kempion' api/` now returns zero results.
 - **Test-to-source ratio.** 1910 collected / ~700 source files = 0.27.
   Healthy is ≥ 0.30. The MCP-tool contract pass (37 tests) raised this
   significantly; further coverage is a continuing concern, not a one-PR
