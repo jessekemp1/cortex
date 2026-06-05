@@ -102,39 +102,9 @@ DEFAULT_BRIEFING_STYLE = {
 }
 
 
-def _load_briefing_style() -> Dict[str, Any]:
-    """Load persistent briefing style contract from disk."""
-    style_path = Path(__file__).parent / "config" / "briefing_style.json"
-    style = dict(DEFAULT_BRIEFING_STYLE)
-
-    try:
-        if style_path.exists():
-            raw = json.loads(style_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                style.update({k: v for k, v in raw.items() if k in style})
-                if isinstance(raw.get("progress_bar"), dict):
-                    pb = dict(style["progress_bar"])
-                    pb.update(raw["progress_bar"])
-                    style["progress_bar"] = pb
-    except Exception:
-        # Keep defaults if style file is malformed.
-        pass
-
-    return style
-
-
-def _build_progress_bar(percent: int, style: Dict[str, Any]) -> str:
-    """Build an ASCII progress bar using style config."""
-    pb = style.get("progress_bar", {})
-    width = max(1, int(pb.get("width", 10)))
-    filled_char = str(pb.get("filled_char", "#"))[:1]
-    empty_char = str(pb.get("empty_char", "."))[:1]
-    left = str(pb.get("left_bracket", "["))[:1]
-    right = str(pb.get("right_bracket", "]"))[:1]
-
-    pct = max(0, min(100, int(percent)))
-    filled = min(width, int(round((pct / 100) * width)))
-    return f"{left}{filled_char * filled}{empty_char * (width - filled)}{right}"
+# _load_briefing_style + _build_progress_bar + format_statusline migrated to
+# briefing/formatters.py. Re-exported at the bottom of this file for
+# import-site compatibility with existing callers.
 
 
 def _sparkline(values: List[float], charset: str) -> str:
@@ -2616,57 +2586,7 @@ def format_briefing_json(briefing: BriefingData) -> str:
     return json.dumps(data, indent=2, default=str)
 
 
-def format_statusline(briefing: BriefingData, use_color: bool = False, max_width: int = 140) -> str:
-    """Format a compact, single-line status summary for Claude statusLine hooks."""
-    style = _load_briefing_style()
-
-    active = len(briefing.active_projects)
-    commits_7d = int(briefing.total_commits_7d)
-    blockers = len(briefing.blockers)
-
-    health_pct = int(max(0, min(100, round((1 - (blockers / max(1, active))) * 100))))
-    health_bar = _build_progress_bar(health_pct, style)
-
-    signal_quality = "HIGH"
-    tokens = [
-        "[CORTEX]",
-        f"P:{active}",
-        f"C7:{commits_7d}",
-        f"B:{blockers}",
-        f"H:{health_bar}",
-    ]
-
-    if briefing.git_status and briefing.git_status.get("summary"):
-        gs = briefing.git_status["summary"]
-        modified = int(gs.get("uncommitted_changes", gs.get("working_tree", {}).get("modified", 0)))
-        untracked = int(gs.get("untracked_files", gs.get("working_tree", {}).get("untracked", 0)))
-        branch = gs.get("current_branch", "unknown")
-        signal_quality = str(get_briefing_signal_quality(briefing)["quality"])
-        tokens.append(f"G:{branch}+{modified}/?{untracked}")
-
-    if briefing.batch_queue_status:
-        bq = briefing.batch_queue_status
-        running = int(bq.get("running_count", 0))
-        queued = int(bq.get("pending_count", 0) + bq.get("scheduled_count", 0))
-        if running > 0 or queued > 0:
-            tokens.append(f"Q:{running}R/{queued}Q")
-
-    tokens.append(f"SIG:{signal_quality}")
-
-    line = " ".join(tokens)
-
-    if briefing.priority_actions:
-        top = briefing.priority_actions[0]
-        top_title = top.get("title", "No title")
-        top_priority = top.get("priority", "MEDIUM")
-        line += f" | TOP[{top_priority}]: {top_title}"
-
-    if len(line) > max_width:
-        line = line[: max(0, max_width - 3)].rstrip() + "..."
-
-    if use_color:
-        return line
-    return line
+# format_statusline migrated to briefing/formatters.py — see re-export below.
 
 
 def format_statusline_json(briefing: BriefingData) -> str:
@@ -3025,6 +2945,19 @@ def format_compact(briefing: BriefingData, use_color: bool = True) -> str:
     lines.append("└" + "─" * (WIDTH + 2) + "┘")
 
     return "\n".join(lines)
+
+
+# ============================================================================
+# Re-exports for the briefing/formatters.py split (Phase 3b)
+# ============================================================================
+# Functions migrated to briefing.formatters are re-exported here so existing
+# `from briefing import X` import sites continue to work unchanged. New
+# callers should import directly from briefing.formatters.
+from briefing.formatters import (  # noqa: E402
+    _load_briefing_style,
+    _build_progress_bar,
+    format_statusline,
+)
 
 
 if __name__ == "__main__":
