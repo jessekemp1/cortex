@@ -163,7 +163,7 @@ from cortex.agents.data_agent.analyzers.git_analyzer import GitAnalyzer
 from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
 
 # Single project
-analyzer = GitAnalyzer("/Users/jesse.kemp/Dev")
+analyzer = GitAnalyzer("~/Dev")
 summary = analyzer.get_project_summary(days=7)
 print(summary["health"]["total_score"])  # 65
 
@@ -177,7 +177,7 @@ print(summary["portfolio_stats"]["average_health"])  # 65.0
 
 ## 📈 Current Portfolio Health
 
-**Analyzed**: /Users/jesse.kemp/Dev (monorepo)
+**Analyzed**: ~/Dev (monorepo)
 **Period**: Last 7 days
 **Results**:
 
@@ -452,4 +452,4 @@ Most Active Files:
 **Status**: ✅ COMPLETE AND PRODUCTION READY
 **Next Action**: Commit Git Analyzer implementation
 
-🤖 Generated with [Cortex Intelligence](file:///Users/jesse.kemp/Dev/cortex/PLAN.md)
+🤖 Generated with [Cortex Intelligence](file://~/Dev/cortex/PLAN.md)

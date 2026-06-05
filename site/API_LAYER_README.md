@@ -233,14 +233,14 @@ Integration testing framework not yet configured. Test files were excluded.
 ## Reference Files
 
 Patterns inspired by:
-- `/Users/jesse.kemp/Dev/Vortex/VortexV3/src/api/client.ts`
-- `/Users/jesse.kemp/Dev/Vortex/VortexV3/src/api/hooks.ts`
-- `/Users/jesse.kemp/Dev/cortex/batch/batch_api_client.py`
-- `/Users/jesse.kemp/Dev/cortex/batch/dashboard.py`
+- `~/Dev/Vortex/VortexV3/src/api/client.ts`
+- `~/Dev/Vortex/VortexV3/src/api/hooks.ts`
+- `~/Dev/cortex/batch/batch_api_client.py`
+- `~/Dev/cortex/batch/dashboard.py`
 
 ## File Locations
 
-All files in `/Users/jesse.kemp/Dev/cortex/site/src/`:
+All files in `~/Dev/cortex/site/src/`:
 - `api/types.ts`
 - `api/client.ts`
 - `api/hooks.ts`

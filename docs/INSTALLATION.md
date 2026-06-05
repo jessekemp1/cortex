@@ -41,7 +41,7 @@
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 
 # Create virtual environment (optional but recommended)
 python3.11 -m venv venv
@@ -73,7 +73,7 @@ cortex --help
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 
 # Create virtual environment
 python3.11 -m venv venv
@@ -133,7 +133,7 @@ python3 -c "from portfolio_memory import PortfolioMemory; print(PortfolioMemory(
 
 **CORTEX_ROOT**:
 - Purpose: Override default workspace root
-- Default: `~/Dev` or `/Users/jesse.kemp/Dev`
+- Default: `~/Dev` or `~/Dev`
 - Example: `export CORTEX_ROOT="/path/to/workspace"`
 
 **OPENAI_API_KEY** (Optional):
@@ -148,7 +148,7 @@ python3 -c "from portfolio_memory import PortfolioMemory; print(PortfolioMemory(
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
 export ANTHROPIC_API_KEY="sk-ant-api03-..."
-export CORTEX_ROOT="/Users/jesse.kemp/Dev"
+export CORTEX_ROOT="~/Dev"
 
 # Reload shell
 source ~/.zshrc  # or source ~/.bashrc
@@ -180,7 +180,7 @@ python -c "from config import create_default_config; create_default_config()"
 # Method 2: Manual creation
 mkdir -p ~/.cortex
 cat > ~/.cortex/config.yaml <<EOF
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev
 learning_enabled: true
 default_limit: 3
 EOF
@@ -190,7 +190,7 @@ EOF
 
 ```yaml
 # Workspace root directory
-root_dir: /Users/jesse.kemp/Dev
+root_dir: ~/Dev
 
 # Enable learning from execution history
 learning_enabled: true
@@ -237,7 +237,7 @@ python3 -c "from bridge import CortexBridge; bridge = CortexBridge(); print(brid
 ### Step 3: Run Enterprise Tests
 
 ```bash
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 python test_enterprise_grade.py
 
 # Expected: 15/15 tests pass (100%)
@@ -297,11 +297,11 @@ python3 -c "from intelligence.spec_knowledge_base import SpecKnowledgeBase; Spec
 **Solution**:
 ```bash
 # Install cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 pip install -e .
 
 # Or add to Python path
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="~/Dev/cortex:$PYTHONPATH"
 ```
 
 ---
@@ -375,7 +375,7 @@ ls -la ~/.claude/portfolio/
 echo $CORTEX_ROOT  # or check config.yaml
 
 # Verify projects exist
-ls /Users/jesse.kemp/Dev/
+ls ~/Dev/
 
 # Projects should have .git directories or .claude/project.yaml files
 ```
@@ -428,7 +428,7 @@ Cortex automatically detects git repositories. No additional configuration neede
 
 ```bash
 # Navigate to cortex directory
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 
 # Pull latest changes
 git pull

@@ -23,11 +23,11 @@ The `CortexBridge` class provides a unified interface to all Cortex modules.
 ```python
 from cortex.bridge import CortexBridge
 
-bridge = CortexBridge(root_dir="/Users/jesse.kemp/Dev")
+bridge = CortexBridge(root_dir="~/Dev")
 ```
 
 **Parameters**:
-- `root_dir`: Optional workspace root directory (default: `/Users/jesse.kemp/Dev`)
+- `root_dir`: Optional workspace root directory (default: `~/Dev`)
 
 **Performance**: <10ms initialization
 

@@ -7,20 +7,20 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/jesse.kemp/Dev/cortex/venv/bin/python</string>
+        <string>__CORTEX_DEV_ROOT__/cortex/venv/bin/python</string>
         <string>-m</string>
         <string>cortex.runtime</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/jesse.kemp/Dev/cortex</string>
+    <string>__CORTEX_DEV_ROOT__/cortex</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PYTHONPATH</key>
-        <string>/Users/jesse.kemp/Dev/cortex</string>
+        <string>__CORTEX_DEV_ROOT__/cortex</string>
         <key>CORTEX_ROOT_DIR</key>
-        <string>/Users/jesse.kemp/Dev</string>
+        <string>__CORTEX_DEV_ROOT__</string>
     </dict>
 
     <key>RunAtLoad</key>
@@ -33,10 +33,10 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/Dev/cortex/logs/runtime.stdout.log</string>
+    <string>__CORTEX_DEV_ROOT__/cortex/logs/runtime.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/Dev/cortex/logs/runtime.stderr.log</string>
+    <string>__CORTEX_DEV_ROOT__/cortex/logs/runtime.stderr.log</string>
 
     <key>ThrottleInterval</key>
     <integer>30</integer>

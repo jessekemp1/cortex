@@ -22,7 +22,9 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO_ROOT = Path("/Users/jesse.kemp/Dev")
+import os as _os
+
+REPO_ROOT = Path(_os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
 CORTEX_DIR = Path.home() / ".cortex"
 
 sys.path.insert(0, str(REPO_ROOT))

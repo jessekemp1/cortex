@@ -33,8 +33,16 @@ logger = logging.getLogger(__name__)
 DIGESTS_PATH = Path.home() / ".cortex" / "conversation_digests.jsonl"
 INGEST_STATE_PATH = Path.home() / ".cortex" / "conversation_ingest_state.json"
 
-# Default conversation directory
-CONVERSATIONS_DIR = Path.home() / ".claude" / "projects" / "-Users-jesse-kemp-Dev"
+# Default conversation directory. Claude encodes the project path as a
+# flattened directory name under ~/.claude/projects/, e.g. /Users/foo/Dev
+# → -Users-foo-Dev. Derive from the dev-root env var (with ~/Dev fallback)
+# so this resolves correctly for any contributor, not just the original
+# author.
+import os as _os
+
+_DEV_ROOT = _os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev"))
+_CLAUDE_PROJ_NAME = "-" + _DEV_ROOT.replace("/", "-").lstrip("-")
+CONVERSATIONS_DIR = Path.home() / ".claude" / "projects" / _CLAUDE_PROJ_NAME
 
 # Correction indicators (reuse from interaction_learner for consistency)
 _CORRECTION_PHRASES = [
@@ -351,8 +359,13 @@ class DigestExtractor:
                 files_read.add(self._normalize_path(path))
 
     def _normalize_path(self, path: str) -> str:
-        """Normalize file paths to be relative to Dev/."""
-        dev_prefix = "/Users/jesse.kemp/Dev/"
+        """Normalize file paths to be relative to the dev root.
+
+        Strips the configured CORTEX_DEV_ROOT prefix (defaulting to ~/Dev)
+        so paths captured from conversation logs are portable across
+        contributors. Returns the input unchanged if no prefix matches.
+        """
+        dev_prefix = _DEV_ROOT.rstrip("/") + "/"
         if path.startswith(dev_prefix):
             return path[len(dev_prefix) :]
         return path

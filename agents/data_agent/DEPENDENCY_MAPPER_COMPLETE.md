@@ -195,16 +195,16 @@ from .dependency_mapper import DependencyMapper
 ### Via Standalone CLI
 ```bash
 # Full analysis
-python agents/data_agent/analyzers/dependency_mapper.py analyze /Users/jesse.kemp/Dev/cortex
+python agents/data_agent/analyzers/dependency_mapper.py analyze ~/Dev/cortex
 
 # Health score
-python agents/data_agent/analyzers/dependency_mapper.py health /Users/jesse.kemp/Dev/cortex
+python agents/data_agent/analyzers/dependency_mapper.py health ~/Dev/cortex
 
 # Circular dependencies
-python agents/data_agent/analyzers/dependency_mapper.py circular /Users/jesse.kemp/Dev/cortex
+python agents/data_agent/analyzers/dependency_mapper.py circular ~/Dev/cortex
 
 # ASCII tree
-python agents/data_agent/analyzers/dependency_mapper.py tree /Users/jesse.kemp/Dev/cortex
+python agents/data_agent/analyzers/dependency_mapper.py tree ~/Dev/cortex
 ```
 
 ### Via Data Agent CLI
@@ -246,7 +246,7 @@ if circular["has_cycles"]:
 ## 🧪 Verification Results
 
 ### Cortex Project Analysis
-**Analyzed**: `/Users/jesse.kemp/Dev/cortex`
+**Analyzed**: `~/Dev/cortex`
 **Result**: 103 Python files analyzed successfully
 
 | Metric | Value |
@@ -462,4 +462,4 @@ integration.feedback_loop ← → orchestrator
 **Next Action**: Test on additional projects and create automated reports
 **Timeline**: Week 2 complete, on track for 4-week MVP
 
-🤖 Generated with [Cortex Intelligence](file:///Users/jesse.kemp/Dev/cortex/PLAN.md)
+🤖 Generated with [Cortex Intelligence](file://~/Dev/cortex/PLAN.md)

@@ -93,14 +93,16 @@ def _bridge_get(path: str) -> dict:
 def _portfolio_json() -> dict:
     """Run portfolio_status.py --json for ground-truth project data."""
     try:
+        import os as _os
         import subprocess
 
+        _dev_root = _os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev"))
         result = subprocess.run(
             ["/opt/homebrew/bin/python3", "scripts/portfolio_status.py", "--json"],
             capture_output=True,
             text=True,
             timeout=10,
-            cwd="/Users/jesse.kemp/Dev",
+            cwd=_dev_root,
         )
         if result.returncode == 0:
             return json.loads(result.stdout)

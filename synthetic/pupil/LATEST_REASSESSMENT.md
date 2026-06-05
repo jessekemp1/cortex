@@ -3,7 +3,7 @@
 
 ## 🎯 Current Status
 
-**Location Change**: The workspace moved from `/Users/jesse.kemp/.cursor/worktrees/Vortex/dyu` to `/Users/jesse.kemp/Dev/Vortex`, but the Pupil system remained in `/Users/jesse.kemp/Dev/cortex/synthetic/pupil/`.
+**Location Change**: The workspace moved from `~/.cursor/worktrees/Vortex/dyu` to `~/Dev/Vortex`, but the Pupil system remained in `~/Dev/cortex/synthetic/pupil/`.
 
 **System State**: Completely built and functional (with dependency management needed)
 
@@ -14,7 +14,7 @@
 **All Core Modules Delivered:**
 
 ```
-/Users/jesse.kemp/Dev/cortex/synthetic/pupil/
+~/Dev/cortex/synthetic/pupil/
 ├── __init__.py              # Exports v0.1.0 - functional
 ├── schemas.py               # Complete behavioral data models
 ├── persona.py               # PersonaAgent with state/memory management

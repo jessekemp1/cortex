@@ -155,7 +155,7 @@ def generate_recommendations(
 ```python
 from ai_intelligence import ProjectScanner
 
-scanner = ProjectScanner("/Users/jesse.kemp/Dev")
+scanner = ProjectScanner("~/Dev")
 projects = scanner.find_projects()
 analyzed = [scanner.analyze_project(p) for p in projects]
 
@@ -242,7 +242,7 @@ cortex feedback --outcome success
 ANTHROPIC_API_KEY=sk-ant-...
 
 # Project root directory
-CORTEX_ROOT=/Users/jesse.kemp/Dev
+CORTEX_ROOT=~/Dev
 ```
 
 ---

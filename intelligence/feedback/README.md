@@ -336,7 +336,7 @@ These thresholds were chosen based on testing with sample data. They can be tune
 
 ## References
 
-- PRD: `/Users/jesse.kemp/Dev/cortex/docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md` (Improvement 3)
+- PRD: [`docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md`](../../docs/AI_ENGINEERING_IMPROVEMENTS_PRD.md) (Improvement 3)
 - Book: "AI Engineering" Chapter 8, pp. 220-235 (Implicit Feedback)
-- Implementation: `/Users/jesse.kemp/Dev/cortex/intelligence/feedback/implicit_collector.py`
-- Tests: `/Users/jesse.kemp/Dev/cortex/tests/test_implicit_feedback.py`
+- Implementation: [`intelligence/feedback/implicit_collector.py`](implicit_collector.py)
+- Tests: [`tests/test_implicit_feedback.py`](../../tests/test_implicit_feedback.py)

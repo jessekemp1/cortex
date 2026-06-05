@@ -3,7 +3,7 @@
 ## Files Created
 
 ### 1. Layout Component
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/layouts/CommandCenterLayout.tsx`
+**Location:** `~/Dev/cortex/site/src/layouts/CommandCenterLayout.tsx`
 
 - Main 3-column responsive grid layout
 - Full-height (100vh) dark-themed interface
@@ -14,7 +14,7 @@
 ### 2. Shared Components
 
 #### StatusBar
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/shared/StatusBar.tsx`
+**Location:** `~/Dev/cortex/site/src/panels/shared/StatusBar.tsx`
 
 Features:
 - System health indicator (NOMINAL/DEGRADED) with pulsing dot
@@ -24,7 +24,7 @@ Features:
 - "CORTEX COMMAND CENTER" title
 
 #### BottomActionBar
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/shared/BottomActionBar.tsx`
+**Location:** `~/Dev/cortex/site/src/panels/shared/BottomActionBar.tsx`
 
 Features:
 - "Submit New Batch" button (primary action)
@@ -33,12 +33,12 @@ Features:
 - Last updated timestamp with relative time
 
 #### Barrel Export
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/shared/index.ts`
+**Location:** `~/Dev/cortex/site/src/panels/shared/index.ts`
 
 ### 3. Completed Panel Components
 
 #### CompletedPanel
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/completed/CompletedPanel.tsx`
+**Location:** `~/Dev/cortex/site/src/panels/completed/CompletedPanel.tsx`
 
 Features:
 - Header with "COMPLETED" title and today's count badge
@@ -50,7 +50,7 @@ Features:
 - Loading and error states
 
 #### CompletedJobCard
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/completed/CompletedJobCard.tsx`
+**Location:** `~/Dev/cortex/site/src/panels/completed/CompletedJobCard.tsx`
 
 Features:
 - Collapsible card design
@@ -65,10 +65,10 @@ Features:
   - Batch ID preview
 
 #### Barrel Export
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/panels/completed/index.ts`
+**Location:** `~/Dev/cortex/site/src/panels/completed/index.ts`
 
 ### 4. App Integration
-**Location:** `/Users/jesse.kemp/Dev/cortex/site/src/App.tsx`
+**Location:** `~/Dev/cortex/site/src/App.tsx`
 
 Updates:
 - Replaced design system showcase with full dashboard

@@ -159,7 +159,7 @@ from cortex.agents.data_agent.analyzers.project_analyzer import ProjectAnalyzer
 
 # Single project trends with caching
 tracker = HealthTracker()
-trends = tracker.get_health_trends("Dev", Path("/Users/jesse.kemp/Dev"))
+trends = tracker.get_health_trends("Dev", Path("~/Dev"))
 print(trends["insights"])  # Warnings, recommendations
 
 # Portfolio-wide trends
@@ -175,11 +175,11 @@ print(portfolio["summary"]["declining"])  # Projects with declining health
 ### Cache Performance Test
 ```bash
 # First call (fresh analysis)
-time python -m agents.data_agent.analyzers.health_tracker cached /Users/jesse.kemp/Dev 7
+time python -m agents.data_agent.analyzers.health_tracker cached ~/Dev 7
 # Result: "from_cache": false, ~2-3 seconds
 
 # Second call (cached)
-time python -m agents.data_agent.analyzers.health_tracker cached /Users/jesse.kemp/Dev 7
+time python -m agents.data_agent.analyzers.health_tracker cached ~/Dev 7
 # Result: "from_cache": true, <100ms
 ```
 
@@ -188,7 +188,7 @@ time python -m agents.data_agent.analyzers.health_tracker cached /Users/jesse.ke
 ### Multi-Period Analysis Test
 ```bash
 # Comprehensive trends (7d, 14d, 30d)
-python -m agents.data_agent.analyzers.health_tracker trends /Users/jesse.kemp/Dev
+python -m agents.data_agent.analyzers.health_tracker trends ~/Dev
 ```
 
 **Results**:
@@ -202,7 +202,7 @@ python -m agents.data_agent.analyzers.health_tracker trends /Users/jesse.kemp/De
 
 ## 📈 Current Dev Repository Health
 
-**Analyzed**: /Users/jesse.kemp/Dev (monorepo)
+**Analyzed**: ~/Dev (monorepo)
 **Period**: Last 30 days with multi-period breakdown
 
 | Period | Score | Commits | Trend | Uncommitted | Assessment |
@@ -383,4 +383,4 @@ python -m agents.data_agent.analyzers.health_tracker trends /Users/jesse.kemp/De
 **Next Action**: Commit Health Tracker implementation
 **Timeline**: Week 1 complete (Days 1-7), ahead of schedule
 
-🤖 Generated with [Cortex Intelligence](file:///Users/jesse.kemp/Dev/cortex/PLAN.md)
+🤖 Generated with [Cortex Intelligence](file://~/Dev/cortex/PLAN.md)

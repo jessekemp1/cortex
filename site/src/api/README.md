@@ -57,6 +57,6 @@ VITE_CORTEX_API_URL=http://localhost:8765  # Default
 
 ## See Also
 
-- `/Users/jesse.kemp/Dev/cortex/site/API_LAYER_README.md` - Full documentation
+- `~/Dev/cortex/site/API_LAYER_README.md` - Full documentation
 - `../types/batch.ts` - Enriched domain types
 - `../utils/calculations.ts` - Calculation utilities

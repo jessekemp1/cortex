@@ -27,7 +27,7 @@ def tmp_conversation(tmp_path):
             "parentUuid": "root",
             "isSidechain": False,
             "userType": "external",
-            "cwd": "/Users/jesse.kemp/Dev/Vortex/backend",
+            "cwd": "/path/to/Vortex/backend",
             "sessionId": session_id,
             "version": "2.1.71",
             "gitBranch": "main",
@@ -41,7 +41,7 @@ def tmp_conversation(tmp_path):
             "parentUuid": "msg-001",
             "isSidechain": False,
             "userType": "external",
-            "cwd": "/Users/jesse.kemp/Dev/Vortex/backend",
+            "cwd": "/path/to/Vortex/backend",
             "sessionId": session_id,
             "version": "2.1.71",
             "gitBranch": "main",
@@ -53,12 +53,12 @@ def tmp_conversation(tmp_path):
                     {
                         "type": "tool_use",
                         "name": "Read",
-                        "input": {"file_path": "/Users/jesse.kemp/Dev/Vortex/backend/app/auth.py"},
+                        "input": {"file_path": "/path/to/Vortex/backend/app/auth.py"},
                     },
                     {
                         "type": "tool_use",
                         "name": "Edit",
-                        "input": {"file_path": "/Users/jesse.kemp/Dev/Vortex/backend/app/auth.py"},
+                        "input": {"file_path": "/path/to/Vortex/backend/app/auth.py"},
                     },
                 ],
             },
@@ -70,7 +70,7 @@ def tmp_conversation(tmp_path):
             "parentUuid": "msg-002",
             "isSidechain": False,
             "userType": "external",
-            "cwd": "/Users/jesse.kemp/Dev/Vortex/backend",
+            "cwd": "/path/to/Vortex/backend",
             "sessionId": session_id,
             "version": "2.1.71",
             "gitBranch": "main",
@@ -100,7 +100,7 @@ def tmp_conversation_with_corrections(tmp_path):
         },
         {
             "type": "user",
-            "cwd": "/Users/jesse.kemp/Dev/cortex",
+            "cwd": "/path/to/cortex",
             "sessionId": "test-corrections",
             "gitBranch": "feat/test",
             "message": {"role": "user", "content": "add logging to the pipeline"},
@@ -109,7 +109,7 @@ def tmp_conversation_with_corrections(tmp_path):
         },
         {
             "type": "assistant",
-            "cwd": "/Users/jesse.kemp/Dev/cortex",
+            "cwd": "/path/to/cortex",
             "sessionId": "test-corrections",
             "gitBranch": "feat/test",
             "message": {
@@ -123,7 +123,7 @@ def tmp_conversation_with_corrections(tmp_path):
         },
         {
             "type": "user",
-            "cwd": "/Users/jesse.kemp/Dev/cortex",
+            "cwd": "/path/to/cortex",
             "sessionId": "test-corrections",
             "gitBranch": "feat/test",
             "message": {"role": "user", "content": "no, that's wrong. undo that"},
@@ -132,7 +132,7 @@ def tmp_conversation_with_corrections(tmp_path):
         },
         {
             "type": "user",
-            "cwd": "/Users/jesse.kemp/Dev/cortex",
+            "cwd": "/path/to/cortex",
             "sessionId": "test-corrections",
             "gitBranch": "feat/test",
             "message": {"role": "user", "content": "try again with the correct file"},
@@ -216,7 +216,17 @@ class TestDigestExtractor:
         assert digest.correction_count == 0
         assert digest.outcome == "success"  # ends with "commit"
 
-    def test_extract_file_tracking(self, tmp_conversation):
+    def test_extract_file_tracking(self, tmp_conversation, monkeypatch):
+        # The ingestor normalizes paths by stripping the configured dev-root
+        # prefix. The fixture uses /path/to/... as the prefix; set the env
+        # var so the test exercises the normalization path.
+        monkeypatch.setenv("CORTEX_DEV_ROOT", "/path/to")
+        # Force re-evaluation of the module-level _DEV_ROOT
+        import importlib
+
+        from engines import conversation_ingestor as _ci
+
+        importlib.reload(_ci)
         from engines.conversation_ingestor import ConversationParser, DigestExtractor
 
         parser = ConversationParser(tmp_conversation)

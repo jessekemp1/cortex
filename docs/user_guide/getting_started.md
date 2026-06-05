@@ -26,7 +26,7 @@ Cortex is a **meta-intelligence system** that creates compound learning across y
 
 ```bash
 # Navigate to cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 
 # Install (if not already installed)
 pip install -e .

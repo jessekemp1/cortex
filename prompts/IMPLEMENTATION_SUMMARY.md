@@ -206,6 +206,6 @@ The Cortex Prompt Versioning System is **production-ready** and fully tested. It
 
 ---
 
-**Quick Start**: See `/Users/jesse.kemp/Dev/cortex/prompts/README.md`
+**Quick Start**: See `~/Dev/cortex/prompts/README.md`
 **Tests**: Run `pytest cortex/tests/test_prompts.py -v`
 **Demo**: Run `python cortex/prompts/demo.py`

@@ -86,7 +86,7 @@ Session Intelligence generates automatic context from git history, including:
 ```python
 from intelligence.session_manager import SessionManager
 
-sm = SessionManager(root_dir="/Users/jesse.kemp/Dev")
+sm = SessionManager(root_dir="~/Dev")
 
 # Get session context
 context = sm.load_session_context()

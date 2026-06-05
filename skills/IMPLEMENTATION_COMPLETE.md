@@ -64,7 +64,7 @@ cortex/cli.py                       # Added skill commands (+75 lines)
 
 ### List Available Skills
 ```bash
-cd /Users/jesse.kemp/Dev
+cd ~/Dev
 ./cortex/cli.py skill list
 ```
 
@@ -276,7 +276,7 @@ Add to crontab for automatic execution:
 
 ```bash
 # Run cortex skills every hour
-0 * * * * cd /Users/jesse.kemp/Dev && ./cortex/cli.py skill schedule >> cortex/logs/skill_scheduler.log 2>&1
+0 * * * * cd ~/Dev && ./cortex/cli.py skill schedule >> cortex/logs/skill_scheduler.log 2>&1
 ```
 
 Or use launchd (macOS):
@@ -290,18 +290,18 @@ Or use launchd (macOS):
     <string>com.cortex.skills</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/jesse.kemp/Dev/cortex/cli.py</string>
+        <string>~/Dev/cortex/cli.py</string>
         <string>skill</string>
         <string>schedule</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/jesse.kemp/Dev</string>
+    <string>~/Dev</string>
     <key>StartInterval</key>
     <integer>3600</integer>
     <key>StandardOutPath</key>
-    <string>/Users/jesse.kemp/Dev/cortex/logs/skill_scheduler.log</string>
+    <string>~/Dev/cortex/logs/skill_scheduler.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/jesse.kemp/Dev/cortex/logs/skill_scheduler_error.log</string>
+    <string>~/Dev/cortex/logs/skill_scheduler_error.log</string>
 </dict>
 </plist>
 ```
@@ -382,7 +382,7 @@ Registered: 3 skills
    uvicorn app.main:app --port 8000
 
    # In another terminal
-   cd /Users/jesse.kemp/Dev
+   cd ~/Dev
    ./cortex/cli.py skill run forecasting_validation_expert
    ```
 
@@ -391,7 +391,7 @@ Registered: 3 skills
    # Add to crontab
    crontab -e
    # Add line:
-   # 0 * * * * cd /Users/jesse.kemp/Dev && ./cortex/cli.py skill schedule
+   # 0 * * * * cd ~/Dev && ./cortex/cli.py skill schedule
    ```
 
 3. **Review First Report**:
@@ -424,7 +424,7 @@ Implement intelligence skills:
 
 ### Import Errors
 **Symptom**: `ModuleNotFoundError: No module named 'skills'`
-**Solution**: Run from `/Users/jesse.kemp/Dev` directory
+**Solution**: Run from `~/Dev` directory
 
 ### Async Errors
 **Symptom**: `RuntimeError: asyncio.run() cannot be called from a running event loop`

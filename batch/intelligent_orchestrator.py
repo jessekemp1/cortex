@@ -143,7 +143,10 @@ class IntelligentBatchOrchestrator:
 
     def _generate_goals_work_items(self) -> List["BatchWorkItem"]:
         """Generate work items from pending GOALS.md This Week tasks."""
-        goals_file = Path("/Users/jesse.kemp/Dev/GOALS.md")
+        import os as _os
+
+        dev_root = Path(_os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
+        goals_file = dev_root / "GOALS.md"
         if not goals_file.exists():
             return []
 

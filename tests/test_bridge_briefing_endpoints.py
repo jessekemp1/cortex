@@ -11,7 +11,7 @@ client = TestClient(app)
 def test_resume_context_endpoint_returns_json():
     """GET /session/resume-context returns a JSON object with a 'resume' key."""
     fake_ctx = {
-        "directory": "/Users/jesse.kemp/Dev",
+        "directory": "~/Dev",
         "files": [{"path": "cortex/api/bridge_endpoint.py", "insertions": 30, "deletions": 2}],
         "summary": "Uncommitted changes in cortex/api",
     }
@@ -20,7 +20,7 @@ def test_resume_context_endpoint_returns_json():
     assert resp.status_code == 200
     data = resp.json()
     assert "resume" in data
-    assert data["resume"]["directory"] == "/Users/jesse.kemp/Dev"
+    assert data["resume"]["directory"] == "~/Dev"
 
 
 def test_stale_items_endpoint_returns_json():

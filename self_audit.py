@@ -51,7 +51,11 @@ def check_memory_bridge() -> dict:
     cross_refs += cortex_refs
 
     # Check: Do MEMORY.md or other files in claude project memory reference cortex?
-    claude_mem_dir = CLAUDE_DIR / "projects" / "-Users-jesse-kemp-Dev" / "memory"
+    # Claude encodes project paths as a flattened directory under
+    # ~/.claude/projects/, e.g. /Users/foo/Dev → -Users-foo-Dev. Derive
+    # from REPO_ROOT so this works for any contributor.
+    _claude_proj_name = "-" + str(REPO_ROOT).replace("/", "-").lstrip("-")
+    claude_mem_dir = CLAUDE_DIR / "projects" / _claude_proj_name / "memory"
     claude_refs = 0
     if claude_mem_dir.exists():
         for f in claude_mem_dir.iterdir():

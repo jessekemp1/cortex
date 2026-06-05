@@ -4,8 +4,8 @@
 # Each step pauses. Press Enter to continue.
 
 set -e
-cd /Users/jesse.kemp/Dev
-PYTHON="/Users/jesse.kemp/Dev/Vortex/backend/.venv/bin/python"
+cd ${CORTEX_DEV_ROOT:-$HOME/Dev}
+PYTHON="${CORTEX_DEV_ROOT:-$HOME/Dev}/Vortex/backend/.venv/bin/python"
 
 pause() {
   echo ""

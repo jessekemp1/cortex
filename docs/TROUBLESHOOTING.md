@@ -15,11 +15,11 @@ This guide helps you resolve common issues with Cortex.
 **Solution**:
 ```bash
 # Install cortex
-cd /Users/jesse.kemp/Dev/cortex
+cd ~/Dev/cortex
 pip install -e .
 
 # Or add to Python path
-export PYTHONPATH="/Users/jesse.kemp/Dev/cortex:$PYTHONPATH"
+export PYTHONPATH="~/Dev/cortex:$PYTHONPATH"
 ```
 
 ---
@@ -49,7 +49,7 @@ ls -la ~/.claude/portfolio/
 echo $CORTEX_ROOT  # or check config.yaml
 
 # Verify projects exist
-ls /Users/jesse.kemp/Dev/
+ls ~/Dev/
 
 # Projects should have .git directories or .claude/project.yaml files
 ```

@@ -159,14 +159,14 @@ API keys or starting LLM-backed workflows.
 ### S4 — Personal-environment leaks
 
 **Symptom:** `launcher/launcher_data.json` shipped to the public repo with
-`/Users/jesse.kemp/Dev/*` paths plus running PIDs. `grep -rn jesse.kemp .`
+`~/Dev/*` paths plus running PIDs. `grep -rn jesse.kemp .`
 returned 28 hits across code + docs.
 
 **Resolution:** Commit `ef2f5c5` removed `launcher_data.json` and added
 it to `.gitignore`. Commit `fe7e0d1` sanitized `weekly_planner.py`,
 `deep_assessment.py`, `self_audit.py`, and `weekly_report.sh` to read
 `CORTEX_DEV_ROOT` from env with a `~/Dev` default instead of hardcoding
-`/Users/jesse.kemp/Dev`.
+`~/Dev`.
 
 ### S5 — Silent-hang failure mode on missing API key
 

@@ -374,8 +374,15 @@ def _estimate_baseline_tokens() -> int:
         p = CORTEX_DIR.parent / name
         if p.exists():
             total_chars += len(p.read_text())
+    # Claude encodes project paths as flattened dir names under
+    # ~/.claude/projects/, e.g. /Users/foo/Dev → -Users-foo-Dev. Derive from
+    # the dev-root env var so this resolves for any contributor.
+    import os as _os
+
+    _dev_root = _os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev"))
+    _claude_proj = "-" + _dev_root.replace("/", "-").lstrip("-")
     memory_path = (
-        Path.home() / ".claude" / "projects" / "-Users-jesse-kemp-Dev" / "memory" / "MEMORY.md"
+        Path.home() / ".claude" / "projects" / _claude_proj / "memory" / "MEMORY.md"
     )
     if memory_path.exists():
         total_chars += len(memory_path.read_text())
