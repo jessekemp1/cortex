@@ -2589,88 +2589,8 @@ def format_briefing_json(briefing: BriefingData) -> str:
 # format_statusline migrated to briefing/formatters.py — see re-export below.
 
 
-def format_statusline_json(briefing: BriefingData) -> str:
-    """Format compact statusline payload as JSON."""
-    payload = {
-        "generated_at": briefing.generated_at.isoformat(),
-        "active_projects": len(briefing.active_projects),
-        "commits_7d": briefing.total_commits_7d,
-        "blockers": len(briefing.blockers),
-        "statusline": format_statusline(briefing, use_color=False),
-    }
-    return json.dumps(payload, indent=2)
-
-
-def get_executive_summary(briefing: BriefingData) -> str:
-    """
-    Generate a concise, high-impact executive summary (Operator Persona).
-
-    Enhanced format with intelligence: greeting, status, priority, prediction, day context.
-    """
-    parts = []
-
-    # Greeting based on time with day context
-    hour = datetime.now().hour  # noqa: DTZ005
-    greeting = "Morning" if 5 <= hour < 12 else "Afternoon" if 12 <= hour < 17 else "Evening"
-    day_suffix = ""
-    if briefing.temporal_context:
-        day = briefing.temporal_context.get("day_of_week", "")
-        if day:
-            day_suffix = f" ({day})"
-    parts.append(f"{greeting}, Jesse{day_suffix}.")
-
-    # Pulse with velocity
-    active_count = len(briefing.active_projects)
-    velocity_suffix = ""
-    if briefing.strategic_alignment:
-        velocity = briefing.strategic_alignment.get("velocity_status", "")
-        if velocity == "healthy":
-            velocity_suffix = " ✓"
-        elif velocity == "blocked":
-            velocity_suffix = " ⚠"
-    parts.append(f"{active_count} Active Projects{velocity_suffix}.")
-
-    # Blockers or strategic drift warning
-    blocker_count = len(briefing.blockers)
-    has_drift = briefing.strategic_alignment and briefing.strategic_alignment.get(
-        "has_strategic_drift"
-    )
-    if blocker_count > 0:
-        parts.append(f"{blocker_count} Blockers.")
-    elif has_drift:
-        parts.append("Strategic Drift Detected.")
-    else:
-        parts.append("Systems Nominal.")
-
-    # Top Priority with prediction context
-    if briefing.priority_actions:
-        top_action = briefing.priority_actions[0]
-        parts.append(f"Priority: {top_action['title'][:40]}.")
-    elif briefing.predictive_insights:
-        predictions = briefing.predictive_insights.get("predictions", [])
-        if predictions:
-            parts.append(f"Suggested: {predictions[0]['prediction'][:40]}.")
-    else:
-        parts.append("No immediate actions.")
-
-    # Day intelligence suggestion (if available and relevant)
-    if briefing.temporal_context:
-        day_pattern = briefing.temporal_context.get("day_pattern", {})
-        energy = day_pattern.get("energy", "")
-        if energy in ["fresh_start", "high"]:
-            parts.append("High energy day.")
-        elif energy == "winding_down":
-            parts.append("Wrap-up day.")
-
-    # Recommendation accuracy insight (if sufficient data)
-    if briefing.intelligence_metrics:
-        im = briefing.intelligence_metrics
-        if im.get("has_sufficient_data"):
-            accuracy = im.get("recommendation_accuracy", 0) * 100
-            if accuracy >= 70:
-                parts.append(f"Cortex: {accuracy:.0f}% accurate.")
-
-    return " ".join(parts)
+# format_statusline_json + get_executive_summary migrated to
+# briefing/formatters.py. Re-exported at the bottom of this file.
 
 
 def detect_resume_context(repo_root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
@@ -2957,6 +2877,8 @@ from briefing.formatters import (  # noqa: E402
     _load_briefing_style,
     _build_progress_bar,
     format_statusline,
+    format_statusline_json,
+    get_executive_summary,
 )
 
 
