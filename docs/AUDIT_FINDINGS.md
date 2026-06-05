@@ -236,14 +236,38 @@ deferred to focused post-v1.0.0 PRs, not pretended-done:
   boundaries. Plan: extract one formatter at a time with the harness
   green between each step.
 
-- **Final personal-path leak in MEMORY_FILE — fixed in `9caedb1`.**
-  The audit's earlier `grep jessekemp1|jesse.kemp|kempion` sweep had
-  missed `-Users-jesse-kemp-Dev` (the Claude-projects encoded form of
-  the maintainer's path with `-` separators) at
-  bridge_endpoint.py:985. Surfaced by a fresh-clone verify post-
-  intelligence-extraction. Now derived from `WORKSPACE` (which itself
-  reads `CORTEX_DEV_ROOT` env var with `~/Dev` fallback). `grep -rn
-  'jesse.kemp\|/Users/kempion' api/` now returns zero results.
+- **Personal-path leaks — wider than the prior audit claimed; swept in `c0d09f3`.**
+  After `9caedb1` this doc claimed "`grep jesse.kemp api/` returns
+  zero" — TRUE for `api/` only. The broader codebase still had 50+
+  leaks the earlier targeted greps had missed. A full-tree probe
+  surfaced hardcoded `/Users/jesse.kemp/Dev` references across
+  documentation, code, test fixtures, daemon scripts, and a launchd plist:
+    - 15 markdown files — replaced with relative links or `~/Dev/cortex`
+    - 8 source files — Python now reads `CORTEX_DEV_ROOT` env var with
+      `~/Dev` fallback (`batch/intelligent_orchestrator.py`,
+      `engines/conversation_ingestor.py`, `gateway/{telegram_bot,web_chat}.py`,
+      `hooks/interaction_capture.py`, `scripts/seed_intelligence.py`,
+      `self_audit.py`, `.cursorrules`)
+    - 2 test fixtures — fixture paths updated; conversation-ingestor test
+      now `monkeypatch`es `CORTEX_DEV_ROOT` and `importlib.reload()`s
+      the ingestor to exercise the env-var path
+    - 1 daemon script (`scripts/work_absorber_daemon.sh`) — uses
+      `${CORTEX_DEV_ROOT:-$HOME/Dev}`
+    - 1 launchd plist — renamed `com.cortex.runtime.plist` to `.template`
+      with `__CORTEX_DEV_ROOT__` placeholder + sed install instructions
+      in the XML comment
+
+  After `c0d09f3`, `git ls-files | xargs grep -l 'jesse.kemp\|/Users/kempion'`
+  lists only 4 files, all intentional historical references:
+    - `CHANGELOG.md` documenting the fix
+    - `docs/AUDIT_FINDINGS.md` itself (this file)
+    - `docs/cortexbetaassessment.html` — historical beta-state snapshot
+    - `install.sh` — sed substitution pattern (the script's purpose)
+
+  **Lesson worth keeping**: the prior audit's `api/`-only grep was the
+  wrong shape. The honest test is full-tree:
+      `git ls-files | xargs grep -l <pattern>`
+  This is now the canonical check before any future ship-readiness claim.
 - **Test-to-source ratio.** 1910 collected / ~700 source files = 0.27.
   Healthy is ≥ 0.30. The MCP-tool contract pass (37 tests) raised this
   significantly; further coverage is a continuing concern, not a one-PR
