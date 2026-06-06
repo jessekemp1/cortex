@@ -1,7 +1,7 @@
 """
 V2 Ops — command handlers and subparser registration for:
   batch-local, process, work-absorber, v2-prime, graph, interventions, iap, runtime,
-  sessions, signals, doctor, check, draft, skills.
+  sessions, signals, doctor, check, draft.
 
 All functions were previously defined inline inside cli/__init__.py:main().
 Extracted here to keep cli/__init__.py a pure dispatcher.
@@ -85,70 +85,6 @@ def cmd_draft(args):
     except Exception as e:
         print(f"Error drafting spec: {e}", file=sys.stderr)
         sys.exit(1)
-
-
-# ── skills ────────────────────────────────────────────────────────────────────
-
-
-def cmd_skill_list(args):
-    try:
-        from skills import registry
-
-        print(registry.list_skills())
-    except ImportError:
-        print("Skills module not available.")
-
-
-def cmd_skill_run(args):
-    import asyncio
-
-    try:
-        from skills import registry
-    except ImportError:
-        print("Skills module not available.")
-        return
-
-    async def run():
-        result = await registry.execute_skill(args.skill_name, **vars(args))
-        if result:
-            print("\n" + result.to_markdown())
-        else:
-            print(f"Error: Skill '{args.skill_name}' not found")
-            sys.exit(1)
-
-    asyncio.run(run())
-
-
-def cmd_skill_info(args):
-    try:
-        from skills import registry
-    except ImportError:
-        print("Skills module not available.")
-        return
-    skill = registry.get(args.skill_name)
-    if skill:
-        print(skill.to_markdown())
-    else:
-        print(f"Error: Skill '{args.skill_name}' not found")
-        sys.exit(1)
-
-
-def cmd_skill_schedule(args):
-    import asyncio
-
-    try:
-        from skills import registry
-    except ImportError:
-        print("Skills module not available.")
-        return
-
-    async def run():
-        results = await registry.execute_scheduled()
-        print(f"\nExecuted {len(results)} scheduled skills")
-        for result in results:
-            print(f"  - {result.summary}")
-
-    asyncio.run(run())
 
 
 # ── process monitor ───────────────────────────────────────────────────────────

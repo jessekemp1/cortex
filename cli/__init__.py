@@ -121,10 +121,6 @@ from cli.commands import (
 from cli.commands.v2_ops import (
     cmd_check,
     cmd_draft,
-    cmd_skill_list,
-    cmd_skill_run,
-    cmd_skill_info,
-    cmd_skill_schedule,
     cmd_sessions,
     cmd_signals,
     cmd_doctor,
@@ -480,27 +476,6 @@ Deep Mode (Phase 1):
         register_goal_commands(subparsers)
     except Exception as e:
         print(f"Goal command registration failed: {e}", file=sys.stderr)
-
-    # ── skill ─────────────────────────────────────────────────────────────────
-    skill_parser = subparsers.add_parser("skill", help="Manage and execute skills")
-    skill_subparsers = skill_parser.add_subparsers(dest="skill_command", help="Skill commands")
-    skill_subparsers.add_parser("list", help="List all skills").set_defaults(func=cmd_skill_list)
-
-    skill_run_parser = skill_subparsers.add_parser("run", help="Run a skill")
-    skill_run_parser.add_argument("skill_name")
-    skill_run_parser.add_argument("--scope", type=str)
-    skill_run_parser.add_argument("--symbol", type=str)
-    skill_run_parser.add_argument("--days", type=int)
-    skill_run_parser.add_argument("--directory", type=str)
-    skill_run_parser.set_defaults(func=cmd_skill_run)
-
-    skill_info_parser = skill_subparsers.add_parser("info", help="Show skill information")
-    skill_info_parser.add_argument("skill_name")
-    skill_info_parser.set_defaults(func=cmd_skill_info)
-
-    skill_subparsers.add_parser("schedule", help="Run scheduled skills").set_defaults(
-        func=cmd_skill_schedule
-    )
 
     # ── intelligence / portfolio / deps / watch ───────────────────────────────
     intelligence_parser = subparsers.add_parser(
