@@ -15,14 +15,14 @@ Migrated so far:
   - `format_statusline`       single-line statusbar payload
   - `format_statusline_json`  JSON variant of statusline
   - `get_executive_summary`   one-line headline (Operator Persona)
+  - `detect_resume_context`   git-state signal helper
+  - `detect_stale_items`      GOALS.md stale-action helper
+  - `format_compact`          bordered-box compact view
 
 Still in `briefing/__init__.py` (pending future commits):
   - `format_briefing`         full text briefing (~1075 LOC — biggest single
                               function; needs its own focused turn)
   - `format_briefing_json`    JSON serialization of format_briefing's payload
-  - `format_compact`          bordered-box compact view
-  - `detect_resume_context`   git-state signal helper
-  - `detect_stale_items`      GOALS.md stale-action helper
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     # BriefingData lives in briefing.__init__ and is imported lazily inside the
@@ -282,3 +282,283 @@ def get_executive_summary(briefing: "BriefingData") -> str:
                 parts.append(f"Cortex: {accuracy:.0f}% accurate.")
 
     return " ".join(parts)
+
+
+def detect_resume_context(repo_root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Detect the current work unit from git diff/status.
+
+    Runs git diff --stat HEAD and git status --short, clusters changed files
+    by parent directory, and returns the dominant work unit.
+
+    Returns:
+        dict with keys: summary, files, directory
+        or None if workspace is clean.
+    """
+    import re as _re
+    import subprocess as _sp
+
+    root = str(repo_root) if repo_root else None
+    cwd = root or str(Path.cwd())
+
+    try:
+        stat_result = _sp.run(
+            ["git", "diff", "--stat", "HEAD"], capture_output=True, text=True, cwd=cwd, timeout=10
+        )
+        status_result = _sp.run(
+            ["git", "status", "--short"], capture_output=True, text=True, cwd=cwd, timeout=10
+        )
+    except Exception:
+        return None
+
+    stat_out = stat_result.stdout.strip()
+    status_out = status_result.stdout.strip()
+
+    if not stat_out and not status_out:
+        return None
+
+    # Parse `git diff --stat HEAD` lines like: "  path/to/file.py | 43 +++---"
+    file_entries: List[Dict[str, Any]] = []
+    for line in stat_out.splitlines():
+        m = _re.match(r"^\s*(.+?)\s*\|\s*(\d+)", line)
+        if m:
+            fname = m.group(1).strip()
+            insertions = int(m.group(2))
+            file_entries.append({"name": fname, "insertions": insertions})
+
+    # Also capture untracked/modified from status if diff --stat gave nothing
+    if not file_entries:
+        for line in status_out.splitlines():
+            if len(line) >= 3:
+                fname = line[3:].strip()
+                file_entries.append({"name": fname, "insertions": 0})
+
+    if not file_entries:
+        return None
+
+    # Cluster by parent directory
+    dir_counts: Dict[str, int] = {}
+    for entry in file_entries:
+        parent = str(Path(entry["name"]).parent)
+        dir_counts[parent] = dir_counts.get(parent, 0) + 1
+
+    dominant_dir = max(dir_counts, key=lambda d: dir_counts[d])
+
+    # Pick files from dominant dir (or all if single-dir)
+    dominant_files = [e for e in file_entries if str(Path(e["name"]).parent) == dominant_dir]
+    if not dominant_files:
+        dominant_files = file_entries
+
+    # Build summary label from directory name
+    dir_label = Path(dominant_dir).name if dominant_dir not in (".", "") else "root"
+    file_count = len(dominant_files)
+    summary = f"{dir_label} ({file_count} file{'s' if file_count != 1 else ''})"
+
+    return {
+        "summary": summary,
+        "files": dominant_files[:4],  # cap at 4 for display
+        "directory": dominant_dir,
+    }
+
+
+def detect_stale_items(
+    goals_path: Optional[Path] = None, threshold_days: int = 7
+) -> List[Dict[str, Any]]:
+    """Find unchecked GOALS.md items that haven't been touched in >threshold_days.
+
+    Uses `git blame --line-porcelain GOALS.md` to get per-line timestamps,
+    then returns `- [ ]` lines whose blame timestamp is older than threshold.
+
+    Returns:
+        List of dicts: [{"text": "...", "age_days": N}, ...]
+    """
+    import subprocess as _sp
+    import time as _time
+
+    if goals_path is None:
+        # Default: monorepo root GOALS.md (briefing/ is a package now;
+        # parent.parent is the repo root).
+        goals_path = Path(__file__).parent.parent / "GOALS.md"
+
+    if not goals_path.exists():
+        return []
+
+    try:
+        result = _sp.run(
+            ["git", "blame", "--line-porcelain", str(goals_path.name)],
+            capture_output=True,
+            text=True,
+            cwd=str(goals_path.parent),
+            timeout=15,
+        )
+        if result.returncode != 0:
+            return []
+        blame_out = result.stdout
+    except Exception:
+        return []
+
+    now = _time.time()
+    stale: List[Dict[str, Any]] = []
+
+    # Parse porcelain format: each hunk starts with a 40-char SHA line,
+    # then key-value pairs, then a line starting with \t which is the content.
+    # We accumulate timestamp per line.
+    current_ts: Optional[int] = None
+    for line in blame_out.splitlines():
+        if line.startswith("author-time "):
+            try:
+                current_ts = int(line.split(" ", 1)[1])
+            except ValueError:
+                current_ts = None
+        elif line.startswith("\t"):
+            content = line[1:]  # strip leading tab
+            if current_ts is not None and content.lstrip().startswith("- [ ]"):
+                age_days = int((now - current_ts) / 86400)
+                if age_days >= threshold_days:
+                    # Extract the item text after "- [ ] "
+                    text = content.lstrip()[len("- [ ] ") :].strip()
+                    if len(text) > 40:
+                        text = text[:37] + "..."
+                    stale.append({"text": text, "age_days": age_days})
+            current_ts = None
+
+    return stale
+
+
+def format_compact(briefing: "BriefingData", use_color: bool = True) -> str:
+    """Format a fixed ~42-char ANSI box briefing, action-first.
+
+    This is the compact session-startup view: resume context, blockers,
+    Vortex status, stale items, and drill-down commands.
+
+    `detect_resume_context` and `detect_stale_items` are looked up via the
+    `briefing` package namespace (not local references) so test fixtures
+    that `patch("briefing.detect_resume_context", ...)` and
+    `patch("briefing.detect_stale_items", ...)` continue to intercept the
+    calls after this migration.
+    """
+    # Color setup
+    BOLD = RESET = YELLOW = GREEN = CYAN = ""
+    if use_color:
+        try:
+            from colorama import Fore, Style, init as _cinit
+
+            _cinit(autoreset=False)
+            BOLD = Style.BRIGHT
+            RESET = Style.RESET_ALL
+            YELLOW = Fore.YELLOW
+            GREEN = Fore.GREEN
+            CYAN = Fore.CYAN
+        except ImportError:
+            pass
+
+    WIDTH = 42  # inner content width (between │ and │)
+
+    def pad(text: str, width: int = WIDTH) -> str:
+        """Pad plain text (without ANSI) to width, then wrap with borders."""
+        import re as _re
+
+        ansi_escape = _re.compile(r"\x1b\[[0-9;]*m")
+        plain_len = len(ansi_escape.sub("", text))
+        padding = max(0, width - plain_len)
+        return f"│ {text}{' ' * padding} │"
+
+    date_str = briefing.generated_at.strftime("%b %-d")
+    header_label = "CORTEX"
+    header_right = date_str
+
+    inner_plain = f" {header_label} "
+    filler_len = WIDTH - len(inner_plain) - len(header_right)
+    filler = "─" * max(0, filler_len)
+    top_line = (
+        f"┌─{BOLD}{header_label}{RESET}─{filler}{header_right}─┐"
+        if BOLD
+        else f"┌─{header_label}─{filler}{header_right}─┐"
+    )
+
+    lines = [top_line]
+
+    # Resume context — lazy lookup through the briefing namespace so the
+    # test harness's `patch("briefing.detect_resume_context", …)` still
+    # intercepts here (the patch target is the briefing module's attribute,
+    # which is the re-export pointing back at this function — we have to go
+    # through the briefing namespace to see the Mock).
+    import briefing as _briefing
+
+    resume = _briefing.detect_resume_context()
+    if resume:
+        summary = resume["summary"]
+        lines.append(pad(f"▸ RESUME: {BOLD}{summary}{RESET}" if BOLD else f"▸ RESUME: {summary}"))
+        file_parts = []
+        for f in resume["files"][:3]:
+            name = Path(f["name"]).name
+            ins = f["insertions"]
+            file_parts.append(f"{name} +{ins}" if ins else name)
+        files_str = "  " + "  ".join(file_parts)
+        lines.append(pad(files_str))
+    else:
+        # No resume context — show top priority action if available
+        if briefing.priority_actions:
+            top = briefing.priority_actions[0]
+            action_text = top.get("title", top.get("action", "Review priorities"))[:36]
+            lines.append(pad(f"▸ {action_text}"))
+        else:
+            lines.append(pad("▸ No pending actions"))
+        lines.append(pad(""))
+
+    lines.append(pad(""))
+
+    # Blockers line
+    if briefing.blockers:
+        blocker_texts = []
+        for b in briefing.blockers[:3]:
+            label = b.get("title", b.get("description", ""))[:20]
+            blocker_texts.append(label)
+        blocker_str = f"{YELLOW}⚠{RESET} " if YELLOW else "⚠ "
+        blocker_str += " · ".join(blocker_texts)
+        lines.append(pad(blocker_str))
+    else:
+        lines.append(pad(f"{GREEN}✓{RESET} No blockers" if GREEN else "✓ No blockers"))
+
+    # Vortex health line (EMOS is a Vortex concern, not Cortex)
+    vortex_str = "Vortex: "
+    if briefing.resource_status and isinstance(briefing.resource_status, dict):
+        rs = briefing.resource_status
+        health = rs.get("health") or rs.get("status") or rs.get("vortex")
+        if health:
+            vortex_str += str(health)[:30]
+        else:
+            vortex_str += "check localhost:8000"
+    else:
+        vortex_str += "check localhost:8000"
+    lines.append(pad(vortex_str))
+
+    lines.append(pad(""))
+
+    # Stale items — same lazy-lookup pattern as detect_resume_context.
+    stale = _briefing.detect_stale_items()
+    if stale:
+        item = stale[0]
+        age = item["age_days"]
+        text = item["text"][:28]
+        stale_line = (
+            f"{YELLOW}STALE:{RESET} {text} ({age}d)" if YELLOW else f"STALE: {text} ({age}d)"
+        )
+        lines.append(pad(stale_line))
+    # else: skip the STALE line entirely
+
+    # Drill-down commands
+    lines.append(
+        pad(f"▸ {CYAN}cortex briefing --detail{RESET}" if CYAN else "▸ cortex briefing --detail")
+    )
+    lines.append(
+        pad(
+            f"▸ {CYAN}http://localhost:3001/briefing{RESET}"
+            if CYAN
+            else "▸ http://localhost:3001/briefing"
+        )
+    )
+
+    # Bottom border
+    lines.append("└" + "─" * (WIDTH + 2) + "┘")
+
+    return "\n".join(lines)
