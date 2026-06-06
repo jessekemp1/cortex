@@ -19,10 +19,13 @@ Migrated so far:
   - `detect_stale_items`      GOALS.md stale-action helper
   - `format_compact`          bordered-box compact view
   - `format_briefing_json`    JSON serialization of the BriefingData payload
+  - `format_briefing`         full text briefing (~1075 LOC — biggest
+                              single function in the codebase)
 
-Still in `briefing/__init__.py` (pending future commits):
-  - `format_briefing`         full text briefing (~1075 LOC — biggest single
-                              function; needs its own focused turn)
+All public formatters now live here. `briefing/__init__.py` retains only
+`BriefingData`, `BriefingGenerator`, `generate_daily_briefing`, and the
+small style/signal helpers (`_sparkline`, `_compute_signal_quality`,
+`get_briefing_signal_quality`, …) that the generator and formatters share.
 """
 
 from __future__ import annotations
@@ -596,3 +599,1083 @@ def format_briefing_json(briefing: "BriefingData") -> str:
     }
 
     return json.dumps(data, indent=2, default=str)
+
+
+def format_briefing(briefing: "BriefingData", use_color: bool = True) -> str:
+    """
+    Format briefing data into readable text output.
+
+    Args:
+        briefing: BriefingData to format
+        use_color: Use terminal colors (if available)
+
+    Returns:
+        Formatted briefing string
+    """
+
+    # Lazy alias to the briefing namespace so test harnesses that patch
+    # `briefing.get_briefing_signal_quality` / `briefing._sparkline` are still
+    # honored after the migration to briefing/formatters.py.
+    import briefing as _briefing
+    lines = []
+    style = _load_briefing_style()
+    sep_width = int(style.get("separator_width", 64))
+    show_ascii = bool(style.get("show_ascii_graphics", True))
+    show_infographics = bool(style.get("show_infographics", True))
+    show_sparklines = bool(style.get("show_sparklines", True))
+
+    # Try to use rich/colorama for colors, fallback to plain text
+    try:
+        if use_color:
+            from colorama import Fore, Style, init
+
+            init(autoreset=True)
+            BOLD = Style.BRIGHT
+            RESET = Style.RESET_ALL
+            BLUE = Fore.BLUE
+            GREEN = Fore.GREEN
+            YELLOW = Fore.YELLOW
+        else:
+            raise ImportError
+    except ImportError:
+        BOLD = RESET = BLUE = GREEN = YELLOW = RED = ""
+
+    # Header
+    date_title = f"CORTEX DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}"
+    if show_ascii:
+        inner_width = max(sep_width - 4, len(date_title) + 2)
+        lines.append("+" + "-" * (inner_width + 2) + "+")
+        lines.append(f"| {BOLD}{date_title:^{inner_width}}{RESET} |")
+        lines.append("+" + "-" * (inner_width + 2) + "+")
+    else:
+        lines.append("=" * sep_width)
+        lines.append(f"{BOLD}DAILY BRIEFING - {briefing.generated_at.strftime('%B %d, %Y')}{RESET}")
+        lines.append("=" * sep_width)
+    lines.append("")
+
+    # Hard warning when workspace noise degrades briefing confidence.
+    if briefing.git_status and briefing.git_status.get("summary"):
+        signal = _briefing.get_briefing_signal_quality(briefing)
+        signal_quality = str(signal["quality"])
+        modified = int(signal["modified"])
+        untracked = int(signal["untracked"])
+        if signal_quality == "LOW":
+            lines.append(
+                f"{RED}[SIGNAL QUALITY: LOW] {modified + untracked} local changes distort recommendations{RESET}"
+            )
+            lines.append(
+                f"{RED}Action: commit/stash or reduce working tree noise before trusting priorities{RESET}"
+            )
+            lines.append("")
+        elif signal_quality == "MED":
+            lines.append(
+                f"{YELLOW}[SIGNAL QUALITY: MED] moderate working tree noise detected ({modified + untracked} files){RESET}"
+            )
+            lines.append("")
+
+    # ==================== TL;DR SECTION ====================
+    lines.append(f"{BOLD}TL;DR{RESET}")
+    if show_ascii:
+        lines.append("  " + "-" * 8)
+    lines.append("")
+
+    # Portfolio status bullet
+    active_count = len(briefing.active_projects)
+    blocker_count = len(briefing.blockers)
+    blocker_status = (
+        f"{RED}{blocker_count} blockers{RESET}"
+        if blocker_count > 0
+        else f"{GREEN}no blockers{RESET}"
+    )
+    lines.append(
+        f"  • {BOLD}Portfolio:{RESET} {active_count} active projects, {briefing.total_commits_7d} commits this week, {blocker_status}"
+    )
+    if show_infographics:
+        blocker_pct = int((blocker_count / max(1, active_count)) * 100)
+        lines.append(
+            f"    Health ratio: {_build_progress_bar(100 - blocker_pct, style)} {100 - blocker_pct}% clear"
+        )
+
+    # Top priority bullet
+    if briefing.priority_actions:
+        top = briefing.priority_actions[0]
+        priority_color = (
+            RED if top["priority"] == "HIGH" else YELLOW if top["priority"] == "MEDIUM" else GREEN
+        )
+        lines.append(
+            f"  • {BOLD}Top Priority:{RESET} [{priority_color}{top['priority']}{RESET}] {top['title']}"
+        )
+
+    # Git status bullet
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        branch = gs.get("current_branch", "unknown")
+        modified = gs.get("uncommitted_changes", gs.get("working_tree", {}).get("modified", 0))
+        untracked = gs.get("untracked_files", gs.get("working_tree", {}).get("untracked", 0))
+        pr_count = gs.get("open_prs")
+        if pr_count is None:
+            pr_count = len(gs.get("pull_requests", []))
+        pr_text = f", {pr_count} open PR{'s' if pr_count != 1 else ''}" if pr_count > 0 else ""
+        lines.append(
+            f"  • {BOLD}Git:{RESET} on `{branch}`, {modified} modified, {untracked} untracked{pr_text}"
+        )
+
+    # Work progress bullet
+    if briefing.work_progress:
+        wp = briefing.work_progress
+        items_24h = wp.get("items_24h", 0)
+        orphaned = wp.get("orphaned_24h", 0)
+        drifts = wp.get("drifts_total", 0)
+        orphan_text = f", {YELLOW}{orphaned} unplanned{RESET}" if orphaned > 0 else ""
+        drift_text = f", {YELLOW}{drifts} drift items{RESET}" if drifts > 0 else ""
+        lines.append(f"  • {BOLD}Work:{RESET} {items_24h} items today{orphan_text}{drift_text}")
+
+    # Resource status bullet
+    if briefing.resource_status:
+        rs = briefing.resource_status
+        cpu_avail = rs.get("cpu_available", 0)
+        mem_used = rs.get("memory_usage_percent", 0)
+        cpu_color = RED if cpu_avail < 30 else YELLOW if cpu_avail < 60 else GREEN
+        mem_color = RED if mem_used > 80 else YELLOW if mem_used > 60 else GREEN
+        waste = rs.get("waste_items", 0)
+        waste_text = f", {YELLOW}{waste} waste items{RESET}" if waste > 10 else ""
+        lines.append(
+            f"  • {BOLD}System:{RESET} {cpu_color}{cpu_avail:.0f}% CPU free{RESET}, {mem_color}{mem_used:.0f}% mem used{RESET}{waste_text}"
+        )
+
+    # Batch queue bullet
+    if briefing.batch_queue_status:
+        bq = briefing.batch_queue_status
+        running = bq.get("running_count", 0)
+        pending = bq.get("pending_count", 0) + bq.get("scheduled_count", 0)
+        failed = bq.get("failed_count", 0)
+        if running > 0 or pending > 0 or failed > 0:
+            parts = []
+            if running > 0:
+                parts.append(f"{running} running")
+            if pending > 0:
+                parts.append(f"{pending} queued")
+            if failed > 0:
+                parts.append(f"{RED}{failed} failed{RESET}")
+            lines.append(f"  • {BOLD}Batch:{RESET} {', '.join(parts)}")
+
+    # V2a Batch orchestration status
+    try:
+        from batch.v2a_sprint_orchestrator import V2aSprintOrchestrator
+
+        orchestrator = V2aSprintOrchestrator()
+        v2a_status = orchestrator.get_overall_status()
+
+        if v2a_status["total_tasks"] > 0:
+            completed = v2a_status["completed"]
+            total = v2a_status["total_tasks"]
+            current_wave = v2a_status["current_wave"]
+            progress_pct = v2a_status["progress_pct"]
+
+            if progress_pct >= 100:
+                lines.append(f"  • {BOLD}V2a Batch:{RESET} {GREEN}All complete ✓{RESET}")
+            elif v2a_status["running"] > 0:
+                lines.append(
+                    f"  • {BOLD}V2a Batch:{RESET} {current_wave} in progress ({completed}/{total} complete, {progress_pct:.0f}%)"
+                )
+            elif v2a_status["failed"] > 0:
+                lines.append(
+                    f"  • {BOLD}V2a Batch:{RESET} {RED}{v2a_status['failed']} failed{RESET} ({completed}/{total} complete)"
+                )
+            else:
+                lines.append(
+                    f"  • {BOLD}V2a Batch:{RESET} {completed}/{total} complete ({progress_pct:.0f}%), ready for {current_wave}"
+                )
+    except Exception:
+        # V2a batch orchestration may not be active
+        pass
+
+    # Temporal context bullet (day intelligence)
+    if briefing.temporal_context:
+        tc = briefing.temporal_context
+        day = tc.get("day_of_week", "")
+        day_pattern = tc.get("day_pattern", {})
+        suggestion = day_pattern.get("suggestion", "")
+        if suggestion:
+            lines.append(f"  • {BOLD}Today:{RESET} {day} - {suggestion[:50]}")
+
+    # Strategic alignment bullet (drift warning)
+    if briefing.strategic_alignment:
+        sa = briefing.strategic_alignment
+        if sa.get("has_strategic_drift"):
+            drift_count = len(sa.get("drift_indicators", []))
+            lines.append(
+                f"  • {BOLD}Strategy:{RESET} {YELLOW}⚠ {drift_count} drift indicator{'s' if drift_count != 1 else ''} detected{RESET}"
+            )
+        else:
+            velocity = sa.get("velocity_status", "unknown")
+            if velocity == "healthy":
+                lines.append(f"  • {BOLD}Strategy:{RESET} {GREEN}On track{RESET}")
+
+    # Predictive insight bullet
+    if briefing.predictive_insights:
+        pi = briefing.predictive_insights
+        predictions = pi.get("predictions", [])
+        if predictions:
+            top_pred = predictions[0]
+            conf = top_pred.get("confidence", "medium")
+            conf_color = GREEN if conf == "high" else YELLOW
+            lines.append(
+                f"  • {BOLD}Predicted:{RESET} [{conf_color}{conf.upper()}{RESET}] {top_pred['prediction'][:45]}"
+            )
+
+    lines.append("")
+    lines.append("-" * sep_width)
+    lines.append("")
+
+    # ==================== RESOURCE INTELLIGENCE (HIGH-VALUE) ====================
+
+    if briefing.resource_intelligence:
+        ri = briefing.resource_intelligence
+        pacing = ri.get("pacing", {})
+        weekly = ri.get("weekly", {})
+        batch_opt = ri.get("batch_optimization", {})
+
+        if show_ascii:
+            lines.append(f"{BOLD}/== RESOURCE INTELLIGENCE ==/{RESET}")
+        else:
+            lines.append(f"{BOLD}⚡ RESOURCE INTELLIGENCE{RESET}")
+        lines.append("")
+
+        # Pacing status - THE most important metric
+        emoji = pacing.get("emoji", "🟡")
+        status = pacing.get("status", "unknown").replace("_", " ").title()
+        daily_hrs = pacing.get("daily_hours", 0)
+        target_hrs = pacing.get("target_hours", 8.6)
+        advice = pacing.get("advice", "")
+
+        status_color = (
+            GREEN
+            if pacing.get("status") == "under_budget"
+            else YELLOW
+            if pacing.get("status") in ["on_track", "elevated"]
+            else RED
+        )
+        lines.append(
+            f"  {emoji} {BOLD}Pacing:{RESET} {status_color}{status}{RESET} ({daily_hrs:.1f}h/day vs {target_hrs:.1f}h target)"
+        )
+        if advice:
+            lines.append(f"     → {advice}")
+
+        # Weekly projection
+        used = weekly.get("used_hours", 0)
+        limit = weekly.get("limit_hours", 60)
+        days_left = weekly.get("days_remaining", 0)
+        weekly.get("projected_total", 0)
+        will_hit = weekly.get("will_hit_limit", False)
+
+        pct_used = (used / limit * 100) if limit > 0 else 0
+        weekly_color = GREEN if pct_used < 70 else YELLOW if pct_used < 90 else RED
+        lines.append(
+            f"  📊 {BOLD}Weekly:{RESET} {weekly_color}{used:.1f}h/{limit}h used ({pct_used:.0f}%){RESET}, {days_left} days left"
+        )
+        if will_hit:
+            lines.append(f"     {RED}⚠ Projected to hit limit at current pace{RESET}")
+
+        # Batch optimization
+        batch_pct = batch_opt.get("current_percentage", 0)
+        batch_target = batch_opt.get("target_percentage", 40)
+        on_track = batch_opt.get("on_track", False)
+        potential_savings = batch_opt.get("potential_savings", 0)
+
+        batch_color = GREEN if on_track else YELLOW
+        lines.append(
+            f"  🔄 {BOLD}Batch API:{RESET} {batch_color}{batch_pct:.0f}%{RESET} of work (target: {batch_target}%)"
+        )
+        if not on_track and potential_savings > 0:
+            lines.append(f"     → Shift more to batch: save ${potential_savings:.2f}/week")
+
+        lines.append("")
+
+    # ==================== ORCHESTRATION ADVISORY ====================
+
+    if briefing.orchestration_advisory:
+        oa = briefing.orchestration_advisory
+        mode_rec = oa.get("mode_recommendation")
+
+        if show_ascii:
+            lines.append(f"{BOLD}/== ORCHESTRATION ADVISORY ==/{RESET}")
+        else:
+            lines.append(f"{BOLD}🎮 ORCHESTRATION ADVISORY{RESET}")
+        lines.append("")
+
+        # Mode recommendation
+        if mode_rec:
+            mode = mode_rec.get("mode", "balanced")
+            reason = mode_rec.get("reason", "")
+            actions = mode_rec.get("actions", [])
+
+            mode_emoji = (
+                "🟢" if mode == "interactive_ok" else "🔴" if mode == "batch_priority" else "🟡"
+            )
+            mode_label = mode.replace("_", " ").title()
+            lines.append(f"  {mode_emoji} {BOLD}Recommended Mode:{RESET} {mode_label}")
+            lines.append(f"     {reason}")
+            if actions:
+                lines.append("     Actions:")
+                for action in actions[:2]:
+                    lines.append(f"       • {action}")
+
+        # Agent recommendations
+        agent_recs = oa.get("agent_recommendations", [])
+        if agent_recs:
+            lines.append(f"  🤖 {BOLD}Deploy Agents:{RESET}")
+            for rec in agent_recs[:2]:
+                lines.append(f"     • {rec['agent']}: {rec['reason']}")
+
+        # Parallelization opportunities
+        parallel = oa.get("parallelization_opportunities", [])
+        if parallel:
+            lines.append(f"  ⚡ {BOLD}Parallelize:{RESET}")
+            for opp in parallel[:1]:
+                lines.append(f"     • {opp['opportunity']}")
+
+        lines.append("")
+
+    # ==================== VELOCITY & ROI ====================
+
+    if briefing.velocity_metrics:
+        vm = briefing.velocity_metrics
+        lines.append(f"{BOLD}📈 VELOCITY & ROI{RESET}")
+        total_hrs = vm.get("total_savings_hours", 0)
+        tasks = vm.get("total_tasks", 0)
+        avg_pct = vm.get("avg_improvement_pct", 0)
+
+        lines.append(
+            f"  30-Day Impact: {GREEN}{total_hrs:.1f} hours saved{RESET} across {tasks} tasks ({avg_pct:.0f}% faster)"
+        )
+
+        by_project = vm.get("by_project", {})
+        if by_project:
+            top_projects = sorted(
+                by_project.items(), key=lambda x: x[1].get("savings", 0), reverse=True
+            )[:3]
+            if top_projects:
+                lines.append("  Top contributors:")
+                for proj, data in top_projects:
+                    lines.append(f"    • {proj}: {data.get('savings', 0):.0f} min saved")
+
+        lines.append("")
+
+    lines.append("-" * 64)
+    lines.append("")
+
+    # ==================== EXPANDED DETAILS ====================
+
+    # Executive Summary
+    lines.append(f"{BOLD}EXECUTIVE SUMMARY{RESET}")
+    exec_points = []
+    if briefing.priority_actions:
+        top = briefing.priority_actions[0]
+        exec_points.append(
+            f"Top move: [{top.get('priority', 'MEDIUM')}] {top.get('title', 'Action')}"
+        )
+    if briefing.blockers:
+        blocker_names = ", ".join(b["project"] for b in briefing.blockers[:2])
+        exec_points.append(f"Blockers concentrated in: {blocker_names}")
+    if briefing.batch_insights:
+        jobs = briefing.batch_insights.get("total_completed_24h", 0)
+        exec_points.append(f"Overnight throughput: {jobs} completed analyses")
+    if briefing.git_status and briefing.git_status.get("summary"):
+        gs = briefing.git_status["summary"]
+        exec_points.append(
+            f"Working tree pressure: {gs.get('uncommitted_changes', 0)} modified, {gs.get('untracked_files', 0)} untracked"
+        )
+    if not exec_points:
+        exec_points.append("No exceptional pressure signals detected.")
+    for point in exec_points[:4]:
+        lines.append(f"  • {point}")
+    lines.append("")
+
+    # Project Snapshot (table-style)
+    if briefing.project_snapshot:
+        lines.append(f"{BOLD}PROJECT SNAPSHOT{RESET}")
+        lines.append("  Project                     C7d  WIP  Trend")
+        lines.append("  -------------------------  ---  ---  ------")
+        for row in briefing.project_snapshot[:6]:
+            lines.append(
+                f"  {row['project'][:25]:25}  {int(row['commits_7d']):>3}  {int(row['uncommitted']):>3}  {row['trend']}"
+            )
+        lines.append("")
+
+    # Portfolio Pulse
+    lines.append(f"{BOLD}PORTFOLIO PULSE{RESET}")
+    lines.append(
+        f"  Active projects: {len(briefing.active_projects)} ({', '.join(briefing.active_projects[:5])}{'...' if len(briefing.active_projects) > 5 else ''})"
+    )
+    lines.append(
+        f"  Recent commits: {briefing.recent_commits_24h} in last 24h, {briefing.total_commits_7d} in last 7d"
+    )
+    if show_ascii and show_sparklines:
+        trend = _briefing._sparkline(
+            [float(briefing.recent_commits_24h), float(briefing.total_commits_7d)],
+            str(style.get("sparkline_chars", "▁▂▃▄▅▆▇█")),
+        )
+        lines.append(f"  Commit trend (24h→7d): {trend}")
+        commit_pct = int(
+            min(
+                100,
+                round((briefing.recent_commits_24h / max(1, briefing.total_commits_7d)) * 100),
+            )
+        )
+        lines.append(
+            f"  Commit pulse meter: {_build_progress_bar(commit_pct, style)} {commit_pct}%"
+        )
+
+    if briefing.blockers:
+        lines.append(f"  {RED}Blockers: {len(briefing.blockers)}{RESET}")
+        for blocker in briefing.blockers[:3]:
+            lines.append(f"    - {blocker['project']}: {blocker['blocker']}")
+    else:
+        lines.append(f"  {GREEN}Blockers: None{RESET}")
+
+    lines.append("")
+
+    # Git & GitHub Status
+    if briefing.git_status and briefing.git_status.get("formatted"):
+        lines.append(briefing.git_status["formatted"])
+        lines.append("")
+
+    # Work Progress (from Work Absorber)
+    if briefing.work_progress:
+        wp = briefing.work_progress
+        lines.append(f"{BOLD}WORK PROGRESS{RESET}")
+
+        items_24h = wp.get("items_24h", 0)
+        items_7d = wp.get("items_7d", 0)
+        correlated = wp.get("correlated_24h", 0)
+        orphaned = wp.get("orphaned_24h", 0)
+
+        lines.append(f"  Work items: {items_24h} in 24h, {items_7d} in 7d")
+
+        if items_24h > 0:
+            if correlated > 0:
+                lines.append(f"  {GREEN}Planned work: {correlated} items{RESET}")
+            if orphaned > 0:
+                lines.append(f"  {YELLOW}Unplanned work: {orphaned} items{RESET}")
+
+        # Show drifts
+        drifts = wp.get("drifts_total", 0)
+        if drifts > 0:
+            drift_types = wp.get("drifts_by_type", {})
+            drift_summary = ", ".join(f"{k}: {v}" for k, v in list(drift_types.items())[:3])
+            lines.append(f"  {YELLOW}Plan drift: {drifts} ({drift_summary}){RESET}")
+
+        # Recent work
+        recent = wp.get("recent_work", [])
+        if recent:
+            lines.append("  Recent:")
+            for item in recent[:3]:
+                scope_badge = f"[{item.get('scope', 'misc')}]" if item.get("scope") else ""
+                lines.append(f"    - {item['title'][:45]} {scope_badge}")
+
+        lines.append("")
+
+    # Resource Pulse
+    if briefing.resource_status:
+        lines.append(f"{BOLD}⚡ RESOURCE PULSE{RESET}")
+        rs = briefing.resource_status
+
+        # CPU and Memory
+        cpu_color = (
+            RED if rs["cpu_available"] < 30 else YELLOW if rs["cpu_available"] < 60 else GREEN
+        )
+        mem_color = (
+            RED
+            if rs["memory_usage_percent"] > 80
+            else YELLOW
+            if rs["memory_usage_percent"] > 60
+            else GREEN
+        )
+
+        lines.append(
+            f"  CPU: {cpu_color}{rs['cpu_available']:.0f}% available{RESET} | Memory: {mem_color}{rs['memory_usage_percent']:.0f}% used{RESET}"
+        )
+        lines.append(f"  Processes: {rs['process_count']}")
+
+        # AI Tools & Services
+        if rs.get("ai_tool_cpu", 0) > 0 or rs.get("dev_service_cpu", 0) > 0:
+            lines.append(
+                f"  AI Tools: {rs.get('ai_tool_cpu', 0):.1f}% CPU | Dev Services: {rs.get('dev_service_cpu', 0):.1f}% CPU"
+            )
+
+        # Alerts and Waste
+        alerts_color = (
+            RED
+            if rs.get("critical_alerts", 0) > 0
+            else YELLOW
+            if rs.get("alerts_count", 0) > 5
+            else ""
+        )
+        waste_color = YELLOW if rs.get("waste_items", 0) > 10 else ""
+
+        if rs.get("alerts_count", 0) > 0:
+            lines.append(
+                f"  Alerts: {alerts_color}{rs.get('alerts_count', 0)} ({rs.get('critical_alerts', 0)} critical){RESET}"
+            )
+
+        if rs.get("waste_items", 0) > 0:
+            lines.append(
+                f"  Resource Waste: {waste_color}{rs.get('waste_items', 0)} items detected{RESET}"
+            )
+
+        # Optimization opportunities
+        if rs.get("optimization_opportunities", 0) > 0:
+            lines.append(
+                f"  💡 {rs.get('optimization_opportunities', 0)} optimization opportunities"
+            )
+
+        lines.append("")
+
+    # Batch Queue Status
+    if briefing.batch_queue_status:
+        bq = briefing.batch_queue_status
+
+        # Only show if there are tasks in the queue
+        total_tasks = (
+            bq.get("pending_count", 0) + bq.get("scheduled_count", 0) + bq.get("running_count", 0)
+        )
+
+        if total_tasks > 0 or bq.get("completed_count", 0) > 0 or bq.get("failed_count", 0) > 0:
+            lines.append(f"{BOLD}📋 BATCH QUEUE{RESET}")
+
+            # Show running tasks with details
+            running_tasks = bq.get("running_tasks", [])
+            if running_tasks:
+                lines.append(f"  {YELLOW}▶️  Running Now:{RESET}")
+                for task in running_tasks[:3]:  # Show up to 3
+                    desc = (
+                        task.description[:50] + "..."
+                        if len(task.description) > 50
+                        else task.description
+                    )
+                    elapsed = ""
+                    if task.started_at:
+                        from datetime import datetime
+
+                        elapsed_sec = (datetime.now() - task.started_at).total_seconds()  # noqa: DTZ005
+                        if elapsed_sec < 60:
+                            elapsed = f" ({elapsed_sec:.0f}s elapsed)"
+                        else:
+                            elapsed = f" ({elapsed_sec / 60:.1f}m elapsed)"
+                    lines.append(f"     • {desc}{elapsed}")
+                if len(running_tasks) > 3:
+                    lines.append(f"     ... and {len(running_tasks) - 3} more")
+                lines.append("")
+
+            # Show scheduled tasks with times
+            scheduled_tasks = bq.get("scheduled_tasks", [])
+            if scheduled_tasks:
+                lines.append("  📅 Scheduled:")
+                for task in scheduled_tasks[:3]:  # Show up to 3
+                    desc = (
+                        task.description[:45] + "..."
+                        if len(task.description) > 45
+                        else task.description
+                    )
+                    when = ""
+                    if task.scheduled_time:
+                        from datetime import datetime
+
+                        now = datetime.now()  # noqa: DTZ005
+                        time_until = (task.scheduled_time - now).total_seconds()
+
+                        if time_until < 0:
+                            when = " (ready now)"
+                        elif time_until < 60:
+                            when = f" (in {time_until:.0f}s)"
+                        elif time_until < 3600:
+                            when = f" (in {time_until / 60:.0f}m)"
+                        elif time_until < 86400:
+                            when = f" (at {task.scheduled_time.strftime('%H:%M')})"
+                        else:
+                            when = f" ({task.scheduled_time.strftime('%b %d %H:%M')})"
+
+                    priority_marker = ""
+                    if task.priority == "immediate":
+                        priority_marker = f" {RED}[!]{RESET}"
+                    elif task.priority == "high":
+                        priority_marker = f" {YELLOW}[H]{RESET}"
+
+                    lines.append(f"     • {desc}{when}{priority_marker}")
+
+                if len(scheduled_tasks) > 3:
+                    lines.append(f"     ... and {len(scheduled_tasks) - 3} more")
+                lines.append("")
+
+            # Show pending tasks
+            pending_tasks = bq.get("pending_tasks", [])
+            if pending_tasks:
+                lines.append("  ⏳ Pending (not yet scheduled):")
+                for task in pending_tasks[:3]:  # Show up to 3
+                    desc = (
+                        task.description[:50] + "..."
+                        if len(task.description) > 50
+                        else task.description
+                    )
+                    lines.append(f"     • {desc}")
+                if len(pending_tasks) > 3:
+                    lines.append(f"     ... and {len(pending_tasks) - 3} more")
+                lines.append("")
+
+            # Show recent completions with details
+            recent_completed = bq.get("recent_completed", [])
+            if recent_completed:
+                lines.append(f"  {GREEN}✅ Recently Completed:{RESET}")
+                for task in recent_completed:
+                    desc = (
+                        task.description[:45] + "..."
+                        if len(task.description) > 45
+                        else task.description
+                    )
+                    duration = ""
+                    if task.actual_duration_seconds is not None:
+                        if task.actual_duration_seconds < 1:
+                            duration = f" ({task.actual_duration_seconds * 1000:.0f}ms)"
+                        elif task.actual_duration_seconds < 60:
+                            duration = f" ({task.actual_duration_seconds:.1f}s)"
+                        else:
+                            duration = f" ({task.actual_duration_seconds / 60:.1f}m)"
+                    lines.append(f"     • {desc}{duration}")
+                lines.append("")
+
+            # Show recent failures with error details
+            recent_failed = bq.get("recent_failed", [])
+            if recent_failed:
+                lines.append(f"  {RED}❌ Recently Failed:{RESET}")
+                for task in recent_failed:
+                    desc = (
+                        task.description[:45] + "..."
+                        if len(task.description) > 45
+                        else task.description
+                    )
+                    lines.append(f"     • {desc}")
+                    if task.error_message:
+                        error = (
+                            task.error_message[:60] + "..."
+                            if len(task.error_message) > 60
+                            else task.error_message
+                        )
+                        lines.append(f"       Error: {error}")
+                lines.append(f"  💡 View details: {BLUE}cortex batch list --state failed{RESET}")
+                lines.append("")
+
+            # Show overall stats summary
+            if bq.get("completed_count", 0) > 0 or bq.get("failed_count", 0) > 0:
+                completed = bq.get("completed_count", 0)
+                failed = bq.get("failed_count", 0)
+                total = completed + failed
+
+                if total > 0:
+                    success_rate = bq.get("success_rate", 0)
+                    success_color = (
+                        GREEN if success_rate >= 0.9 else YELLOW if success_rate >= 0.7 else RED
+                    )
+                    lines.append(
+                        f"  Overall: {completed} completed, {failed} failed ({success_color}{success_rate:.0%} success{RESET})"
+                    )
+                    lines.append("")
+
+            lines.append("")
+
+    # Overnight Batch Insights (AI analysis results from last 24h)
+    if briefing.batch_insights:
+        bi = briefing.batch_insights
+        total_completed = bi.get("total_completed_24h", 0)
+        total_output_kb = bi.get("total_output_kb", 0.0)
+        avg_duration_s = bi.get("avg_duration_s", 0.0)
+        lines.append(f"{BOLD}🔬 OVERNIGHT BATCH INSIGHTS{RESET}")
+        lines.append(
+            f"  {total_completed} analyses completed "
+            f"({total_output_kb:.0f} KB output, "
+            f"avg {avg_duration_s:.0f}s each)"
+        )
+        lines.append("")
+
+        # Show categories with counts
+        category_labels = {
+            "commit-analysis": "Commit Reviews",
+            "security-commit": "Security Scans",
+            "test-failure": "Test Failure Analysis",
+            "todo-analysis": "TODO/FIXME Scans",
+            "strategic-planning": "Strategic Planning",
+            "performance-analysis": "Performance Analysis",
+            "dependency-audit": "Dependency Audit",
+            "docs-completeness": "Documentation Audit",
+            "code-quality-scan": "Code Quality",
+            "test-coverage-analysis": "Test Coverage Gaps",
+            "api-docs-generation": "API Docs",
+        }
+        categories = bi.get("categories", {})
+        if isinstance(categories, dict):
+            for cat, info in sorted(
+                categories.items(),
+                key=lambda x: -(x[1].get("count", 0) if isinstance(x[1], dict) else 0),
+            ):
+                label = category_labels.get(cat, cat.replace("-", " ").title())
+                if isinstance(info, dict):
+                    count = info.get("count", 0)
+                    output_kb = info.get("total_output_kb", 0.0)
+                else:
+                    count = 0
+                    output_kb = 0.0
+                lines.append(f"  • {label}: {count} runs, {output_kb:.0f} KB")
+
+        lines.append("")
+        lines.append(
+            f"  💡 Query results: {BLUE}sqlite3 ~/.cortex/batch_queue.db "
+            f'"SELECT description, substr(stdout,1,500) FROM batch_tasks '
+            f"WHERE state='completed' ORDER BY completed_at DESC LIMIT 5;\"{RESET}"
+        )
+        lines.append("")
+
+    # V2a Sprint Batch Status (if active)
+    if briefing.batch_queue_status and "v2a_sprint" in briefing.batch_queue_status:
+        v2a = briefing.batch_queue_status["v2a_sprint"]
+
+        # Only show if there are active V2a tasks
+        if v2a.get("total_tasks", 0) > 0:
+            lines.append(f"{BOLD}🌊 V2A SPRINT BATCH{RESET}")
+
+            progress_pct = v2a.get("progress_pct", 0)
+            completed = v2a.get("completed", 0)
+            total = v2a.get("total_tasks", 0)
+            running = v2a.get("running", 0)
+            failed = v2a.get("failed", 0)
+
+            # Progress bar
+            progress_color = GREEN if progress_pct >= 75 else YELLOW if progress_pct >= 25 else ""
+            lines.append(
+                f"  Progress: {progress_color}{completed}/{total} tasks ({progress_pct:.0f}%){RESET}"
+            )
+
+            if running > 0:
+                lines.append(f"  {YELLOW}▶️  {running} running{RESET}")
+
+            if failed > 0:
+                lines.append(f"  {RED}❌ {failed} failed{RESET}")
+
+            # Current wave
+            current_wave = v2a.get("current_wave", "unknown")
+            lines.append(f"  Current wave: {current_wave}")
+
+            # Wave breakdown
+            waves = v2a.get("waves", {})
+            if waves:
+                lines.append("")
+                for wave_id in ["wave_1", "wave_2", "wave_3", "wave_4"]:
+                    if wave_id in waves:
+                        wave = waves[wave_id]
+                        wave_completed = wave.get("completed", 0)
+                        wave_total = wave.get("total", 0)
+                        wave_progress = wave.get("progress_pct", 0)
+
+                        if wave_completed == wave_total and wave_total > 0:
+                            icon = "✅"
+                        elif wave.get("running", 0) > 0:
+                            icon = "🔄"
+                        elif wave.get("ready", 0) > 0:
+                            icon = "📋"
+                        else:
+                            icon = "⏸️"
+
+                        status_text = f"{wave_completed}/{wave_total} ({wave_progress:.0f}%)"
+
+                        if wave.get("ready", 0) > 0:
+                            status_text += f" • {GREEN}{wave['ready']} ready{RESET}"
+                        elif wave.get("blocked", 0) > 0:
+                            status_text += f" • {wave['blocked']} blocked"
+
+                        lines.append(f"    {icon} {wave_id}: {status_text}")
+
+            # Estimated remaining time
+            est_remaining = v2a.get("estimated_remaining_minutes", 0)
+            if est_remaining > 0:
+                if est_remaining < 60:
+                    est_text = f"{est_remaining:.0f} minutes"
+                else:
+                    est_text = f"{est_remaining / 60:.1f} hours"
+                lines.append(f"\n  Estimated remaining: {est_text}")
+
+            lines.append(f"  💡 Check status: {BLUE}cortex v2a-batch status{RESET}")
+            lines.append("")
+
+    # Priority Actions
+    lines.append(f"{BOLD}PRIORITY ACTIONS{RESET}")
+    if briefing.priority_actions:
+        for i, action in enumerate(briefing.priority_actions, 1):
+            priority_color = (
+                RED
+                if action["priority"] == "HIGH"
+                else YELLOW
+                if action["priority"] == "MEDIUM"
+                else GREEN
+            )
+
+            # Title with project inline
+            project_suffix = (
+                f" ({action['project']})"
+                if action.get("project") and action["project"] != "General"
+                else ""
+            )
+            lines.append(
+                f"  {i}. [{priority_color}{action['priority']}{RESET}] {action['title']}{project_suffix}"
+            )
+
+            # Show progress if available
+            if action.get("completion_percentage", 0) > 0:
+                pct = action["completion_percentage"]
+                progress_bar = _build_progress_bar(pct, style)
+                lines.append(f"     Progress: {progress_bar} {pct}%")
+
+            # Show steps/actions if available
+            steps = action.get("steps", [])
+            if steps:
+                lines.append(f"     {YELLOW}Next steps:{RESET}")
+                for step in steps[:3]:
+                    if isinstance(step, str):
+                        step_text = step
+                    else:
+                        step_text = (
+                            getattr(step, "description", None)
+                            or getattr(step, "title", None)
+                            or str(step)
+                        )
+                    step_text = step_text[:70] + "..." if len(step_text) > 70 else step_text
+                    lines.append(f"       → {step_text}")
+
+            # Show success criteria if available
+            if action.get("success_criteria"):
+                criteria = action["success_criteria"]
+                criteria_text = criteria[:80] + "..." if len(criteria) > 80 else criteria
+                lines.append(f"     {GREEN}Done when:{RESET} {criteria_text}")
+
+            # Show effort/impact for recommendations
+            if action.get("estimated_effort") or action.get("estimated_impact"):
+                meta_parts = []
+                if action.get("estimated_effort"):
+                    meta_parts.append(f"Effort: {action['estimated_effort']}")
+                if action.get("estimated_impact"):
+                    meta_parts.append(f"Impact: {action['estimated_impact']}")
+                if meta_parts:
+                    lines.append(f"     {BLUE}{' | '.join(meta_parts)}{RESET}")
+
+            lines.append("")  # Spacing between actions
+
+    else:
+        lines.append("  No priority actions at this time")
+
+    lines.append("")
+
+    # ==================== ENHANCED INTELLIGENCE SECTIONS ====================
+
+    # Temporal Context & Day Intelligence
+    if briefing.temporal_context:
+        tc = briefing.temporal_context
+        lines.append(f"{BOLD}🕐 TODAY'S CONTEXT{RESET}")
+
+        day = tc.get("day_of_week", "")
+        time_of_day = tc.get("time_of_day", "")
+        day_pattern = tc.get("day_pattern", {})
+
+        lines.append(f"  {day} {time_of_day.title()}")
+        if day_pattern.get("suggestion"):
+            lines.append(f"  💡 {day_pattern['suggestion']}")
+
+        # Session continuity
+        session = tc.get("session_continuity")
+        if session and session.get("last_focus"):
+            lines.append(f"  📍 Last focus: {session['current_focus'][:60]}")
+
+        lines.append("")
+
+    # Predictive Insights
+    if briefing.predictive_insights:
+        pi = briefing.predictive_insights
+        predictions = pi.get("predictions", [])
+        optimal_sequence = pi.get("optimal_sequence", [])
+
+        if predictions or optimal_sequence:
+            lines.append(f"{BOLD}🔮 PREDICTIVE INSIGHTS{RESET}")
+
+            if predictions:
+                for pred in predictions[:2]:
+                    conf_color = GREEN if pred.get("confidence") == "high" else YELLOW
+                    lines.append(
+                        f"  [{conf_color}{pred.get('confidence', 'medium').upper()}{RESET}] {pred['prediction']}"
+                    )
+                    if pred.get("reason"):
+                        lines.append(f"      ↳ {pred['reason'][:60]}")
+
+            if optimal_sequence:
+                lines.append(f"  {BLUE}Suggested sequence for today:{RESET}")
+                for i, item in enumerate(optimal_sequence[:3], 1):
+                    lines.append(f"    {i}. {item['task'][:50]}")
+
+            lines.append("")
+
+    # Strategic Alignment
+    if briefing.strategic_alignment:
+        sa = briefing.strategic_alignment
+        lines.append(f"{BOLD}🎯 STRATEGIC ALIGNMENT{RESET}")
+
+        # Goal velocity status
+        velocity = sa.get("velocity_status", "unknown")
+        velocity_color = (
+            GREEN if velocity == "healthy" else YELLOW if velocity == "backlog_growing" else RED
+        )
+        velocity_label = {
+            "healthy": "On Track",
+            "blocked": "Blocked",
+            "backlog_growing": "Backlog Growing",
+        }.get(velocity, velocity.title())
+
+        completed = sa.get("completed", 0)
+        in_progress = sa.get("in_progress", 0)
+        pending = sa.get("pending", 0)
+        blocked = sa.get("blocked", 0)
+
+        lines.append(f"  Goal Velocity: [{velocity_color}{velocity_label}{RESET}]")
+        lines.append(
+            f"  Goals: {completed} done, {in_progress} active, {pending} pending, {blocked} blocked"
+        )
+
+        # High priority focus
+        hp_total = sa.get("high_priority_total", 0)
+        hp_completed = sa.get("high_priority_completed", 0)
+        if hp_total > 0:
+            hp_rate = hp_completed / hp_total * 100
+            hp_color = GREEN if hp_rate >= 50 else YELLOW if hp_rate >= 25 else RED
+            lines.append(
+                f"  High-Priority: {hp_completed}/{hp_total} ({hp_color}{hp_rate:.0f}%{RESET})"
+            )
+
+        # Drift indicators
+        drift_indicators = sa.get("drift_indicators", [])
+        if drift_indicators:
+            lines.append(f"  {YELLOW}⚠ Strategic Drift Detected:{RESET}")
+            for drift in drift_indicators[:2]:
+                lines.append(f"    - {drift}")
+
+        lines.append("")
+
+    # Intelligence Metrics (Learning System)
+    if briefing.intelligence_metrics:
+        im = briefing.intelligence_metrics
+        if im.get("has_sufficient_data"):
+            lines.append(f"{BOLD}🧠 CORTEX LEARNING{RESET}")
+
+            accuracy = im.get("recommendation_accuracy", 0) * 100
+            accuracy_color = GREEN if accuracy >= 70 else YELLOW if accuracy >= 50 else RED
+            lines.append(
+                f"  Recommendation Accuracy: {accuracy_color}{accuracy:.0f}%{RESET} ({im.get('followed_count', 0)} tracked)"
+            )
+
+            # Best performing type
+            best = im.get("best_performing_type")
+            if best:
+                lines.append(
+                    f"  {GREEN}Best performing:{RESET} {best['type']} ({best['success_rate'] * 100:.0f}% success)"
+                )
+
+            # Confidence calibration insight
+            calibration = im.get("confidence_calibration", {})
+            high_conf = calibration.get("high (0.8-1.0)", 0)
+            low_conf = calibration.get("low (0.0-0.5)", 0)
+            if high_conf > 0 and low_conf > 0:
+                if high_conf > low_conf + 0.2:
+                    lines.append("  💡 High-confidence recommendations performing well")
+                elif low_conf > high_conf:
+                    lines.append(f"  {YELLOW}💡 Confidence calibration needs adjustment{RESET}")
+
+            lines.append("")
+
+    # Phase 1 contract metrics (bandwidth instrumentation)
+    if briefing.bandwidth_contract_metrics:
+        bcm = briefing.bandwidth_contract_metrics
+        sessions = int(bcm.get("sessions", 0))
+        if sessions > 0:
+            lines.append(f"{BOLD}🧩 BANDWIDTH CONTRACTS{RESET}")
+            override_rate = float(bcm.get("override_rate", 0)) * 100
+            autonomy_level = float(bcm.get("autonomy_level", 0)) * 100
+            novelty_score = float(bcm.get("novelty_score", 0))
+
+            override_color = GREEN if override_rate < 10 else YELLOW if override_rate < 20 else RED
+            autonomy_color = (
+                GREEN if autonomy_level >= 70 else YELLOW if autonomy_level >= 50 else RED
+            )
+            novelty_color = GREEN if novelty_score >= 5 else YELLOW if novelty_score >= 3 else RED
+
+            lines.append(
+                f"  override_rate: {override_color}{override_rate:.1f}%{RESET} ({sessions} sessions, 7d)"
+            )
+            lines.append(f"  autonomy_level: {autonomy_color}{autonomy_level:.1f}%{RESET}")
+            lines.append(f"  novelty_score: {novelty_color}{novelty_score:.2f}/10{RESET}")
+            lines.append("")
+
+    if briefing.queue_slo:
+        qs = briefing.queue_slo
+        status = str(qs.get("status", "unknown"))
+        color = GREEN if status == "healthy" else YELLOW if status == "warning" else RED
+        lines.append(f"{BOLD}🚦 INTERACTION QUEUE SLO{RESET}")
+        lines.append(
+            f"  status: {color}{status.upper()}{RESET} (queue={qs.get('queue_lines', 0)}, processing={qs.get('processing_lines', 0)})"
+        )
+        lines.append("")
+
+    # Cross-Project Insights
+    if briefing.cross_project_insights:
+        cpi = briefing.cross_project_insights
+        shared_patterns = cpi.get("shared_patterns", [])
+        relevant_lessons = cpi.get("relevant_lessons", [])
+        health = cpi.get("portfolio_health")
+
+        if shared_patterns or relevant_lessons or health:
+            lines.append(f"{BOLD}🔗 CROSS-PROJECT INTELLIGENCE{RESET}")
+
+            # Portfolio health
+            if health:
+                healthy = health.get("healthy_count", 0)
+                at_risk = health.get("at_risk_count", 0)
+                critical = health.get("critical_count", 0)
+                if at_risk > 0 or critical > 0:
+                    lines.append(
+                        f"  Portfolio Health: {GREEN}{healthy} healthy{RESET}, {YELLOW}{at_risk} at risk{RESET}, {RED}{critical} critical{RESET}"
+                    )
+                else:
+                    lines.append(
+                        f"  Portfolio Health: {GREEN}All {healthy} projects healthy{RESET}"
+                    )
+
+            # Shared patterns
+            if shared_patterns:
+                lines.append("  Shared patterns in active projects:")
+                for pattern in shared_patterns[:2]:
+                    projects = ", ".join(pattern.get("shared_by", [])[:3])
+                    lines.append(f"    - {pattern['pattern']} ({projects})")
+
+            # Relevant lessons
+            if relevant_lessons:
+                lines.append(f"  {YELLOW}Relevant lessons:{RESET}")
+                for lesson in relevant_lessons[:2]:
+                    lesson_text = lesson.get("lesson", "")[:60]
+                    lines.append(f"    - [{lesson.get('project', 'General')}] {lesson_text}")
+
+            lines.append("")
+
+    # Patterns Noticed
+    lines.append(f"{BOLD}PATTERNS NOTICED{RESET}")
+    if briefing.patterns:
+        for pattern in briefing.patterns:
+            lines.append(f"  {pattern}")
+    else:
+        lines.append("  No significant patterns detected")
+
+    lines.append("=" * 64)
+
+    return "\n".join(lines)
