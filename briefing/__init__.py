@@ -2549,41 +2549,7 @@ def format_briefing(briefing: BriefingData, use_color: bool = True) -> str:
     return "\n".join(lines)
 
 
-def format_briefing_json(briefing: BriefingData) -> str:
-    """
-    Format briefing as JSON.
-
-    Args:
-        briefing: BriefingData to format
-
-    Returns:
-        JSON string
-    """
-    import json
-
-    data = {
-        "generated_at": briefing.generated_at.isoformat(),
-        "period": briefing.period,
-        "portfolio_pulse": {
-            "active_projects": briefing.active_projects,
-            "recent_commits_24h": briefing.recent_commits_24h,
-            "total_commits_7d": briefing.total_commits_7d,
-            "blockers": briefing.blockers,
-        },
-        "priority_actions": briefing.priority_actions,
-        "patterns_noticed": briefing.patterns,
-        "waiting_on": briefing.waiting_on,
-        # Enhanced intelligence fields
-        "intelligence_metrics": briefing.intelligence_metrics,
-        "strategic_alignment": briefing.strategic_alignment,
-        "temporal_context": briefing.temporal_context,
-        "cross_project_insights": briefing.cross_project_insights,
-        "predictive_insights": briefing.predictive_insights,
-        "bandwidth_contract_metrics": briefing.bandwidth_contract_metrics,
-        "queue_slo": briefing.queue_slo,
-    }
-
-    return json.dumps(data, indent=2, default=str)
+# format_briefing_json migrated to briefing/formatters.py — see re-export below.
 
 
 # format_statusline migrated to briefing/formatters.py — see re-export below.
@@ -2606,6 +2572,7 @@ from briefing.formatters import (  # noqa: E402
     _build_progress_bar,
     detect_resume_context,
     detect_stale_items,
+    format_briefing_json,
     format_compact,
     format_statusline,
     format_statusline_json,

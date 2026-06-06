@@ -18,11 +18,11 @@ Migrated so far:
   - `detect_resume_context`   git-state signal helper
   - `detect_stale_items`      GOALS.md stale-action helper
   - `format_compact`          bordered-box compact view
+  - `format_briefing_json`    JSON serialization of the BriefingData payload
 
 Still in `briefing/__init__.py` (pending future commits):
   - `format_briefing`         full text briefing (~1075 LOC — biggest single
                               function; needs its own focused turn)
-  - `format_briefing_json`    JSON serialization of format_briefing's payload
 """
 
 from __future__ import annotations
@@ -562,3 +562,37 @@ def format_compact(briefing: "BriefingData", use_color: bool = True) -> str:
     lines.append("└" + "─" * (WIDTH + 2) + "┘")
 
     return "\n".join(lines)
+
+
+def format_briefing_json(briefing: "BriefingData") -> str:
+    """Format briefing as JSON.
+
+    Args:
+        briefing: BriefingData to format
+
+    Returns:
+        JSON string
+    """
+    data = {
+        "generated_at": briefing.generated_at.isoformat(),
+        "period": briefing.period,
+        "portfolio_pulse": {
+            "active_projects": briefing.active_projects,
+            "recent_commits_24h": briefing.recent_commits_24h,
+            "total_commits_7d": briefing.total_commits_7d,
+            "blockers": briefing.blockers,
+        },
+        "priority_actions": briefing.priority_actions,
+        "patterns_noticed": briefing.patterns,
+        "waiting_on": briefing.waiting_on,
+        # Enhanced intelligence fields
+        "intelligence_metrics": briefing.intelligence_metrics,
+        "strategic_alignment": briefing.strategic_alignment,
+        "temporal_context": briefing.temporal_context,
+        "cross_project_insights": briefing.cross_project_insights,
+        "predictive_insights": briefing.predictive_insights,
+        "bandwidth_contract_metrics": briefing.bandwidth_contract_metrics,
+        "queue_slo": briefing.queue_slo,
+    }
+
+    return json.dumps(data, indent=2, default=str)
