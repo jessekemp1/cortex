@@ -93,12 +93,15 @@ log "Installing Python dependencies..."
 PIP_LOG=$(mktemp)
 if [ "$FULL_INSTALL" = true ]; then
     info "Full install: adding analytics + orchestration packages (this takes a few minutes)..."
-    if ! "$VENV/bin/pip" install -e ".[all]" 2>"$PIP_LOG"; then
+    if ! "$VENV/bin/pip" install -e ".[all,server,dev]" 2>"$PIP_LOG"; then
         warn "Some optional packages failed — core install still works:"
         grep "^ERROR" "$PIP_LOG" | head -5 || true
     fi
 else
-    if ! "$VENV/bin/pip" install -e "." 2>"$PIP_LOG"; then
+    # Default install includes [server] (FastAPI bridge) and [dev] (pytest)
+    # so a fresh-clone user can run `cortex briefing`, the bridge, and the
+    # test suite the README badge advertises without a separate pip step.
+    if ! "$VENV/bin/pip" install -e ".[server,dev]" 2>"$PIP_LOG"; then
         cat "$PIP_LOG"
         rm -f "$PIP_LOG"
         fail "Core package install failed. See errors above."

@@ -87,11 +87,15 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 ```bash
 # 1. Install from source
 git clone https://github.com/jessekemp1/cortex && cd cortex
-pip install -e ".[server]"
+pip install -e ".[server,dev]"  # core + bridge + pytest
 
 # 2. Run the 30-second proof — NO API key, NO network
 cortex demo
 ```
+
+> Prefer the bundled installer? `./install.sh` (or `./install.sh --full`)
+> sets up the venv, state dirs, PATH, and (on macOS) LaunchAgents in one
+> shot — same `[server,dev]` extras as above.
 
 The demo synthesizes 5 prompts and 3 commits, runs the real `outcome_linker`
 against them, and prints the FK trail with computed scores. If you see three
@@ -319,10 +323,16 @@ All data is local by default. Nothing leaves your machine unless you configure a
 ```bash
 git clone https://github.com/jessekemp1/cortex
 cd cortex
-pip install -e .            # core only
-pip install -e ".[server]"  # + FastAPI server (uvicorn, apscheduler)
-pip install -e ".[all]"     # + analytics (xgboost, shap, openai)
+pip install -e .                  # core only
+pip install -e ".[server]"        # + FastAPI bridge (uvicorn, apscheduler)
+pip install -e ".[dev]"           # + pytest, ruff, mypy
+pip install -e ".[server,dev]"    # recommended for contributors
+pip install -e ".[all,server,dev]" # everything (analytics, orchestration, …)
 ```
+
+Or run `./install.sh` (`--full` for everything) — the bundled installer
+applies the recommended `[server,dev]` extras, creates `~/.cortex/`,
+links `cortex` to `~/.local/bin/`, and (on macOS) installs LaunchAgents.
 
 **Requirements:** Python 3.11+. `ANTHROPIC_API_KEY` required for embedding and intelligence features.
 
