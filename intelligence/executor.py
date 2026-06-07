@@ -101,7 +101,11 @@ class ContractExecutor:
     5. Return ExecutionResult
     """
 
-    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
+    def __init__(self, root_dir: Optional[str] = None):
+
+        if root_dir is None:
+
+            root_dir = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))
         self.root_dir = Path(root_dir)
         self.results_dir = Path.home() / ".cortex" / "execution_results"
         self.results_dir.mkdir(parents=True, exist_ok=True)

@@ -13,7 +13,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -36,7 +36,11 @@ class StrategicBatchJob:
 class StrategicBatchOrchestrator:
     """Generates strategic planning and research work for overnight batch processing"""
 
-    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
+    def __init__(self, root_dir: Optional[str] = None):
+
+        if root_dir is None:
+
+            root_dir = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))
         self.root_dir = Path(root_dir)
         self.cortex_dir = self.root_dir / "cortex"
 

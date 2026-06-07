@@ -55,7 +55,11 @@ class DynamicWorkGenerator:
     - Test failures from CI/test runs
     """
 
-    def __init__(self, root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))):
+    def __init__(self, root_dir: Optional[Path] = None):
+
+        if root_dir is None:
+
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = root_dir
         self.cortex_dir = root_dir / "cortex"
 
@@ -1080,7 +1084,7 @@ class AdaptiveEstimator:
 
 
 def integrate_with_orchestrator(
-    root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))),
+    root_dir: Optional[Path] = None,
 ) -> List[BatchWorkItem]:
     """
     Integration point with IntelligentBatchOrchestrator.
@@ -1090,7 +1094,9 @@ def integrate_with_orchestrator(
     Returns:
         Combined list of static + dynamic work items
     """
-    # Generate dynamic work
+    # Resolve root_dir at call time, not at function-definition time.
+    if root_dir is None:
+        root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
     generator = DynamicWorkGenerator(root_dir)
 
     dynamic_work = []

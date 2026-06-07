@@ -8,12 +8,17 @@ Integrates with git hooks and other workflows to automatically queue batch jobs.
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 class WorkflowBatchHooks:
     """Auto-batch common tasks based on workflow events"""
 
-    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
+    def __init__(self, root_dir: Optional[str] = None):
+
+        if root_dir is None:
+
+            root_dir = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))
         self.root_dir = Path(root_dir)
         self.cortex_dir = self.root_dir / "cortex"
 

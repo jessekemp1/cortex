@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class SignalType(Enum):
@@ -67,7 +67,11 @@ class Signal:
 class SignalDetector:
     """Autonomously monitors for work signals."""
 
-    def __init__(self, root_dir: str = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))):
+    def __init__(self, root_dir: Optional[str] = None):
+
+        if root_dir is None:
+
+            root_dir = os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))
         self.root_dir = Path(root_dir)
         self.vortex_dir = self.root_dir / "Vortex" / "backend"
         self.alpha_arena_dir = self.root_dir / "alpha_arena"

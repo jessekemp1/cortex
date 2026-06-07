@@ -111,7 +111,11 @@ exclude = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
+# Skip integration/network/api-key tests by default so a clean-room install
+# (e.g. fresh clone in CI or a Show HN reader's box) runs only hermetic tests.
+# Opt back in with: `pytest -m "integration"` or `--run-integration` after
+# setting CORTEX_ROOT_DIR + ANTHROPIC_API_KEY etc.
+addopts = "--strict-markers -m 'not integration and not requires_network and not requires_anthropic_key'"
 markers = [
     "integration: requires running services or monorepo environment",
     "requires_network: hits a real network endpoint",

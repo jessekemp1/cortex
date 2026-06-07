@@ -29,9 +29,14 @@ class SessionManager:
 
     def __init__(
         self,
-        root_dir: Path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd()))),
+        root_dir: Optional[Path] = None,
         enable_tiered_memory: bool = True,
     ):
+        # Resolve at call time, not at function-definition time — otherwise we
+        # capture whatever Path.cwd() was when this module was first imported,
+        # which is the `_find_project_root` cwd-drift anti-pattern.
+        if root_dir is None:
+            root_dir = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         self.root_dir = Path(root_dir)
         # Use CORTEX_HOME or ~/.cortex for session cache (not ~/.claude which is Claude Code-specific)
         cortex_home = Path(os.environ.get("CORTEX_HOME", str(Path.home() / ".cortex")))

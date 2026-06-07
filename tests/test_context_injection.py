@@ -134,15 +134,14 @@ class TestContextInjector:
         project = injector._detect_project(Path("~/Dev/production/audio/dj-copilot"))
         assert project == "dj-copilot"
 
-    def test_find_project_root_with_git(self, injector):
-        """Should find project root when .git exists."""
-        # Use cortex as test case (has .git or pyproject.toml)
-        cortex_path = Path("~/Dev/cortex").expanduser()
-        if cortex_path.exists():
-            root = injector._find_project_root(cortex_path / "intelligence")
-            # Should find a project root somewhere up the tree
-            assert root.exists()
-            assert root in [cortex_path, cortex_path.parent]
+    def test_find_project_root_with_git(self, injector, tmp_path):
+        """_find_project_root should walk up to the first parent with a .git/."""
+        project = tmp_path / "fake_project"
+        (project / ".git").mkdir(parents=True)
+        nested = project / "intelligence" / "sub"
+        nested.mkdir(parents=True)
+        root = injector._find_project_root(nested)
+        assert root == project
 
     def test_find_project_root_returns_cwd_if_not_found(self, injector):
         """Should return cwd if no project root found."""
