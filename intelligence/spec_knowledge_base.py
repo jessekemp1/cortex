@@ -23,7 +23,10 @@ logger = logging.getLogger(__name__)
 class SpecKnowledgeBase:
     """Index and search specs using embeddings + SQLite."""
 
-    def __init__(self, storage_path: Path = Path.home() / ".claude" / "specs"):
+    def __init__(self, storage_path: Optional[Path] = None):
+        # Resolve at call time to honor test-harness HOME monkeypatching.
+        if storage_path is None:
+            storage_path = Path.home() / ".claude" / "specs"
         self.storage_path = storage_path
         self.storage_path.mkdir(parents=True, exist_ok=True)
 

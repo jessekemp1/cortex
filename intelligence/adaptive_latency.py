@@ -144,7 +144,10 @@ class AdaptiveLatencyManager:
     - AUTO mode learns from context and user behavior
     """
 
-    def __init__(self, storage_dir: Path = Path.home() / ".cortex"):
+    def __init__(self, storage_dir: Optional[Path] = None):
+        # Resolve at call time to honor test-harness HOME monkeypatching.
+        if storage_dir is None:
+            storage_dir = Path.home() / ".cortex"
         self.storage_dir = storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.preference_file = storage_dir / "mode_preferences.json"

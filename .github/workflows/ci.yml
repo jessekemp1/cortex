@@ -1,10 +1,12 @@
 name: ci
 
-# Minimal CI: prove a fresh clone installs cleanly and the headline
-# falsifiable artifact (`cortex demo`) runs to completion on every PR.
-# Full pytest is intentionally NOT in the default workflow — many tests
-# depend on a populated ~/.cortex/ that CI won't have; running them would
-# yield false failures and erode the signal.
+# CI strategy:
+#   - smoke: every push/PR proves the fresh-install path works on Linux and
+#     the headline falsifiable artifact (`cortex demo`) runs end-to-end. Fast.
+#   - integration: separate job that runs `pytest -m integration` so the
+#     integration-marked tests can't silently rot. Most integration tests
+#     skip gracefully if their external dependency (bridge, monorepo scripts)
+#     isn't present — only the hermetic ones (tmp_path-based) actually run.
 
 on:
   push:
@@ -26,19 +28,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install (core + server extras)
+      - name: Install (server + dev extras — matches install.sh default)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[server]"
+          pip install -e ".[server,dev]"
 
       - name: pytest --collect-only must succeed
         run: |
-          # Excluding optional-dep paths is honest: scipy/sklearn aren't
-          # core. The 1908 collected tests must be discoverable.
-          python -m pip install pytest pytest-asyncio pytest-timeout
-          python -m pytest --collect-only -q \
-            --ignore=synthetic/tests \
-            --ignore=tests/test_hybrid_retriever.py
+          # synthetic/tests/ depends on [analytics] (xgboost, shap) which we
+          # don't install in smoke. Excluding it keeps the headline collection
+          # honest without bringing in heavy optional deps.
+          python -m pytest --collect-only -q --ignore=synthetic/tests
 
       - name: cortex demo must print the FK trail
         run: |
@@ -59,3 +59,41 @@ jobs:
           set -e
           test "$code" = "2"
           grep -q "ANTHROPIC_API_KEY is not set" /tmp/preflight.out
+
+  integration:
+    # Separate job so integration tests don't bitrot. They're skipped by
+    # default in `pytest` (see addopts in pyproject.toml); this job runs
+    # them explicitly. Most skip when their external dependency is absent
+    # (e.g. a running Cortex Bridge, the maintainer's monorepo scripts) —
+    # what remains is the hermetic core (tmp_path-based fixtures + the git
+    # repo of the checkout itself).
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Integration tests verify .git/ walk-up (work_intake / context
+          # injection); the default shallow clone breaks that walk.
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install (server + dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[server,dev]"
+
+      - name: pytest -m integration (override default deselect)
+        run: |
+          # pyproject.toml's addopts deselects `integration` by default so
+          # a clean-room `pytest` is hermetic. Override here with -o so we
+          # can select integration tests explicitly. Tests whose external
+          # dependency is missing (bridge, etc.) skip via their own
+          # @pytest.mark.skipif — they don't fail the job.
+          python -m pytest -m integration -o "addopts=--strict-markers" -v

@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 class PortfolioMemory:
     """Access portfolio-wide patterns, lessons, and project metadata"""
 
-    def __init__(self, portfolio_path: Path = Path.home() / ".claude" / "portfolio"):
+    def __init__(self, portfolio_path: Optional[Path] = None):
+        # Resolve at call time, not at function-definition time — otherwise
+        # we capture whatever Path.home() was when this module was first
+        # imported, which breaks any caller that monkeypatches HOME later.
+        if portfolio_path is None:
+            portfolio_path = Path.home() / ".claude" / "portfolio"
         self.portfolio_path = portfolio_path
         self.index_file = portfolio_path / "project_index.json"
         self.portfolio_data = self._load_portfolio()

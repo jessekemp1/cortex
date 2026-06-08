@@ -20,13 +20,18 @@ from .tech_stack_detector import TechStackDetector
 class ProjectAnalyzer:
     """Analyze multiple projects for portfolio-wide insights"""
 
-    def __init__(self, projects_root: Path = Path.home() / "Dev"):
+    def __init__(self, projects_root: Optional[Path] = None):
         """
         Initialize analyzer with projects root
 
         Args:
-            projects_root: Path to development root directory
+            projects_root: Path to development root directory.
+                Defaults to ``~/Dev`` (resolved at call time, not at import).
         """
+        # Resolve at call time so test fixtures that monkeypatch HOME or
+        # callers that set their own root_dir are honored.
+        if projects_root is None:
+            projects_root = Path.home() / "Dev"
         self.projects_root = Path(projects_root)
 
         # Auto-discover projects (directories with .git)
