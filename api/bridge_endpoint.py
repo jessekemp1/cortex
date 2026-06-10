@@ -29,7 +29,7 @@ cortex_root = Path(__file__).parent.parent
 sys.path.insert(0, str(cortex_root.parent))
 
 try:
-    from fastapi import Body, FastAPI, HTTPException, Query, Request
+    from fastapi import FastAPI, HTTPException, Query, Request
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field
 except ImportError:
@@ -1569,28 +1569,6 @@ app.include_router(_decisions_router)
 
 # /activity/heatmap route + its _heatmap_cache extracted to api/routes/activity.py.
 from api.routes.activity import router as _activity_router
-
-
-@app.post("/decisions/journal")
-async def journal_decision(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
-    """Record an architectural/engineering decision from MCP tools."""
-    try:
-        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        decision_id = f"dec_{int(time.time())}"
-        entry = {
-            "decision_id": decision_id,
-            "decision": payload.get("decision", ""),
-            "context": payload.get("context", ""),
-            "alternatives": payload.get("alternatives", ""),
-            "rationale": payload.get("rationale", ""),
-            "timestamp": datetime.now().isoformat(),
-            "source": "mcp",
-        }
-        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-        return {"recorded": True, "decision_id": decision_id, "timestamp": entry["timestamp"]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to journal decision: {e}")
 
 app.include_router(_activity_router)
 

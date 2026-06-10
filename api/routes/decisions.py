@@ -11,7 +11,8 @@ Wired into the FastAPI app via:
     app.include_router(decisions_router)
 
 Public route table (paths unchanged from the pre-split bridge):
-    POST /decisions/record   DecisionRecordRequest -> {recorded, decision_id, timestamp}
+    POST /decisions/record    DecisionRecordRequest -> {recorded, decision_id, timestamp}
+    POST /decisions/journal   {decision, context, alternatives, rationale} -> {recorded, decision_id, timestamp}
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
 
@@ -76,3 +77,30 @@ async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
+
+
+@router.post("/decisions/journal")
+async def journal_decision(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """Record a free-form architectural/engineering decision from MCP tools.
+
+    Distinct from /decisions/record (Co-Navigator UI events): this captures the
+    decision/context/alternatives/rationale emitted by MCP tooling. Appends one
+    JSON line to ~/.cortex/decisions.jsonl.
+    """
+    try:
+        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        decision_id = f"dec_{int(time.time())}"
+        entry = {
+            "decision_id": decision_id,
+            "decision": payload.get("decision", ""),
+            "context": payload.get("context", ""),
+            "alternatives": payload.get("alternatives", ""),
+            "rationale": payload.get("rationale", ""),
+            "timestamp": datetime.now().isoformat(),
+            "source": "mcp",
+        }
+        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return {"recorded": True, "decision_id": decision_id, "timestamp": entry["timestamp"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to journal decision: {e}")
