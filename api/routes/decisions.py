@@ -10,8 +10,9 @@ Wired into the FastAPI app via:
     from api.routes.decisions import router as decisions_router
     app.include_router(decisions_router)
 
-Public route table (paths unchanged from the pre-split bridge):
-    POST /decisions/record   DecisionRecordRequest -> {recorded, decision_id, timestamp}
+Public route table:
+    POST /decisions/record     DecisionRecordRequest    -> {recorded, decision_id, timestamp}  (Co-Navigator scenario picks)
+    POST /decisions/learning   LearningDecisionRequest  -> {recorded, decision_id, timestamp}  (cortex_record_decision MCP tool)
 """
 
 from __future__ import annotations
@@ -76,3 +77,51 @@ async def record_decision(req: DecisionRecordRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to record decision: {e}")
+
+
+class LearningDecisionRequest(BaseModel):
+    """Request to record a learning-loop decision (architecture / library / tradeoff).
+
+    This is the schema the `cortex_record_decision` MCP tool sends. Distinct from
+    the Co-Navigator scenario `DecisionRecordRequest` above — different concern,
+    different path. Only `decision` is required; the rest default to empty so the
+    MCP tool can omit blank fields.
+    """
+
+    decision: str = Field(..., description="What was decided")
+    context: str = Field(default="", description="Why this decision was needed")
+    alternatives: str = Field(default="", description="Other options considered")
+    rationale: str = Field(default="", description="Why this option was chosen over alternatives")
+
+
+@router.post("/decisions/learning")
+async def record_learning_decision(req: LearningDecisionRequest) -> Dict[str, Any]:
+    """Record a learning-loop decision for the Cortex intelligence layer.
+
+    Appends one JSON line to ~/.cortex/decisions.jsonl using the canonical
+    learning-loop schema (decision/context/alternatives/rationale + source="mcp"),
+    matching the existing source="mcp" entries. This is the endpoint the
+    `cortex_record_decision` MCP tool targets — kept separate from the
+    Co-Navigator `/decisions/record` route, which has an incompatible schema.
+    """
+    try:
+        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        decision_id = f"dec_{int(time.time())}"
+        entry = {
+            "decision_id": decision_id,
+            "decision": req.decision,
+            "context": req.context,
+            "alternatives": req.alternatives,
+            "rationale": req.rationale,
+            "timestamp": datetime.now().isoformat(),
+            "source": "mcp",
+        }
+        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        return {
+            "recorded": True,
+            "decision_id": decision_id,
+            "timestamp": entry["timestamp"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to record learning decision: {e}")
