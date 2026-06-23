@@ -650,18 +650,47 @@ async def get_v2_outcomes(
     days: int = Query(7, description="Look back N days"),
     limit: int = Query(50, description="Max outcomes to return"),
 ) -> Dict[str, Any]:
-    """Get recent outcomes from OutcomeDetector (v2 compound learning)."""
-    try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
+    """Get recent outcomes from the on-disk outcomes log (~/.cortex/outcomes.jsonl).
 
-        detector = OutcomeDetector()
-        outcomes = detector.get_recent_outcomes(project=project, days=days)
-        return {
-            "outcomes": [o.to_dict() for o in outcomes[:limit]],
-            "total": len(outcomes),
-        }
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    Reads the same file FeedbackLogger.log_outcome() writes. (Previously this
+    imported a non-existent cortex.v2.learning.outcomes module and always 501'd,
+    so the endpoint returned nothing despite a populated log.)
+    """
+    import json as _json
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    try:
+        log = Path.home() / ".cortex" / "outcomes.jsonl"
+        if not log.exists():
+            return {"outcomes": [], "total": 0}
+        cutoff = datetime.now() - timedelta(days=days) if days and days > 0 else None
+        rows = []
+        with open(log) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    d = _json.loads(line)
+                except ValueError:
+                    continue
+                ts = d.get("timestamp")
+                if cutoff and ts:
+                    try:
+                        t = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                        if t.tzinfo is not None:
+                            t = t.replace(tzinfo=None)
+                        if t < cutoff:
+                            continue
+                    except ValueError:
+                        pass
+                if project:
+                    ctx = d.get("context") if isinstance(d.get("context"), dict) else {}
+                    if project not in (d.get("project"), ctx.get("project")):
+                        continue
+                rows.append(d)
+        return {"outcomes": rows[-limit:] if limit else rows, "total": len(rows)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
