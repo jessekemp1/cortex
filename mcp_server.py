@@ -385,7 +385,7 @@ def cortex_record_decision(
         payload["alternatives"] = alternatives
     if rationale:
         payload["rationale"] = rationale
-    result = _bridge_post("/decisions/record", payload)
+    result = _bridge_post("/decisions/learning", payload)
     return json.dumps(result, indent=2)
 
 
