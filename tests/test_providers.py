@@ -20,8 +20,6 @@ from unittest.mock import patch
 import pytest
 
 from cortex.supervisor.providers import (
-    ModelSpec,
-    ProviderConfig,
     ProviderRegistry,
     _CB_BACKOFF_SECONDS,
     _CB_FAILURE_THRESHOLD,

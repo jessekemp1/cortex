@@ -9,14 +9,13 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from engines.workstream_orchestrator import (
     AutonomyPolicy,
     TrustAutonomyBridge,
     TrustLevel,
 )
-from intelligence.session_metrics import SessionMetrics, SessionRecord, Trend
+from intelligence.session_metrics import SessionMetrics
 
 
 # ═══════════════════════════════════════════════════════════

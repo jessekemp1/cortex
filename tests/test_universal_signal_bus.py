@@ -6,7 +6,6 @@ Covers: DB init, absorb fan-out (silent failure), query, cross-project patterns,
 event log, and multiple signals from different projects.
 """
 
-import tempfile
 from datetime import datetime
 from pathlib import Path
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
 
 
 def _make_bridge_with_signal_bus(signal_bus, base_result=None):

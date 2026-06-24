@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .config import SupervisorConfig
-from .models import RoutedTask, TaskTarget, WorkItem
+from .models import WorkItem
 
 log = logging.getLogger(__name__)
 

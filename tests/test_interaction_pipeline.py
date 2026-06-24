@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 
 def test_event_adapter_normalizes_claude_and_codex():

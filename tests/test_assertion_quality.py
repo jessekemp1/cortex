@@ -17,9 +17,8 @@ Expected state today: FAIL. These tests document the gap between
 import ast
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import List, Tuple
 
-import pytest
 
 # Ensure cortex is importable
 sys.path.insert(0, str(Path(__file__).parent.parent))

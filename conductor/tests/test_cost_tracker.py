@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from cortex.conductor.cost_tracker import (
-    ANTHROPIC_BASELINE,
     DEFAULT_BASELINE,
     CostTracker,
 )

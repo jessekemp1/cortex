@@ -7,7 +7,6 @@ Batch API: the BatchAPIClient is mocked, PortfolioMemory is unavailable
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch

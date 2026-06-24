@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Convert Markdown files to styled PDFs using markdown + weasyprint."""
 
-import sys
 import markdown
 from pathlib import Path
 from weasyprint import HTML

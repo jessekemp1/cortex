@@ -14,7 +14,6 @@ The bus never blocks signal ingestion — all engine errors are caught and logge
 Tools that cannot import Python can POST to bridge /signal/absorb.
 """
 
-import json
 import logging
 import sqlite3
 from datetime import datetime
@@ -219,7 +218,6 @@ class UniversalSignalBus:
         except ImportError:
             from .synthesis import Node, NodeType
 
-        import hashlib
 
         node_id = f"signal:{signal.signal_id}"
         if node_id in synthesis.graph.nodes:

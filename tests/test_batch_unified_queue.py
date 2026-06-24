@@ -4,9 +4,8 @@ import json
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from intelligence.process_monitor.batch_queue import (
     AI_TASK_TYPES,

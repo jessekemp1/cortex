@@ -7,7 +7,6 @@ import pytest
 
 from cortex.conductor.config import PROVIDERS, get_pricing
 from cortex.conductor.providers.base import (
-    BaseProvider,
     ChatMessage,
     CompletionResponse,
     ProviderError,

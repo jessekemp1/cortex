@@ -770,7 +770,6 @@ class CortexSupervisor:
             return None
 
         from .dispatch import ModelSelection as DispatchModelSelection
-        from .models import RoutedTask, TaskTarget
 
         router = self._get_router()
         dispatcher = self._get_dispatcher()

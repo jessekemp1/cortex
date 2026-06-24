@@ -11,9 +11,7 @@ Validates:
 """
 
 import json
-from datetime import datetime, timezone
 
-import pytest
 
 from cortex.supervisor.approval import ApprovalGate, ApprovalPolicy
 from cortex.supervisor.models import WorkItem, WorkItemPriority

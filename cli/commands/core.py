@@ -1,10 +1,8 @@
 """Core commands: next, init, status, health."""
 
 import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Union
 
 from formatter import CortexFormatter
 from orchestrator import CortexOrchestrator

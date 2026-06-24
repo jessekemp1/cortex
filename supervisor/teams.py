@@ -649,7 +649,7 @@ class TeamOrchestrator:
 
         Creates a synthetic WorkItem + ModelSelection targeting Opus/Anthropic.
         """
-        from cortex.supervisor.dispatch import DispatchResult, ModelSelection
+        from cortex.supervisor.dispatch import ModelSelection
         from cortex.supervisor.models import WorkItem
 
         work_item = WorkItem(

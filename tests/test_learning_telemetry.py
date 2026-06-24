@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import json
 import sys
-from argparse import Namespace
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
 
 # Ensure the cortex root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

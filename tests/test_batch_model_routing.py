@@ -271,7 +271,7 @@ class TestExecutorRouting:
 
         with patch.dict("sys.modules", {"cortex.conductor": None, "conductor": None}):
             try:
-                from intelligence.executor import ContractExecutor
+                pass
             except Exception:
                 pytest.skip("ContractExecutor import failed (conductor dep)")
 

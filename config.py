@@ -9,6 +9,51 @@ from security import (
 )
 
 
+def workspace_root() -> Path:
+    """Projects workspace root (the dir that CONTAINS your git repos).
+
+    Resolved from CORTEX_ROOT_DIR (preferred), falling back to the legacy
+    CORTEX_DEV_ROOT, then ~/Dev. This is the *projects* root used for project
+    discovery and git scanning — NOT the Cortex state dir (~/.cortex), which
+    holds databases, logs, and prompts.
+    """
+    root = (
+        os.environ.get("CORTEX_ROOT_DIR")
+        or os.environ.get("CORTEX_DEV_ROOT")
+        or str(Path.home() / "Dev")
+    )
+    return Path(root).expanduser()
+
+
+def discover_projects(root: Path | None = None, depth: int = 2) -> list[dict]:
+    """Discover projects under the workspace root.
+
+    A project = a git repo found under the workspace root (depth-limited):
+    depth 1 (root/<proj>) and depth 2 (root/<group>/<proj>). Returns a list of
+    {"name", "path", "rel"} dicts, deduped by project name.
+    """
+    root = root or workspace_root()
+    found: dict[str, dict] = {}
+    if not root.exists():
+        return []
+    # depth 1 (root/<proj>) and depth 2 (root/<group>/<proj>)
+    for d in sorted(root.iterdir()):
+        try:
+            if (d / ".git").exists():
+                found[d.name] = {"name": d.name, "path": str(d), "rel": d.name}
+            elif d.is_dir() and depth >= 2:
+                for sub in sorted(d.iterdir()):
+                    if (sub / ".git").exists():
+                        found[sub.name] = {
+                            "name": sub.name,
+                            "path": str(sub),
+                            "rel": f"{d.name}/{sub.name}",
+                        }
+        except (PermissionError, OSError):
+            continue
+    return list(found.values())
+
+
 @dataclass
 class CortexConfig:
     # Default to cwd; override via CORTEX_ROOT_DIR env var or ~/.cortex/config.yaml root_dir

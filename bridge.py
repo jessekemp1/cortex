@@ -13,9 +13,8 @@ Capabilities:
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Add parent directory to path to import Cortex modules
 CORTEX_ROOT = Path(__file__).parent.parent.resolve()
@@ -386,7 +385,9 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
         Auto-detect current project from git repo.
 
         Returns:
-            Project name (defaults to "cortex" if detection fails)
+            Project name. Falls back to CORTEX_DEFAULT_PROJECT, then the
+            workspace root's directory name, then "unknown" — never a
+            hardcoded author project.
         """
         import subprocess
 
@@ -404,7 +405,8 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
         except Exception:
             pass
 
-        return "cortex"  # Default fallback
+        # Derived fallback (not a literal author project).
+        return os.environ.get("CORTEX_DEFAULT_PROJECT") or self.root_dir.name or "unknown"
 
     def _build_session_context(self, project: str):
         """

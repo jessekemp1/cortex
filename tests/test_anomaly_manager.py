@@ -21,11 +21,9 @@ from cortex.orchestration.anomaly_detector import (
     AnomalyType,
     BatchInefficiencyDetector,
     ContextSwitchingDetector,
-    DependencyDeadlockDetector,
     OrchestrationAnomaly,
     OrchestrationAnomalyManager,
     PlanningGapDetector,
-    PriorityInversionDetector,
     ResourceWasteDetector,
     StuckTasksDetector,
 )

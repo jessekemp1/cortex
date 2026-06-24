@@ -17,7 +17,6 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-import os
 
 CORTEX_DIR = Path.home() / ".cortex"
 CLAUDE_DIR = Path.home() / ".claude"

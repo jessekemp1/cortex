@@ -24,12 +24,10 @@ Usage:
 """
 
 import json
-import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 CORTEX_DIR = Path.home() / ".cortex"
 PROMPTS_DIR = CORTEX_DIR / "prompts"

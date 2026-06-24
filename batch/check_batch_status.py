@@ -6,10 +6,8 @@ Usage:
     python batch/check_batch_status.py <batch_id>
 """
 
-import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

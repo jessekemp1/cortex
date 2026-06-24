@@ -8,7 +8,7 @@ Uses mock API calls to avoid real API usage during testing.
 
 import asyncio
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from intelligence.evaluation.quality_judge import (

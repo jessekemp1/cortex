@@ -26,8 +26,14 @@ except ImportError:  # Backward compatibility for legacy direct execution contex
     from portfolio_memory import PortfolioMemory
 
 
-class RecommendationEngine:
-    """Generate smart recommendations based on portfolio health and goals."""
+class PortfolioRecommender:
+    """Generate smart recommendations based on portfolio health and goals.
+
+    Report-style recommender (get_full_report / get_recommended_next_action /
+    get_risk_alerts / get_priority_projects). Renamed from RecommendationEngine
+    to remove a name collision with recommendation_engine.RecommendationEngine,
+    which has an incompatible generate_recommendations(...) API.
+    """
 
     def __init__(self, dev_path: Path = None):
         self.dev_path = dev_path or Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
@@ -371,7 +377,7 @@ class RecommendationEngine:
 if __name__ == "__main__":
     import sys
 
-    engine = RecommendationEngine()
+    engine = PortfolioRecommender()
 
     if len(sys.argv) < 2:
         print("Usage: python recommendations.py <command>")

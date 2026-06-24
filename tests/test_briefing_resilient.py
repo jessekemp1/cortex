@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for briefing_resilient.py — tiered fallback briefing."""
 
-import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -15,9 +14,6 @@ sys.path.insert(0, str(cortex_dir))
 from briefing_resilient import (
     format_resilient_briefing,
     generate_resilient_briefing,
-    _extract_immediate_actions,
-    _extract_active_goals,
-    _extract_high_priority,
     _get_cortex_state,
     _parse_goals_md,
 )
