@@ -245,10 +245,11 @@ class ContractGenerator:
 
         user_answers_section = ""
         if user_answers:
+            _qa = chr(10).join(f"Q: {q}{chr(10)}A: {a}" for q, a in user_answers.items())
             user_answers_section = f"""
 
 USER ANSWERS TO CLARIFYING QUESTIONS:
-{chr(10).join(f"Q: {q}\nA: {a}" for q, a in user_answers.items())}
+{_qa}
 """
 
         prompt = f"""You are a technical architect generating a comprehensive task contract.
