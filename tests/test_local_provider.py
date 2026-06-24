@@ -1,6 +1,5 @@
 """Tests for supervisor/local_provider.py — all external calls mocked."""
 
-import platform
 from unittest.mock import MagicMock, patch
 
 import pytest

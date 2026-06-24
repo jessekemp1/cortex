@@ -101,7 +101,6 @@ def cmd_sync(args):
 
 def cmd_docs(args):
     """Sync documentation to Claude Projects for mobile access."""
-    import subprocess
 
     sync_script = (
         Path(__file__).parent.parent.parent.parent / "_tools" / "doc-sync" / "sync_docs.py"

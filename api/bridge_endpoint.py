@@ -38,10 +38,16 @@ except ImportError:
 
 try:
     from cortex.bridge import CortexBridge
+    from cortex.config import discover_projects, workspace_root
     from cortex.orchestration.anomaly_detector import OrchestrationAnomalyManager
 except ImportError as e:
     print(f"ERROR: Could not import Cortex modules: {e}")
     sys.exit(1)
+
+
+def _discovered_project_names() -> List[str]:
+    """Project names discovered under CORTEX_ROOT_DIR (the user's git repos)."""
+    return [p["name"] for p in discover_projects()]
 
 
 # ============================================================================
@@ -344,10 +350,11 @@ async def status():
         get_bridge()
         anomaly_mgr = get_anomaly_manager()
 
-        # Get active anomalies
+        # Get active anomalies — context reflects the user's discovered projects.
+        names = _discovered_project_names()
         context = {
-            "active_projects": ["cortex", "vortex", "alpha_arena"],
-            "total_projects": 4,
+            "active_projects": names,
+            "total_projects": len(names),
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
@@ -356,7 +363,7 @@ async def status():
         return {
             "status": "operational",
             "version": "1.0.0",
-            "available_projects": ["cortex", "vortex", "alpha_arena", "kempion"],
+            "available_projects": names,
             "anomaly_count": len(anomalies),
             "bridge_initialized": _bridge is not None,
         }
@@ -399,9 +406,10 @@ async def get_anomalies(
     """
     try:
         anomaly_mgr = get_anomaly_manager()
+        names = _discovered_project_names()
         context = {
-            "active_projects": ["cortex", "vortex", "alpha_arena"],
-            "total_projects": 4,
+            "active_projects": names,
+            "total_projects": len(names),
             "goals_in_progress": 2,
             "goals_pending": 1,
         }
@@ -592,32 +600,20 @@ async def get_metrics(days: int = Query(7, description="Days of history to inclu
 
 @app.get("/projects")
 async def list_projects() -> List[Dict[str, Any]]:
-    """List available projects with status, detected from filesystem."""
+    """List the user's projects (git repos under CORTEX_ROOT_DIR) with status."""
     import subprocess
 
-    workspace = Path.home() / "Dev"
     projects = []
 
-    # Project definitions: (dir_name, display_name, test_dir)
-    project_defs = [
-        ("Vortex/backend", "Vortex Backend", "Vortex/backend/tests"),
-        ("Vortex/frontend", "Vortex Frontend", "Vortex/frontend/src"),
-        ("cortex", "Cortex", "cortex/tests"),
-        ("alpha_arena", "Alpha Arena", "alpha_arena/tests"),
-        ("pupil", "Pupil", "pupil/tests"),
-    ]
+    for proj in discover_projects():
+        project_path = Path(proj["path"])
 
-    for dir_name, display_name, test_dir in project_defs:
-        project_path = workspace / dir_name
-        if not project_path.exists():
-            continue
-
-        # Get last commit touching this directory
+        # Get last commit in this repo
         last_activity = datetime.now().isoformat()
         try:
             result = subprocess.run(
-                ["git", "log", "-1", "--format=%aI", "--", dir_name],
-                cwd=str(workspace),
+                ["git", "log", "-1", "--format=%aI"],
+                cwd=str(project_path),
                 capture_output=True,
                 text=True,
                 timeout=2,
@@ -629,8 +625,8 @@ async def list_projects() -> List[Dict[str, Any]]:
 
         projects.append(
             {
-                "name": display_name,
-                "path": dir_name,
+                "name": proj["name"],
+                "path": proj["rel"],
                 "status": "healthy",
                 "last_activity": last_activity,
             }
@@ -980,7 +976,7 @@ async def get_bus_stats() -> Dict[str, Any]:
 # Conductor — Human-AI Collaboration Cockpit
 # ============================================================================
 
-WORKSPACE = Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
+WORKSPACE = workspace_root()
 # Claude encodes project paths as a flattened directory under
 # ~/.claude/projects/, e.g. /Users/foo/Dev → -Users-foo-Dev.
 # Derive from WORKSPACE rather than hardcoding the maintainer's machine name.
@@ -1026,14 +1022,14 @@ _docs_tree_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
 _predictions_cache: Dict[str, Any] = {"data": None, "timestamp": 0}
 # _heatmap_cache moved to api/routes/activity.py with its consumer.
 
-DOCS_INDEX = Path.home() / "Dev" / "DOCS_INDEX.md"
+DOCS_INDEX = WORKSPACE / "DOCS_INDEX.md"
 OUTCOMES_FILE = Path.home() / ".cortex" / "outcomes.jsonl"
 DECISIONS_FILE = Path.home() / ".cortex" / "decisions.jsonl"
 
 
 @app.get("/docs/tree")
 async def get_docs_tree() -> Dict[str, Any]:
-    """Parse ~/Dev/DOCS_INDEX.md into a JSON tree of project documentation."""
+    """Parse the workspace DOCS_INDEX.md into a JSON tree of project documentation."""
     import re
 
     now = time.time()
@@ -1093,11 +1089,11 @@ async def get_docs_tree() -> Dict[str, Any]:
 
 @app.get("/docs/content")
 async def get_docs_content(
-    path: str = Query(..., description="File path relative to ~/Dev/"),
+    path: str = Query(..., description="File path relative to the workspace root"),
 ) -> Dict[str, Any]:
     """Read a markdown file and return content + metadata."""
     try:
-        base = Path.home() / "Dev"
+        base = WORKSPACE
         resolved = (base / path).resolve()
 
         # Security: ensure resolved path is under ~/Dev/

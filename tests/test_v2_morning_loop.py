@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 class TestGetOvernightV2Lessons:
@@ -54,7 +53,6 @@ class TestGetOvernightV2Lessons:
     def test_import_failure_returns_empty(self):
         """Returns empty list if ContextGraph import fails."""
         with patch.dict("sys.modules", {"cortex.engines.synthesis": None}):
-            from importlib import reload
             import cortex.batch.morning_processor as mp
 
             # Force re-execution — the function does a lazy import

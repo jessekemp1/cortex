@@ -23,7 +23,6 @@ Integration:
     briefing = researcher.collect_and_synthesize(result["batch_id"])
 """
 
-import json
 import logging
 from datetime import datetime
 from pathlib import Path

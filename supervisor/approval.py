@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from cortex.supervisor.models import WorkItem, WorkItemPriority
+from cortex.supervisor.models import WorkItem
 
 log = logging.getLogger(__name__)
 

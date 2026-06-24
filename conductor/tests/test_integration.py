@@ -12,7 +12,6 @@ Covers:
 - Cost tracking on fallback path
 """
 
-import asyncio
 import json
 import re
 from pathlib import Path
@@ -22,7 +21,6 @@ import pytest
 
 from cortex.conductor import (
     RoutingDecision,
-    _create_provider,
     async_call,
     call,
     get_budget_remaining,
@@ -32,7 +30,6 @@ from cortex.conductor import (
 )
 from cortex.conductor.cost_tracker import CostTracker
 from cortex.conductor.providers.base import (
-    ChatMessage,
     CompletionResponse,
     ProviderError,
 )

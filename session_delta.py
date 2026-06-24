@@ -16,7 +16,7 @@ import hashlib
 import json
 import subprocess
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional

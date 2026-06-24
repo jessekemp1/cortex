@@ -19,7 +19,6 @@ import pytest
 
 from cortex.supervisor.teams import (
     BudgetTracker,
-    TeamDefinition,
     TeamOrchestrator,
     TeamTask,
     TEAM_REGISTRY,

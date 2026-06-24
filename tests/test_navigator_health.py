@@ -162,7 +162,7 @@ class TestAlertMonitorNavigator:
 
     def test_no_alert_before_3_failures(self, tmp_path):
         """Navigator should NOT alert until 3 consecutive failures."""
-        from alert_monitor import check_services, CONSECUTIVE_FILE
+        from alert_monitor import check_services
 
         # Patch the consecutive file to a temp location
         consec_file = tmp_path / "alert_consecutive.json"
@@ -269,7 +269,6 @@ class TestBridgeNavigatorHealth:
         body = json.dumps(HEALTHY_RESPONSE).encode()
 
         # Simulate the parsing logic from bridge_endpoint
-        import urllib.request
 
         data = json.loads(body)
         nav_status = data.get("status", "unknown")

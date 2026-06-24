@@ -1068,9 +1068,9 @@ class UnifiedIntelligence:
         """Lazy initialize RecommendationEngine."""
         if self._recommendations_engine is None:
             try:
-                from cortex.recommendations import RecommendationEngine
+                from cortex.recommendations import PortfolioRecommender
 
-                self._recommendations_engine = RecommendationEngine(self.root_dir)
+                self._recommendations_engine = PortfolioRecommender(self.root_dir)
             except (ImportError, Exception):
                 pass
         return self._recommendations_engine

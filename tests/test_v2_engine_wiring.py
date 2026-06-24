@@ -6,10 +6,7 @@ Phase 2 acceptance criteria (cortex_v2_plan.md):
   python -c "from engines import ContextAbsorber, SynthesisCore, ActionBroker" → OK
 """
 
-import json
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 import pytest
 

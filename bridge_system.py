@@ -7,9 +7,6 @@ batch operations, planning, work absorption, warnings, and deep analysis.
 Split from bridge.py for maintainability (Feb 2026).
 """
 
-import json
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # Conditional imports needed by mixin methods (status reporting)

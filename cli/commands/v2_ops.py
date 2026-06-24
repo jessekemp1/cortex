@@ -660,7 +660,6 @@ def cmd_work_drift(args):
 
 
 def cmd_work_report(args):
-    from datetime import datetime, timedelta
     from work_absorber import WorkAbsorber
 
     absorber = WorkAbsorber()

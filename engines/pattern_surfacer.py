@@ -149,7 +149,7 @@ class PatternSurfacer:
             try:
                 from cortex.engines.synthesis import NodeType
             except ImportError:
-                from .synthesis import NodeType
+                pass
 
             pattern = SurfacedPattern(
                 pattern=node.name,

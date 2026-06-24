@@ -10,7 +10,6 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 from sklearn.feature_extraction.text import HashingVectorizer
 
 logger = logging.getLogger(__name__)

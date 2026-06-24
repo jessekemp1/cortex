@@ -5,6 +5,39 @@ All notable changes to Cortex are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-06-24
+
+Beta-readiness release: make Cortex work for a second user, fix the decision
+write path, and parse on Python 3.11.
+
+### Fixed
+- `cortex_record_decision` now records. It POSTed the learning-loop schema to
+  `/decisions/record`, a path owned by the Co-Navigator scenario recorder, so
+  every call returned 422. Added a dedicated `POST /decisions/learning` route and
+  repointed the MCP tool. (#4)
+- Parse on Python 3.11. A nested f-string containing a backslash in
+  `intelligence/contracts.py` was a `SyntaxError` before 3.12, breaking
+  `pytest --collect-only` (the CI smoke gate) on the advertised minimum Python. (#4)
+- `discover_projects()` no longer raises (HTTP 500 via `/projects`) when
+  `CORTEX_ROOT_DIR` points at a file — guard with `is_dir()`. (#5)
+
+### Changed
+- De-authored for a second user: project discovery resolves from `CORTEX_ROOT_DIR`
+  via `config.discover_projects()`; removed the hardcoded `~/Dev`, the author's
+  project list, and the literal default project `"cortex"`. `cortex_intelligence`
+  accepts an explicit `project`. (#5)
+
+### Removed
+- Dead/superseded code: `mvp/`, `lean/`, `integrations/`, `examples/`, `reports/`,
+  `semantic_recommender.py`, `project_metadata.py`, scratch docs; `ruff` F401/F811
+  sweep. (#5)
+
+### Known issues (beta)
+- Intelligence git-context is empty for a "folder of independent repos" layout
+  (currently uses the monorepo model). Tracked.
+- Residual author-specific paths remain in `NEXT_SESSION_FILES` and `/health`
+  checks. Tracked.
+
 ## [1.0.0] — 2026-06-02
 
 First public release surviving an adversarial brilliant-tester audit.

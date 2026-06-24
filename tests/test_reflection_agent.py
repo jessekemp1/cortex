@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 import json
-import sqlite3
-import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 
 from cortex.batch.reflection_agent import (
     ReflectionAgent,
     find_repeated_patterns,
     load_recent_outcomes,
-    load_signal_bus_events,
-    synthesise_lessons,
     write_lessons_to_graph,
 )
 

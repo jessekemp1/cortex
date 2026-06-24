@@ -27,7 +27,6 @@ setuptools>=75.6.0  # CVE-2024-6345 patched in 75.6.0
 
 # AI/LLM Integration
 anthropic
-openai
 
 # Logging
 structlog

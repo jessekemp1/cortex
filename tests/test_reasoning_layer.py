@@ -1,11 +1,9 @@
 """Tests for cortex.intelligence.reasoning — V2 Reasoning Layer."""
 
 import json
-import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from cortex.intelligence.reasoning import ReasoningLayer, classify_query
 

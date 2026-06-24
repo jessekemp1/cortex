@@ -40,7 +40,9 @@ class IntelligenceQuery(BaseModel):
     """Request model for intelligence queries."""
 
     request: str = Field(..., description="User request or query")
-    project: str = Field(default="cortex", description="Project name")
+    project: Optional[str] = Field(
+        default=None, description="Project; auto-detected if omitted"
+    )
     query_type: str = Field(
         default="spec", description="Query type: spec, impl, analysis, research"
     )
@@ -58,52 +60,57 @@ class ReasonQuery(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Project keyword routing (kept as a module constant for tests + clarity)
+# Project routing — derived from discovery, not a hardcoded author portfolio.
 # ---------------------------------------------------------------------------
-
-_PROJECT_KEYWORDS: Dict[str, List[str]] = {
-    "vortex": [
-        "vortex", "grib", "forecast", "ensemble", "emos", "weather",
-        "wind", "wave", "buoy", "frontend", "backend", "hrrr", "gfs", "ecmwf",
-    ],
-    "alpha_arena": ["arena", "trading", "trade", "kelly", "strategy", "etf"],
-    "cortex": ["cortex", "bridge", "cra", "orchestrat", "memory", "mcp", "gateway"],
-    "pupil": ["pupil", "simulation", "recession"],
-}
-
-_PROJECT_DIRS: Dict[str, str] = {
-    "vortex": "Vortex/",
-    "alpha_arena": "alpha_arena/",
-    "cortex": "cortex/",
-    "pupil": "pupil/",
-}
-
-
-def _auto_detect_project(question: str) -> str:
-    """Choose the most-likely project from question keywords; default to cortex."""
-    q_lower = question.lower()
-    scores = {
-        p: sum(1 for kw in kws if kw in q_lower)
-        for p, kws in _PROJECT_KEYWORDS.items()
-    }
-    project = max(scores, key=lambda k: scores[k])
-    return project if scores[project] > 0 else "cortex"
 
 
 def _workspace_root() -> Path:
-    """Resolve the dev-root path.
+    """Resolve the projects workspace root from CORTEX_ROOT_DIR.
 
-    Lazily reads bridge_endpoint.WORKSPACE so this module can be imported
-    without immediately materializing all of bridge_endpoint's import graph.
-    Falls back to CORTEX_DEV_ROOT env var or ~/Dev if the bridge isn't
-    loadable for any reason.
+    Aligns with config.workspace_root() (the single source of truth for the
+    projects root). Falls back to ~/Dev only if config can't be imported.
     """
     try:
-        from api.bridge_endpoint import WORKSPACE
+        from config import workspace_root
 
-        return WORKSPACE
+        return workspace_root()
     except Exception:
-        return Path(os.environ.get("CORTEX_DEV_ROOT", str(Path.home() / "Dev")))
+        return Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.home() / "Dev"))).expanduser()
+
+
+def _project_dirs() -> Dict[str, str]:
+    """Map discovered project name -> path (relative to the workspace root).
+
+    Built at call time from config.discover_projects() so git context comes
+    from the user's repos under CORTEX_ROOT_DIR, never a static author map.
+    """
+    try:
+        from config import discover_projects
+
+        return {p["name"]: p["rel"] for p in discover_projects(_workspace_root())}
+    except Exception:
+        return {}
+
+
+def _default_project() -> str:
+    """The current project when none is specified: the workspace root's name."""
+    root = _workspace_root()
+    return root.name or "unknown"
+
+
+def _auto_detect_project(question: str) -> str:
+    """Choose the most-likely discovered project from question keywords.
+
+    Keywords default to the project's own name token (lowercased). Falls back
+    to the current default project (workspace root name) when nothing matches.
+    """
+    q_lower = question.lower()
+    project_names = list(_project_dirs().keys())
+    if not project_names:
+        return _default_project()
+    scores = {name: (1 if name.lower() in q_lower else 0) for name in project_names}
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0 else _default_project()
 
 
 # ---------------------------------------------------------------------------
@@ -120,9 +127,20 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
 
     try:
         bridge = get_bridge()
+        # Resolve project when omitted: prefer the bridge's git-aware detector
+        # (derived from CORTEX_ROOT_DIR), then keyword auto-detect over the
+        # user's discovered projects. Never default to a literal "cortex".
+        project = query.project
+        if not project:
+            try:
+                project = bridge._detect_current_project()
+            except Exception:
+                project = None
+            if not project:
+                project = _auto_detect_project(query.request)
         result = bridge.query_intelligence(
             request=query.request,
-            project=query.project,
+            project=project,
             query_type=query.query_type,
             use_cache=query.use_cache,
             parallel=query.parallel,
@@ -183,7 +201,7 @@ async def reason_query(query: ReasonQuery) -> Dict[str, Any]:
 
     # 3. Recent git activity for the detected project
     try:
-        proj_dir = _PROJECT_DIRS.get(project, "")
+        proj_dir = _project_dirs().get(project, "")
         if proj_dir:
             git_result = subprocess.run(
                 ["git", "log", "--oneline", "-15", "--", proj_dir],
@@ -334,12 +352,15 @@ async def get_recommendations(
             recommendations["recommendations"] = recommendations["recommendations"][:limit]
         else:
             normalized: List[Dict[str, Any]] = []
+            # Fallback project when a report item omits one: the query filter if
+            # given, else the discovered default project — never a literal "cortex".
+            default_proj = project or _default_project()
 
             next_action = recommendations.get("next_action")
             if isinstance(next_action, dict) and next_action.get("action"):
                 normalized.append(
                     {
-                        "project": next_action.get("project", project or "cortex"),
+                        "project": next_action.get("project", default_proj),
                         "priority": next_action.get("priority", "MEDIUM"),
                         "title": next_action.get("action"),
                         "type": next_action.get("type", "next_action"),
@@ -350,7 +371,7 @@ async def get_recommendations(
                 if isinstance(item, dict):
                     normalized.append(
                         {
-                            "project": item.get("project", project or "cortex"),
+                            "project": item.get("project", default_proj),
                             "priority": item.get("priority", "MEDIUM"),
                             "title": item.get(
                                 "reason", "Priority project requires attention"
@@ -363,7 +384,7 @@ async def get_recommendations(
                 if isinstance(alert, dict):
                     normalized.append(
                         {
-                            "project": alert.get("project", project or "cortex"),
+                            "project": alert.get("project", default_proj),
                             "priority": alert.get("severity", "MEDIUM"),
                             "title": alert.get("message", "Risk alert detected"),
                             "type": "risk_alert",

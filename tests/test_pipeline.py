@@ -11,7 +11,6 @@ Tests:
 
 import json
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from supervisor.intake import WorkIntake
 from supervisor.models import WorkItem, WorkItemPriority
-from supervisor.pipeline import PipelineResult, RoutingDecision, run_pipeline
+from supervisor.pipeline import PipelineResult, run_pipeline
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────

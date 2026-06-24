@@ -9,9 +9,8 @@ Validates:
 """
 
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from cortex import alert_monitor
 from cortex.alert_monitor import (

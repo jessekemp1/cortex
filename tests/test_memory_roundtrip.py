@@ -84,7 +84,7 @@ def test_cortex_outcome_influences_recommendations(tmp_path: Path):
     LearningSystem can read them and calculate accuracy — proving the
     outcomes.jsonl → learning.py data path works.
     """
-    from cortex.feedback import FeedbackLogger, OutcomeEntry
+    from cortex.feedback import FeedbackLogger
 
     # Set up temp files so we don't pollute real data
     temp_feedback = tmp_path / "feedback.json"
@@ -253,15 +253,16 @@ def test_anti_pattern_mechanism_implemented():
 # ── TEST 4: KNOWN_ISSUES.md Accuracy ────────────────────────────────────────
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN_ISSUES.md contains 'Fixed' claims that contradict code reality",
-)
 def test_known_issues_accuracy():
     """
     WHY: KNOWN_ISSUES.md claims certain patterns are 'Fixed' in specific files.
     If the fix claim is wrong, we have false documentation giving false confidence.
     This test checks each 'Fixed' claim against the actual code.
+
+    As of the ship-readiness cleanup the doc's claims match reality (the
+    'assert X in (True, False)' pattern was actually removed from
+    test_bridge_integration.py), so this is now an enforced passing test
+    rather than an xfail: any future drift between doc and code re-fails it.
     """
     known_issues_file = CORTEX_ROOT / "tests" / "KNOWN_ISSUES.md"
     if not known_issues_file.exists():

@@ -100,20 +100,24 @@ def cortex_service_health() -> str:
 
 
 @mcp.tool()
-def cortex_intelligence(query: str, query_type: str = "research") -> str:
+def cortex_intelligence(
+    query: str, query_type: str = "research", project: str | None = None
+) -> str:
     """Query Cortex intelligence engine with natural language.
 
     Args:
         query: Natural language question about the codebase or projects.
         query_type: One of 'spec', 'architecture', 'implementation', 'research'.
+        project: Optional project name to scope the query. Auto-detected by the
+            bridge from CORTEX_ROOT_DIR when omitted.
     """
     valid_types = {"spec", "architecture", "implementation", "research"}
     if query_type not in valid_types:
         query_type = "research"
-    result = _bridge_post(
-        "/intelligence/query",
-        {"request": query, "domain": DOMAIN, "query_type": query_type},
-    )
+    payload = {"request": query, "domain": DOMAIN, "query_type": query_type}
+    if project:
+        payload["project"] = project
+    result = _bridge_post("/intelligence/query", payload)
     return json.dumps(result, indent=2)
 
 

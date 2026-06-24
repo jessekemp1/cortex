@@ -23,7 +23,6 @@ from cortex.conductor.registry import (
     list_providers,
 )
 from cortex.conductor.router import (
-    BATCH_ROUTING_TABLE,
     LONG_CONTEXT_THRESHOLD,
     ROUTING_TABLE,
     VALID_USE_CASES,
