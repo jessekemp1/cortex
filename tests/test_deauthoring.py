@@ -60,3 +60,13 @@ def test_discover_projects_depth_2(tmp_path, monkeypatch):
 def test_discover_projects_missing_root(tmp_path, monkeypatch):
     monkeypatch.setenv("CORTEX_ROOT_DIR", str(tmp_path / "does-not-exist"))
     assert config.discover_projects() == []
+
+
+def test_discover_projects_root_is_a_file(tmp_path, monkeypatch):
+    """A CORTEX_ROOT_DIR pointing at a FILE must return [] — not raise
+    NotADirectoryError, which would 500 the /projects endpoint for a second
+    user who misconfigures the env var."""
+    f = tmp_path / "not-a-dir.txt"
+    f.write_text("oops")
+    monkeypatch.setenv("CORTEX_ROOT_DIR", str(f))
+    assert config.discover_projects() == []

@@ -34,7 +34,9 @@ def discover_projects(root: Path | None = None, depth: int = 2) -> list[dict]:
     """
     root = root or workspace_root()
     found: dict[str, dict] = {}
-    if not root.exists():
+    # is_dir() (not exists()): a misconfigured CORTEX_ROOT_DIR pointing at a FILE
+    # "exists" but would raise NotADirectoryError on iterdir() below.
+    if not root.is_dir():
         return []
     # depth 1 (root/<proj>) and depth 2 (root/<group>/<proj>)
     for d in sorted(root.iterdir()):
