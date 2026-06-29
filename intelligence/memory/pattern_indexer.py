@@ -12,6 +12,7 @@ Capabilities:
 """
 
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -465,7 +466,10 @@ class PatternIndexer:
         """
         from pathlib import Path
 
-        decisions_file = Path.home() / ".cortex" / "decisions.jsonl"
+        # Resolve the data home the same way the rest of cortex does
+        # (CORTEX_HOME, default ~/.cortex) so this is overridable/isolatable.
+        cortex_home = Path(os.environ.get("CORTEX_HOME", str(Path.home() / ".cortex")))
+        decisions_file = cortex_home / "decisions.jsonl"
         if not decisions_file.exists():
             return []
         out: List[Pattern] = []

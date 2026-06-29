@@ -58,17 +58,28 @@ def test_pattern_indexer_seed_fallback():
     """Verify load_patterns falls back to seeds when cache is empty."""
     from intelligence.memory.pattern_indexer import PatternIndexer
     from pathlib import Path
+    import os
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        indexer = PatternIndexer(Path(tmpdir), cache_dir=Path(tmpdir) / "cache")
-        patterns = indexer.load_patterns(include_seeds=True)
-        assert len(patterns) >= 25, f"Expected seed patterns, got {len(patterns)}"
-        assert patterns[0].project == "cortex-seeds"
+        # Isolate the decisions source (now a first-class load_patterns input)
+        # to the tmpdir so the global ~/.cortex/decisions.jsonl can't leak in.
+        prev_home = os.environ.get("CORTEX_HOME")
+        os.environ["CORTEX_HOME"] = tmpdir
+        try:
+            indexer = PatternIndexer(Path(tmpdir), cache_dir=Path(tmpdir) / "cache")
+            patterns = indexer.load_patterns(include_seeds=True)
+            assert len(patterns) >= 25, f"Expected seed patterns, got {len(patterns)}"
+            assert patterns[0].project == "cortex-seeds"
 
-        # Without seeds should be empty
-        patterns_no_seed = indexer.load_patterns(include_seeds=False)
-        assert len(patterns_no_seed) == 0
+            # Without seeds should be empty
+            patterns_no_seed = indexer.load_patterns(include_seeds=False)
+            assert len(patterns_no_seed) == 0
+        finally:
+            if prev_home is None:
+                os.environ.pop("CORTEX_HOME", None)
+            else:
+                os.environ["CORTEX_HOME"] = prev_home
 
 
 if __name__ == "__main__":
