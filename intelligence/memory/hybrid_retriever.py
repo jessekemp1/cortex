@@ -220,8 +220,12 @@ class HybridRetriever:
                 with open(cache_meta_file, "rb") as f:
                     meta = pickle.load(f)
 
-                # Verify cache matches current patterns
-                if meta.get("pattern_count") == len(self.patterns):
+                # Verify cache matches current patterns AND embedding backend.
+                # A backend switch (e.g. hashing -> ollama) yields different
+                # vectors, so a stale cache must NOT be reused with a new backend.
+                current_backend = self.embeddings_client.get_embedding_info().get("backend")
+                if (meta.get("pattern_count") == len(self.patterns)
+                        and meta.get("backend") == current_backend):
                     # Check if pattern IDs match
                     cached_ids = set(meta.get("pattern_ids", []))
                     current_ids = {p.id for p in self.patterns}
@@ -288,6 +292,7 @@ class HybridRetriever:
                 "pattern_count": len(self.patterns),
                 "pattern_ids": [p.id for p in self.patterns],
                 "embedding_dimension": self.embedding_dimension,
+                "backend": self.embeddings_client.get_embedding_info().get("backend"),
             }
             with open(cache_meta_file, "wb") as f:
                 pickle.dump(meta, f)

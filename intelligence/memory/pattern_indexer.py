@@ -402,24 +402,33 @@ class PatternIndexer:
         metadata_file = self.cache_dir / "metadata.json"
         metadata_file.write_text(json.dumps(metadata, indent=2))
 
-    def load_patterns(self, include_seeds: bool = True) -> List[Pattern]:
-        """Load patterns from cache, with seed pattern fallback for cold start.
+    def load_patterns(self, include_seeds: bool = True, include_decisions: bool = True) -> List[Pattern]:
+        """Load patterns from cache + recorded decisions, with seed fallback.
 
-        When no user-learned patterns exist yet, seed patterns provide
-        immediate value on fresh install. User patterns always take priority.
+        Git-derived patterns come from the cache (patterns.json) or, on cold
+        start, seed patterns. Recorded decisions are ALWAYS loaded directly from
+        ~/.cortex/decisions.jsonl as a first-class source — so they survive a
+        patterns.json rebuild and new decisions are indexed on the next build.
         """
         cache_file = self.cache_dir / "patterns.json"
+        patterns: List[Pattern] = []
         if cache_file.exists():
             data = json.loads(cache_file.read_text())
             patterns = [Pattern.from_dict(p) for p in data]
-            if patterns:
-                return patterns
 
-        # Cold start: load seed patterns for immediate value
-        if include_seeds:
-            return self._load_seed_patterns()
+        # Cold start: seed patterns for immediate value
+        if not patterns and include_seeds:
+            patterns = self._load_seed_patterns()
 
-        return []
+        # Decisions: durable first-class source (not dependent on patterns.json)
+        if include_decisions:
+            seen = {p.id for p in patterns}
+            for d in self._load_decisions():
+                if d.id not in seen:
+                    patterns.append(d)
+                    seen.add(d.id)
+
+        return patterns
 
     @staticmethod
     def _load_seed_patterns() -> List[Pattern]:
@@ -446,6 +455,59 @@ class PatternIndexer:
                 )
             )
         return seed_patterns
+
+    @staticmethod
+    def _load_decisions() -> List[Pattern]:
+        """Load recorded decisions (~/.cortex/decisions.jsonl) as first-class patterns.
+
+        Durable source: independent of patterns.json, so decisions persist across
+        a git re-index and new decisions are picked up on the next index build.
+        """
+        from pathlib import Path
+
+        decisions_file = Path.home() / ".cortex" / "decisions.jsonl"
+        if not decisions_file.exists():
+            return []
+        out: List[Pattern] = []
+        for line in decisions_file.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            did = d.get("decision_id") or d.get("id")
+            if not did:
+                continue
+            alts = d.get("alternatives")
+            desc = " | ".join(x for x in [
+                d.get("context"),
+                f"Rationale: {d['rationale']}" if d.get("rationale") else None,
+                f"Alternatives: {alts}" if isinstance(alts, str) and alts else None,
+            ] if x)
+            ts = d.get("timestamp") or d.get("created_at")
+            try:
+                cd = datetime.fromisoformat(str(ts).replace("Z", "+00:00")) if ts else datetime.now()
+                if cd.tzinfo:
+                    cd = cd.replace(tzinfo=None)
+            except (ValueError, TypeError):
+                cd = datetime.now()
+            tags = d.get("tags") if isinstance(d.get("tags"), list) else []
+            out.append(
+                Pattern(
+                    id=f"decision:{did}",
+                    project=d.get("project") or "cortex",
+                    commit_hash=d.get("source") or "mcp",
+                    commit_date=cd,
+                    title=(d.get("decision") or "decision")[:200],
+                    description=desc[:2000],
+                    files_changed=[],
+                    keywords=set(tags),
+                    pattern_type="decision",
+                )
+            )
+        return out
 
 
 class PatternSearcher:
