@@ -5,6 +5,41 @@ All notable changes to Cortex are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-06-29
+
+Recall-quality release: real semantic embeddings (optional, zero-dependency),
+recorded decisions as a durable recall source, and session briefing hooks.
+
+### Added
+- **Optional local semantic embeddings (Ollama addon).** `embeddings_client` is
+  now a pluggable backend: the default stays the dependency-free
+  `HashingVectorizer`, and it auto-detects `Voyage (key) > Ollama (reachable) >
+  hashing`, selectable via `CORTEX_EMBED_BACKEND` (`auto|voyage|ollama|local`).
+  Ollama is called over stdlib HTTP — **no new Python dependency** — with the
+  `nomic-embed-text` `search_query:`/`search_document:` prefixes applied
+  automatically. The active backend is recorded in the embeddings cache and a
+  backend switch forces a re-embed so stale vectors are never queried.
+  Base install needs nothing; addon = install `ollama` + `ollama pull
+  nomic-embed-text`. Measured recall lift (8 memory questions): hit@10 3→5/8.
+- **Recorded decisions as a durable, first-class recall source.**
+  `pattern_indexer.load_patterns()` loads `~/.cortex/decisions.jsonl` (resolved
+  via `CORTEX_HOME`) independent of `patterns.json`, so decisions survive a git
+  pattern re-index and new ones are picked up on the next build.
+- **Session briefing/debrief hooks.** A SessionStart briefing surfaces
+  recommendations + plan progress from the local bridge.
+
+### Fixed
+- `/v2/outcomes` reads the on-disk outcomes log directly (tz-safe) instead of a
+  broken import path that always returned 0.
+- Recall test isolation: `_load_decisions` no longer leaks the global decisions
+  log into isolated tests; the embeddings-cache backend guard only re-embeds on
+  a definite backend mismatch (robust to mocked clients).
+
+### Changed
+- The tier1 MRR≥0.40 benchmark is gated on `VOYAGE_API_KEY`: it is the strict
+  top-rank metric and is only meaningful with the production embedding backend;
+  recall@10 / anti-pattern recall remain as backend-robust guards.
+
 ## [1.0.1] — 2026-06-24
 
 Beta-readiness release: make Cortex work for a second user, fix the decision

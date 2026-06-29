@@ -207,6 +207,19 @@ class HybridRetriever:
         except Exception as e:
             logger.warning(f"Failed to load outcome boosts: {e}")
 
+    def _current_backend(self):
+        """Active embedding backend name as a str, or None if undeterminable.
+
+        Returns None for clients that don't report a real string backend (e.g.
+        a test Mock), so callers can skip backend-based cache invalidation
+        rather than regenerate spuriously.
+        """
+        try:
+            backend = self.embeddings_client.get_embedding_info().get("backend")
+        except Exception:
+            return None
+        return backend if isinstance(backend, str) else None
+
     def _load_or_generate_embeddings(self):
         """Load embeddings from cache or generate new ones."""
         cache_file = self.cache_dir / "embeddings.pkl"
@@ -220,8 +233,18 @@ class HybridRetriever:
                 with open(cache_meta_file, "rb") as f:
                     meta = pickle.load(f)
 
-                # Verify cache matches current patterns
-                if meta.get("pattern_count") == len(self.patterns):
+                # Verify cache matches current patterns AND embedding backend.
+                # A backend switch (e.g. hashing -> ollama) yields different
+                # vectors, so a stale cache must NOT be reused with a new backend.
+                # Only force a regen on a DEFINITE string mismatch — if the
+                # backend is unknown (e.g. a mocked client), fall back to the
+                # count+id check rather than regenerating spuriously.
+                current_backend = self._current_backend()
+                backend_ok = (
+                    not isinstance(current_backend, str)
+                    or meta.get("backend") == current_backend
+                )
+                if meta.get("pattern_count") == len(self.patterns) and backend_ok:
                     # Check if pattern IDs match
                     cached_ids = set(meta.get("pattern_ids", []))
                     current_ids = {p.id for p in self.patterns}
@@ -288,6 +311,7 @@ class HybridRetriever:
                 "pattern_count": len(self.patterns),
                 "pattern_ids": [p.id for p in self.patterns],
                 "embedding_dimension": self.embedding_dimension,
+                "backend": self._current_backend(),
             }
             with open(cache_meta_file, "wb") as f:
                 pickle.dump(meta, f)
