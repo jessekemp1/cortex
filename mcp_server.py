@@ -108,8 +108,11 @@ def cortex_intelligence(
     Args:
         query: Natural language question about the codebase or projects.
         query_type: One of 'spec', 'architecture', 'implementation', 'research'.
-        project: Optional project name to scope the query. Auto-detected by the
-            bridge from CORTEX_ROOT_DIR when omitted.
+        project: Project to scope the query to (e.g. 'interac', 'manulife-genie').
+            Pass it whenever you know which project the question is about — explicit
+            scoping yields the most relevant recall. When omitted, the bridge falls back
+            to auto-detecting from its working directory, which is unreliable; leave empty
+            only for genuinely project-agnostic queries.
     """
     valid_types = {"spec", "architecture", "implementation", "research"}
     if query_type not in valid_types:

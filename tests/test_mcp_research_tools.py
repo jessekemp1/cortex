@@ -268,3 +268,46 @@ class TestV2AlwaysLoadedTools:
 
         registered = set(mcp_instance._tool_manager._tools.keys())
         assert "cortex_research_digest" in registered
+
+
+class TestCortexIntelligenceProjectScope:
+    """cortex_intelligence forwards an explicit project to the bridge.
+
+    Regression test: the tool previously had no `project` param, so the bridge
+    fell back to its own working directory (always the cortex repo) and silently
+    mis-scoped every query to project 'cortex'. The tool must now forward an
+    explicit project when one is given, and omit it (preserving auto-detect) when not.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _skip_if_no_mcp(self):
+        pytest.importorskip("mcp")
+
+    def _capture_payload(self, monkeypatch, **kwargs):
+        import cortex.mcp_server as mod
+
+        captured = {}
+
+        def fake_post(path, payload, timeout=5.0):
+            captured["path"] = path
+            captured["payload"] = payload
+            return {"ok": True}
+
+        monkeypatch.setattr(mod, "_bridge_post", fake_post)
+        # @mcp.tool() wraps the function in a FunctionTool; .fn is the original callable.
+        fn = getattr(mod.cortex_intelligence, "fn", mod.cortex_intelligence)
+        fn(**kwargs)
+        return captured
+
+    def test_project_forwarded_when_provided(self, monkeypatch):
+        captured = self._capture_payload(
+            monkeypatch, query="What cloud is Interac on?", project="interac"
+        )
+        assert captured["path"] == "/intelligence/query"
+        assert captured["payload"].get("project") == "interac"
+
+    def test_project_omitted_when_empty(self, monkeypatch):
+        captured = self._capture_payload(monkeypatch, query="project-agnostic question")
+        assert "project" not in captured["payload"], (
+            "empty project must be omitted so the bridge default/auto-detect is preserved"
+        )
