@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Cortex Bridge API keep-alive (FastAPI/uvicorn on 127.0.0.1:8765).
+  Path placeholders are substituted by scripts/install_launchagents.sh at install time.
+  Uses the project venv python directly (the bridge needs fastapi/uvicorn) — NOT
+  /usr/local/bin/python, so the installer's system-python substitution is a no-op here.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cortex.bridge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__DEV_DIR__/cortex/.venv/bin/python3</string>
+        <string>__DEV_DIR__/cortex/api/bridge_endpoint.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__DEV_DIR__/cortex</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>__DEV_DIR__</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.cortex/logs/bridge.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.cortex/logs/bridge.stderr.log</string>
+</dict>
+</plist>
