@@ -10,8 +10,8 @@ outcomes, plan_create, plan_progress, projects, doctor. Decision writes are
 crash-proof via mcp_handlers (direct append + spool fallback). The remaining
 tools still pass through to the bridge daemon at :8765.
 
-Tools (18 always-loaded):
-  Core (in-process — work with the bridge down):
+Tools:
+  Core 8 (always registered; in-process — work with the bridge down):
   - cortex_record_decision: Record a decision for the learning loop
   - cortex_intelligence: Natural language query → insights
   - cortex_recommendations: Next actions and risk alerts
@@ -21,15 +21,12 @@ Tools (18 always-loaded):
   - cortex_projects: Project status overview
   - cortex_doctor: System health check (Python, deps, API keys, bridge, spool)
 
-  Bridge passthroughs (need the :8765 daemon):
-  - cortex_service_health, cortex_anomalies, cortex_sessions,
-    cortex_taskboard, cortex_conductor_compose, cortex_graph_query,
-    cortex_batch_status
-
-  Other in-process:
-  - cortex_orchestrate: Discover and dispatch work items via supervisor
-  - cortex_prompt_refine: Get refinement suggestions for any prompt
-  - cortex_research_digest: CRA weekly research digest
+  Experimental 10 (registered only when CORTEX_EXPERIMENTAL=1):
+  - bridge passthroughs (need the :8765 daemon): cortex_service_health,
+    cortex_anomalies, cortex_sessions, cortex_taskboard,
+    cortex_conductor_compose, cortex_graph_query, cortex_batch_status
+  - other in-process: cortex_orchestrate, cortex_prompt_refine,
+    cortex_research_digest
 
 Resources:
   - cortex://goals: Current GOALS.md content
@@ -123,10 +120,24 @@ def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
         return {"error": str(e)}
 
 
+_EXPERIMENTAL = bool(os.environ.get("CORTEX_EXPERIMENTAL"))
+
+
+def _experimental_tool(fn):
+    """Register as an MCP tool only when CORTEX_EXPERIMENTAL=1.
+
+    MVP surface trim: the core-8 memory-loop tools are always registered;
+    the passthrough/ops tools join only in experimental mode. The function
+    itself stays importable and callable either way (contract tests and
+    direct callers are unaffected) — only MCP registration is gated.
+    """
+    return mcp.tool()(fn) if _EXPERIMENTAL else fn
+
+
 # ── Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_service_health() -> str:
     """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts."""
     result = _bridge_get("/service-health")
@@ -195,7 +206,7 @@ def cortex_recommendations(project: str = "", limit: int = 5) -> str:
     return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_anomalies() -> str:
     """Get detected anomalies across all projects with severity and recommendations."""
     result = _bridge_get("/anomalies")
@@ -214,7 +225,7 @@ def cortex_projects() -> str:
     return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_sessions(active_only: bool = False) -> str:
     """Get Claude Code sessions (active or recent). Shows session IDs, duration, and projects touched."""
     param = "?active_only=true" if active_only else ""
@@ -222,7 +233,7 @@ def cortex_sessions(active_only: bool = False) -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_taskboard(status: str = "", project: str = "") -> str:
     """Get task board items, optionally filtered by status (pending/in_progress/done) or project name."""
     params = []
@@ -235,7 +246,7 @@ def cortex_taskboard(status: str = "", project: str = "") -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     """Get refinement suggestions for a prompt using learned patterns.
 
@@ -293,7 +304,7 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_conductor_compose(
     intent: str, project: str, intent_level: str = "collaborative", include_context: bool = True
 ) -> str:
@@ -322,7 +333,7 @@ def cortex_conductor_compose(
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_orchestrate(
     task: str = "",
     project: str = "",
@@ -379,7 +390,7 @@ def cortex_orchestrate(
 # ── Graph Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) -> str:
     """Search the Cortex context graph by node type or text query.
 
@@ -438,7 +449,7 @@ def cortex_plan_progress() -> str:
 # ── Ops Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_batch_status(batch_id: str) -> str:
     """Get detailed status of a specific batch job.
 
@@ -508,7 +519,7 @@ def cortex_outcomes(project: str = "", limit: int = 20) -> str:
 # ── CRA Research Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_research_digest() -> str:
     """Get the CRA weekly research digest — discoveries, assessments, urgent threats, and pending proposals."""
     try:

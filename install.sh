@@ -227,44 +227,24 @@ if [ -f "$CORTEX_DIR/site/package.json" ] && command -v npm >/dev/null 2>&1; the
     fi
 fi
 
-# ─── Step 6: LaunchAgents (macOS only) ──────────────────────────────────────
-if [ "$(uname)" = "Darwin" ]; then
-    echo ""
-    info "Background agents run nightly analysis, batch jobs, and session monitoring."
-    info "They are user-level LaunchAgents — no root access required."
-    INSTALL_AGENTS="Y"
-    [ -t 0 ] && { read -rp "  Install background agents? [Y/n]: " INSTALL_AGENTS || true; }
-    if [[ "$INSTALL_AGENTS" =~ ^[Yy] ]]; then
-        AGENTS_DIR="$HOME_DIR/Library/LaunchAgents"
-        mkdir -p "$AGENTS_DIR"
-
-        install_plist() {
-            local src="$1"
-            local name
-            name=$(basename "$src")
-            local dest="$AGENTS_DIR/$name"
-            [ -f "$dest" ] && return 0
-            cp "$src" "$dest"
-            sed -i '' \
-                -e "s|/Users/jesse.kemp/Dev|$DEV_DIR|g" \
-                -e "s|/Users/jesse/Dev|$DEV_DIR|g" \
-                -e "s|/Users/jesse.kemp|$HOME_DIR|g" \
-                -e "s|/Users/jesse/dev/venv/|$VENV/|g" \
-                -e "s|/Users/jesse/dev/cortex/venv/|$VENV/|g" \
-                -e "s|alpha_arena/venv/|alpha_arena/.venv/|g" \
-                -e "s|Vortex/backend/venv/|Vortex/backend/.venv/|g" \
-                "$dest"
-            echo "  Installed: $name"
-        }
-
-        for plist in "$CORTEX_DIR"/batch/automation/*.plist "$CORTEX_DIR"/*.plist; do
-            [ -f "$plist" ] && install_plist "$plist"
-        done
-        log "LaunchAgents installed"
-        log "Load now: launchctl load ~/Library/LaunchAgents/com.cortex.*.plist"
+# ─── Step 6: LaunchAgents (macOS + Linux systemd) ───────────────────────────
+# Delegated to scripts/install_launchagents.sh — the single source of truth:
+# it substitutes paths, actually loads the agents (launchctl bootstrap /
+# systemctl enable), and covers the curated plist set including the
+# com.cortex.bridge keep-alive that supervises the :8765 bridge.
+echo ""
+info "Background agents supervise the bridge and run nightly analysis/batch jobs."
+info "They are user-level LaunchAgents (macOS) or systemd user units (Linux)."
+INSTALL_AGENTS="Y"
+[ -t 0 ] && { read -rp "  Install background agents? [Y/n]: " INSTALL_AGENTS || true; }
+if [[ "$INSTALL_AGENTS" =~ ^[Yy] ]]; then
+    if bash "$SCRIPT_DIR/scripts/install_launchagents.sh"; then
+        log "Background agents installed and loaded"
     else
-        log "Skipped background agents"
+        warn "install_launchagents.sh reported errors (non-fatal); see output above"
     fi
+else
+    log "Skipped background agents"
 fi
 
 # ─── Step 7: Fix Claude Code hooks REPO_ROOT (if present) ───────────────────

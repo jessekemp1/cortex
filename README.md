@@ -280,7 +280,20 @@ Cortex exposes a Model Context Protocol server so Claude Desktop and compatible 
 }
 ```
 
-Once registered, Claude can call `cortex_intelligence`, `cortex_recommendations`, and `cortex_anomalies` without prompt engineering on your end.
+Once registered, Claude gets the **core 8** memory-loop tools —
+`cortex_record_decision`, `cortex_intelligence`, `cortex_recommendations`,
+`cortex_outcomes`, `cortex_plan_create`, `cortex_plan_progress`,
+`cortex_projects`, `cortex_doctor` — all of which run in-process and keep
+working when the bridge daemon is down (decision writes are crash-proof:
+direct append with a spool fallback, flushed by `cortex doctor --fix`).
+Set `CORTEX_EXPERIMENTAL=1` in the server's env to also register the 10
+experimental/ops tools (bridge passthroughs like `cortex_service_health`,
+`cortex_taskboard`, `cortex_graph_query`, …).
+
+The :8765 bridge daemon (passthrough tools + session briefing) is supervised
+by launchd — `bash scripts/install_launchagents.sh` installs and loads
+`com.cortex.bridge` with keep-alive, so it survives crashes and reboots.
+A foreground `python api/bridge_endpoint.py` is for debugging only.
 
 ---
 

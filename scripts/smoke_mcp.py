@@ -166,6 +166,9 @@ async def _smoke_tools(only: str | None, state_dir: str) -> dict[str, dict]:
             **os.environ,
             "PYTHONPATH": str(REPO_ROOT),
             "CORTEX_STATE_DIR": state_dir,
+            # Register all 18 tools (the 10 non-core are gated by default) so
+            # smoke exercises the full inventory in both modes.
+            "CORTEX_EXPERIMENTAL": "1",
         },
     )
 

@@ -55,17 +55,23 @@ Cortex talks to Claude Code through MCP. Update `.mcp.json` at your Dev root:
 
 Replace `YOUR_USER` with your actual username. Claude Code will pick this up on next restart.
 
-## Start the Bridge (For Intelligence Queries)
+## Install the Background Agents (Supervised Bridge)
 
-Basic commands (`status`, `onboard`, `doctor`) work immediately. For intelligence queries and MCP tools, start the bridge server:
+The memory loop's core MCP tools (`cortex_record_decision`, `cortex_intelligence`,
+`cortex_recommendations`, …) run **in-process** — they work even when the bridge
+daemon is down, and a decision can never be lost to a dead bridge. The bridge on
+:8765 powers the extra passthrough tools and the session briefing; install it
+supervised (launchd keeps it alive across crashes and reboots):
 
 ```bash
-# Start bridge in background (runs on :8765)
-python api/bridge_endpoint.py &
+bash scripts/install_launchagents.sh   # installs + loads com.cortex.bridge et al.
 
 # Verify
+cortex doctor          # checks bridge reachability, launchd agent, decision spool
 curl -s http://127.0.0.1:8765/health | python3 -m json.tool
 ```
+
+(Debugging only: a foreground bridge is `python api/bridge_endpoint.py`.)
 
 ## First Session (Verify It Works)
 
@@ -80,7 +86,11 @@ cortex intelligence "What are the key gotchas in this codebase?"
 cortex briefing
 ```
 
-In Claude Code, you'll now have 18 MCP tools: `cortex_intelligence`, `cortex_recommendations`, `cortex_anomalies`, `cortex_doctor`, and more.
+In Claude Code, you'll now have the **core 8** MCP tools — the memory loop:
+`cortex_record_decision`, `cortex_intelligence`, `cortex_recommendations`,
+`cortex_outcomes`, `cortex_plan_create`, `cortex_plan_progress`,
+`cortex_projects`, `cortex_doctor`. Set `CORTEX_EXPERIMENTAL=1` in the MCP
+server's env to also register the 10 experimental/ops tools.
 
 ## What to Expect
 
