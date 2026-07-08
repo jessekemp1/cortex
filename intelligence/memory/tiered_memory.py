@@ -23,6 +23,21 @@ from cortex.state_paths import get_cortex_dir
 logger = logging.getLogger(__name__)
 
 
+def _connect(db_path) -> "sqlite3.Connection":
+    """Open the shared store with WAL + busy_timeout.
+
+    Multiple processes share these databases (MCP servers per Claude session,
+    the CLI, and the bridge daemon). WAL allows concurrent readers during a
+    write; busy_timeout makes a second writer wait up to 5s instead of
+    failing immediately with 'database is locked'.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
+
 @dataclass
 class MemoryItem:
     """Item stored in memory."""
@@ -194,7 +209,7 @@ class WorkingMemory:
 
     def _init_db(self):
         """Initialize SQLite database schema."""
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS memory_items (
@@ -226,7 +241,7 @@ class WorkingMemory:
         """
         import json
 
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO memory_items
@@ -258,7 +273,7 @@ class WorkingMemory:
         """
         import json
 
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("SELECT * FROM memory_items WHERE id = ?", (item_id,))
             row = cursor.fetchone()
@@ -278,7 +293,7 @@ class WorkingMemory:
         )
 
         # Save updated access info
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.execute(
                 """
                 UPDATE memory_items
@@ -308,7 +323,7 @@ class WorkingMemory:
         query_lower = query.lower()
         results = []
 
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("SELECT * FROM memory_items")
 
@@ -344,7 +359,7 @@ class WorkingMemory:
 
         results = []
 
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute("SELECT * FROM memory_items WHERE outcome = 'success'")
 
@@ -366,7 +381,7 @@ class WorkingMemory:
         """Remove items older than retention_days."""
         cutoff = datetime.now() - timedelta(days=self.retention_days)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             cursor = conn.execute(
                 "DELETE FROM memory_items WHERE last_accessed < ?",
                 (cutoff.isoformat(),),
@@ -381,7 +396,7 @@ class WorkingMemory:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get working memory statistics."""
-        with sqlite3.connect(self.db_path) as conn:
+        with _connect(self.db_path) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM memory_items")
             total_count = cursor.fetchone()[0]
 
