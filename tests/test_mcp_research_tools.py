@@ -271,43 +271,49 @@ class TestV2AlwaysLoadedTools:
 
 
 class TestCortexIntelligenceProjectScope:
-    """cortex_intelligence forwards an explicit project to the bridge.
+    """cortex_intelligence scopes queries to the right project.
 
     Regression test: the tool previously had no `project` param, so the bridge
     fell back to its own working directory (always the cortex repo) and silently
-    mis-scoped every query to project 'cortex'. The tool must now forward an
-    explicit project when one is given, and omit it (preserving auto-detect) when not.
+    mis-scoped every query to project 'cortex'. The tool must forward an explicit
+    project when one is given; when omitted, it must resolve via the in-process
+    bridge's git-aware detector (then keyword auto-detect) — never a literal
+    'cortex' default. The tool now calls CortexBridge in-process (no HTTP), so
+    the capture point is bridge.query_intelligence kwargs.
     """
 
     @pytest.fixture(autouse=True)
     def _skip_if_no_mcp(self):
         pytest.importorskip("mcp")
 
-    def _capture_payload(self, monkeypatch, **kwargs):
+    def _capture_kwargs(self, monkeypatch, **kwargs):
         import cortex.mcp_server as mod
 
         captured = {}
 
-        def fake_post(path, payload, timeout=5.0):
-            captured["path"] = path
-            captured["payload"] = payload
-            return {"ok": True}
+        class FakeBridge:
+            def _detect_current_project(self):
+                return "detected-from-git"
 
-        monkeypatch.setattr(mod, "_bridge_post", fake_post)
+            def query_intelligence(self, **kw):
+                captured.update(kw)
+                return {"ok": True}
+
+        monkeypatch.setattr(mod, "_get_bridge", lambda: FakeBridge())
         # @mcp.tool() wraps the function in a FunctionTool; .fn is the original callable.
         fn = getattr(mod.cortex_intelligence, "fn", mod.cortex_intelligence)
         fn(**kwargs)
         return captured
 
     def test_project_forwarded_when_provided(self, monkeypatch):
-        captured = self._capture_payload(
+        captured = self._capture_kwargs(
             monkeypatch, query="What cloud is Interac on?", project="interac"
         )
-        assert captured["path"] == "/intelligence/query"
-        assert captured["payload"].get("project") == "interac"
+        assert captured.get("project") == "interac"
 
-    def test_project_omitted_when_empty(self, monkeypatch):
-        captured = self._capture_payload(monkeypatch, query="project-agnostic question")
-        assert "project" not in captured["payload"], (
-            "empty project must be omitted so the bridge default/auto-detect is preserved"
+    def test_project_resolved_by_detector_when_empty(self, monkeypatch):
+        captured = self._capture_kwargs(monkeypatch, query="project-agnostic question")
+        assert captured.get("project") == "detected-from-git", (
+            "empty project must resolve via the bridge git-detector "
+            "(auto-detect fallback), never a hardcoded default"
         )
