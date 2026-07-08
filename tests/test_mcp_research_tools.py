@@ -198,54 +198,99 @@ class TestMCPResearchProposals:
         assert "proposals" in data
 
 
-class TestV2AlwaysLoadedTools:
-    """V2: all 18 tools are always-loaded — no deferred groups, no enable step."""
+class TestMvpToolSurface:
+    """MVP surface: the core-8 memory loop is always registered; the 10
+    experimental/ops tools register only when CORTEX_EXPERIMENTAL=1.
+
+    (Supersedes the V2 "all 18 always-loaded" contract — the 2026-07 MVP trim
+    gates the non-core tools; the functions stay importable either way.)
+    """
 
     @pytest.fixture(autouse=True)
     def _skip_if_no_mcp(self):
         """Skip if MCP SDK is not installed."""
         pytest.importorskip("mcp")
 
-    # V2 always-loaded tool set
-    _EXPECTED_TOOLS = {
-        "cortex_service_health",
+    _CORE_TOOLS = {
+        "cortex_record_decision",
         "cortex_intelligence",
         "cortex_recommendations",
-        "cortex_anomalies",
+        "cortex_outcomes",
+        "cortex_plan_create",
+        "cortex_plan_progress",
         "cortex_projects",
+        "cortex_doctor",
+    }
+    _EXPERIMENTAL_TOOLS = {
+        "cortex_service_health",
+        "cortex_anomalies",
         "cortex_sessions",
         "cortex_taskboard",
         "cortex_orchestrate",
         "cortex_prompt_refine",
         "cortex_conductor_compose",
         "cortex_graph_query",
-        "cortex_plan_create",
-        "cortex_plan_progress",
         "cortex_batch_status",
-        "cortex_outcomes",
-        "cortex_record_decision",
         "cortex_research_digest",
-        "cortex_doctor",
     }
 
-    def test_all_tools_always_loaded(self):
-        """All 18 V2 tools are registered at import — no enable step required."""
+    def test_core_tools_always_loaded(self):
+        """The memory-loop core is registered at import — no enable step."""
         from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        missing = self._EXPECTED_TOOLS - registered
-        assert missing == set(), f"Tools not registered: {missing}"
+        missing = self._CORE_TOOLS - registered
+        assert missing == set(), f"Core tools not registered: {missing}"
 
-    def test_exact_tool_count(self):
-        """Exactly 18 tools registered — no extras, no deferred machinery."""
+    def test_experimental_tools_gated_by_default(self):
+        """Non-core tools stay unregistered unless CORTEX_EXPERIMENTAL=1."""
+        import os
+
+        if os.environ.get("CORTEX_EXPERIMENTAL"):
+            pytest.skip("suite running with CORTEX_EXPERIMENTAL set")
         from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        # Only count cortex_ tools (exclude any internal tools)
-        cortex_tools = {t for t in registered if t.startswith("cortex_")}
-        assert len(cortex_tools) == 18, (
-            f"Expected 18 tools, got {len(cortex_tools)}: {cortex_tools}"
+        leaked = self._EXPERIMENTAL_TOOLS & registered
+        assert leaked == set(), f"Experimental tools registered by default: {leaked}"
+
+    def test_experimental_env_registers_all_18(self):
+        """CORTEX_EXPERIMENTAL=1 restores the full 18-tool surface.
+
+        Registration happens at import, so this needs a fresh interpreter.
+        """
+        import json as _json
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path as _Path
+
+        repo_root = str(_Path(__file__).resolve().parent.parent)
+        out = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import asyncio, mcp_server, json; "
+                "print(json.dumps(sorted(t.name for t in "
+                "asyncio.run(mcp_server.mcp.list_tools()))))",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=repo_root,
+            env={**os.environ, "PYTHONPATH": repo_root, "CORTEX_EXPERIMENTAL": "1"},
         )
+        assert out.returncode == 0, out.stderr[-500:]
+        registered = set(_json.loads(out.stdout.strip().splitlines()[-1]))
+        assert registered >= (self._CORE_TOOLS | self._EXPERIMENTAL_TOOLS)
+
+    def test_gated_functions_stay_importable(self):
+        """Gating affects MCP registration only — direct callers still work."""
+        import cortex.mcp_server as mod
+
+        for name in self._EXPERIMENTAL_TOOLS:
+            fn = getattr(mod, name, None)
+            assert callable(getattr(fn, "fn", fn)), f"{name} not importable/callable"
 
     def test_no_deferred_machinery(self):
         """Deferred loading internals are gone."""
@@ -261,13 +306,6 @@ class TestV2AlwaysLoadedTools:
 
         registered = set(mcp_instance._tool_manager._tools.keys())
         assert "cortex_enable_tools" not in registered, "cortex_enable_tools should be removed"
-
-    def test_research_digest_always_available(self):
-        """cortex_research_digest is always-loaded (was deferred in V1)."""
-        from cortex.mcp_server import mcp as mcp_instance
-
-        registered = set(mcp_instance._tool_manager._tools.keys())
-        assert "cortex_research_digest" in registered
 
 
 class TestCortexIntelligenceProjectScope:
