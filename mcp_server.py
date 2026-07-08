@@ -325,7 +325,9 @@ def cortex_conductor_compose(
 
     payload = {
         "intent": intent,
-        "project": project,
+        # Route schema (PromptComposeRequest) names this project_id; sending
+        # "project" made every call 422 with "Unprocessable Content".
+        "project_id": project,
         "intent_level": intent_level,
         "include_context": include_context,
     }
