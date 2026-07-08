@@ -1133,6 +1133,26 @@ def cmd_doctor(args):
         except Exception as e:
             checks.append(("launchd com.cortex.bridge loaded", False, str(e)))
 
+    # Log growth: unrotated logs once hit 5GB. cortex_gc.sh rotates/archives.
+    logs_dir = cortex_home / "logs"
+    if logs_dir.exists():
+        import subprocess as _sp
+
+        try:
+            logs_mb = int(
+                _sp.run(["du", "-sm", str(logs_dir)], capture_output=True, text=True, timeout=10)
+                .stdout.split()[0]
+            )
+            checks.append(
+                (
+                    "logs dir size < 2GB",
+                    logs_mb < 2048,
+                    f"{logs_mb}MB" + ("" if logs_mb < 2048 else " — run: scripts/cortex_gc.sh"),
+                )
+            )
+        except Exception:
+            pass  # size check is best-effort
+
     # Decision spool: entries stranded by a failed primary append.
     try:
         import mcp_handlers
