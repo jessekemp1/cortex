@@ -173,6 +173,122 @@ def flush_spool() -> Dict[str, Any]:
     return {"flushed": flushed, "skipped": skipped, "remaining": spool_depth()}
 
 
+# ─── Project routing (single source of truth; api/routes/intelligence.py
+#     imports these back) ────────────────────────────────────────────────
+
+
+def _workspace_root() -> Path:
+    """Resolve the projects workspace root from CORTEX_ROOT_DIR.
+
+    Aligns with config.workspace_root() (the single source of truth for the
+    projects root). Falls back to ~/Dev only if config can't be imported.
+    """
+    try:
+        from config import workspace_root
+
+        return workspace_root()
+    except Exception:
+        return Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.home() / "Dev"))).expanduser()
+
+
+def _project_dirs() -> Dict[str, str]:
+    """Map discovered project name -> path (relative to the workspace root).
+
+    Built at call time from config.discover_projects() so git context comes
+    from the user's repos under CORTEX_ROOT_DIR, never a static author map.
+    """
+    try:
+        from config import discover_projects
+
+        return {p["name"]: p["rel"] for p in discover_projects(_workspace_root())}
+    except Exception:
+        return {}
+
+
+def default_project() -> str:
+    """The current project when none is specified: the workspace root's name."""
+    root = _workspace_root()
+    return root.name or "unknown"
+
+
+def auto_detect_project(question: str) -> str:
+    """Choose the most-likely discovered project from question keywords.
+
+    Keywords default to the project's own name token (lowercased). Falls back
+    to the current default project (workspace root name) when nothing matches.
+    """
+    q_lower = question.lower()
+    project_names = list(_project_dirs().keys())
+    if not project_names:
+        return default_project()
+    scores = {name: (1 if name.lower() in q_lower else 0) for name in project_names}
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0 else default_project()
+
+
+def normalize_recommendations(
+    recommendations: Dict[str, Any],
+    project: Optional[str] = None,
+    limit: int = 5,
+) -> Dict[str, Any]:
+    """Normalize report-style recommendation payloads into a flat list.
+
+    Mirrors GET /intelligence/recommendations: when the bridge returns the
+    report shape (next_action / priority_projects / risk_alerts), flatten it
+    into `recommendations`; otherwise filter/trim the list the bridge sent.
+    Mutates and returns the passed dict (parity with the route).
+    """
+    if project and "recommendations" in recommendations:
+        filtered = [
+            r for r in recommendations["recommendations"] if r.get("project") == project
+        ]
+        recommendations["recommendations"] = filtered[:limit]
+    elif "recommendations" in recommendations:
+        recommendations["recommendations"] = recommendations["recommendations"][:limit]
+    else:
+        normalized: List[Dict[str, Any]] = []
+        # Fallback project when a report item omits one: the query filter if
+        # given, else the discovered default project — never a literal "cortex".
+        default_proj = project or default_project()
+
+        next_action = recommendations.get("next_action")
+        if isinstance(next_action, dict) and next_action.get("action"):
+            normalized.append(
+                {
+                    "project": next_action.get("project", default_proj),
+                    "priority": next_action.get("priority", "MEDIUM"),
+                    "title": next_action.get("action"),
+                    "type": next_action.get("type", "next_action"),
+                }
+            )
+
+        for item in recommendations.get("priority_projects", []) or []:
+            if isinstance(item, dict):
+                normalized.append(
+                    {
+                        "project": item.get("project", default_proj),
+                        "priority": item.get("priority", "MEDIUM"),
+                        "title": item.get("reason", "Priority project requires attention"),
+                        "type": "priority_project",
+                    }
+                )
+
+        for alert in recommendations.get("risk_alerts", []) or []:
+            if isinstance(alert, dict):
+                normalized.append(
+                    {
+                        "project": alert.get("project", default_proj),
+                        "priority": alert.get("severity", "MEDIUM"),
+                        "title": alert.get("message", "Risk alert detected"),
+                        "type": "risk_alert",
+                    }
+                )
+
+        recommendations["recommendations"] = normalized[:limit]
+
+    return recommendations
+
+
 # ─── /projects ─────────────────────────────────────────────────────────
 
 

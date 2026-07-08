@@ -48,6 +48,20 @@ TOOL_INVOCATIONS: list[tuple[str, Dict[str, Any]]] = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def hermetic_store(tmp_path, monkeypatch):
+    """Redirect the cortex store to a tmp dir for every invocation.
+
+    These smoke tests invoke the tools for real — cortex_record_decision
+    writes a decision and cortex_plan_create writes a plan file. Without this
+    fixture they leaked into the live ~/.cortex: via the running bridge when
+    the tools were HTTP passthroughs, and directly now that the core tools
+    run in-process (mcp_handlers resolves paths through CORTEX_STATE_DIR at
+    call time).
+    """
+    monkeypatch.setenv("CORTEX_STATE_DIR", str(tmp_path))
+
+
 @pytest.fixture(scope="module")
 def mcp_module():
     """Import mcp_server once per module."""
