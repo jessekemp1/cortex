@@ -278,6 +278,15 @@ if [ -d "$HOOKS_DIR" ]; then
     log "Claude Code hooks updated with correct REPO_ROOT"
 fi
 
+# ─── Step 7.5: Wire session briefing into workspace Claude settings ─────────
+# JSON-merge (never clobbers existing hooks; idempotent). The hook command is
+# existence-guarded, so it silently no-ops on checkouts that lack the script.
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/scripts/install_session_hook.py" "$DEV_DIR" \
+        && log "Session briefing hook wired into $DEV_DIR/.claude/settings.json" \
+        || warn "Could not wire session briefing hook (non-fatal)"
+fi
+
 # ─── Step 8: Verify ──────────────────────────────────────────────────────────
 echo ""
 echo "╔════════════════════════════════════════╗"
