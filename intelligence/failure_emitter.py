@@ -213,6 +213,7 @@ def emit(signals: Iterable[FailureSignal], ledger_path: Path = EMITTED_LEDGER) -
                         "signal_id": sig.signal_id,
                         "observed_at": sig.observed_at,
                     },
+                    source="auto",  # machine-derived failure signal
                 )
             except Exception as exc:
                 logger.warning("emit failed for %s: %s", rec_id, exc)

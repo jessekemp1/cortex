@@ -546,6 +546,7 @@ class InteractionLearner:
                         "prediction_id": f"implicit_{outcome.outcome_id}",
                         "implicit": True,
                     },
+                    source="auto",  # self-confirmed — never counts as human-validated
                 )
 
             logger.info(f"Updated learning system with {len(outcomes)} implicit outcomes")

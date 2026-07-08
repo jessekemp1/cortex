@@ -41,6 +41,12 @@ class LearningMetrics:
     recommendation_accuracy: float  # % of followed recs that succeeded
     confidence_calibration: Dict[str, float]  # Confidence bucket -> success rate
     outcome_patterns: Dict[str, Dict[str, Any]]  # Type -> metrics
+    # Human/auto split: auto-confirmed outcomes (implicit approval, failure
+    # emitters) are throughput, not validated quality. The headline quality
+    # number is human_success_rate.
+    human_confirmed: int = 0
+    auto_confirmed: int = 0
+    human_success_rate: float = 0.0
 
 
 class LearningSystem:
@@ -372,6 +378,30 @@ class LearningSystem:
             "sample_size": len(matched_pairs),
         }
 
+    @staticmethod
+    def outcome_source(o) -> str:
+        """Classify an outcome as human- or auto-confirmed.
+
+        New records carry an explicit source field ("human"/"auto"), which is
+        trusted. Older records predate it (the loader marks them "") and are
+        classified by machine markers: git_/commit_/implicit_ id prefixes,
+        implicit_/failure: type prefixes, or context.implicit.
+        """
+        src = getattr(o, "source", "")
+        if src in ("human", "auto"):
+            return src
+        # Legacy record (no source on disk): classify by machine markers.
+        # The real store is dominated by git-activity automation — 1,555 of
+        # 1,660 records at the time of this change had git_/commit_ ids.
+        rid = str(o.recommendation_id)
+        if rid.startswith(("implicit_", "git_", "commit_")):
+            return "auto"
+        if str(o.recommendation_type).startswith(("implicit_", "failure:")):
+            return "auto"
+        if isinstance(o.context, dict) and o.context.get("implicit"):
+            return "auto"
+        return "human"
+
     def get_learning_metrics(self) -> LearningMetrics:
         """
         Get comprehensive learning metrics.
@@ -408,6 +438,14 @@ class LearningSystem:
             partial_rate = 0.0
             failed_rate = 0.0
 
+        human = [o for o in outcomes if self.outcome_source(o) == "human"]
+        human_followed = [o for o in human if o.followed]
+        human_success_rate = (
+            sum(1 for o in human_followed if o.outcome == "success") / len(human_followed)
+            if human_followed
+            else 0.0
+        )
+
         return LearningMetrics(
             total_outcomes=len(outcomes),
             followed_count=len(followed),
@@ -417,6 +455,9 @@ class LearningSystem:
             recommendation_accuracy=self.calculate_recommendation_accuracy(),
             confidence_calibration=self.get_confidence_calibration(),
             outcome_patterns=self.get_outcome_patterns(),
+            human_confirmed=len(human),
+            auto_confirmed=len(outcomes) - len(human),
+            human_success_rate=human_success_rate,
         )
 
     def _read_metrics_once(self) -> Dict[str, Any]:
