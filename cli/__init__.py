@@ -519,9 +519,13 @@ Deep Mode (Phase 1):
     )
     signals_parser.set_defaults(func=cmd_signals)
 
-    subparsers.add_parser("doctor", help="Run environment health checks").set_defaults(
-        func=cmd_doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Run environment health checks")
+    doctor_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Repair what doctor can: flush spooled decisions into decisions.jsonl",
     )
+    doctor_parser.set_defaults(func=cmd_doctor)
 
     # `cortex demo` — self-contained 30s proof of the prompt→outcome FK loop.
     from cli.commands.demo import cmd_demo
