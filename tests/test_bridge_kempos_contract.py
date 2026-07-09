@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import pytest
+
 from bridge import CortexBridge
+from recommendations_store import RecommendationStore, RecommendationWriteError
 
 
 class DummyConfig:
@@ -61,6 +64,19 @@ def test_bridge_namespaced_recommendation_writes_namespace_file(tmp_path):
     rec_path = tmp_path / ".cortex" / "namespaces" / "kempos" / "recommendations.json"
     assert rec_path.exists()
     assert "Ship one small artifact" in rec_path.read_text()
+
+
+def test_recommendation_write_failure_raises(tmp_path):
+    config_file = tmp_path / "not_a_dir"
+    config_file.write_text("x")
+    store = RecommendationStore(config_dir=config_file)
+
+    with pytest.raises(RecommendationWriteError):
+        store.add(
+            namespace="kempos",
+            title="Ship one small artifact",
+            rationale="KempOS weekly loop requires visible evidence.",
+        )
 
 
 def test_bridge_invalid_namespace_rejected_for_events(tmp_path):

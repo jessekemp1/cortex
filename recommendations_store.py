@@ -54,8 +54,8 @@ class RecommendationStore:
             "source": "CortexBridge",
         }
 
-        path = self._path(safe_namespace)
         try:
+            path = self._path(safe_namespace)
             current: list[dict[str, Any]] = []
             if path.exists() and path.read_text(encoding="utf-8").strip():
                 current = json.loads(path.read_text(encoding="utf-8"))
