@@ -67,8 +67,8 @@ class EventStore:
             "payload": payload,
         }
 
-        path = self._events_path(safe_namespace)
         try:
+            path = self._events_path(safe_namespace)
             with path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(event, sort_keys=True) + "\n")
         except OSError as exc:
