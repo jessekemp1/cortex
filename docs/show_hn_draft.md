@@ -33,9 +33,9 @@ my test set is 0.94. Combined with Anthropic's Batch API for eligible work, this
 produces about a 50% reduction in API spend compared to routing everything to the
 largest model.
 
-The system has 2,361 passing tests across unit, integration, and end-to-end
-suites. The architecture is covered in a 9-page preprint [1] if you want the
-full technical treatment.
+The system has 1,855 tests passing on a fresh clone across unit, integration,
+and end-to-end suites. The architecture is covered in a 9-page preprint [1] if
+you want the full technical treatment.
 
 There are two direct comparisons worth being honest about. Mem0 (49K stars) is
 the established player in agent memory — it's general-purpose and has a large

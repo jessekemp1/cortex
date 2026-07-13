@@ -344,7 +344,7 @@ links `cortex` to `~/.local/bin/`, and (on macOS) installs LaunchAgents.
 pytest tests/ -v
 ```
 
-2361+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+1,855 tests passing on a fresh clone, covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
 
 ---
 
