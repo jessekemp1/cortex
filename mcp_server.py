@@ -120,21 +120,23 @@ def cortex_intelligence(
     payload = {"request": query, "domain": DOMAIN, "query_type": query_type}
     if project:
         payload["project"] = project
-    result = _bridge_post("/intelligence/query", payload)
+    # Intelligence queries run hybrid retrieval and portfolio scans on the
+    # bridge; measured latency is ~10s+ so the 5s default guarantees timeouts.
+    result = _bridge_post("/intelligence/query", payload, timeout=60.0)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
 def cortex_recommendations() -> str:
     """Get strategic recommendations: next action, risk alerts, and priority projects."""
-    result = _bridge_get("/intelligence/recommendations")
+    result = _bridge_get("/intelligence/recommendations", timeout=30.0)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
 def cortex_anomalies() -> str:
     """Get detected anomalies across all projects with severity and recommendations."""
-    result = _bridge_get("/anomalies")
+    result = _bridge_get("/anomalies", timeout=15.0)
     return json.dumps(result, indent=2)
 
 
@@ -314,7 +316,7 @@ def cortex_orchestrate(
 def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) -> str:
     """Search the Cortex context graph by node type or text query.
 
-    Node types: goal, project, pattern, lesson, decision, warning.
+    Node types: goal, project, file, pattern, lesson, error, dependency, work_item.
     Returns nodes with relationships and metadata.
 
     Args:
@@ -330,7 +332,7 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
     if limit != 10:
         params.append(f"limit={limit}")
     qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/graph/query{qs}")
+    result = _bridge_get(f"/graph/query{qs}", timeout=15.0)
     return json.dumps(result, indent=2)
 
 
