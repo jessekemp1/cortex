@@ -41,10 +41,10 @@ Rule: no deck, post, or doc quotes a number absent from this table. To use a new
 | Trivial-assertion rate | 1.8% | AST meta-testing; paper §Testing | 2026-03 | Self-measured methodology |
 | Retrieval recall@10 | 80% | `tests/test_retrieval_benchmark.py`; paper abstract | 2026-03 | Domain-specific internal benchmark, no external baseline |
 | Retrieval MRR | 0.643 | same | 2026-03 | Same caveat; strict MRR ≥ 0.40 gate requires `VOYAGE_API_KEY` |
-| Context dedup savings | 21.2% | paper; README | 2026-03 | Measured on author's corpus |
+| Context dedup savings | 21.2% | paper; README | 2026-03 | Anecdotal — no reproducible benchmark artifact; ROADMAP itself flags it unvalidated |
 | Routing quality score (PQS) | 0.94 | paper; Show HN draft | 2026-03 | Author's test set |
 | API cost reduction | ~50% | Anthropic Batch API + routing; paper | 2026-03 | Vs. routing everything to the largest model |
-| Bridge init latency | 6.8 ms | paper §Entry Points | 2026-03 | Local machine measurement |
+| Bridge init latency | 6.8 ms | paper §Entry Points | 2026-03 | Doc-only; no benchmark asserts it. LLM-backed intelligence queries are seconds (~10 s measured), not milliseconds |
 | Codebase size | ~197k lines of Python, 621 files | `git ls-files` count | 2026-07 | Includes tests |
 | Build effort | 496 commits, 103 active days, ~7 months, single author | git history (2025-12-11 → 2026-06-30) | 2026-07 | Heavily AI-assisted (authored with Claude) |
 | MCP tools exposed | 18 | `mcp_server.py` | 2026-07 | — |
@@ -56,12 +56,12 @@ Rule: no deck, post, or doc quotes a number absent from this table. To use a new
 
 ## 4. Capability map — the four primitives
 
-1. **Three-tier memory.** Working (session, in-memory LRU) → episodic (past events, SQLite) → semantic (permanent, hybrid BM25 + embedding retrieval merged by reciprocal rank fusion). Memory is table stakes; the next three are the differentiators.
-2. **Anti-pattern database.** Failure mode + trigger + prevention context, stored as a distinct retrieval-boosted type. Canonical quote: *"It's not just 'remember this happened' — it's 'here's why this approach fails and what to do instead.'"*
+1. **Three-tier memory.** Short-term (session, in-memory LRU) → working (7-day SQLite) → long-term (permanent, hybrid BM25 + embedding retrieval merged by reciprocal rank fusion). Promotion between the first two tiers is automatic; the permanent tier is populated by explicit indexing today. Memory is table stakes; the next three are the differentiators.
+2. **Anti-pattern warnings.** A typed failure-mode + prevention primitive: 37 seed anti-patterns surface automatically as pre-task warnings when task context matches (warnings get the majority of the injected-context budget). Custom capture is early — recorded gotchas reach recall through the decision path today, not a dedicated boost. Canonical quote: *"It's not just 'remember this happened' — it's 'here's why this approach fails and what to do instead.'"*
 3. **Outcome learning.** Learning signals derived from what the user actually does (followed / overridden / ignored) rather than explicit ratings. Guardrail rule, recorded as a decision on 2026-06-01: *log success only where there is direct evidence — fabricated outcomes poison the calibration data that makes the memory worth having.*
 4. **Model routing + goal-to-task pipeline.** Route tasks to cost-appropriate model tiers by complexity; parse goals into prioritized, dispatchable work. This is the orchestration half that memory-only competitors don't have.
 
-Delivery surfaces: MCP server (18 tools — native in Claude Code / Claude Desktop), Python SDK (`CortexBridge`), CLI (`cortex` / `cx`), local FastAPI bridge. Everything lives in `~/.cortex/`; nothing leaves the machine unless an external backend is configured.
+Delivery surfaces: MCP server (18 tools — native in Claude Code / Claude Desktop), Python SDK (`CortexBridge`), CLI (`cortex` / `cx`), local FastAPI bridge (localhost-only). The memory store lives entirely in `~/.cortex/` and there is no telemetry; LLM-backed queries call the Anthropic API, and Voyage embeddings / notifications are outbound only if configured. With no keys set, nothing leaves the machine.
 
 ## 5. Story beats (chronological)
 
@@ -69,7 +69,7 @@ Delivery surfaces: MCP server (18 tools — native in Claude Code / Claude Deskt
 2. **Depth over speed (Jan 2026).** Deliberate reversal of a "<500 ms startup" constraint: accept seconds of startup for comprehensive analysis. Documented in `DESIGN_PRINCIPLES.md`.
 3. **The strategic pivot (Mar 2026).** Explicit decision *not* to compete with Mem0/Supermemory on retrieval quality — compete on what nobody else has: task orchestration + memory in one system, anti-pattern primitives, the goal-to-task pipeline. Documented in `ROADMAP.md`.
 4. **The audit (Jun 2026) — the candor beat.** A pre-release adversarial self-audit found the package **did not import on a fresh clone**: 82 files imported `cortex.X`, but no `cortex/` package existed — a sibling editable install had masked it for months. Fixed with a one-line namespace shim rather than an 82-file refactor. The same audit retracted an inflated test badge (2,361+ → 1,855), removed personal-path leaks, and replaced a silent no-API-key hang with a fast, actionable exit. Full record: `docs/AUDIT_FINDINGS.md`. Consequence: `cortex demo` exists as a 30-second falsifiable proof — no API key, no network, real code paths.
-5. **Productization sprint (Jun 2026).** v1.0.0 "survive the adversarial audit" → v1.0.1 "make Cortex work for a second user" → v1.1.0 "recall quality" (local semantic embeddings, decisions as a durable first-class recall source). The memory system also hardened its own uptime after an outage (dedicated keep-alive supervision for the bridge).
+5. **Productization sprint (Jun 2026).** v1.0.0 "survive the adversarial audit" → v1.0.1 "make Cortex work for a second user" → v1.1.0 "recall quality" (local semantic embeddings; recorded decisions re-read fresh into recall on every query — they feed related-pattern and session-context recall). The memory system also hardened its own uptime after an outage (dedicated keep-alive supervision for the bridge).
 6. **Dogfooding, continuously.** Cortex recorded the decisions made while building Cortex — including its own reversals and process failures. Roughly 3 of 4 decisions in the author's live corpus are about *other* projects: it functions as portfolio memory, not a project changelog.
 
 ## 6. Positioning and honest comparisons
@@ -108,6 +108,7 @@ Stated unflinchingly, because the candor is load-bearing:
 | `docs/show_hn_draft.md` | §1, §2, §6, §8, §3 (numbers) |
 | Talks / decks | all sections; slide numbers must trace to §3 |
 | `BETA_ONBOARDING.md` | §1, §8 |
+| `docs/USING_CORTEX.md` | operator's guide — §4 (primitives, precisely scoped) + the config/usage surface verified against code |
 | `docs/cortex_paper.md` | §3, §4 (paper is the primary source for benchmark methodology) |
 
 Maintenance: when a number changes, update §3 first (value + verified date), then sweep derived artifacts. `grep -rn "<old number>" README.md docs/` before any release or external post.

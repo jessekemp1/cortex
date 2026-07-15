@@ -103,5 +103,5 @@ def cmd_demo(args) -> None:
     print("  0.4 * test_pass_ratio  +  0.4 * commit_landed  +  0.2 * activity")
     print()
     print("This output was generated with NO API key and NO network call.")
-    print("The same linker runs every 15 min via com.cortex.outcome-linker")
-    print("on your installed Cortex once you set it up.")
+    print("Run the same linker on your real data any time:")
+    print("  python intelligence/outcome_linker.py")
