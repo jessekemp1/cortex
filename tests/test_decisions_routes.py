@@ -74,6 +74,21 @@ def test_learning_decision_requires_only_decision(client):
     assert entry["context"] == ""
 
 
+def test_learning_decision_project_tag_round_trips(client):
+    """An explicit project tag persists; untagged entries stay project-free
+    (the pattern indexer falls back to 'cortex' for those at read time)."""
+    c, tmp_file = client
+    assert c.post(
+        "/decisions/learning", json={"decision": "tagged", "project": "interac"}
+    ).status_code == 200
+    assert c.post("/decisions/learning", json={"decision": "untagged"}).status_code == 200
+    tagged, untagged = [
+        json.loads(l) for l in tmp_file.read_text().splitlines() if l.strip()
+    ]
+    assert tagged["project"] == "interac"
+    assert "project" not in untagged
+
+
 def test_learning_decision_rejects_empty_body(client):
     """Missing `decision` -> 422 (Pydantic validation)."""
     c, _ = client
