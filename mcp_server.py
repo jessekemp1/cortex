@@ -11,22 +11,25 @@ crash-proof via mcp_handlers (direct append + spool fallback). The remaining
 tools still pass through to the bridge daemon at :8765.
 
 Tools:
-  Core 8 (always registered; in-process — work with the bridge down):
-  - cortex_record_decision: Record a decision for the learning loop
-  - cortex_intelligence: Natural language query → insights
-  - cortex_recommendations: Next actions and risk alerts
-  - cortex_outcomes: Outcome tracking (shipped, validated, failed)
-  - cortex_plan_create: Create execution plan from project goals
-  - cortex_plan_progress: Get progress summary of all active plans
-  - cortex_projects: Project status overview
+  Golden five (always registered — the smallest credible beta surface):
+  - cortex_intelligence: Natural language query → insights (in-process)
+  - cortex_record_decision: Record a decision for the learning loop (in-process)
+  - cortex_outcomes: Outcome tracking — shipped, validated, failed (in-process)
+  - cortex_service_health: Ecosystem health (bridge passthrough; degrades to an
+    honest "bridge unavailable" envelope when the :8765 daemon is down)
   - cortex_doctor: System health check (Python, deps, API keys, bridge, spool)
 
-  Experimental 10 (registered only when CORTEX_EXPERIMENTAL=1):
-  - bridge passthroughs (need the :8765 daemon): cortex_service_health,
-    cortex_anomalies, cortex_sessions, cortex_taskboard,
-    cortex_conductor_compose, cortex_graph_query, cortex_batch_status
-  - other in-process: cortex_orchestrate, cortex_prompt_refine,
-    cortex_research_digest
+  The session-briefing/debrief hooks reach cortex over the bridge's HTTP API
+  and via mcp_handlers in-process — they do NOT depend on any non-golden MCP
+  tool — so nothing beyond the golden five needs to stay visible for them.
+
+  Experimental 13 (registered only when CORTEX_EXPERIMENTAL=1):
+  - in-process memory-loop extras: cortex_recommendations, cortex_projects,
+    cortex_plan_create, cortex_plan_progress
+  - bridge passthroughs (need the :8765 daemon): cortex_anomalies,
+    cortex_sessions, cortex_taskboard, cortex_conductor_compose,
+    cortex_graph_query, cortex_batch_status
+  - other: cortex_orchestrate, cortex_prompt_refine, cortex_research_digest
 
 Resources:
   - cortex://goals: Current GOALS.md content
@@ -137,10 +140,28 @@ def _experimental_tool(fn):
 # ── Tools ──
 
 
-@_experimental_tool
+@mcp.tool()
 def cortex_service_health() -> str:
-    """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts."""
-    result = _bridge_get("/service-health")
+    """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts.
+
+    Golden-five tool: always registered. This is the one bridge passthrough in
+    the golden set, so it must never hang or crash when the :8765 daemon is
+    down. _bridge_get caps the connect at a short timeout and maps URLError to
+    an error dict; here we normalize that into an explicit, honest
+    "bridge unavailable" envelope (bridge_up=false) rather than surfacing a raw
+    urllib reason — the caller learns the truth without a stack trace or a hang.
+    """
+    result = _bridge_get("/service-health", timeout=2.0)
+    if isinstance(result, dict) and "error" in result:
+        return json.dumps(
+            {
+                "bridge_up": False,
+                "status": "bridge unavailable",
+                "detail": result["error"],
+                "hint": "Start the bridge daemon (:8765) to get live ecosystem health.",
+            },
+            indent=2,
+        )
     return json.dumps(result, indent=2)
 
 
@@ -185,7 +206,7 @@ def cortex_intelligence(
     return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_recommendations(project: str = "", limit: int = 5) -> str:
     """Get strategic recommendations: next action, risk alerts, and priority projects.
 
@@ -213,7 +234,7 @@ def cortex_anomalies() -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_projects() -> str:
     """Get status overview of all active projects (health, test counts, recent activity)."""
     try:
@@ -419,7 +440,7 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
 # ── Planning Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_plan_create(project: str, title: str = "") -> str:
     """Create an execution plan for a project. Parses GOALS.md for active items.
 
@@ -436,7 +457,7 @@ def cortex_plan_create(project: str, title: str = "") -> str:
     return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_plan_progress() -> str:
     """Get progress summary of all active plans."""
     try:
