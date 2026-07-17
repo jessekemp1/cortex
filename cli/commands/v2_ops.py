@@ -1085,25 +1085,165 @@ def cmd_signals(args):
 
 
 def cmd_doctor(args):
+    """Environment health check for a new user.
+
+    Checks the top day-1 failure modes and, with ``--fix``, repairs what it
+    can (spool flush, missing state dirs, .env creation, MCP registration).
+
+    Statuses: PASS (healthy), FAIL (a check the user must act on), WARN (a soft
+    finding that does NOT fail doctor — e.g. no API key on the golden path, the
+    bridge not running, a real env var shadowing .env), SKIP (not applicable —
+    e.g. launchctl on CI). Exit code is non-zero iff any check FAILs; ``--fix``
+    exits 0 when it repaired everything repairable.
+    """
+    import os
     import socket
 
-    checks = []
+    from state_paths import get_cortex_dir
+
+    fix = getattr(args, "fix", False)
+    as_json = getattr(args, "json", False)
+
+    # Each check: (label, status, detail). status ∈ {"pass","fail","warn","skip"}.
+    checks: list[tuple[str, str, str]] = []
+    fix_log: list[str] = []
+
+    def _st(ok: bool) -> str:
+        return "pass" if ok else "fail"
+
+    # ── Python + core deps ──────────────────────────────────────────────
     vi = sys.version_info
     checks.append(
-        ("Python >= 3.11", (vi.major, vi.minor) >= (3, 11), f"{vi.major}.{vi.minor}.{vi.micro}")
+        ("Python >= 3.11", _st((vi.major, vi.minor) >= (3, 11)), f"{vi.major}.{vi.minor}.{vi.micro}")
     )
     for pkg, name in [("anthropic", "anthropic"), ("sklearn", "sklearn")]:
         try:
             mod = __import__(pkg)
-            checks.append((f"{name} importable", True, mod.__version__))
+            checks.append((f"{name} importable", "pass", getattr(mod, "__version__", "?")))
         except ImportError as e:
-            checks.append((f"{name} importable", False, str(e)))
-    import os
+            checks.append((f"{name} importable", "fail", str(e)))
 
+    # ── [server] extra + in-process MCP import ──────────────────────────
+    try:
+        from setup_ops import (
+            hooks_installed,
+            launchd_bridge_status,
+            mcp_import_ok,
+            mcp_is_registered,
+            register_mcp,
+            server_extra_ok,
+        )
+
+        se = server_extra_ok()
+        checks.append(("[server] extra importable (fastapi/mcp)", _st(se["ok"]), se["detail"]))
+        mi = mcp_import_ok()
+        checks.append(("in-process MCP import works", _st(mi["ok"]), mi["detail"]))
+
+        # ── MCP registered in Claude Code (+ --fix registers it) ─────────
+        reg = mcp_is_registered()
+        if not reg["registered"] and fix and reg.get("available"):
+            r = register_mcp()
+            fix_log.append(f"MCP register: {r['action']} — {r['detail']}")
+            reg = mcp_is_registered()
+        if reg["registered"]:
+            checks.append(("MCP registered in Claude Code", "pass", "registered"))
+        elif not reg.get("available"):
+            checks.append(("MCP registered in Claude Code", "skip", reg["detail"]))
+        else:
+            checks.append(
+                (
+                    "MCP registered in Claude Code",
+                    "fail",
+                    "not registered — run: cortex mcp-register (or cortex doctor --fix)",
+                )
+            )
+
+        hk = hooks_installed()
+        checks.append(("session hook installed", "pass" if hk["ok"] else "warn", hk["detail"]))
+        lb = launchd_bridge_status()
+        _lb_status = {"loaded": "pass", "not_loaded": "warn", "skip": "skip"}.get(
+            lb["status"], "warn"
+        )
+        checks.append(("launchd com.cortex.bridge loaded", _lb_status, lb["detail"]))
+        _setup_ops_ok = True
+    except Exception as e:
+        checks.append(("setup_ops available", "fail", f"{type(e).__name__}: {e}"))
+        _setup_ops_ok = False
+
+    # ── PYTHONPATH sanity: repo root importable ─────────────────────────
+    try:
+        import importlib
+
+        importlib.import_module("mcp_handlers")
+        checks.append(("PYTHONPATH sane (cortex root importable)", "pass", "ok"))
+    except Exception as e:
+        checks.append(("PYTHONPATH sane (cortex root importable)", "fail", str(e)))
+
+    # ── API key (golden path needs NO key → WARN, never FAIL) ───────────
     key_set = bool(os.environ.get("ANTHROPIC_API_KEY"))
-    checks.append(("ANTHROPIC_API_KEY set", key_set, "set" if key_set else "missing"))
-    cortex_home = Path.home() / ".cortex"
-    checks.append(("~/.cortex/ exists", cortex_home.exists(), str(cortex_home)))
+    checks.append(
+        (
+            "ANTHROPIC_API_KEY set",
+            "pass" if key_set else "warn",
+            "set" if key_set else "not set (optional — golden path works without it)",
+        )
+    )
+
+    # ── env/.env parity (A1) ────────────────────────────────────────────
+    try:
+        from env_loader import env_dotenv_parity
+
+        par = env_dotenv_parity()
+        if par["missing"]:
+            checks.append(
+                (
+                    "env/.env parity",
+                    "fail",
+                    f"in .env but not in process env: {', '.join(par['missing'])} "
+                    "— restart the process (loader runs at startup)",
+                )
+            )
+        elif par["shadowed"]:
+            checks.append(
+                ("env/.env parity", "warn", f"real env shadows .env: {', '.join(par['shadowed'])}")
+            )
+        else:
+            checks.append(("env/.env parity", "pass", "consistent"))
+    except Exception as e:
+        checks.append(("env/.env parity", "warn", str(e)))
+
+    # ── State dir (create on --fix) ─────────────────────────────────────
+    cortex_home = get_cortex_dir()  # honors CORTEX_STATE_DIR / CORTEX_HOME
+    if not cortex_home.exists() and fix:
+        try:
+            cortex_home.mkdir(parents=True, exist_ok=True)
+            fix_log.append(f"created state dir {cortex_home}")
+        except Exception as e:
+            fix_log.append(f"state dir create failed: {e}")
+    checks.append(("cortex state dir exists", _st(cortex_home.exists()), str(cortex_home)))
+
+    # ── .env present (create placeholder on --fix) ──────────────────────
+    env_file = cortex_home / ".env"
+    if not env_file.exists() and fix:
+        try:
+            cortex_home.mkdir(parents=True, exist_ok=True)
+            env_file.write_text(
+                "# Cortex environment (loaded at startup; real env vars win)\n"
+                "# ANTHROPIC_API_KEY=sk-ant-...  # optional — golden path needs no key\n",
+                encoding="utf-8",
+            )
+            fix_log.append(f"created {env_file}")
+        except Exception as e:
+            fix_log.append(f".env create failed: {e}")
+    checks.append(
+        (
+            "~/.cortex/.env present",
+            "pass" if env_file.exists() else "warn",
+            str(env_file) if env_file.exists() else "absent (create with: cortex doctor --fix)",
+        )
+    )
+
+    # ── Bridge reachability (soft — golden path is in-process) ──────────
     bridge_ok = False
     try:
         s = socket.create_connection(("127.0.0.1", 8765), timeout=1)
@@ -1111,29 +1251,11 @@ def cmd_doctor(args):
         bridge_ok = True
     except OSError:
         pass
-    checks.append(("bridge :8765 reachable", bridge_ok, "up" if bridge_ok else "not running"))
+    checks.append(
+        ("bridge :8765 reachable", "pass" if bridge_ok else "warn", "up" if bridge_ok else "not running (optional)")
+    )
 
-    # launchd supervision (macOS): the com.cortex.bridge keep-alive agent is
-    # what restarts the bridge after crashes/reboots. Skip on other platforms.
-    if sys.platform == "darwin":
-        import subprocess
-
-        try:
-            out = subprocess.run(
-                ["launchctl", "list"], capture_output=True, text=True, timeout=5
-            ).stdout
-            agent_loaded = "com.cortex.bridge" in out
-            checks.append(
-                (
-                    "launchd com.cortex.bridge loaded",
-                    agent_loaded,
-                    "loaded" if agent_loaded else "not loaded — run scripts/install_launchagents.sh",
-                )
-            )
-        except Exception as e:
-            checks.append(("launchd com.cortex.bridge loaded", False, str(e)))
-
-    # Log growth: unrotated logs once hit 5GB. cortex_gc.sh rotates/archives.
+    # ── Log growth (best-effort) ────────────────────────────────────────
     logs_dir = cortex_home / "logs"
     if logs_dir.exists():
         import subprocess as _sp
@@ -1146,44 +1268,151 @@ def cmd_doctor(args):
             checks.append(
                 (
                     "logs dir size < 2GB",
-                    logs_mb < 2048,
+                    _st(logs_mb < 2048),
                     f"{logs_mb}MB" + ("" if logs_mb < 2048 else " — run: scripts/cortex_gc.sh"),
                 )
             )
         except Exception:
             pass  # size check is best-effort
 
-    # Decision spool: entries stranded by a failed primary append.
+    # ── Decision spool (flush on --fix) ─────────────────────────────────
     try:
         import mcp_handlers
 
-        if getattr(args, "fix", False):
+        if fix:
             result = mcp_handlers.flush_spool()
-            print(
-                f"  [--fix] spool flush: {result['flushed']} flushed, "
+            msg = (
+                f"spool flush: {result['flushed']} flushed, "
                 f"{result['skipped']} skipped, {result['remaining']} remaining"
             )
+            fix_log.append(msg)
+            if not as_json:
+                print(f"  [--fix] {msg}")
         depth = mcp_handlers.spool_depth()
         checks.append(
             (
                 "decision spool empty",
-                depth == 0,
+                _st(depth == 0),
                 "empty" if depth == 0 else f"{depth} pending — run: cortex doctor --fix",
             )
         )
     except Exception as e:
-        checks.append(("decision spool empty", False, str(e)))
+        checks.append(("decision spool empty", "fail", str(e)))
 
-    all_pass = all(ok for _, ok, _ in checks)
+    # ── Verdict ─────────────────────────────────────────────────────────
+    any_fail = any(status == "fail" for _, status, _ in checks)
+
+    if as_json:
+        import json as _json
+
+        payload = {
+            "checks": [{"check": lbl, "status": st, "detail": d} for lbl, st, d in checks],
+            "all_pass": not any_fail,
+            "counts": {
+                s: sum(1 for _, st, _ in checks if st == s)
+                for s in ("pass", "fail", "warn", "skip")
+            },
+            "fixed": fix_log if fix else [],
+        }
+        print(_json.dumps(payload, indent=2))
+        sys.exit(1 if any_fail else 0)
+
+    _sym = {"pass": "PASS", "fail": "FAIL", "warn": "WARN", "skip": "SKIP"}
     width = 44
     print(
         "+" + "=" * width + "+\n|  CORTEX DOCTOR" + " " * (width - 15) + "|\n+" + "=" * width + "+"
     )
-    for label, ok, detail in checks:
-        print(f"  [{'PASS' if ok else 'FAIL'}] {label}: {detail}")
+    for label, status, detail in checks:
+        print(f"  [{_sym.get(status, status.upper())}] {label}: {detail}")
     print("+" + "=" * width + "+")
-    print("  All checks passed." if all_pass else "  Some checks FAILED. Fix issues above.")
-    sys.exit(0 if all_pass else 1)
+    if fix and fix_log:
+        print(f"  Repaired: {len(fix_log)} item(s).")
+    print("  All checks passed." if not any_fail else "  Some checks FAILED. Fix issues above.")
+    sys.exit(1 if any_fail else 0)
+
+
+# ── mcp-register (A3) ───────────────────────────────────────────────────────────
+
+
+def cmd_mcp_register(args):
+    """Register the cortex MCP server with Claude Code (user scope).
+
+    Interactive: shows the exact entry and asks. ``--yes``: registers and prints
+    what it wrote. If the ``claude`` CLI is absent, prints the exact manual
+    copy-paste block and exits 0 (never fails the setup path).
+    """
+    from setup_ops import claude_bin, mcp_registration_entry, register_mcp
+
+    scope = getattr(args, "scope", "user") or "user"
+    assume_yes = getattr(args, "yes", False)
+    entry = mcp_registration_entry(scope)
+
+    if not claude_bin():
+        print("Claude Code CLI ('claude') not found on PATH.")
+        print("Register the Cortex MCP server manually — run this once, then restart Claude Code:\n")
+        print(f"    {entry['manual']}\n")
+        print("Or add to your Claude config's mcpServers:")
+        print(f'    "{entry["name"]}": {{"command": "{entry["command"]}"' +
+              (f', "args": {entry["args"].split()}' if entry["args"] else "") + "}")
+        sys.exit(0)
+
+    if not assume_yes:
+        print("Cortex will register this MCP server with Claude Code:\n")
+        print(f"    name:    {entry['name']}")
+        print(f"    scope:   {entry['scope']}")
+        print(f"    command: {entry['full_command']}\n")
+        print(f"    (equivalent to: {entry['manual']})\n")
+        try:
+            ans = input("Register now? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            ans = "n"
+        if ans and not ans.startswith("y"):
+            print("Skipped. Register later with: cortex mcp-register --yes")
+            return
+
+    result = register_mcp(scope)
+    if result["ok"]:
+        print(f"MCP registered: {result['detail']}")
+        print("Restart Claude Code to pick up the new server.")
+    else:
+        print(f"Could not register automatically ({result['detail']}).")
+        print(f"Register manually: {result['manual']}")
+
+
+# ── reset (A5) ──────────────────────────────────────────────────────────────────
+
+
+def cmd_reset(args):
+    """Wipe the Cortex state directory (~/.cortex or CORTEX_STATE_DIR).
+
+    Prompts for confirmation unless ``--yes``/``--force`` is given.
+    """
+    from state_paths import get_cortex_dir
+    from setup_ops import reset_state
+
+    assume_yes = getattr(args, "yes", False) or getattr(args, "force", False)
+    state = get_cortex_dir()
+
+    if not assume_yes:
+        print(f"This will permanently delete all Cortex state under:\n    {state}")
+        print("Decisions, outcomes, metrics, logs, and plans will be lost.\n")
+        try:
+            ans = input("Type 'yes' to confirm: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            ans = ""
+        if ans != "yes":
+            print("Aborted. Nothing was deleted.")
+            return
+
+    result = reset_state(force=True)
+    if result["ok"]:
+        if result["removed"]:
+            print(f"Cortex state wiped: {result['removed']}")
+        else:
+            print(result["detail"])
+    else:
+        print(f"Reset failed: {result['detail']}", file=sys.stderr)
+        sys.exit(1)
 
 
 # ── subparser registration helpers ────────────────────────────────────────────
