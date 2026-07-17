@@ -314,8 +314,13 @@ fi
 # The installer previously never ran init, so config.yaml was created lazily on
 # first command. Run it explicitly (idempotent) so config exists before onboard.
 log "Initializing Cortex config (cortex init)..."
-"$VENV/bin/python" -m cli init ${INPUT_ROOT:+--root-dir "$INPUT_ROOT"} 2>&1 \
-    | sed 's/^/    /' || warn "cortex init reported warnings (non-fatal)"
+if [ -n "${INPUT_ROOT:-}" ]; then
+    "$VENV/bin/python" -m cli init --root-dir "$INPUT_ROOT" 2>&1 \
+        | sed 's/^/    /' || warn "cortex init reported warnings (non-fatal)"
+else
+    "$VENV/bin/python" -m cli init 2>&1 \
+        | sed 's/^/    /' || warn "cortex init reported warnings (non-fatal)"
+fi
 
 # ─── Step 7.7: Register MCP server with Claude Code (A3) ────────────────────
 echo ""

@@ -90,12 +90,12 @@ def mcp_is_registered() -> Dict[str, Any]:
         return {"registered": False, "available": False, "detail": f"claude mcp get failed: {e}"}
     out = (proc.stdout or "") + (proc.stderr or "")
     # `claude mcp get` exits 0 whether or not the server exists; the absence
-    # marker is the reliable signal.
-    if "No MCP server named" in out or f'"{MCP_NAME}"' in out and "No MCP server" in out:
+    # marker ("No MCP server named ...") is the reliable negative signal.
+    if "No MCP server named" in out:
         return {"registered": False, "available": True, "detail": "not registered"}
     if MCP_NAME in out and ("Scope" in out or "Status" in out or "Command" in out):
         return {"registered": True, "available": True, "detail": "registered"}
-    # Ambiguous output — report unknown rather than a false negative.
+    # Ambiguous output — treat as not registered rather than a false positive.
     return {"registered": False, "available": True, "detail": "not registered"}
 
 
