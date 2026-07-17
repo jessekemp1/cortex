@@ -375,6 +375,12 @@ class IntelligenceMixin:
                         current_recs = []
 
             current_recs.append(rec_data)
+            # A fresh install has no external_recommendations.json and may not
+            # even have the parent dir yet — treat a missing file as empty (the
+            # read above already tolerates this) and create the parent so the
+            # first write on a clean root succeeds instead of raising
+            # FileNotFoundError before the memory/feedback tracking below runs.
+            external_file.parent.mkdir(parents=True, exist_ok=True)
             external_file.write_text(json.dumps(current_recs, indent=2))
 
             # 2. TieredMemory: Record for future recall

@@ -67,9 +67,19 @@ def test_bridge_singleton_remains_uninitialized_after_import():
 
 
 # Paths served by the bridge shim (api/bridge_endpoint.py + routers).
-# Regenerated 2026-07-08 from the live `app.routes` (61 paths). Adding or
+# Regenerated 2026-07-08 from the live route surface (61 paths). Adding or
 # removing endpoints requires updating this set — drift is a conscious
 # decision made in review, never an accident.
+#
+# NOTE (FastAPI >=0.139): `include_router()` no longer flattens the included
+# router's routes into `app.routes`. Instead it appends a single opaque
+# `_IncludedRouter` wrapper (no `.path` attribute) that holds the original
+# router. Enumerating `app.routes` directly therefore only sees the routes
+# declared inline with `@app.<method>` — the ~34 router-mounted paths are
+# hidden one level down. The routes are still SERVED (they appear in
+# `app.openapi()["paths"]`); only the introspection surface changed. Walk the
+# tree recursively via `_collect_paths` so this invariant reflects what the
+# app actually serves, matching the production bridge.
 EXPECTED_ENDPOINTS = {
     "/",
     "/activity/heatmap",
@@ -135,11 +145,31 @@ EXPECTED_ENDPOINTS = {
 }
 
 
+def _collect_paths(routes) -> set:
+    """Recursively collect route paths, descending into FastAPI >=0.139
+    `_IncludedRouter` wrappers.
+
+    A router mounted via `app.include_router(...)` shows up in `app.routes` as
+    an opaque wrapper with no `.path` but with an `.original_router` holding the
+    real sub-routes. Older FastAPI flattened these into `app.routes`; newer
+    versions do not. Walking `original_router.routes` recovers the full surface
+    regardless of version, so this invariant tracks what is actually served.
+    """
+    out: set = set()
+    for r in routes:
+        path = getattr(r, "path", None)
+        if path is not None:
+            out.add(path)
+        original_router = getattr(r, "original_router", None)
+        if original_router is not None:
+            out |= _collect_paths(getattr(original_router, "routes", []))
+    return out
+
+
 def test_bridge_endpoint_inventory_is_pinned():
     from api.bridge_endpoint import app
 
-    actual = {getattr(r, "path", None) for r in app.routes}
-    actual.discard(None)
+    actual = _collect_paths(app.routes)
 
     added = actual - EXPECTED_ENDPOINTS
     removed = EXPECTED_ENDPOINTS - actual

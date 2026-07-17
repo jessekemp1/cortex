@@ -1,12 +1,20 @@
 name: ci
 
 # CI strategy:
-#   - smoke: every push/PR proves the fresh-install path works on Linux and
-#     the headline falsifiable artifact (`cortex demo`) runs end-to-end. Fast.
-#   - integration: separate job that runs `pytest -m integration` so the
-#     integration-marked tests can't silently rot. Most integration tests
-#     skip gracefully if their external dependency (bridge, monorepo scripts)
-#     isn't present — only the hermetic ones (tmp_path-based) actually run.
+#   - smoke: every push/PR proves the fresh-install path works on Linux, runs
+#     the FULL hermetic test suite (not just collection) on 3.11 + 3.12 with an
+#     enforced pass-count floor, and exercises the headline falsifiable
+#     artifacts (`cortex demo` FK trail, `cortex briefing` preflight, the
+#     bridge-down MCP smoke drill).
+#   - lint: blocking `ruff check` scoped to release-touched paths (repo-wide
+#     ruff is a pre-existing 347-error backlog — see step comment).
+#   - macos: proves the install path on macOS-14. Cannot be validated from the
+#     Linux dev box; needs a real macOS runner (see NOTE in the job).
+#   - wheel-canary: NON-BLOCKING honest red marker — builds + installs the wheel
+#     and imports the console entrypoints.
+#   - integration: runs `pytest -m integration` so integration-marked tests
+#     can't silently rot. Most skip gracefully when their external dependency
+#     (bridge, monorepo scripts) is absent.
 
 on:
   push:
@@ -33,14 +41,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[server,dev]"
 
-      - name: pytest --collect-only must succeed
+      - name: pytest (full suite, hermetic) with enforced pass-count floor
+        env:
+          # Isolate all state under a throwaway dir so tests never touch a real
+          # ~/.cortex or the checkout's own state.
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
         run: |
+          mkdir -p "$CORTEX_ROOT_DIR"
           # synthetic/tests/ depends on [analytics] (xgboost, shap) which we
-          # don't install in smoke. Excluding it keeps the headline collection
-          # honest without bringing in heavy optional deps.
-          python -m pytest --collect-only -q --ignore=synthetic/tests
+          # don't install in smoke — excluded here (matches --collect-only
+          # policy). This runs the FULL test BODIES, not just collection.
+          set +e
+          python -m pytest -p no:cacheprovider --ignore=synthetic/tests -q \
+            | tee /tmp/pytest.out
+          code=${PIPESTATUS[0]}
+          set -e
+          # 1. The run itself must be green (exit 0 = no failures/errors).
+          test "$code" = "0"
+          # 2. Enforced floor: the CI-scope suite is ~1970 passed on this
+          #    branch. A floor of 1960 catches accidental mass-skips or a
+          #    collection regression that silently drops tests while still
+          #    "passing". Bump the floor deliberately as the suite grows.
+          passed="$(grep -oE '[0-9]+ passed' /tmp/pytest.out | tail -1 | grep -oE '[0-9]+')"
+          echo "pytest reported ${passed} passed (floor: 1960)"
+          test -n "$passed"
+          test "$passed" -ge 1960
 
       - name: cortex demo must print the FK trail
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
         run: |
           output="$(cortex demo)"
           echo "$output"
@@ -50,15 +79,155 @@ jobs:
           echo "$output" | grep -c 'score 0.80' | grep -q '^3$'
 
       - name: cortex briefing must exit 2 without ANTHROPIC_API_KEY
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
         run: |
           # Pre-flight contract: missing key → exit 2 with actionable msg.
           # Anything else (silent hang, exit 0, exit 1) regresses Phase 1.
           set +e
-          cortex briefing > /tmp/preflight.out 2>&1
+          env -u ANTHROPIC_API_KEY cortex briefing > /tmp/preflight.out 2>&1
           code=$?
           set -e
           test "$code" = "2"
           grep -q "ANTHROPIC_API_KEY is not set" /tmp/preflight.out
+
+      - name: MCP smoke drill — bridge DOWN (crash-proof headline)
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
+        run: |
+          # No bridge is started. The core-8 in-process MCP tools must still be
+          # green (crash-proof contract). Passthrough tools that need the bridge
+          # are tolerated in --no-bridge mode; exit 0 is required.
+          python scripts/smoke_mcp.py --no-bridge
+
+  lint:
+    # Blocking ruff gate, SCOPED to release-touched paths. Repo-wide `ruff
+    # check .` currently reports 347 pre-existing errors, dominated by
+    # structural patterns the codebase relies on:
+    #   - 147 E402 (module-import-not-at-top): the sys.path-shim modules and
+    #     notebooks legitimately import after top-of-file setup.
+    #   - 55  F821 (undefined-name): the `cortex/__init__.py` namespace shim
+    #     (extends __path__ to the repo root) and Databricks notebook globals
+    #     (spark/dbutils) trip this by design.
+    #   - ~145 real issues (F401 unused-import, E722 bare-except, E741) spread
+    #     across the whole tree.
+    # Cleaning 347 errors or blanket-ignoring real bug classes is out of scope
+    # for a CI-hardening change and would either block the release or hide
+    # genuine defects. Instead we gate the paths this release actually touches
+    # (both currently ruff-clean) so the gate is honest and green today, and the
+    # backlog is a separate, tracked cleanup. Widen `paths` as directories are
+    # brought to zero.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install (dev extras — ruff lives in [dev])
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff check (release-touched paths)
+        run: |
+          # Scoped to the Python files this release (Workstream F) touched.
+          # Both are ruff-clean; widen this list as backlog dirs reach zero.
+          python -m ruff check \
+            bridge_intelligence.py \
+            tests/contract/test_phase5_invariants.py
+
+  macos:
+    # macOS-14 install path. NOTE: this job CANNOT be validated from the Linux
+    # dev environment used to author it — it needs a real macOS runner. Expect
+    # possible macOS-specific differences (BSD `sed -i ''` vs GNU, launchd vs
+    # systemd, Homebrew Python discovery). `install.sh` currently accepts only
+    # `--full` and prompts interactively on a TTY; in CI stdin is not a TTY so
+    # its `[ -t 0 ]`-guarded prompts are skipped and it would proceed, BUT since
+    # `install.sh --yes` is not yet implemented (owned by Workstream A), this
+    # job runs the documented fallback: pip install + doctor + demo + full
+    # pytest. Do NOT assume this passes until a macOS runner confirms it.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install (server + dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[server,dev]"
+
+      - name: cortex doctor must run without crashing (non-zero exit allowed)
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
+        run: |
+          mkdir -p "$CORTEX_ROOT_DIR"
+          # doctor reports env facts (API key, launchd, bridge) — a red env is
+          # expected in CI, so a non-zero exit is fine. What must NOT happen is
+          # a Python traceback (an actual crash in the diagnostic itself).
+          set +e
+          cortex doctor > /tmp/doctor.out 2>&1
+          echo "doctor exit=$?"
+          set -e
+          cat /tmp/doctor.out
+          if grep -qi "Traceback (most recent call last)" /tmp/doctor.out; then
+            echo "::error::cortex doctor crashed with a traceback"
+            exit 1
+          fi
+
+      - name: cortex demo must print the FK trail
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
+        run: |
+          output="$(cortex demo)"
+          echo "$output"
+          echo "$output" | grep -c 'score 0.80' | grep -q '^3$'
+
+      - name: pytest (full suite, hermetic) — Python 3.12
+        env:
+          CORTEX_ROOT_DIR: ${{ runner.temp }}/cortex-home
+        run: |
+          python -m pytest -p no:cacheprovider --ignore=synthetic/tests -q
+
+  wheel-canary:
+    # NON-BLOCKING honest red marker for the git-clone-only beta. Builds the
+    # wheel, installs it into a clean venv, and imports the console entrypoints.
+    # Kept continue-on-error per the release plan even though the packaging was
+    # fixed on this branch and it is expected to pass locally — a green here is
+    # a bonus, a red here is a signal, neither blocks the release gate.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist
+
+      - name: Install wheel[server] in a clean venv and import entrypoints
+        run: |
+          python -m venv /tmp/wheelvenv
+          /tmp/wheelvenv/bin/python -m pip install --upgrade pip
+          # Glob to the single built wheel; [server] pulls fastapi/uvicorn/mcp.
+          whl="$(ls dist/*.whl)"
+          /tmp/wheelvenv/bin/python -m pip install "${whl}[server]"
+          # The two console-script entrypoints must import from the installed
+          # wheel (not the checkout) — run from /tmp so cwd isn't the repo root.
+          cd /tmp
+          /tmp/wheelvenv/bin/python -c "import cli, mcp_server; print('wheel imports OK')"
+          /tmp/wheelvenv/bin/cortex --help
 
   integration:
     # Separate job so integration tests don't bitrot. They're skipped by
