@@ -101,6 +101,16 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
             use_cache=query.use_cache,
             parallel=query.parallel,
         )
+        # Recall instrumentation (Workstream B) — append a best-effort event so
+        # `cortex stats` can prove the memory loop is being USED. Never breaks
+        # the query: record_recall_event swallows its own exceptions and skips
+        # error results.
+        try:
+            from intelligence.recall_events import record_recall_event
+
+            record_recall_event(result)
+        except Exception:
+            pass
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
         return result

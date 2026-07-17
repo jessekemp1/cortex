@@ -201,6 +201,17 @@ def cortex_intelligence(
         result = bridge.query_intelligence(
             request=query, project=project, query_type=query_type
         )
+        # Recall instrumentation (Workstream B) — append a best-effort event on
+        # the in-process path too, so the "memory is being used" signal keeps
+        # accruing even when the bridge daemon (:8765) is down. Never breaks the
+        # query: record_recall_event swallows its own exceptions and skips
+        # error results.
+        try:
+            from intelligence.recall_events import record_recall_event
+
+            record_recall_event(result)
+        except Exception:
+            pass
     except Exception as e:
         result = {"error": str(e)}
     return json.dumps(result, indent=2, default=str)

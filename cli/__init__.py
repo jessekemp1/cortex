@@ -651,6 +651,16 @@ Deep Mode (Phase 1):
         "demo", help="30-second proof of the prompt→outcome FK loop (no API key)"
     ).set_defaults(func=cmd_demo)
 
+    # `cortex stats` — value receipts (real data only). Already on the
+    # VISIBLE_COMMANDS allowlist; this registration makes it live.
+    from cli.commands.stats import cmd_stats
+
+    stats_parser = subparsers.add_parser(
+        "stats", help="Value receipts — proof Cortex is being used (real data only)"
+    )
+    stats_parser.add_argument("--json", action="store_true", help="Emit structured JSON")
+    stats_parser.set_defaults(func=cmd_stats)
+
     # ── complex nested commands (delegated to register_* helpers) ─────────────
     register_process_cmds(subparsers)
     register_batch_local_cmds(subparsers)
