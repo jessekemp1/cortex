@@ -18,6 +18,7 @@ OS="$(uname -s)"
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
 PLISTS=(
+  "cortex/com.cortex.bridge.plist"
   "cortex/com.cortex.heartbeat.plist"
   "cortex/automation/com.cortex.alert-monitor.plist"
   "cortex/automation/com.cortex.daily.plist"

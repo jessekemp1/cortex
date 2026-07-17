@@ -2,33 +2,31 @@
 """
 Cortex MCP Server — Official MCP SDK over stdio.
 
-Exposes Cortex Bridge intelligence as MCP tools for Claude Code.
-Connects to bridge at :8765 via HTTP (no heavy imports).
+Exposes Cortex intelligence as MCP tools for Claude Code.
 
-Tools (18 always-loaded):
-  Core:
-  - cortex_service_health: Ecosystem health (all services, tests)
+The core memory-loop tools run IN-PROCESS (no HTTP round-trip, no running
+bridge daemon required): record_decision, intelligence, recommendations,
+outcomes, plan_create, plan_progress, projects, doctor. Decision writes are
+crash-proof via mcp_handlers (direct append + spool fallback). The remaining
+tools still pass through to the bridge daemon at :8765.
+
+Tools:
+  Core 8 (always registered; in-process — work with the bridge down):
+  - cortex_record_decision: Record a decision for the learning loop
   - cortex_intelligence: Natural language query → insights
   - cortex_recommendations: Next actions and risk alerts
-  - cortex_anomalies: Detected anomalies across projects
-  - cortex_projects: Project status overview
-  - cortex_sessions: Active/recent Claude sessions
-  - cortex_taskboard: Task board items (list/filter)
-  - cortex_orchestrate: Discover and dispatch work items via Conductor
-  - cortex_prompt_refine: Get refinement suggestions for any prompt
-  - cortex_conductor_compose: Receive composed prompt from Conductor UI
-
-  Operations (always available — no enable step required):
-  - cortex_graph_query: Search context graph by type or text
+  - cortex_outcomes: Outcome tracking (shipped, validated, failed)
   - cortex_plan_create: Create execution plan from project goals
   - cortex_plan_progress: Get progress summary of all active plans
-  - cortex_batch_status: Get detailed status of a specific batch job
-  - cortex_outcomes: Outcome tracking (shipped, validated, failed)
-  - cortex_record_decision: Record a decision for the learning loop
+  - cortex_projects: Project status overview
+  - cortex_doctor: System health check (Python, deps, API keys, bridge, spool)
 
-  Intelligence:
-  - cortex_research_digest: CRA weekly research digest
-  - cortex_doctor: System health check (Python, deps, API keys, bridge)
+  Experimental 10 (registered only when CORTEX_EXPERIMENTAL=1):
+  - bridge passthroughs (need the :8765 daemon): cortex_service_health,
+    cortex_anomalies, cortex_sessions, cortex_taskboard,
+    cortex_conductor_compose, cortex_graph_query, cortex_batch_status
+  - other in-process: cortex_orchestrate, cortex_prompt_refine,
+    cortex_research_digest
 
 Resources:
   - cortex://goals: Current GOALS.md content
@@ -41,6 +39,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -54,6 +53,38 @@ PROMPTS_DIR = Path.home() / ".cortex" / "prompts"
 DOMAIN = os.environ.get("CORTEX_DOMAIN", "aidev")
 
 mcp = FastMCP("cortex")
+
+
+# Lazy singleton for direct CortexBridge access.
+# Importing CortexBridge triggers ~16s of optional ML imports — DO NOT eagerly
+# instantiate at module load. First MCP tool call pays the cost; subsequent
+# calls reuse the cached instance.
+_bridge_singleton = None
+_bridge_lock = threading.Lock()
+
+
+def _get_bridge():
+    """Lazy CortexBridge instance — instantiated on first call, then cached.
+
+    Uses a single canonical import path (`bridge`) to guarantee one shared
+    CortexBridge instance across all callers. Importing via both `bridge`
+    and `cortex.bridge` produces two distinct module objects with distinct
+    classes — a real-world hazard before this standardized on the bare
+    name (bridge.py adds CORTEX_ROOT to sys.path on import).
+
+    Thread-safe: FastMCP can dispatch tool calls concurrently. Without the
+    lock, two tools racing on a cold process could both see `None` and each
+    construct a CortexBridge — a 16s double-init plus two divergent instances.
+    Double-checked locking keeps the hot path lock-free after warm-up.
+    """
+    global _bridge_singleton
+    if _bridge_singleton is None:
+        with _bridge_lock:
+            if _bridge_singleton is None:
+                from bridge import CortexBridge  # noqa: WPS433  type: ignore
+
+                _bridge_singleton = CortexBridge()
+    return _bridge_singleton
 
 
 def _bridge_get(path: str, timeout: float = 3.0) -> dict:
@@ -89,10 +120,24 @@ def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
         return {"error": str(e)}
 
 
+_EXPERIMENTAL = bool(os.environ.get("CORTEX_EXPERIMENTAL"))
+
+
+def _experimental_tool(fn):
+    """Register as an MCP tool only when CORTEX_EXPERIMENTAL=1.
+
+    MVP surface trim: the core-8 memory-loop tools are always registered;
+    the passthrough/ops tools join only in experimental mode. The function
+    itself stays importable and callable either way (contract tests and
+    direct callers are unaffected) — only MCP registration is gated.
+    """
+    return mcp.tool()(fn) if _EXPERIMENTAL else fn
+
+
 # ── Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_service_health() -> str:
     """Get ecosystem health: bridge, Vortex, Mission Control, test results, and EMOS pair counts."""
     result = _bridge_get("/service-health")
@@ -117,21 +162,51 @@ def cortex_intelligence(
     valid_types = {"spec", "architecture", "implementation", "research"}
     if query_type not in valid_types:
         query_type = "research"
-    payload = {"request": query, "domain": DOMAIN, "query_type": query_type}
-    if project:
-        payload["project"] = project
-    result = _bridge_post("/intelligence/query", payload)
-    return json.dumps(result, indent=2)
+    try:
+        bridge = _get_bridge()
+        # Resolve project when omitted: prefer the bridge's git-aware detector
+        # (derived from CORTEX_ROOT_DIR), then keyword auto-detect over the
+        # user's discovered projects. Never default to a literal "cortex".
+        # (Same resolution order as POST /intelligence/query.)
+        if not project:
+            try:
+                project = bridge._detect_current_project()
+            except Exception:
+                project = None
+            if not project:
+                import mcp_handlers
+
+                project = mcp_handlers.auto_detect_project(query)
+        result = bridge.query_intelligence(
+            request=query, project=project, query_type=query_type
+        )
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
 @mcp.tool()
-def cortex_recommendations() -> str:
-    """Get strategic recommendations: next action, risk alerts, and priority projects."""
-    result = _bridge_get("/intelligence/recommendations")
-    return json.dumps(result, indent=2)
+def cortex_recommendations(project: str = "", limit: int = 5) -> str:
+    """Get strategic recommendations: next action, risk alerts, and priority projects.
+
+    Args:
+        project: Optional project filter.
+        limit: Max recommendations (default 5).
+    """
+    try:
+        import mcp_handlers
+
+        bridge = _get_bridge()
+        raw = bridge.get_recommendations()
+        result = mcp_handlers.normalize_recommendations(
+            raw, project=project or None, limit=limit
+        )
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_anomalies() -> str:
     """Get detected anomalies across all projects with severity and recommendations."""
     result = _bridge_get("/anomalies")
@@ -141,11 +216,16 @@ def cortex_anomalies() -> str:
 @mcp.tool()
 def cortex_projects() -> str:
     """Get status overview of all active projects (health, test counts, recent activity)."""
-    result = _bridge_get("/projects")
-    return json.dumps(result, indent=2)
+    try:
+        import mcp_handlers
+
+        result = mcp_handlers.compute_projects()
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_sessions(active_only: bool = False) -> str:
     """Get Claude Code sessions (active or recent). Shows session IDs, duration, and projects touched."""
     param = "?active_only=true" if active_only else ""
@@ -153,7 +233,7 @@ def cortex_sessions(active_only: bool = False) -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_taskboard(status: str = "", project: str = "") -> str:
     """Get task board items, optionally filtered by status (pending/in_progress/done) or project name."""
     params = []
@@ -166,7 +246,7 @@ def cortex_taskboard(status: str = "", project: str = "") -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     """Get refinement suggestions for a prompt using learned patterns.
 
@@ -224,7 +304,7 @@ def cortex_prompt_refine(prompt: str, category: str = "") -> str:
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_conductor_compose(
     intent: str, project: str, intent_level: str = "collaborative", include_context: bool = True
 ) -> str:
@@ -245,7 +325,9 @@ def cortex_conductor_compose(
 
     payload = {
         "intent": intent,
-        "project": project,
+        # Route schema (PromptComposeRequest) names this project_id; sending
+        # "project" made every call 422 with "Unprocessable Content".
+        "project_id": project,
         "intent_level": intent_level,
         "include_context": include_context,
     }
@@ -253,7 +335,7 @@ def cortex_conductor_compose(
     return json.dumps(result, indent=2)
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_orchestrate(
     task: str = "",
     project: str = "",
@@ -310,7 +392,7 @@ def cortex_orchestrate(
 # ── Graph Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) -> str:
     """Search the Cortex context graph by node type or text query.
 
@@ -345,24 +427,31 @@ def cortex_plan_create(project: str, title: str = "") -> str:
         project: Target project (vortex, cortex, alpha-arena, pupil, etc.).
         title: Optional plan title. Auto-generated from goals if omitted.
     """
-    payload = {"project": project}
-    if title:
-        payload["title"] = title
-    result = _bridge_post("/plans/create", payload)
-    return json.dumps(result, indent=2)
+    try:
+        import mcp_handlers
+
+        result = mcp_handlers.create_plan(project, title or None)
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
 @mcp.tool()
 def cortex_plan_progress() -> str:
     """Get progress summary of all active plans."""
-    result = _bridge_get("/plans/progress")
-    return json.dumps(result, indent=2)
+    try:
+        import mcp_handlers
+
+        result = mcp_handlers.plans_progress()
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
 # ── Ops Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_batch_status(batch_id: str) -> str:
     """Get detailed status of a specific batch job.
 
@@ -375,25 +464,38 @@ def cortex_batch_status(batch_id: str) -> str:
 
 @mcp.tool()
 def cortex_record_decision(
-    decision: str, context: str = "", alternatives: str = "", rationale: str = ""
+    decision: str,
+    context: str = "",
+    alternatives: str = "",
+    rationale: str = "",
+    project: str = "",
 ) -> str:
     """Record a decision for the Cortex learning loop.
+
+    Writes in-process (crash-proof: direct append with spool fallback) — a
+    decision is never lost to a dead bridge daemon.
 
     Args:
         decision: What was decided.
         context: Why this decision was needed.
         alternatives: What other options existed (comma-separated or prose).
         rationale: Why this option was chosen over alternatives.
+        project: Project this decision belongs to. Pass it whenever known —
+            untagged decisions are much harder to recall per-project later.
     """
-    payload = {"decision": decision}
-    if context:
-        payload["context"] = context
-    if alternatives:
-        payload["alternatives"] = alternatives
-    if rationale:
-        payload["rationale"] = rationale
-    result = _bridge_post("/decisions/learning", payload)
-    return json.dumps(result, indent=2)
+    try:
+        import mcp_handlers
+
+        result = mcp_handlers.record_learning_decision(
+            decision=decision,
+            context=context,
+            alternatives=alternatives,
+            rationale=rationale,
+            project=project,
+        )
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
 # ── Portfolio Tools ──
@@ -407,20 +509,19 @@ def cortex_outcomes(project: str = "", limit: int = 20) -> str:
         project: Filter by project name.
         limit: Max results (default 20).
     """
-    params = []
-    if project:
-        params.append(f"project={project}")
-    if limit != 20:
-        params.append(f"limit={limit}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/v2/outcomes{qs}")
-    return json.dumps(result, indent=2)
+    try:
+        import mcp_handlers
+
+        result = mcp_handlers.read_outcomes(project=project, limit=limit)
+    except Exception as e:
+        result = {"error": str(e)}
+    return json.dumps(result, indent=2, default=str)
 
 
 # ── CRA Research Tools ──
 
 
-@mcp.tool()
+@_experimental_tool
 def cortex_research_digest() -> str:
     """Get the CRA weekly research digest — discoveries, assessments, urgent threats, and pending proposals."""
     try:
@@ -496,6 +597,21 @@ def cortex_doctor() -> str:
             "detail": "up" if bridge_up else "down",
         }
     )
+
+    # Decision spool (entries stranded by a failed primary append)
+    try:
+        import mcp_handlers
+
+        depth = mcp_handlers.spool_depth()
+        checks.append(
+            {
+                "check": "decision spool empty",
+                "pass": depth == 0,
+                "detail": "empty" if depth == 0 else f"{depth} pending — run: cortex doctor --fix",
+            }
+        )
+    except Exception as e:
+        checks.append({"check": "decision spool empty", "pass": False, "detail": str(e)})
 
     all_pass = all(c["pass"] for c in checks)
     return json.dumps({"checks": checks, "all_pass": all_pass}, indent=2)

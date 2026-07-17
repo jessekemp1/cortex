@@ -1112,6 +1112,68 @@ def cmd_doctor(args):
     except OSError:
         pass
     checks.append(("bridge :8765 reachable", bridge_ok, "up" if bridge_ok else "not running"))
+
+    # launchd supervision (macOS): the com.cortex.bridge keep-alive agent is
+    # what restarts the bridge after crashes/reboots. Skip on other platforms.
+    if sys.platform == "darwin":
+        import subprocess
+
+        try:
+            out = subprocess.run(
+                ["launchctl", "list"], capture_output=True, text=True, timeout=5
+            ).stdout
+            agent_loaded = "com.cortex.bridge" in out
+            checks.append(
+                (
+                    "launchd com.cortex.bridge loaded",
+                    agent_loaded,
+                    "loaded" if agent_loaded else "not loaded — run scripts/install_launchagents.sh",
+                )
+            )
+        except Exception as e:
+            checks.append(("launchd com.cortex.bridge loaded", False, str(e)))
+
+    # Log growth: unrotated logs once hit 5GB. cortex_gc.sh rotates/archives.
+    logs_dir = cortex_home / "logs"
+    if logs_dir.exists():
+        import subprocess as _sp
+
+        try:
+            logs_mb = int(
+                _sp.run(["du", "-sm", str(logs_dir)], capture_output=True, text=True, timeout=10)
+                .stdout.split()[0]
+            )
+            checks.append(
+                (
+                    "logs dir size < 2GB",
+                    logs_mb < 2048,
+                    f"{logs_mb}MB" + ("" if logs_mb < 2048 else " — run: scripts/cortex_gc.sh"),
+                )
+            )
+        except Exception:
+            pass  # size check is best-effort
+
+    # Decision spool: entries stranded by a failed primary append.
+    try:
+        import mcp_handlers
+
+        if getattr(args, "fix", False):
+            result = mcp_handlers.flush_spool()
+            print(
+                f"  [--fix] spool flush: {result['flushed']} flushed, "
+                f"{result['skipped']} skipped, {result['remaining']} remaining"
+            )
+        depth = mcp_handlers.spool_depth()
+        checks.append(
+            (
+                "decision spool empty",
+                depth == 0,
+                "empty" if depth == 0 else f"{depth} pending — run: cortex doctor --fix",
+            )
+        )
+    except Exception as e:
+        checks.append(("decision spool empty", False, str(e)))
+
     all_pass = all(ok for _, ok, _ in checks)
     width = 44
     print(

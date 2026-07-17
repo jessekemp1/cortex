@@ -17,6 +17,21 @@ except ImportError:
 
 from .models import SimilarWork
 
+
+def _connect(db_path) -> "sqlite3.Connection":
+    """Open the shared store with WAL + busy_timeout.
+
+    Multiple processes share these databases (MCP servers per Claude session,
+    the CLI, and the bridge daemon). WAL allows concurrent readers during a
+    write; busy_timeout makes a second writer wait up to 5s instead of
+    failing immediately with 'database is locked'.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +68,7 @@ class SpecKnowledgeBase:
 
     def _init_metadata_db(self):
         """Initialize SQLite database for spec metadata."""
-        conn = sqlite3.connect(self.metadata_db)
+        conn = _connect(self.metadata_db)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -202,7 +217,7 @@ class SpecKnowledgeBase:
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         now = datetime.now().isoformat()
 
-        conn = sqlite3.connect(self.metadata_db)
+        conn = _connect(self.metadata_db)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -252,7 +267,7 @@ class SpecKnowledgeBase:
 
         content_hash = hashlib.sha256(text.encode()).hexdigest()
         now = datetime.now().isoformat()
-        conn = sqlite3.connect(self.metadata_db)
+        conn = _connect(self.metadata_db)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
             """INSERT OR REPLACE INTO specs
@@ -312,7 +327,7 @@ class SpecKnowledgeBase:
 
         # Build SimilarWork objects with hybrid scoring
         similar_work = []
-        conn = sqlite3.connect(self.metadata_db)
+        conn = _connect(self.metadata_db)
         cursor = conn.cursor()
 
         # Extract keywords from query for metadata matching
@@ -376,7 +391,7 @@ class SpecKnowledgeBase:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get knowledge base statistics."""
-        conn = sqlite3.connect(self.metadata_db)
+        conn = _connect(self.metadata_db)
         cursor = conn.cursor()
 
         cursor.execute("SELECT COUNT(*), COUNT(DISTINCT project), SUM(word_count) FROM specs")

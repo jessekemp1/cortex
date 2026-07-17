@@ -92,36 +92,29 @@ class LearningDecisionRequest(BaseModel):
     context: str = Field(default="", description="Why this decision was needed")
     alternatives: str = Field(default="", description="Other options considered")
     rationale: str = Field(default="", description="Why this option was chosen over alternatives")
+    project: str = Field(default="", description="Project this decision belongs to (optional)")
 
 
 @router.post("/decisions/learning")
 async def record_learning_decision(req: LearningDecisionRequest) -> Dict[str, Any]:
     """Record a learning-loop decision for the Cortex intelligence layer.
 
-    Appends one JSON line to ~/.cortex/decisions.jsonl using the canonical
-    learning-loop schema (decision/context/alternatives/rationale + source="mcp"),
-    matching the existing source="mcp" entries. This is the endpoint the
-    `cortex_record_decision` MCP tool targets — kept separate from the
-    Co-Navigator `/decisions/record` route, which has an incompatible schema.
+    Delegates to mcp_handlers.record_learning_decision — the same crash-proof
+    writer the `cortex_record_decision` MCP tool calls in-process — so route
+    and tool share one implementation (canonical schema: decision/context/
+    alternatives/rationale/timestamp/source + decision_id, with spool
+    fallback). Kept separate from the Co-Navigator `/decisions/record` route,
+    which has an incompatible schema.
     """
     try:
-        DECISIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        decision_id = f"dec_{int(time.time())}"
-        entry = {
-            "decision_id": decision_id,
-            "decision": req.decision,
-            "context": req.context,
-            "alternatives": req.alternatives,
-            "rationale": req.rationale,
-            "timestamp": datetime.now().isoformat(),
-            "source": "mcp",
-        }
-        with open(DECISIONS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-        return {
-            "recorded": True,
-            "decision_id": decision_id,
-            "timestamp": entry["timestamp"],
-        }
+        import mcp_handlers
+
+        return mcp_handlers.record_learning_decision(
+            decision=req.decision,
+            context=req.context,
+            alternatives=req.alternatives,
+            rationale=req.rationale,
+            project=req.project,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to record learning decision: {e}")

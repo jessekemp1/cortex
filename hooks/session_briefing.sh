@@ -1,33 +1,63 @@
 #!/bin/bash
 # Cortex session briefing — called by Claude Code SessionStart hook.
-# Hits the local bridge for recommendations + plan progress and
-# outputs a compact briefing to stdout (appears in session context).
+#
+# Surfaces recommendations + plan progress as compact stdout (lands in the
+# session context), scoped to the current project when derivable from $PWD.
+#
+# Resilience contract (verified by the bridge-down drill):
+#   - recommendations come from the bridge; if it's down, that section is
+#     silently skipped (curl -sf, 2s cap) — never an error, never a hang.
+#   - plan progress is read IN-PROCESS via mcp_handlers (stdlib-only, no
+#     bridge needed) — the old /plan-progress endpoint no longer exists.
+#   - always exits 0.
 
-BRIDGE="http://127.0.0.1:8765"
-TIMEOUT=3
+BRIDGE="${CORTEX_BRIDGE_URL:-http://127.0.0.1:8765}"
+TIMEOUT=2
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-recs=$(curl -sf --max-time $TIMEOUT "$BRIDGE/recommendations" 2>/dev/null)
-plans=$(curl -sf --max-time $TIMEOUT "$BRIDGE/plan-progress" 2>/dev/null)
+# Project scope: the basename of the current working directory (Claude Code
+# runs SessionStart hooks from the workspace dir). Harmless if unknown to
+# cortex — the recommendations route treats it as a filter.
+PROJECT="$(basename "$PWD" 2>/dev/null)"
+
+recs=$(curl -sf --max-time $TIMEOUT "$BRIDGE/recommendations?project=$PROJECT&limit=3" 2>/dev/null)
+if [ -z "$recs" ]; then
+  # Unscoped fallback — a project unknown to cortex shouldn't blank the briefing.
+  recs=$(curl -sf --max-time $TIMEOUT "$BRIDGE/recommendations?limit=3" 2>/dev/null)
+fi
+
+plans=$(PYTHONPATH="$REPO_ROOT" python3 -c "
+import json
+try:
+    import mcp_handlers
+    print(json.dumps(mcp_handlers.plans_progress()))
+except Exception:
+    pass
+" 2>/dev/null)
 
 if [ -z "$recs" ] && [ -z "$plans" ]; then
   exit 0
 fi
 
-echo "── Cortex Briefing ──"
+next=""
+progress=""
 
 if [ -n "$recs" ]; then
   next=$(echo "$recs" | python3 -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
+    for r in d.get('recommendations', [])[:3]:
+        title = r.get('title') or r.get('action') or ''
+        if title:
+            print(f\"{r.get('type','rec')}: {title} [{r.get('priority','?')}]\")
     na = d.get('next_action', {})
-    if na.get('action'):
+    if isinstance(na, dict) and na.get('action'):
         print(f\"Next: {na['action']} [{na.get('priority','?')}]\")
     for r in d.get('risk_alerts', [])[:2]:
         print(f\"Risk: {r.get('message','')} [{r.get('severity','?')}]\")
-except: pass
+except Exception: pass
 " 2>/dev/null)
-  [ -n "$next" ] && echo "$next"
 fi
 
 if [ -n "$plans" ]; then
@@ -38,13 +68,22 @@ try:
     plans = d if isinstance(d, list) else d.get('plans', [])
     for p in plans[:3]:
         name = p.get('title', p.get('name', '?'))
-        done = p.get('completed', p.get('done', 0))
-        total = p.get('total', p.get('tasks', 0))
+        by_status = p.get('by_status', {})
+        done = by_status.get('done', p.get('completed', 0))
+        total = p.get('item_count', p.get('total', 0))
         if total > 0:
             print(f\"Plan: {name} [{done}/{total}]\")
-except: pass
+except Exception: pass
 " 2>/dev/null)
-  [ -n "$progress" ] && echo "$progress"
 fi
 
+# Print the frame only when there's something to say.
+if [ -z "$next" ] && [ -z "$progress" ]; then
+  exit 0
+fi
+
+echo "── Cortex Briefing ──"
+[ -n "$next" ] && echo "$next"
+[ -n "$progress" ] && echo "$progress"
 echo "─────────────────────"
+exit 0

@@ -142,6 +142,34 @@ from cli.commands._helpers import (
 )
 
 
+# Tier-4 commands hidden from the default surface (2026-07 usage assessment:
+# stub, stale-store, or external-dependency commands). Set CORTEX_EXPERIMENTAL=1
+# to register them; the code paths are untouched.
+EXPERIMENTAL_COMMANDS = {
+    "quick",  # self-labeled "not yet fully implemented"
+    "bandwidth",  # A/B experiment suite; store idle since 2026-03
+    "tooling",  # tooling_changes.jsonl idle since 2026-02
+    "docs",  # shells out to external _tools/doc-sync (may not exist)
+    "batch-api-status",  # prints config flags only
+    "sessions",  # requires the :8765 bridge; claude_sessions store stale
+    "runtime",  # needs the separate runtime HTTP executor
+}
+
+
+def _hide_experimental(subparsers) -> None:
+    """Deregister experimental commands so help and dispatch don't see them.
+
+    Post-registration removal keeps a single seam (this function + the set
+    above) instead of scattering env checks across every add_parser block.
+    """
+    for name in EXPERIMENTAL_COMMANDS:
+        subparsers._name_parser_map.pop(name, None)  # noqa: SLF001
+        subparsers.choices.pop(name, None)
+    subparsers._choices_actions = [  # noqa: SLF001
+        a for a in subparsers._choices_actions if a.dest not in EXPERIMENTAL_COMMANDS
+    ]
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -519,9 +547,13 @@ Deep Mode (Phase 1):
     )
     signals_parser.set_defaults(func=cmd_signals)
 
-    subparsers.add_parser("doctor", help="Run environment health checks").set_defaults(
-        func=cmd_doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Run environment health checks")
+    doctor_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Repair what doctor can: flush spooled decisions into decisions.jsonl",
     )
+    doctor_parser.set_defaults(func=cmd_doctor)
 
     # `cortex demo` — self-contained 30s proof of the prompt→outcome FK loop.
     from cli.commands.demo import cmd_demo
@@ -576,6 +608,10 @@ Deep Mode (Phase 1):
     from cli.commands.v2_ops import register_threshold_cmds
 
     register_threshold_cmds(subparsers)
+
+    # ── MVP surface trim ──────────────────────────────────────────────────────
+    if not os.environ.get("CORTEX_EXPERIMENTAL"):
+        _hide_experimental(subparsers)
 
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()
