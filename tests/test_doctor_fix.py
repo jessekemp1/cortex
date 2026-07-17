@@ -13,6 +13,9 @@ from cli.commands.v2_ops import cmd_doctor
 @pytest.fixture()
 def state_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("CORTEX_STATE_DIR", str(tmp_path))
+    # Force the "claude CLI not installed" path so doctor --fix never touches
+    # the real ~/.claude.json during tests (empty string == not available).
+    monkeypatch.setenv("CORTEX_CLAUDE_BIN", "")
     return tmp_path
 
 

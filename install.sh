@@ -2,10 +2,17 @@
 # =============================================================================
 # Cortex Install Script
 # =============================================================================
-# Usage: ./install.sh [--full]
+# Usage: ./install.sh [--full] [--yes]
 #
 #   --full    Also install optional analytics + orchestration packages
 #             (xgboost, shap, openai, litellm). Default: core only.
+#
+#   --yes     Non-interactive install. Supplies safe defaults for every prompt:
+#             brew-installs Python only if missing; SKIPS the API key (the
+#             golden path needs none — a .env placeholder is left); projects
+#             root = default; installs the com.cortex.bridge LaunchAgent ONLY;
+#             then auto-runs: cortex init → onboard → doctor --fix, and prints a
+#             3-step epilogue. Never hangs on a prompt.
 #
 # Prerequisites: Python 3.11+, git. Homebrew auto-offered if Python missing.
 # =============================================================================
@@ -14,9 +21,11 @@ set -euo pipefail
 
 # ─── Flags ────────────────────────────────────────────────────────────────────
 FULL_INSTALL=false
+ASSUME_YES=false
 for arg in "$@"; do
     case "$arg" in
         --full) FULL_INSTALL=true ;;
+        --yes|-y) ASSUME_YES=true ;;
         *) echo "Unknown argument: $arg"; exit 1 ;;
     esac
 done
@@ -26,8 +35,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CORTEX_DIR="$SCRIPT_DIR"
 DEV_DIR="$(dirname "$CORTEX_DIR")"
 HOME_DIR="$HOME"
-CORTEX_STATE="$HOME_DIR/.cortex"
-VENV="$CORTEX_DIR/.venv"
+# State dir honors CORTEX_STATE_DIR (state_paths.get_cortex_dir contract) so a
+# non-interactive/CI install can be fully isolated from a real ~/.cortex.
+CORTEX_STATE="${CORTEX_STATE_DIR:-$HOME_DIR/.cortex}"
+# CORTEX_VENV lets an isolated/CI install reuse a prebuilt venv; CORTEX_SKIP_PIP
+# skips the (network-dependent) editable install when that venv is already good.
+VENV="${CORTEX_VENV:-$CORTEX_DIR/.venv}"
 LOCAL_BIN="$HOME_DIR/.local/bin"
 PYTHON_BIN=""
 
@@ -57,7 +70,8 @@ if [ -z "$PYTHON_BIN" ]; then
     warn "Python 3.11+ not found."
     if command -v brew >/dev/null 2>&1; then
         INSTALL_PY="Y"
-        [ -t 0 ] && { read -rp "  Install Python 3.11 via Homebrew now? [Y/n]: " INSTALL_PY || true; }
+        # --yes: brew-install Python only because it's missing (no prompt).
+        [ "$ASSUME_YES" = false ] && [ -t 0 ] && { read -rp "  Install Python 3.11 via Homebrew now? [Y/n]: " INSTALL_PY || true; }
         if [[ "$INSTALL_PY" =~ ^[Yy] ]]; then
             brew install python@3.11
             PYTHON_BIN="python3.11"
@@ -87,6 +101,12 @@ else
     log "Virtual environment already exists"
 fi
 
+# CORTEX_SKIP_PIP=1 reuses an already-provisioned venv (CI / isolated installs)
+# and skips the network-dependent editable install entirely.
+if [ "${CORTEX_SKIP_PIP:-0}" = "1" ]; then
+    log "CORTEX_SKIP_PIP=1 — skipping pip install (reusing provisioned venv)"
+else
+
 log "Installing Python dependencies..."
 "$VENV/bin/pip" install --upgrade pip setuptools wheel -q
 
@@ -111,6 +131,8 @@ rm -f "$PIP_LOG"
 
 "$VENV/bin/pip" install chromadb -q 2>/dev/null || warn "chromadb install failed (optional vector store)"
 log "Python packages installed"
+
+fi  # end CORTEX_SKIP_PIP guard
 
 # ─── Step 2: State directories ───────────────────────────────────────────────
 log "Creating state directories..."
@@ -150,6 +172,10 @@ _key_is_real() {
 ENV_FILE_KEY=$(grep -E "^ANTHROPIC_API_KEY=sk-" "$CORTEX_DIR/.env" 2>/dev/null | cut -d= -f2 || true)
 if _key_is_real "${ENV_FILE_KEY:-}" || _key_is_real "${ANTHROPIC_API_KEY:-}"; then
     log "ANTHROPIC_API_KEY already configured"
+elif [ "$ASSUME_YES" = true ]; then
+    # Golden path: NO API key required. Leave the .env placeholder and note it.
+    info "Skipping API key (golden path needs none). To enable AI features later,"
+    info "add ANTHROPIC_API_KEY to $CORTEX_DIR/.env (or ~/.cortex/.env) and restart."
 elif [ ! -t 0 ]; then
     warn "Non-interactive install: set ANTHROPIC_API_KEY in $CORTEX_DIR/.env before running cortex"
 else
@@ -172,12 +198,14 @@ fi
 
 # Prompt for CORTEX_ROOT_DIR — show actual default so user can just hit Enter
 INPUT_ROOT=""
+# --yes uses CORTEX_ROOT_DIR if set, else the default (DEV_DIR) — no prompt.
+DEFAULT_ROOT="${CORTEX_ROOT_DIR:-$DEV_DIR}"
 if grep -q "CORTEX_ROOT_DIR=/path/to/your/projects" "$CORTEX_DIR/.env" 2>/dev/null; then
     echo ""
     INPUT_ROOT=""
-    [ -t 0 ] && { read -rp "  Projects root directory [${DEV_DIR}]: " INPUT_ROOT || true; }
+    [ "$ASSUME_YES" = false ] && [ -t 0 ] && { read -rp "  Projects root directory [${DEFAULT_ROOT}]: " INPUT_ROOT || true; }
     INPUT_ROOT="${INPUT_ROOT/#\~/$HOME}"
-    INPUT_ROOT="${INPUT_ROOT:-$DEV_DIR}"
+    INPUT_ROOT="${INPUT_ROOT:-$DEFAULT_ROOT}"
     sed -i '' "s|CORTEX_ROOT_DIR=.*|CORTEX_ROOT_DIR=$INPUT_ROOT|" "$CORTEX_DIR/.env"
     log "CORTEX_ROOT_DIR set to $INPUT_ROOT"
 else
@@ -217,7 +245,12 @@ done
 export PATH="$LOCAL_BIN:$PATH"
 
 # ─── Step 5: Site dashboard ──────────────────────────────────────────────────
-if [ -f "$CORTEX_DIR/site/package.json" ] && command -v npm >/dev/null 2>&1; then
+# --yes skips the optional npm install (it's an offline/network-sensitive step
+# and the dashboard is not part of the golden path). Set CORTEX_SKIP_SITE=1 to
+# skip explicitly in any mode.
+if [ "$ASSUME_YES" = true ] || [ "${CORTEX_SKIP_SITE:-0}" = "1" ]; then
+    log "Skipping site dashboard install (optional)"
+elif [ -f "$CORTEX_DIR/site/package.json" ] && command -v npm >/dev/null 2>&1; then
     if [ ! -d "$CORTEX_DIR/site/node_modules" ]; then
         log "Installing site dashboard dependencies..."
         cd "$CORTEX_DIR/site" && npm install --silent 2>/dev/null
@@ -235,16 +268,26 @@ fi
 echo ""
 info "Background agents supervise the bridge and run nightly analysis/batch jobs."
 info "They are user-level LaunchAgents (macOS) or systemd user units (Linux)."
-INSTALL_AGENTS="Y"
-[ -t 0 ] && { read -rp "  Install background agents? [Y/n]: " INSTALL_AGENTS || true; }
-if [[ "$INSTALL_AGENTS" =~ ^[Yy] ]]; then
-    if bash "$SCRIPT_DIR/scripts/install_launchagents.sh"; then
-        log "Background agents installed and loaded"
+if [ "$ASSUME_YES" = true ]; then
+    # --yes: scope to the com.cortex.bridge keep-alive ONLY (not the full curated
+    # set). Degrade gracefully where launchctl is unavailable (CI/sandbox).
+    if bash "$SCRIPT_DIR/scripts/install_bridge_agent.sh"; then
+        log "Bridge keep-alive agent installed (com.cortex.bridge only)"
     else
-        warn "install_launchagents.sh reported errors (non-fatal); see output above"
+        warn "Bridge agent install degraded (non-fatal — launchctl may be unavailable)"
     fi
 else
-    log "Skipped background agents"
+    INSTALL_AGENTS="Y"
+    [ -t 0 ] && { read -rp "  Install background agents? [Y/n]: " INSTALL_AGENTS || true; }
+    if [[ "$INSTALL_AGENTS" =~ ^[Yy] ]]; then
+        if bash "$SCRIPT_DIR/scripts/install_launchagents.sh"; then
+            log "Background agents installed and loaded"
+        else
+            warn "install_launchagents.sh reported errors (non-fatal); see output above"
+        fi
+    else
+        log "Skipped background agents"
+    fi
 fi
 
 # ─── Step 7: Fix Claude Code hooks REPO_ROOT (if present) ───────────────────
@@ -265,6 +308,28 @@ if command -v python3 >/dev/null 2>&1; then
     python3 "$SCRIPT_DIR/scripts/install_session_hook.py" "$DEV_DIR" \
         && log "Session briefing hook wired into $DEV_DIR/.claude/settings.json" \
         || warn "Could not wire session briefing hook (non-fatal)"
+fi
+
+# ─── Step 7.6: cortex init (create config.yaml) ─────────────────────────────
+# The installer previously never ran init, so config.yaml was created lazily on
+# first command. Run it explicitly (idempotent) so config exists before onboard.
+log "Initializing Cortex config (cortex init)..."
+if [ -n "${INPUT_ROOT:-}" ]; then
+    "$VENV/bin/python" -m cli init --root-dir "$INPUT_ROOT" 2>&1 \
+        | sed 's/^/    /' || warn "cortex init reported warnings (non-fatal)"
+else
+    "$VENV/bin/python" -m cli init 2>&1 \
+        | sed 's/^/    /' || warn "cortex init reported warnings (non-fatal)"
+fi
+
+# ─── Step 7.7: Register MCP server with Claude Code (A3) ────────────────────
+echo ""
+info "Cortex exposes its memory loop to Claude Code via an MCP server."
+if [ "$ASSUME_YES" = true ]; then
+    # Registers if 'claude' CLI is present; otherwise prints the manual block.
+    "$VENV/bin/python" -m cli mcp-register --yes 2>&1 | sed 's/^/    /' || true
+else
+    "$VENV/bin/python" -m cli mcp-register 2>&1 || true
 fi
 
 # ─── Step 8: Verify ──────────────────────────────────────────────────────────
@@ -311,15 +376,40 @@ fi
 echo "  Run: cortex status"
 echo ""
 
-# ─── Step 9: Onboard ─────────────────────────────────────────────────────────
+# ─── Step 9: Onboard (seed memory) ─────────────────────────────────────────────
 if [ -n "${INPUT_ROOT:-}" ] && [ -d "${INPUT_ROOT:-}" ]; then
     echo ""
     info "cortex onboard scans $INPUT_ROOT, detects projects, and seeds memory."
-    RUN_ONBOARD="n"
-    [ -t 0 ] && { read -rp "  Run cortex onboard now? [Y/n]: " RUN_ONBOARD || true; }
+    if [ "$ASSUME_YES" = true ]; then
+        # --yes: onboard = yes when the projects root exists (projects found).
+        RUN_ONBOARD="Y"
+    else
+        RUN_ONBOARD="n"
+        [ -t 0 ] && { read -rp "  Run cortex onboard now? [Y/n]: " RUN_ONBOARD || true; }
+    fi
     if [[ "$RUN_ONBOARD" =~ ^[Yy] ]]; then
         log "Running cortex onboard..."
         "$VENV/bin/python" -m cli onboard --root "$INPUT_ROOT" --non-interactive 2>&1 \
             || warn "Onboard completed with warnings — run 'cortex onboard' manually to retry"
     fi
+fi
+
+# ─── Step 10: doctor --fix (repair anything repairable) ─────────────────────
+echo ""
+log "Running cortex doctor --fix..."
+"$VENV/bin/python" -m cli doctor --fix 2>&1 | sed 's/^/    /' || true
+
+# ─── Step 11: Epilogue ─────────────────────────────────────────────────────────
+if [ "$ASSUME_YES" = true ]; then
+    echo ""
+    echo "╔════════════════════════════════════════╗"
+    echo "║           NEXT — 3 STEPS               ║"
+    echo "╚════════════════════════════════════════╝"
+    echo ""
+    echo "  1. Try the demo (no API key needed):"
+    echo "       cortex demo"
+    echo "  2. Restart Claude Code so it loads the Cortex MCP server."
+    echo "  3. Run your first briefing:"
+    echo "       cortex briefing"
+    echo ""
 fi

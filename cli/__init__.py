@@ -124,6 +124,8 @@ from cli.commands.v2_ops import (
     cmd_sessions,
     cmd_signals,
     cmd_doctor,
+    cmd_reset,
+    cmd_mcp_register,
     register_process_cmds,
     register_batch_local_cmds,
     register_work_cmds,
@@ -166,7 +168,8 @@ VISIBLE_COMMANDS = {
     "feedback",
     "learn",
     "reflect",
-    "reset",  # not yet implemented — allowlisted for when it lands
+    "reset",
+    "mcp-register",
     "config",
 }
 
@@ -261,6 +264,16 @@ def _gate_experimental_argv(subparsers, argv) -> None:
 
 def main():
     """Main CLI entry point."""
+    # Load ~/.cortex/.env then repo .env so a key saved by install.sh is
+    # actually read (real env vars still win). Must run before any command
+    # inspects os.environ for ANTHROPIC_API_KEY / CORTEX_* settings.
+    try:
+        from env_loader import load_env
+
+        load_env()
+    except Exception:
+        pass  # env loading must never block the CLI
+
     parser = argparse.ArgumentParser(
         description="Cortex - Strategic Orchestrator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -640,9 +653,32 @@ Deep Mode (Phase 1):
     doctor_parser.add_argument(
         "--fix",
         action="store_true",
-        help="Repair what doctor can: flush spooled decisions into decisions.jsonl",
+        help="Repair what doctor can: flush spool, create state dir/.env, register MCP",
+    )
+    doctor_parser.add_argument(
+        "--json", action="store_true", help="Machine-readable JSON output (for agent runbooks)"
     )
     doctor_parser.set_defaults(func=cmd_doctor)
+
+    # ── mcp-register ──────────────────────────────────────────────────────────
+    mcp_reg_parser = subparsers.add_parser(
+        "mcp-register", help="Register the Cortex MCP server with Claude Code"
+    )
+    mcp_reg_parser.add_argument(
+        "--scope", choices=["user", "local", "project"], default="user", help="Config scope"
+    )
+    mcp_reg_parser.add_argument(
+        "--yes", "-y", action="store_true", help="Register without prompting"
+    )
+    mcp_reg_parser.set_defaults(func=cmd_mcp_register)
+
+    # ── reset ─────────────────────────────────────────────────────────────────
+    reset_parser = subparsers.add_parser(
+        "reset", help="Wipe Cortex state (~/.cortex) — asks for confirmation"
+    )
+    reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation")
+    reset_parser.add_argument("--force", "-f", action="store_true", help="Skip confirmation")
+    reset_parser.set_defaults(func=cmd_reset)
 
     # `cortex demo` — self-contained 30s proof of the prompt→outcome FK loop.
     from cli.commands.demo import cmd_demo
