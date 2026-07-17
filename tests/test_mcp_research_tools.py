@@ -199,11 +199,22 @@ class TestMCPResearchProposals:
 
 
 class TestMvpToolSurface:
-    """MVP surface: the core-8 memory loop is always registered; the 10
-    experimental/ops tools register only when CORTEX_EXPERIMENTAL=1.
+    """Beta surface (Workstream D): only the GOLDEN FIVE are registered by
+    default; the 13 experimental/ops tools register only when
+    CORTEX_EXPERIMENTAL=1.
 
-    (Supersedes the V2 "all 18 always-loaded" contract — the 2026-07 MVP trim
-    gates the non-core tools; the functions stay importable either way.)
+    The golden five are the smallest credible beta surface: the in-process
+    memory-loop essentials (intelligence, record_decision, outcomes), the
+    always-on health check (doctor), plus the one bridge passthrough that
+    degrades gracefully when the daemon is down (service_health).
+
+    The session-briefing/debrief hooks reach cortex over the bridge HTTP API
+    and via mcp_handlers in-process — NOT through any non-golden MCP tool — so
+    the golden five is exactly five, with no briefing carve-outs.
+
+    (Supersedes the 2026-07 "core-8" MVP trim, which itself superseded the V2
+    "all 18 always-loaded" contract. The functions stay importable either way;
+    only MCP registration is gated.)
     """
 
     @pytest.fixture(autouse=True)
@@ -211,39 +222,57 @@ class TestMvpToolSurface:
         """Skip if MCP SDK is not installed."""
         pytest.importorskip("mcp")
 
-    _CORE_TOOLS = {
-        "cortex_record_decision",
+    _GOLDEN_TOOLS = {
         "cortex_intelligence",
-        "cortex_recommendations",
+        "cortex_record_decision",
         "cortex_outcomes",
-        "cortex_plan_create",
-        "cortex_plan_progress",
-        "cortex_projects",
+        "cortex_service_health",
         "cortex_doctor",
     }
     _EXPERIMENTAL_TOOLS = {
-        "cortex_service_health",
+        # in-process memory-loop extras (demoted from the core-8 for the beta)
+        "cortex_recommendations",
+        "cortex_projects",
+        "cortex_plan_create",
+        "cortex_plan_progress",
+        # bridge passthroughs (need the :8765 daemon)
         "cortex_anomalies",
         "cortex_sessions",
         "cortex_taskboard",
-        "cortex_orchestrate",
-        "cortex_prompt_refine",
         "cortex_conductor_compose",
         "cortex_graph_query",
         "cortex_batch_status",
+        # other
+        "cortex_orchestrate",
+        "cortex_prompt_refine",
         "cortex_research_digest",
     }
 
-    def test_core_tools_always_loaded(self):
-        """The memory-loop core is registered at import — no enable step."""
+    def test_golden_tools_always_loaded(self):
+        """The golden five are registered at import — no enable step."""
         from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        missing = self._CORE_TOOLS - registered
-        assert missing == set(), f"Core tools not registered: {missing}"
+        missing = self._GOLDEN_TOOLS - registered
+        assert missing == set(), f"Golden-five tools not registered: {missing}"
+
+    def test_only_golden_five_visible_by_default(self):
+        """Exactly the golden five are visible without CORTEX_EXPERIMENTAL=1."""
+        import os
+
+        if os.environ.get("CORTEX_EXPERIMENTAL"):
+            pytest.skip("suite running with CORTEX_EXPERIMENTAL set")
+        from cortex.mcp_server import mcp as mcp_instance
+
+        registered = set(mcp_instance._tool_manager._tools.keys())
+        assert registered == self._GOLDEN_TOOLS, (
+            f"default MCP surface must be exactly the golden five. "
+            f"unexpected: {sorted(registered - self._GOLDEN_TOOLS)}; "
+            f"missing: {sorted(self._GOLDEN_TOOLS - registered)}"
+        )
 
     def test_experimental_tools_gated_by_default(self):
-        """Non-core tools stay unregistered unless CORTEX_EXPERIMENTAL=1."""
+        """Non-golden tools stay unregistered unless CORTEX_EXPERIMENTAL=1."""
         import os
 
         if os.environ.get("CORTEX_EXPERIMENTAL"):
@@ -282,7 +311,7 @@ class TestMvpToolSurface:
         )
         assert out.returncode == 0, out.stderr[-500:]
         registered = set(_json.loads(out.stdout.strip().splitlines()[-1]))
-        assert registered >= (self._CORE_TOOLS | self._EXPERIMENTAL_TOOLS)
+        assert registered >= (self._GOLDEN_TOOLS | self._EXPERIMENTAL_TOOLS)
 
     def test_gated_functions_stay_importable(self):
         """Gating affects MCP registration only — direct callers still work."""
