@@ -680,6 +680,14 @@ def prompt_patterns_resource() -> str:
 
 def main():
     """Entry point for cortex-mcp console script."""
+    # Load ~/.cortex/.env then repo .env so a key saved by install.sh reaches
+    # the MCP server process without a shell export (real env vars still win).
+    try:
+        from env_loader import load_env
+
+        load_env()
+    except Exception:
+        pass  # env loading must never block the server
     mcp.run()
 
 

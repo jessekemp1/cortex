@@ -1628,6 +1628,15 @@ async def get_stale_items():
 if __name__ == "__main__":
     import uvicorn
 
+    # Load ~/.cortex/.env then repo .env so the bridge daemon sees a key saved
+    # by install.sh without a shell export (real env vars still win).
+    try:
+        from env_loader import load_env
+
+        load_env()
+    except Exception:
+        pass
+
     print("Starting Cortex Bridge API on http://127.0.0.1:8765")
     print("API docs: http://127.0.0.1:8765/docs")
     uvicorn.run(app, host="127.0.0.1", port=8765)
