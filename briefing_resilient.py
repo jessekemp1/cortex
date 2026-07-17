@@ -566,3 +566,129 @@ def _format_tier3(data: Dict[str, Any], warnings: List[str], use_color: bool) ->
     )
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Day-1 empty state (Workstream B4) — honest, encouraging, no fake metrics
+# ---------------------------------------------------------------------------
+
+
+def _bridge_reachable() -> bool:
+    """True if the bridge daemon answers on :8765 (a real fact for the header)."""
+    import socket
+
+    try:
+        s = socket.create_connection(("127.0.0.1", 8765), timeout=0.5)
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
+def _anti_pattern_count() -> int:
+    """Active seed anti-patterns — counted at runtime, never hardcoded."""
+    try:
+        from intelligence.memory.seed_patterns import get_seed_patterns
+
+        return len(get_seed_patterns())
+    except Exception:
+        return 0
+
+
+def _decisions_imported_count() -> int:
+    """Count REAL decisions/patterns on disk (git-imported cache + recorded).
+
+    Reads the patterns.json cache (populated by pattern_indexer from git
+    history) plus recorded decisions.jsonl. Returns 0 honestly when neither
+    exists — never a seed count dressed up as "imported".
+    """
+    count = 0
+    try:
+        from state_paths import get_cortex_dir
+
+        cortex_dir = get_cortex_dir()
+        import json as _json
+
+        cache = cortex_dir / "patterns" / "patterns.json"
+        if cache.exists():
+            try:
+                data = _json.loads(cache.read_text(encoding="utf-8"))
+                if isinstance(data, list):
+                    count += len(data)
+            except (ValueError, OSError):
+                pass
+        decisions = cortex_dir / "decisions.jsonl"
+        if decisions.exists():
+            try:
+                count += sum(
+                    1 for ln in decisions.read_text(encoding="utf-8").splitlines() if ln.strip()
+                )
+            except OSError:
+                pass
+    except Exception:
+        return count
+    return count
+
+
+def is_empty_state() -> bool:
+    """True iff there are no recorded usage receipts yet (day-1).
+
+    Cheap check over the same real stores `cortex stats` reads. Errs toward
+    "not empty" (returns False) on any uncertainty, so we never suppress a real
+    briefing.
+    """
+    try:
+        from state_paths import get_cortex_dir
+
+        cortex_dir = get_cortex_dir()
+        for name in (
+            "decisions.jsonl",
+            "recall_events.jsonl",
+            "prompt_outcomes.jsonl",
+            "implicit_feedback.jsonl",
+            "session_summaries.jsonl",
+        ):
+            p = cortex_dir / name
+            if p.exists():
+                try:
+                    if any(ln.strip() for ln in p.read_text(encoding="utf-8").splitlines()):
+                        return False
+                except OSError:
+                    return False
+    except Exception:
+        return False
+    return True
+
+
+def format_empty_state_briefing(use_color: bool = True) -> str:
+    """Render the day-1 briefing: real health header + milestone checklist.
+
+    The header carries only FACTS (bridge reachability, runtime anti-pattern
+    count, real decisions-imported count). Below it, a milestone checklist and
+    a demo nudge — no fabricated metrics anywhere.
+    """
+    ap = _anti_pattern_count()
+    imported = _decisions_imported_count()
+    bridge = "up" if _bridge_reachable() else "not running (in-process recall OK)"
+
+    header = "CORTEX BRIEFING — first run"
+    lines = [
+        _c(header, _BOLD, use_color),
+        "─" * len(header),
+        "",
+        f"Health:  bridge {bridge} · MCP recall in-process · run 'cortex doctor' for detail",
+        f"{ap} anti-patterns active · {imported} decisions imported from git",
+        "",
+        _c("No receipts yet — here's how to earn them.", _BOLD, use_color),
+        "Cortex is wired up but hasn't recorded usage yet. These accrue as you work:",
+        "",
+        "  ☐ First decision recorded",
+        "  ☐ First memory recall",
+        "  ☐ First outcome linked  (prompt → commit)",
+        "  ☐ Follow-rate measurable  (needs n ≥ 10 feedback signals)",
+        "",
+        _c("Start now:  cortex demo", _YELLOW, use_color)
+        + "    (a fast, no-API-key proof of the loop)",
+        "See your receipts any time:  cortex stats",
+    ]
+    return "\n".join(lines)
