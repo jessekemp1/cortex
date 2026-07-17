@@ -84,6 +84,10 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 
 ## Quick Start
 
+> **New here? Follow the canonical guide: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).**
+> It walks an agent or a human from a clean machine to a working memory loop,
+> proven live. The snippets below are the short version.
+
 ```bash
 # 1. Install from source
 git clone https://github.com/jessekemp1/cortex && cd cortex
@@ -333,6 +337,10 @@ The memory store is entirely local and there is no telemetry. Outbound traffic h
 ---
 
 ## Installation
+
+> Full setup, the agent-guided runbook, and troubleshooting live in
+> **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** — the canonical
+> onboarding guide.
 
 **From source:**
 
