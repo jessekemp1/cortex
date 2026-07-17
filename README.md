@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1855%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1960%2B%20passing-green.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jessekemp1/cortex/releases)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
@@ -368,7 +368,7 @@ links `cortex` to `~/.local/bin/`, and (on macOS) installs LaunchAgents.
 pytest tests/ -v
 ```
 
-1,855 tests passing on a fresh clone, covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+1,960+ tests passing on a fresh clone (CI enforces a hard floor of 1960 on the hermetic, `synthetic/`-excluded suite; the badge tracks that floor, not a hand-counted number), covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing.
 
 ---
 
