@@ -30,7 +30,7 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -452,3 +452,113 @@ def read_outcomes(project: str = "", limit: int = 20) -> Dict[str, Any]:
     entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
     total = len(entries)
     return {"outcomes": entries[: max(0, limit)], "total": total}
+
+
+# ─── /v2/outcomes/stats ────────────────────────────────────────────────
+
+
+def outcome_stats(project: str = "", days: int = 30) -> Dict[str, Any]:
+    """Compute honest outcome statistics from ~/.cortex/outcomes.jsonl.
+
+    Derived entirely from the real OutcomeEntry log (the same store
+    read_outcomes() serves). NEVER fabricates numbers: with no data every
+    count is 0, every rate is None, and `collecting` is True — an honest
+    empty state, not a plausible-looking placeholder.
+
+    Accuracy mirrors LearningSystem.calculate_recommendation_accuracy():
+    over *followed* recommendations, success=1.0 and partial=0.5. It is
+    reported as None (not 0.0) when there are no followed outcomes to score,
+    so "no signal yet" is never confused with "0% success".
+    """
+    outcomes_path = _outcomes_file()
+    empty = {
+        "total": 0,
+        "followed": 0,
+        "success": 0,
+        "partial": 0,
+        "failed": 0,
+        "success_rate": None,
+        "accuracy": None,
+        "by_type": {},
+        "by_source": {},
+        "recent_7d": 0,
+        "window_days": days,
+        "collecting": True,
+        "source": str(outcomes_path),
+    }
+    if not outcomes_path.exists():
+        return empty
+
+    entries: List[Dict[str, Any]] = []
+    for line in outcomes_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    if project:
+        proj_lower = project.lower()
+        entries = [
+            e
+            for e in entries
+            if isinstance(e.get("context"), dict)
+            and str(e["context"].get("project", "")).lower() == proj_lower
+        ]
+
+    # Time window (ISO-8601 timestamps sort lexically; compare as strings).
+    if days and days > 0:
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        windowed = [e for e in entries if str(e.get("timestamp", "")) >= cutoff]
+    else:
+        windowed = entries
+
+    if not windowed:
+        return empty
+
+    cutoff_7d = (datetime.now() - timedelta(days=7)).isoformat()
+
+    by_type: Dict[str, int] = {}
+    by_source: Dict[str, int] = {}
+    followed: List[Dict[str, Any]] = []
+    success = partial = failed = recent_7d = 0
+
+    for e in windowed:
+        otype = e.get("recommendation_type", "unknown")
+        by_type[otype] = by_type.get(otype, 0) + 1
+        src = e.get("source") or "unknown"
+        by_source[src] = by_source.get(src, 0) + 1
+        if str(e.get("timestamp", "")) >= cutoff_7d:
+            recent_7d += 1
+        if e.get("followed"):
+            followed.append(e)
+
+    for e in followed:
+        oc = e.get("outcome")
+        if oc == "success":
+            success += 1
+        elif oc == "partial":
+            partial += 1
+        else:
+            failed += 1
+
+    accuracy = (success + 0.5 * partial) / len(followed) if followed else None
+    success_rate = success / len(followed) if followed else None
+
+    return {
+        "total": len(windowed),
+        "followed": len(followed),
+        "success": success,
+        "partial": partial,
+        "failed": failed,
+        "success_rate": round(success_rate, 4) if success_rate is not None else None,
+        "accuracy": round(accuracy, 4) if accuracy is not None else None,
+        "by_type": by_type,
+        "by_source": by_source,
+        "recent_7d": recent_7d,
+        "window_days": days,
+        "collecting": False,
+        "source": str(outcomes_path),
+    }

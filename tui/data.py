@@ -67,8 +67,9 @@ class BatchHealth:
 
 @dataclass
 class LearningHealth:
-    accuracy_pct: float = 0.0
+    accuracy_pct: Optional[float] = None  # None = no scored data yet (honest empty state)
     total_tracked: int = 0
+    collecting: bool = True  # True until real outcomes have been recorded
 
 
 @dataclass
@@ -275,18 +276,54 @@ def _collect_batch() -> BatchHealth:
 
 
 def _collect_learning() -> LearningHealth:
-    """Read learning accuracy from session cache or outcomes."""
-    cache = _read_json(CORTEX_DIR / "session_cache.json")
-    if isinstance(cache, dict):
-        ctx = cache.get("context", {})
-        # Try to extract learning data
-        tests = ctx.get("tests", {})
-        if tests:
-            return LearningHealth(
-                accuracy_pct=91.0,  # From last briefing output; will wire to real data
-                total_tracked=tests.get("total_passed", 0),
-            )
-    return LearningHealth(accuracy_pct=91.0, total_tracked=84)
+    """Derive learning health from the real outcomes log.
+
+    Reads ~/.cortex/outcomes.jsonl (the OutcomeEntry store written by
+    feedback.FeedbackLogger) and reports the quality-scored accuracy over
+    *followed* recommendations — the same definition used by
+    LearningSystem.calculate_recommendation_accuracy() and the
+    /v2/outcomes/stats endpoint.
+
+    Honest empty state: when nothing has been recorded (or nothing was
+    followed), accuracy_pct is None and collecting is True. We NEVER emit a
+    fabricated percentage — a real zero (or "collecting") beats a plausible
+    fake. Previously this returned a hardcoded 91.0% / 84 tracked.
+    """
+    outcomes_path = CORTEX_DIR / "outcomes.jsonl"
+    entries: list = []
+    try:
+        if outcomes_path.exists():
+            for line in outcomes_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return LearningHealth(accuracy_pct=None, total_tracked=0, collecting=True)
+
+    if not entries:
+        return LearningHealth(accuracy_pct=None, total_tracked=0, collecting=True)
+
+    followed = [e for e in entries if e.get("followed")]
+    if not followed:
+        # Outcomes exist but none were followed → nothing to score honestly.
+        return LearningHealth(
+            accuracy_pct=None, total_tracked=len(entries), collecting=True
+        )
+
+    score = sum(
+        1.0 if e.get("outcome") == "success" else 0.5 if e.get("outcome") == "partial" else 0.0
+        for e in followed
+    )
+    accuracy_pct = round(score / len(followed) * 100, 1)
+    return LearningHealth(
+        accuracy_pct=accuracy_pct,
+        total_tracked=len(entries),
+        collecting=False,
+    )
 
 
 def collect_snapshot() -> CortexSnapshot:

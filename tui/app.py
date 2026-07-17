@@ -100,8 +100,12 @@ def make_header(snap: CortexSnapshot) -> Panel:
         alert_text = "[green]all clear[/]"
 
     goals_active = len(snap.goals)
+    if snap.learning.accuracy_pct is None:
+        learn_str = f"[dim]collecting (n={snap.learning.total_tracked})[/]"
+    else:
+        learn_str = f"[{COLORS['accent']}]{snap.learning.accuracy_pct:.0f}%[/]"
     metrics_line = (
-        f"Learn: [{COLORS['accent']}]{snap.learning.accuracy_pct:.0f}%[/]  "
+        f"Learn: {learn_str}  "
         f"Alerts: {alert_text}  "
         f"Goals: [white]{goals_active} active[/]  "
         f"Git: [white]{snap.git.branch}[/] {snap.git.modified}M {snap.git.untracked}U"

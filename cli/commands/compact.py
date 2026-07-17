@@ -96,9 +96,13 @@ def render_default(snap: CortexSnapshot):
         alert_str = "[green]clear[/]"
 
     goals_active = len(snap.goals)
+    if snap.learning.accuracy_pct is None:
+        learn_str = f"[dim]collecting (n={snap.learning.total_tracked})[/]"
+    else:
+        learn_str = f"[bold cyan]{snap.learning.accuracy_pct:.0f}%[/]"
     console.print(
         f"  [white]{snap.git.branch}[/]: {snap.git.modified}M {snap.git.untracked}U  "
-        f"|  Learn: [bold cyan]{snap.learning.accuracy_pct:.0f}%[/]  "
+        f"|  Learn: {learn_str}  "
         f"|  Alerts: {alert_str}  "
         f"|  Goals: [white]{goals_active}[/] active"
     )

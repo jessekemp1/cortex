@@ -199,6 +199,72 @@ def test_read_outcomes_filters_and_orders(state_dir):
     assert a_result["outcomes"][0]["timestamp"].startswith("2026-01-02")
 
 
+def test_outcome_stats_empty_is_honest_not_fabricated(state_dir):
+    """No outcomes file → honest empty state, never a plausible fake number.
+
+    Every count is 0, every rate is None, collecting is True. This locks the
+    C2 honesty fix: /v2/outcomes/stats used to 501 (or fabricate); it must now
+    surface a real empty structure.
+    """
+    stats = mcp_handlers.outcome_stats()
+    assert stats["total"] == 0
+    assert stats["followed"] == 0
+    assert stats["success_rate"] is None  # not 0.0 — "no signal" ≠ "0% success"
+    assert stats["accuracy"] is None
+    assert stats["collecting"] is True
+    assert stats["by_type"] == {} and stats["by_source"] == {}
+
+
+def test_outcome_stats_derives_accuracy_from_real_log(state_dir):
+    """Accuracy is computed from the real outcomes.jsonl, matching the
+    LearningSystem definition: success=1.0, partial=0.5, over followed."""
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    rows = [
+        # followed: 1 success + 1 partial → accuracy (1.0 + 0.5)/2 = 0.75
+        {"timestamp": now, "recommendation_type": "goal_progress", "followed": True,
+         "outcome": "success", "source": "human", "context": {"project": "cortex"}},
+        {"timestamp": now, "recommendation_type": "goal_progress", "followed": True,
+         "outcome": "partial", "source": "auto", "context": {"project": "cortex"}},
+        # not followed → excluded from accuracy, counted in total
+        {"timestamp": now, "recommendation_type": "blocker", "followed": False,
+         "outcome": "unknown", "source": "human", "context": {"project": "other"}},
+    ]
+    (state_dir / "outcomes.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+    stats = mcp_handlers.outcome_stats()
+    assert stats["total"] == 3
+    assert stats["followed"] == 2
+    assert stats["success"] == 1 and stats["partial"] == 1
+    assert stats["accuracy"] == 0.75
+    assert stats["success_rate"] == 0.5
+    assert stats["collecting"] is False
+    assert stats["by_source"] == {"human": 2, "auto": 1}
+
+    # Project scoping mirrors read_outcomes.
+    scoped = mcp_handlers.outcome_stats(project="cortex")
+    assert scoped["total"] == 2
+    assert scoped["accuracy"] == 0.75
+
+
+def test_outcome_stats_followed_but_no_score_is_none(state_dir):
+    """Outcomes exist but none followed → accuracy None, still honest."""
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    rows = [
+        {"timestamp": now, "recommendation_type": "x", "followed": False, "outcome": "success"},
+    ]
+    (state_dir / "outcomes.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+    stats = mcp_handlers.outcome_stats()
+    assert stats["total"] == 1
+    assert stats["followed"] == 0
+    assert stats["accuracy"] is None
+    assert stats["success_rate"] is None
+
+
 def test_plans_progress_summarizes(state_dir):
     plans = state_dir / "plans"
     plans.mkdir()

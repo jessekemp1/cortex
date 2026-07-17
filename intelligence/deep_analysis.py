@@ -189,7 +189,7 @@ class DeepAnalyzer:
         try:
             # Get commit history
             log_result = subprocess.run(
-                ["git", "log", f"--since={days} days ago", "--pretty=format:%H|%an|%ae|%ad|%s"],
+                ["git", "log", f"--since={days} days ago", "--pretty=format:%H|%an|%ae|%cI|%s"],
                 cwd=project_path,
                 capture_output=True,
                 text=True,
@@ -370,9 +370,18 @@ class DeepAnalyzer:
 
         last_commit_days = 0
         if git.commits:
-            # Calculate days since last commit
-            # This is simplified - real implementation would parse dates
-            last_commit_days = 1  # Placeholder
+            # Days since the most recent commit, from its strict-ISO date (%cI).
+            # git log lists commits newest-first, so commits[0] is the latest.
+            # Falls back to 0 (unknown) if the date can't be parsed — never a
+            # fabricated "1" like the previous placeholder.
+            latest = git.commits[0].get("date", "")
+            try:
+                commit_dt = datetime.fromisoformat(latest.strip()) if latest else None
+            except ValueError:
+                commit_dt = None
+            if commit_dt is not None:
+                now = datetime.now(tz=commit_dt.tzinfo)
+                last_commit_days = max((now - commit_dt).days, 0)
 
         return HealthAnalysis(
             score=score,
@@ -387,10 +396,22 @@ class DeepAnalyzer:
         )
 
     def _is_recent(self, date_str: str, days: int) -> bool:
-        """Check if date is within last N days"""
-        # Simplified - real implementation would parse git date format
-        # For now, just return True
-        return True
+        """Check if a commit date is within the last N days.
+
+        Parses the strict-ISO committer date (%cI) emitted by the git log
+        above. On an unparseable/empty date we return False (exclude) rather
+        than True — an honest under-count beats silently treating every commit
+        as recent, which is what the previous `return True` stub did (it
+        inflated commits_7d/commits_30d to the full 90-day window).
+        """
+        if not date_str:
+            return False
+        try:
+            commit_dt = datetime.fromisoformat(date_str.strip())
+        except ValueError:
+            return False
+        now = datetime.now(tz=commit_dt.tzinfo)
+        return (now - commit_dt).days <= days
 
     def _search_specs(self, project: str, config: Dict) -> List[SpecMatch]:
         """

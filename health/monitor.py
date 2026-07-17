@@ -196,10 +196,20 @@ class HealthMonitor:
             return 0
 
     def _calculate_daily_cost(self) -> float:
-        """Calculate daily API cost."""
-        # Check recent batch jobs for cost data
-        # Simplified: would integrate with actual cost tracking
-        return 5.0  # Placeholder
+        """Estimate the last day's API cost from real recorded usage.
+
+        Reads the actual token-usage log via UsageOptimizer (which writes
+        ~/.cortex/usage_tracking/usage_YYYYMM.jsonl). Returns an honest 0.0
+        when no usage has been recorded — never the fabricated $5.00 the
+        previous placeholder returned and printed to users as "Cost/Day".
+        """
+        try:
+            from batch.usage_optimizer import UsageOptimizer
+
+            summary = UsageOptimizer().get_usage_summary(days=1)
+            return float(summary.get("totals", {}).get("estimated_cost", 0.0))
+        except Exception:
+            return 0.0
 
     def _count_active_executors(self) -> int:
         """Count active executors (running jobs)."""
