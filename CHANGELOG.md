@@ -5,6 +5,44 @@ All notable changes to Cortex are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0b1] — 2026-07-17
+
+First shippable beta. Goal: easy to set up (≤15 min to a working agent-memory
+loop) and quick to prove value, shipped only behind a 10-point confidence gate.
+**Git-clone-only** for this beta (no PyPI wheel yet — tracked by a non-blocking
+canary).
+
+### Added
+- **Crash-proof memory loop.** The core memory-loop MCP tools run in-process
+  (no bridge daemon required); decision writes append directly with a spool
+  fallback so a decision is never lost to a dead bridge.
+- **`doctor --fix`** for the common new-user failures, with `--json` for
+  agent-runbook assertions.
+- **Smallest-credible MCP surface:** five always-on tools
+  (`cortex_intelligence`, `cortex_record_decision`, `cortex_outcomes`,
+  `cortex_service_health`, `cortex_doctor`); the rest gated behind
+  `CORTEX_EXPERIMENTAL=1`.
+- **`docs/GETTING_STARTED.md`** single onboarding doc (agent-guided runbook +
+  `install.sh --yes`); master `docs/NARRATIVE.md` and operator's
+  `docs/USING_CORTEX.md`.
+- **`project` tag on `cortex_record_decision`** for per-project recall
+  (untagged decisions index under `cortex`).
+
+### Changed
+- `cortex_intelligence` / `cortex_recommendations` moved to the in-process path;
+  bridge-proxied tools keep raised timeouts so slow endpoints don't fail by
+  construction.
+- Version → `1.2.0b1`; `mcp_handlers` added to packaged modules so the
+  `cortex-mcp` console script imports from an installed artifact.
+
+### Removed
+- Personal `projects/compounding-coach/` content (out of scope for the release).
+
+### Known limitations
+- Retrieval precision is not yet tuned — recall may surface loosely-related
+  items; stated honestly in the beta notes rather than hidden.
+- Git-clone-only install (no published wheel yet).
+
 ## [1.1.0] — 2026-06-29
 
 Recall-quality release: real semantic embeddings (optional, zero-dependency),
