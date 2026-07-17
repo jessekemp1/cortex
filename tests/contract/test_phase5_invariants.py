@@ -205,3 +205,44 @@ def test_decisions_learning_roundtrip(client, tmp_path):
     body = resp.json()
     assert body["recorded"] is True
     assert (tmp_path / "decisions.jsonl").exists()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Invariant 4: honesty — /v2/outcomes/stats returns real data, never a 501
+# stub or a fabricated number (Workstream C, C2).
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_outcome_stats_returns_200_not_501_when_empty(client):
+    """Previously this route imported a non-existent cortex.v2 module and
+    always 501'd. It must now respond 200 with an honest empty structure."""
+    resp = client.get("/v2/outcomes/stats")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["total"] == 0
+    assert body["accuracy"] is None  # honest "no data", not a fake percentage
+    assert body["collecting"] is True
+
+
+def test_outcome_stats_reflects_recorded_outcomes(client, tmp_path):
+    """The stats endpoint reads the same real outcomes.jsonl the recorder
+    writes — derived, not hardcoded."""
+    import json as _json
+    from datetime import datetime
+
+    now = datetime.now().isoformat()
+    rows = [
+        {"timestamp": now, "recommendation_type": "goal_progress", "followed": True,
+         "outcome": "success", "source": "human"},
+        {"timestamp": now, "recommendation_type": "goal_progress", "followed": True,
+         "outcome": "failed", "source": "human"},
+    ]
+    (tmp_path / "outcomes.jsonl").write_text("\n".join(_json.dumps(r) for r in rows) + "\n")
+
+    resp = client.get("/v2/outcomes/stats")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["total"] == 2
+    assert body["followed"] == 2
+    assert body["accuracy"] == 0.5  # (1 success + 0 failed) / 2 followed
+    assert body["collecting"] is False

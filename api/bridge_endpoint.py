@@ -696,14 +696,19 @@ async def get_v2_outcome_stats(
     project: Optional[str] = Query(None, description="Filter by project"),
     days: int = Query(30, description="Look back N days"),
 ) -> Dict[str, Any]:
-    """Get outcome statistics for compound learning measurement."""
-    try:
-        from cortex.v2.learning.outcomes import OutcomeDetector
+    """Get outcome statistics for compound learning measurement.
 
-        detector = OutcomeDetector()
-        return detector.get_outcome_stats(project=project, days=days)
-    except ImportError as e:
-        raise HTTPException(status_code=501, detail=f"v2 module not available: {e}")
+    Backed by mcp_handlers.outcome_stats(), which derives every number from
+    the real ~/.cortex/outcomes.jsonl log (the same store /v2/outcomes reads).
+    Returns an honest empty structure (all-zero counts, null rates,
+    collecting=True) when there's no data — never a 501 stub or a fabricated
+    number. (Previously this imported a non-existent cortex.v2.learning.outcomes
+    module and always 501'd.)
+    """
+    try:
+        import mcp_handlers
+
+        return mcp_handlers.outcome_stats(project=project or "", days=days)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
