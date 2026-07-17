@@ -762,9 +762,19 @@ class SmartRecommendationGenerator:
         return description
 
     def _estimate_alert_impact(self, alerts: List[Alert]) -> str:
-        """Estimate the impact of addressing alerts."""
+        """Estimate the impact of addressing alerts.
+
+        Impact is driven by the severity of the worst alerts, not by volume:
+        a grouped alert type may contain hundreds of near-identical entries
+        (e.g. one per zombie process), and summing them all would let sheer
+        count outrank genuinely severe conditions. Only the top 3 by
+        severity contribute to the score.
+        """
         severity_scores = {"critical": 4, "high": 3, "medium": 2, "low": 1}
-        total_score = sum(severity_scores.get(a.severity, 1) for a in alerts)
+        top_scores = sorted(
+            (severity_scores.get(a.severity, 1) for a in alerts), reverse=True
+        )[:3]
+        total_score = sum(top_scores)
 
         if total_score >= 8:
             return "high"
