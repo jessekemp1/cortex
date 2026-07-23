@@ -61,56 +61,12 @@ class ReasonQuery(BaseModel):
 
 # ---------------------------------------------------------------------------
 # Project routing — derived from discovery, not a hardcoded author portfolio.
+# Single source of truth lives in mcp_handlers (the MCP server runs the same
+# resolution in-process); imported back here so route and tool can never drift.
 # ---------------------------------------------------------------------------
 
-
-def _workspace_root() -> Path:
-    """Resolve the projects workspace root from CORTEX_ROOT_DIR.
-
-    Aligns with config.workspace_root() (the single source of truth for the
-    projects root). Falls back to ~/Dev only if config can't be imported.
-    """
-    try:
-        from config import workspace_root
-
-        return workspace_root()
-    except Exception:
-        return Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.home() / "Dev"))).expanduser()
-
-
-def _project_dirs() -> Dict[str, str]:
-    """Map discovered project name -> path (relative to the workspace root).
-
-    Built at call time from config.discover_projects() so git context comes
-    from the user's repos under CORTEX_ROOT_DIR, never a static author map.
-    """
-    try:
-        from config import discover_projects
-
-        return {p["name"]: p["rel"] for p in discover_projects(_workspace_root())}
-    except Exception:
-        return {}
-
-
-def _default_project() -> str:
-    """The current project when none is specified: the workspace root's name."""
-    root = _workspace_root()
-    return root.name or "unknown"
-
-
-def _auto_detect_project(question: str) -> str:
-    """Choose the most-likely discovered project from question keywords.
-
-    Keywords default to the project's own name token (lowercased). Falls back
-    to the current default project (workspace root name) when nothing matches.
-    """
-    q_lower = question.lower()
-    project_names = list(_project_dirs().keys())
-    if not project_names:
-        return _default_project()
-    scores = {name: (1 if name.lower() in q_lower else 0) for name in project_names}
-    best = max(scores, key=lambda k: scores[k])
-    return best if scores[best] > 0 else _default_project()
+from mcp_handlers import _project_dirs, _workspace_root
+from mcp_handlers import auto_detect_project as _auto_detect_project
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +101,16 @@ async def query_intelligence(query: IntelligenceQuery) -> Dict[str, Any]:
             use_cache=query.use_cache,
             parallel=query.parallel,
         )
+        # Recall instrumentation (Workstream B) — append a best-effort event so
+        # `cortex stats` can prove the memory loop is being USED. Never breaks
+        # the query: record_recall_event swallows its own exceptions and skips
+        # error results.
+        try:
+            from intelligence.recall_events import record_recall_event
+
+            record_recall_event(result)
+        except Exception:
+            pass
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
         return result
@@ -337,63 +303,12 @@ async def get_recommendations(
     """
     from api.bridge_endpoint import get_bridge
 
+    from mcp_handlers import normalize_recommendations
+
     try:
         bridge = get_bridge()
         recommendations = bridge.get_recommendations()
-
-        if project and "recommendations" in recommendations:
-            filtered = [
-                r
-                for r in recommendations["recommendations"]
-                if r.get("project") == project
-            ]
-            recommendations["recommendations"] = filtered[:limit]
-        elif "recommendations" in recommendations:
-            recommendations["recommendations"] = recommendations["recommendations"][:limit]
-        else:
-            normalized: List[Dict[str, Any]] = []
-            # Fallback project when a report item omits one: the query filter if
-            # given, else the discovered default project — never a literal "cortex".
-            default_proj = project or _default_project()
-
-            next_action = recommendations.get("next_action")
-            if isinstance(next_action, dict) and next_action.get("action"):
-                normalized.append(
-                    {
-                        "project": next_action.get("project", default_proj),
-                        "priority": next_action.get("priority", "MEDIUM"),
-                        "title": next_action.get("action"),
-                        "type": next_action.get("type", "next_action"),
-                    }
-                )
-
-            for item in recommendations.get("priority_projects", []) or []:
-                if isinstance(item, dict):
-                    normalized.append(
-                        {
-                            "project": item.get("project", default_proj),
-                            "priority": item.get("priority", "MEDIUM"),
-                            "title": item.get(
-                                "reason", "Priority project requires attention"
-                            ),
-                            "type": "priority_project",
-                        }
-                    )
-
-            for alert in recommendations.get("risk_alerts", []) or []:
-                if isinstance(alert, dict):
-                    normalized.append(
-                        {
-                            "project": alert.get("project", default_proj),
-                            "priority": alert.get("severity", "MEDIUM"),
-                            "title": alert.get("message", "Risk alert detected"),
-                            "type": "risk_alert",
-                        }
-                    )
-
-            recommendations["recommendations"] = normalized[:limit]
-
-        return recommendations
+        return normalize_recommendations(recommendations, project=project, limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

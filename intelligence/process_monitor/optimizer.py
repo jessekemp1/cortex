@@ -11,6 +11,7 @@ from .models import (
     CapacityForecast,
     Optimization,
     ProcessCategory,
+    ProcessSnapshot,
     ProcessStatus,
     WasteItem,
     WasteType,
@@ -62,18 +63,35 @@ class ResourceOptimizer:
         processes = self.collector.collect_snapshot()
         now = datetime.now()
 
-        # 1. Zombie processes
+        # 1. Zombie processes. A zombie is already dead — it cannot be killed,
+        # holds no resources, and only disappears when its parent reaps it (or
+        # the parent exits). Report one item per leaking parent, never as
+        # auto-actionable.
         zombies = [p for p in processes if p.status == ProcessStatus.ZOMBIE]
+        by_pid = {p.pid: p for p in processes}
+        zombies_by_parent: Dict[Optional[int], List[ProcessSnapshot]] = {}
         for zombie in zombies:
+            zombies_by_parent.setdefault(zombie.parent_pid, []).append(zombie)
+        for parent_pid, children in zombies_by_parent.items():
+            parent = by_pid.get(parent_pid) if parent_pid else None
+            parent_label = f"{parent.name} (PID {parent_pid})" if parent else f"PID {parent_pid}"
+            sample = children[0]
             waste_items.append(
                 WasteItem(
-                    process_name=zombie.name,
-                    process_pid=zombie.pid,
+                    process_name=parent.name if parent else sample.name,
+                    process_pid=parent_pid or sample.pid,
                     waste_type=WasteType.ZOMBIE_PROCESS,
-                    resource_cost=f"{zombie.memory_mb:.1f} MB",
-                    recommendation="Auto-kill zombie process",
-                    auto_actionable=True,
-                    metadata={"command": zombie.command},
+                    resource_cost=f"{len(children)} unreaped PID table entries (0 MB)",
+                    recommendation=(
+                        f"Restart {parent_label} to reap {len(children)} zombie child(ren)"
+                    ),
+                    auto_actionable=False,
+                    metadata={
+                        "command": sample.command,
+                        "parent_pid": parent_pid,
+                        "zombie_count": len(children),
+                        "zombie_pids": [c.pid for c in children[:10]],
+                    },
                 )
             )
 

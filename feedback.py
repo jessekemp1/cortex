@@ -57,6 +57,7 @@ class OutcomeEntry:
     notes: Optional[str] = None
     context: Optional[Dict[str, Any]] = None  # Additional context (project, goal, etc.)
     domain: Optional[str] = None  # "aidev" | "databricks" | None (legacy)
+    source: str = "human"  # "human" (explicit feedback) | "auto" (self-confirmed)
 
 
 class FeedbackLogger:
@@ -182,6 +183,7 @@ class FeedbackLogger:
         outcome: str,
         notes: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
+        source: str = "human",
     ) -> None:
         """
         Log a structured outcome for learning.
@@ -196,6 +198,10 @@ class FeedbackLogger:
             outcome: Result - "success", "partial", "failed", "unknown"
             notes: Optional notes
             context: Additional context (project, goal, etc.)
+            source: "human" for explicit user feedback, "auto" for
+                self-confirmed outcomes (implicit approval, failure emitters).
+                The learning metrics report them separately — auto volume is
+                throughput, not validated quality.
         """
         # Auto-detect domain from context, env var, or CWD
         domain = (context or {}).get("domain") or get_domain()
@@ -212,6 +218,7 @@ class FeedbackLogger:
             notes=notes,
             context=context,
             domain=domain,
+            source=source,
         )
 
         # Assess quality if quality tracker is available
@@ -265,6 +272,12 @@ class FeedbackLogger:
                     if line:
                         data = json.loads(line)
                         filtered = {k: v for k, v in data.items() if k in known}
+                        # Legacy records predate the source field; mark them
+                        # unknown ("") so the classifier can distinguish them
+                        # from an explicit "human" — the dataclass default
+                        # would silently launder automation into the human
+                        # quality headline.
+                        filtered.setdefault("source", "")
                         outcomes.append(OutcomeEntry(**filtered))
         except (json.JSONDecodeError, IOError):
             return []

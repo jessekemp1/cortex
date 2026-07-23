@@ -198,54 +198,128 @@ class TestMCPResearchProposals:
         assert "proposals" in data
 
 
-class TestV2AlwaysLoadedTools:
-    """V2: all 18 tools are always-loaded — no deferred groups, no enable step."""
+class TestMvpToolSurface:
+    """Beta surface (Workstream D): only the GOLDEN FIVE are registered by
+    default; the 13 experimental/ops tools register only when
+    CORTEX_EXPERIMENTAL=1.
+
+    The golden five are the smallest credible beta surface: the in-process
+    memory-loop essentials (intelligence, record_decision, outcomes), the
+    always-on health check (doctor), plus the one bridge passthrough that
+    degrades gracefully when the daemon is down (service_health).
+
+    The session-briefing/debrief hooks reach cortex over the bridge HTTP API
+    and via mcp_handlers in-process — NOT through any non-golden MCP tool — so
+    the golden five is exactly five, with no briefing carve-outs.
+
+    (Supersedes the 2026-07 "core-8" MVP trim, which itself superseded the V2
+    "all 18 always-loaded" contract. The functions stay importable either way;
+    only MCP registration is gated.)
+    """
 
     @pytest.fixture(autouse=True)
     def _skip_if_no_mcp(self):
         """Skip if MCP SDK is not installed."""
         pytest.importorskip("mcp")
 
-    # V2 always-loaded tool set
-    _EXPECTED_TOOLS = {
-        "cortex_service_health",
+    _GOLDEN_TOOLS = {
         "cortex_intelligence",
-        "cortex_recommendations",
-        "cortex_anomalies",
-        "cortex_projects",
-        "cortex_sessions",
-        "cortex_taskboard",
-        "cortex_orchestrate",
-        "cortex_prompt_refine",
-        "cortex_conductor_compose",
-        "cortex_graph_query",
-        "cortex_plan_create",
-        "cortex_plan_progress",
-        "cortex_batch_status",
-        "cortex_outcomes",
         "cortex_record_decision",
-        "cortex_research_digest",
+        "cortex_outcomes",
+        "cortex_service_health",
         "cortex_doctor",
     }
+    _EXPERIMENTAL_TOOLS = {
+        # in-process memory-loop extras (demoted from the core-8 for the beta)
+        "cortex_recommendations",
+        "cortex_projects",
+        "cortex_plan_create",
+        "cortex_plan_progress",
+        # bridge passthroughs (need the :8765 daemon)
+        "cortex_anomalies",
+        "cortex_sessions",
+        "cortex_taskboard",
+        "cortex_conductor_compose",
+        "cortex_graph_query",
+        "cortex_batch_status",
+        # other
+        "cortex_orchestrate",
+        "cortex_prompt_refine",
+        "cortex_research_digest",
+    }
 
-    def test_all_tools_always_loaded(self):
-        """All 18 V2 tools are registered at import — no enable step required."""
+    def test_golden_tools_always_loaded(self):
+        """The golden five are registered at import — no enable step."""
         from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        missing = self._EXPECTED_TOOLS - registered
-        assert missing == set(), f"Tools not registered: {missing}"
+        missing = self._GOLDEN_TOOLS - registered
+        assert missing == set(), f"Golden-five tools not registered: {missing}"
 
-    def test_exact_tool_count(self):
-        """Exactly 18 tools registered — no extras, no deferred machinery."""
+    def test_only_golden_five_visible_by_default(self):
+        """Exactly the golden five are visible without CORTEX_EXPERIMENTAL=1."""
+        import os
+
+        if os.environ.get("CORTEX_EXPERIMENTAL"):
+            pytest.skip("suite running with CORTEX_EXPERIMENTAL set")
         from cortex.mcp_server import mcp as mcp_instance
 
         registered = set(mcp_instance._tool_manager._tools.keys())
-        # Only count cortex_ tools (exclude any internal tools)
-        cortex_tools = {t for t in registered if t.startswith("cortex_")}
-        assert len(cortex_tools) == 18, (
-            f"Expected 18 tools, got {len(cortex_tools)}: {cortex_tools}"
+        assert registered == self._GOLDEN_TOOLS, (
+            f"default MCP surface must be exactly the golden five. "
+            f"unexpected: {sorted(registered - self._GOLDEN_TOOLS)}; "
+            f"missing: {sorted(self._GOLDEN_TOOLS - registered)}"
         )
+
+    def test_experimental_tools_gated_by_default(self):
+        """Non-golden tools stay unregistered unless CORTEX_EXPERIMENTAL=1."""
+        import os
+
+        if os.environ.get("CORTEX_EXPERIMENTAL"):
+            pytest.skip("suite running with CORTEX_EXPERIMENTAL set")
+        from cortex.mcp_server import mcp as mcp_instance
+
+        registered = set(mcp_instance._tool_manager._tools.keys())
+        leaked = self._EXPERIMENTAL_TOOLS & registered
+        assert leaked == set(), f"Experimental tools registered by default: {leaked}"
+
+    def test_experimental_env_registers_all_18(self):
+        """CORTEX_EXPERIMENTAL=1 restores the full 18-tool surface.
+
+        Registration happens at import, so this needs a fresh interpreter.
+        """
+        import json as _json
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path as _Path
+
+        repo_root = str(_Path(__file__).resolve().parent.parent)
+        out = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import asyncio, mcp_server, json; "
+                "print(json.dumps(sorted(t.name for t in "
+                "asyncio.run(mcp_server.mcp.list_tools()))))",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=repo_root,
+            env={**os.environ, "PYTHONPATH": repo_root, "CORTEX_EXPERIMENTAL": "1"},
+        )
+        assert out.returncode == 0, out.stderr[-500:]
+        registered = set(_json.loads(out.stdout.strip().splitlines()[-1]))
+        assert registered >= (self._GOLDEN_TOOLS | self._EXPERIMENTAL_TOOLS)
+
+    def test_gated_functions_stay_importable(self):
+        """Gating affects MCP registration only — direct callers still work."""
+        import cortex.mcp_server as mod
+
+        for name in self._EXPERIMENTAL_TOOLS:
+            fn = getattr(mod, name, None)
+            assert callable(getattr(fn, "fn", fn)), f"{name} not importable/callable"
 
     def test_no_deferred_machinery(self):
         """Deferred loading internals are gone."""
@@ -262,52 +336,51 @@ class TestV2AlwaysLoadedTools:
         registered = set(mcp_instance._tool_manager._tools.keys())
         assert "cortex_enable_tools" not in registered, "cortex_enable_tools should be removed"
 
-    def test_research_digest_always_available(self):
-        """cortex_research_digest is always-loaded (was deferred in V1)."""
-        from cortex.mcp_server import mcp as mcp_instance
-
-        registered = set(mcp_instance._tool_manager._tools.keys())
-        assert "cortex_research_digest" in registered
-
 
 class TestCortexIntelligenceProjectScope:
-    """cortex_intelligence forwards an explicit project to the bridge.
+    """cortex_intelligence scopes queries to the right project.
 
     Regression test: the tool previously had no `project` param, so the bridge
     fell back to its own working directory (always the cortex repo) and silently
-    mis-scoped every query to project 'cortex'. The tool must now forward an
-    explicit project when one is given, and omit it (preserving auto-detect) when not.
+    mis-scoped every query to project 'cortex'. The tool must forward an explicit
+    project when one is given; when omitted, it must resolve via the in-process
+    bridge's git-aware detector (then keyword auto-detect) — never a literal
+    'cortex' default. The tool now calls CortexBridge in-process (no HTTP), so
+    the capture point is bridge.query_intelligence kwargs.
     """
 
     @pytest.fixture(autouse=True)
     def _skip_if_no_mcp(self):
         pytest.importorskip("mcp")
 
-    def _capture_payload(self, monkeypatch, **kwargs):
+    def _capture_kwargs(self, monkeypatch, **kwargs):
         import cortex.mcp_server as mod
 
         captured = {}
 
-        def fake_post(path, payload, timeout=5.0):
-            captured["path"] = path
-            captured["payload"] = payload
-            return {"ok": True}
+        class FakeBridge:
+            def _detect_current_project(self):
+                return "detected-from-git"
 
-        monkeypatch.setattr(mod, "_bridge_post", fake_post)
+            def query_intelligence(self, **kw):
+                captured.update(kw)
+                return {"ok": True}
+
+        monkeypatch.setattr(mod, "_get_bridge", lambda: FakeBridge())
         # @mcp.tool() wraps the function in a FunctionTool; .fn is the original callable.
         fn = getattr(mod.cortex_intelligence, "fn", mod.cortex_intelligence)
         fn(**kwargs)
         return captured
 
     def test_project_forwarded_when_provided(self, monkeypatch):
-        captured = self._capture_payload(
+        captured = self._capture_kwargs(
             monkeypatch, query="What cloud is Interac on?", project="interac"
         )
-        assert captured["path"] == "/intelligence/query"
-        assert captured["payload"].get("project") == "interac"
+        assert captured.get("project") == "interac"
 
-    def test_project_omitted_when_empty(self, monkeypatch):
-        captured = self._capture_payload(monkeypatch, query="project-agnostic question")
-        assert "project" not in captured["payload"], (
-            "empty project must be omitted so the bridge default/auto-detect is preserved"
+    def test_project_resolved_by_detector_when_empty(self, monkeypatch):
+        captured = self._capture_kwargs(monkeypatch, query="project-agnostic question")
+        assert captured.get("project") == "detected-from-git", (
+            "empty project must resolve via the bridge git-detector "
+            "(auto-detect fallback), never a hardcoded default"
         )

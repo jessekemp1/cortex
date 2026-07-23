@@ -12,6 +12,7 @@ from .models import (
     AnomalyType,
     DevPatterns,
     ProcessCategory,
+    ProcessSnapshot,
     ProcessStatus,
     ResourceMetric,
     UtilizationInsights,
@@ -101,18 +102,35 @@ class ProcessAnalyzer:
         # Get current processes
         processes = self.collector.collect_snapshot()
 
-        # Check for zombie processes
+        # Check for zombie processes. Zombies are inert (no CPU/memory) and can
+        # only be reaped by their parent, so emit one anomaly per leaking parent
+        # rather than one per zombie — a single buggy daemon can leak hundreds.
         zombies = [p for p in processes if p.status == ProcessStatus.ZOMBIE]
+        by_pid = {p.pid: p for p in processes}
+        zombies_by_parent: Dict[Optional[int], List[ProcessSnapshot]] = {}
         for zombie in zombies:
+            zombies_by_parent.setdefault(zombie.parent_pid, []).append(zombie)
+        for parent_pid, children in zombies_by_parent.items():
+            parent = by_pid.get(parent_pid) if parent_pid else None
+            parent_label = f"{parent.name} (PID {parent_pid})" if parent else f"PID {parent_pid}"
+            sample = children[0]
             anomalies.append(
                 Anomaly(
                     timestamp=now,
-                    process_name=zombie.name,
-                    process_pid=zombie.pid,
+                    process_name=sample.name,
+                    process_pid=sample.pid,
                     anomaly_type=AnomalyType.ZOMBIE_PROCESS,
-                    severity="CRITICAL",
-                    description=f"Zombie process detected: {zombie.name} (PID {zombie.pid})",
-                    metadata={"command": zombie.command},
+                    severity="WARNING",
+                    description=(
+                        f"{len(children)} zombie process(es) parented by {parent_label} — "
+                        f"restart the parent to reap them"
+                    ),
+                    metadata={
+                        "command": sample.command,
+                        "parent_pid": parent_pid,
+                        "zombie_count": len(children),
+                        "zombie_pids": [c.pid for c in children[:10]],
+                    },
                 )
             )
 
@@ -311,9 +329,11 @@ class ProcessAnalyzer:
         # Get current processes
         processes = self.collector.get_processes_by_category(category)
 
-        # Check for zombie processes
+        # Check for zombie processes. Zombies hold no resources, so their
+        # presence signals a leaking parent but should not zero the score —
+        # cap the penalty regardless of how many a buggy daemon accumulates.
         zombies = [p for p in processes if p.status == ProcessStatus.ZOMBIE]
-        score -= len(zombies) * 15
+        score -= min(len(zombies) * 15, 30)
 
         # Check resource efficiency
         if processes:

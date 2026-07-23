@@ -119,6 +119,31 @@ def cmd_briefing(args):
             tier = resilient_result.get("tier", 3)
             data = resilient_result.get("data", {})
 
+            # Day-1 empty state (Workstream B4): before rendering a briefing over
+            # zero data, show an honest, encouraging first-run view — real health
+            # header + milestone checklist + demo nudge, no fabricated metrics.
+            try:
+                from briefing_resilient import (
+                    format_empty_state_briefing,
+                    is_empty_state,
+                )
+
+                # Skip when --strict-signal is set: that flag turns briefing into
+                # a CI gate (signal/security/contract/queue checks below), which
+                # the empty state must not short-circuit.
+                if (
+                    args.format != "json"
+                    and not getattr(args, "strict_signal", False)
+                    and is_empty_state()
+                ):
+                    print(format_empty_state_briefing(use_color=not args.no_color))
+                    if watch_output:
+                        print("\n--- Watch Tasks ---")
+                        print(watch_output)
+                    return
+            except Exception:
+                pass  # empty-state is additive; never block the real briefing
+
             if tier == 1:
                 briefing = data.get("briefing_object")
                 if briefing is None:

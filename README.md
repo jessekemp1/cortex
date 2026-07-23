@@ -5,7 +5,7 @@
 > "Cortex is like giving a consultant a well-organized notebook. Same intelligence, vastly different effectiveness."
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1855%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1960%2B%20passing-green.svg)](tests/)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jessekemp1/cortex/releases)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
@@ -74,15 +74,19 @@ Cortex does not make the LLM smarter. It gives the LLM the right context at the 
 
 | Capability | What it does |
 |---|---|
-| **Three-tier memory** | Working (session) → episodic (past events) → semantic with hybrid BM25 + embedding retrieval |
-| **Anti-pattern database** | Stores learned mistakes with prevention context. Surfaces them on relevant queries. |
-| **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by complexity. Short prompts (<800 tokens) auto-downgrade to haiku. Learns from outcome data to adjust selection. |
+| **Three-tier memory** | Short-term (session) → working (recent events, SQLite) → long-term with hybrid BM25 + embedding retrieval. Promotion between the first two tiers is automatic; the long-term index is built explicitly. |
+| **Anti-pattern warnings** | 37 seeded anti-patterns (failure mode + prevention) surface as pre-task warnings when task context matches. Custom gotcha capture is early — record gotchas as decisions to make them retrievable today. |
+| **Intelligent model routing** | Routes tasks to haiku/sonnet/opus by task-complexity classification (keywords, scope, length). Learns from outcome data to adjust selection. |
 | **Goal-to-task pipeline** | Parses GOALS.md into prioritized work items. Discovers tasks from multiple sources. |
 | **Interaction capture** | Hooks capture prompts, tool outcomes, and session patterns. Derives implicit feedback signals (corrections, approvals, failure rates). |
 
 ---
 
 ## Quick Start
+
+> **New here? Follow the canonical guide: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).**
+> It walks an agent or a human from a clean machine to a working memory loop,
+> proven live. The snippets below are the short version.
 
 ```bash
 # 1. Install from source
@@ -238,7 +242,7 @@ print(f"Branch: {session['git']['branch']}")
 print(f"Active goals: {session['goals']}")
 ```
 
-Performance: bridge initialization under 10ms, context retrieval under 100ms, intelligence queries under 1s.
+Performance: retrieval-only paths (recall, context, briefing file tier) respond in well under a second. LLM-backed intelligence queries make a synchronous Anthropic call and take seconds (~10s measured) — they are network-bound, not retrieval-bound. No latency figure here is benchmark-enforced yet.
 
 ---
 
@@ -280,7 +284,20 @@ Cortex exposes a Model Context Protocol server so Claude Desktop and compatible 
 }
 ```
 
-Once registered, Claude can call `cortex_intelligence`, `cortex_recommendations`, and `cortex_anomalies` without prompt engineering on your end.
+Once registered, Claude gets the **core 8** memory-loop tools —
+`cortex_record_decision`, `cortex_intelligence`, `cortex_recommendations`,
+`cortex_outcomes`, `cortex_plan_create`, `cortex_plan_progress`,
+`cortex_projects`, `cortex_doctor` — all of which run in-process and keep
+working when the bridge daemon is down (decision writes are crash-proof:
+direct append with a spool fallback, flushed by `cortex doctor --fix`).
+Set `CORTEX_EXPERIMENTAL=1` in the server's env to also register the 10
+experimental/ops tools (bridge passthroughs like `cortex_service_health`,
+`cortex_taskboard`, `cortex_graph_query`, …).
+
+The :8765 bridge daemon (passthrough tools + session briefing) is supervised
+by launchd — `bash scripts/install_launchagents.sh` installs and loads
+`com.cortex.bridge` with keep-alive, so it survives crashes and reboots.
+A foreground `python api/bridge_endpoint.py` is for debugging only.
 
 ---
 
@@ -300,23 +317,30 @@ Cortex is optimized for one use case: **a developer or small team using LLM agen
 
 ## Data Storage
 
-All data is local by default. Nothing leaves your machine unless you configure an external embedding provider.
+The memory store is entirely local and there is no telemetry. Outbound traffic happens only for the services you configure: Anthropic API calls for LLM-backed commands, Voyage for optional external embeddings, Slack/Telegram for optional notifications. With no keys set, nothing leaves your machine.
 
 ```
 ~/.cortex/
-├── config.yaml          # configuration
-├── memories/            # episodic and semantic store
-├── anti_patterns/       # learned mistakes with prevention context
-├── metrics/             # observability logs (append-only JSONL)
-│   ├── bias_corrections.jsonl
-│   ├── adaptive_weight_updates.jsonl
-│   └── scheduler_jobs.jsonl
-└── batch/               # async job results
+├── config.yaml               # configuration (root_dir, feature flags)
+├── decisions.jsonl           # recorded decisions — re-read fresh on every recall
+├── outcomes.jsonl            # outcome tracking (feeds per-project retrieval boosts)
+├── implicit_feedback.jsonl   # followed / overridden / ignored signals
+├── interaction_queue.jsonl   # hook-captured prompts and tool events
+├── working_memory.db         # 7-day working-memory tier (SQLite)
+├── patterns/                 # long-term index: patterns.json + embeddings.pkl
+├── memory/anti_patterns/     # captured gotchas (see USING_CORTEX.md for caveats)
+├── metrics/                  # observability logs (append-only JSONL)
+├── batch/                    # async job results
+└── logs/                     # bridge and agent logs
 ```
 
 ---
 
 ## Installation
+
+> Full setup, the agent-guided runbook, and troubleshooting live in
+> **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** — the canonical
+> onboarding guide.
 
 **From source:**
 
@@ -344,7 +368,7 @@ links `cortex` to `~/.local/bin/`, and (on macOS) installs LaunchAgents.
 pytest tests/ -v
 ```
 
-2361+ tests covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing (1.8% trivial rate).
+1,960+ tests passing on a fresh clone (CI enforces a hard floor of 1960 on the hermetic, `synthetic/`-excluded suite; the badge tracks that floor, not a hand-counted number), covering memory retrieval, context optimization, work discovery, model routing, interaction capture, autonomous operations, and the MCP server contract. Assertion quality enforced by AST-based meta-testing.
 
 ---
 

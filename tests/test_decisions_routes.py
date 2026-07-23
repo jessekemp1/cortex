@@ -21,9 +21,15 @@ from api.routes.decisions import router
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """App with the decisions router and DECISIONS_FILE pointed at a temp file."""
+    """App with the decisions router and the whole store pointed at a temp dir.
+
+    /decisions/record writes via the module-level DECISIONS_FILE constant;
+    /decisions/learning delegates to mcp_handlers, which resolves paths through
+    CORTEX_STATE_DIR at call time — redirect both so neither touches ~/.cortex.
+    """
     tmp_file = tmp_path / "decisions.jsonl"
     monkeypatch.setattr(decisions_mod, "DECISIONS_FILE", tmp_file)
+    monkeypatch.setenv("CORTEX_STATE_DIR", str(tmp_path))
     app = FastAPI()
     app.include_router(router)
     return TestClient(app), tmp_file
@@ -66,6 +72,21 @@ def test_learning_decision_requires_only_decision(client):
     entry = json.loads(tmp_file.read_text().splitlines()[0])
     assert entry["decision"] == "minimal"
     assert entry["context"] == ""
+
+
+def test_learning_decision_project_tag_round_trips(client):
+    """An explicit project tag persists; untagged entries stay project-free
+    (the pattern indexer falls back to 'cortex' for those at read time)."""
+    c, tmp_file = client
+    assert c.post(
+        "/decisions/learning", json={"decision": "tagged", "project": "interac"}
+    ).status_code == 200
+    assert c.post("/decisions/learning", json={"decision": "untagged"}).status_code == 200
+    tagged, untagged = [
+        json.loads(l) for l in tmp_file.read_text().splitlines() if l.strip()
+    ]
+    assert tagged["project"] == "interac"
+    assert "project" not in untagged
 
 
 def test_learning_decision_rejects_empty_body(client):

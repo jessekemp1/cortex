@@ -124,6 +124,8 @@ from cli.commands.v2_ops import (
     cmd_sessions,
     cmd_signals,
     cmd_doctor,
+    cmd_reset,
+    cmd_mcp_register,
     register_process_cmds,
     register_batch_local_cmds,
     register_work_cmds,
@@ -142,8 +144,136 @@ from cli.commands._helpers import (
 )
 
 
+# ── Beta surface gating (Workstream D) ────────────────────────────────────
+#
+# The beta ships the SMALLEST credible CLI surface. VISIBLE_COMMANDS is the
+# allowlist — everything registered but NOT in this set is experimental and,
+# without CORTEX_EXPERIMENTAL=1, is hidden from help and refuses to run with a
+# clear message (exit 2), never a traceback or argparse "invalid choice".
+#
+# "stats" and "reset" are intended-visible but not implemented yet — Workstream
+# B owns "stats". They're listed here so they surface automatically the moment
+# their subparser is registered; until then this set is simply a no-op for
+# them (gating only ever touches commands that actually exist).
+VISIBLE_COMMANDS = {
+    "init",
+    "onboard",
+    "doctor",
+    "demo",
+    "briefing",
+    "stats",  # not yet implemented (Workstream B) — allowlisted for when it lands
+    "status",
+    "recall",
+    "intelligence",
+    "feedback",
+    "learn",
+    "reflect",
+    "reset",
+    "mcp-register",
+    "config",
+}
+
+# Exact message required by the beta contract. {cmd} is the top-level command.
+EXPERIMENTAL_CLI_MESSAGE = (
+    "'cortex {cmd}' is experimental in this beta. "
+    "Enable with CORTEX_EXPERIMENTAL=1 (unsupported)."
+)
+
+
+def _experimental_commands(subparsers) -> set:
+    """Every registered top-level command that is NOT on the visible allowlist."""
+    return set(subparsers.choices) - VISIBLE_COMMANDS
+
+
+def _hide_experimental_from_help(subparsers) -> None:
+    """Drop experimental commands from --help, but keep them PARSEABLE.
+
+    Two seams, deliberately separated:
+      - help visibility: remove the command's help entry from _choices_actions
+        and set a metavar so argparse stops dumping the full {a,b,c,...} choice
+        list (which would re-expose every hidden name).
+      - parseability: choices / _name_parser_map are left intact, so an
+        experimental command still parses cleanly and reaches the dispatch
+        gate — which prints EXPERIMENTAL_CLI_MESSAGE and exits 2 instead of
+        argparse erroring with "invalid choice" (exit 2, but a traceback-ish
+        usage dump, not our message).
+    """
+    experimental = _experimental_commands(subparsers)
+    # Collapse the choices metavar so hidden names don't leak via {a,b,c,...}.
+    subparsers.metavar = "<command>"
+    subparsers._choices_actions = [  # noqa: SLF001
+        a for a in subparsers._choices_actions if a.dest not in experimental
+    ]
+
+
+# Global optionals declared on the top-level parser. Needed so the argv scan
+# can find the subcommand token without mistaking an option's value for it
+# (e.g. `cortex --root schedule status` → command is "status", not "schedule").
+_GLOBAL_FLAGS = {"--alerts", "--goals", "--batch", "--git-detail", "--full"}
+_GLOBAL_OPTS_WITH_VALUE = {"--root"}
+
+
+def _argv_command(argv, valid_commands) -> Optional[str]:
+    """Find the subcommand token in argv, skipping global optionals.
+
+    Returns the command name, or None if argv carries no subcommand (bare
+    `cortex`, or only global flags / a top-level --help).
+    """
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in ("-h", "--help"):
+            return None  # top-level help — not a subcommand invocation
+        if tok in _GLOBAL_OPTS_WITH_VALUE:
+            i += 2  # skip the option and its value
+            continue
+        if tok.startswith("--root="):
+            i += 1
+            continue
+        if tok in _GLOBAL_FLAGS or tok.startswith("-"):
+            i += 1
+            continue
+        return tok if tok in valid_commands else None
+    return None
+
+
+def _gate_experimental_argv(subparsers, argv) -> None:
+    """Refuse experimental commands unless CORTEX_EXPERIMENTAL=1.
+
+    Runs BEFORE argparse validates sub-arguments — otherwise a command with a
+    required positional (e.g. `cortex draft`) would trip argparse's own
+    "arguments are required" error (exit 2, usage dump) instead of our exact
+    message. Prints EXPERIMENTAL_CLI_MESSAGE to stderr and exits 2.
+
+    `cortex <exp> --help` is intentionally allowed through (returns without
+    gating) so the command's own help still renders — parseable-but-unrunnable,
+    matching the plan's "gate execution, keep it parseable" intent. No-op when
+    the flag is set.
+    """
+    if os.environ.get("CORTEX_EXPERIMENTAL"):
+        return
+    experimental = _experimental_commands(subparsers)
+    cmd = _argv_command(argv, set(subparsers.choices))
+    if cmd and cmd in experimental:
+        # Let `cortex <exp> --help` / `-h` fall through to argparse (exit 0).
+        if "--help" in argv or "-h" in argv:
+            return
+        print(EXPERIMENTAL_CLI_MESSAGE.format(cmd=cmd), file=sys.stderr)
+        sys.exit(2)
+
+
 def main():
     """Main CLI entry point."""
+    # Load ~/.cortex/.env then repo .env so a key saved by install.sh is
+    # actually read (real env vars still win). Must run before any command
+    # inspects os.environ for ANTHROPIC_API_KEY / CORTEX_* settings.
+    try:
+        from env_loader import load_env
+
+        load_env()
+    except Exception:
+        pass  # env loading must never block the CLI
+
     parser = argparse.ArgumentParser(
         description="Cortex - Strategic Orchestrator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -519,9 +649,36 @@ Deep Mode (Phase 1):
     )
     signals_parser.set_defaults(func=cmd_signals)
 
-    subparsers.add_parser("doctor", help="Run environment health checks").set_defaults(
-        func=cmd_doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Run environment health checks")
+    doctor_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Repair what doctor can: flush spool, create state dir/.env, register MCP",
     )
+    doctor_parser.add_argument(
+        "--json", action="store_true", help="Machine-readable JSON output (for agent runbooks)"
+    )
+    doctor_parser.set_defaults(func=cmd_doctor)
+
+    # ── mcp-register ──────────────────────────────────────────────────────────
+    mcp_reg_parser = subparsers.add_parser(
+        "mcp-register", help="Register the Cortex MCP server with Claude Code"
+    )
+    mcp_reg_parser.add_argument(
+        "--scope", choices=["user", "local", "project"], default="user", help="Config scope"
+    )
+    mcp_reg_parser.add_argument(
+        "--yes", "-y", action="store_true", help="Register without prompting"
+    )
+    mcp_reg_parser.set_defaults(func=cmd_mcp_register)
+
+    # ── reset ─────────────────────────────────────────────────────────────────
+    reset_parser = subparsers.add_parser(
+        "reset", help="Wipe Cortex state (~/.cortex) — asks for confirmation"
+    )
+    reset_parser.add_argument("--yes", "-y", action="store_true", help="Skip confirmation")
+    reset_parser.add_argument("--force", "-f", action="store_true", help="Skip confirmation")
+    reset_parser.set_defaults(func=cmd_reset)
 
     # `cortex demo` — self-contained 30s proof of the prompt→outcome FK loop.
     from cli.commands.demo import cmd_demo
@@ -529,6 +686,16 @@ Deep Mode (Phase 1):
     subparsers.add_parser(
         "demo", help="30-second proof of the prompt→outcome FK loop (no API key)"
     ).set_defaults(func=cmd_demo)
+
+    # `cortex stats` — value receipts (real data only). Already on the
+    # VISIBLE_COMMANDS allowlist; this registration makes it live.
+    from cli.commands.stats import cmd_stats
+
+    stats_parser = subparsers.add_parser(
+        "stats", help="Value receipts — proof Cortex is being used (real data only)"
+    )
+    stats_parser.add_argument("--json", action="store_true", help="Emit structured JSON")
+    stats_parser.set_defaults(func=cmd_stats)
 
     # ── complex nested commands (delegated to register_* helpers) ─────────────
     register_process_cmds(subparsers)
@@ -576,6 +743,16 @@ Deep Mode (Phase 1):
     from cli.commands.v2_ops import register_threshold_cmds
 
     register_threshold_cmds(subparsers)
+
+    # ── Beta surface gating (Workstream D) ────────────────────────────────────
+    # Hide experimental commands from --help, then refuse to run them (exact
+    # message + exit 2) BEFORE argparse validates their sub-args — so a command
+    # with a required positional yields our message, never an argparse usage
+    # error. They stay registered (parseable) so `cortex <exp> --help` still
+    # renders. CORTEX_EXPERIMENTAL=1 leaves the full surface untouched.
+    if not os.environ.get("CORTEX_EXPERIMENTAL"):
+        _hide_experimental_from_help(subparsers)
+        _gate_experimental_argv(subparsers, sys.argv[1:])
 
     # ── dispatch ──────────────────────────────────────────────────────────────
     args = parser.parse_args()

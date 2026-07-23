@@ -150,9 +150,17 @@ def cmd_learn(args):
         print("📊 OVERALL METRICS")
         print("────────────────")
         print(f"Total Outcomes: {metrics.total_outcomes}")
+        print(
+            f"  Human-confirmed: {metrics.human_confirmed}"
+            f"  |  Auto-confirmed: {metrics.auto_confirmed} (throughput, not validated)"
+        )
         print(f"Followed Recommendations: {metrics.followed_count}")
         if metrics.followed_count > 0:
-            print(f"Success Rate: {metrics.success_rate:.1%}")
+            if metrics.human_confirmed > 0:
+                print(f"Human-Confirmed Success Rate: {metrics.human_success_rate:.1%}")
+            else:
+                print("Human-Confirmed Success Rate: n/a (no human feedback yet)")
+            print(f"All-Outcome Success Rate: {metrics.success_rate:.1%} (incl. auto)")
             print(f"Partial Success: {metrics.partial_rate:.1%}")
             print(f"Failed: {metrics.failed_rate:.1%}")
             print(f"Recommendation Accuracy: {metrics.recommendation_accuracy:.1%}")

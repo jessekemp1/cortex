@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortex-intelligence"
-version = "1.1.0"
+version = "1.2.0b1"
 description = "Persistent cross-session intelligence layer for LLM agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -79,7 +79,13 @@ Homepage = "https://github.com/jessekemp1/cortex"
 Repository = "https://github.com/jessekemp1/cortex"
 
 [tool.setuptools]
-py-modules = ["bridge", "orchestrator", "formatter", "feedback", "goal_parser", "learning", "mcp_server"]
+# All top-level modules at the repo root. The console scripts (cortex,
+# cortex-mcp) and the bridge transitively import ~25 of these; the rest are
+# runtime-loaded. Static enumeration of the subset repeatedly shipped a broken
+# wheel (mcp_handlers, then state_paths, then config… ModuleNotFoundError one
+# import deeper each time), so we package every root module. All 42 are
+# import-safe (no top-level side effects), so unused ones are inert.
+py-modules = ["agent_factory", "ai_intelligence", "alert_monitor", "bridge", "bridge_intelligence", "bridge_system", "briefing_resilient", "config", "context_intelligence", "data_migration", "deep_assessment", "env_loader", "feedback", "formatter", "goal_commands", "goal_parser", "goal_velocity", "heartbeat", "learning", "learning_config", "mcp_handlers", "mcp_server", "metrics_tracker", "orchestrator", "portfolio_analyzer", "portfolio_memory", "recommendation_engine", "recommendations", "reflection", "scheduler", "security", "self_audit", "session_cache", "session_delta", "session_manager", "session_snapshot", "session_watcher", "setup_ops", "spec_knowledge_base", "state_paths", "task_discovery", "validation", "watches", "weekly_planner"]
 
 [tool.setuptools.packages.find]
 exclude = [
@@ -103,7 +109,9 @@ exclude = [
     "vision*",
     "site*",
     "dashboard*",
-    "batch*",
+    # NOTE: do NOT exclude "batch*" — the batch/ package is in the runtime import
+    # closure (learning.py -> batch), so excluding it breaks the cortex console
+    # script with ModuleNotFoundError: No module named 'batch'.
     "automation*",
     "v2*",
     "v21*",
