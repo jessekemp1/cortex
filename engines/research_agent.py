@@ -34,9 +34,16 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Repo root, resolved relative to this module (engines/research_agent.py ->
+# parent.parent). Hardcoding Path.home()/"dev"/"cortex" broke on every machine
+# whose checkout isn't at ~/dev/cortex — including CI — so load_research_directives
+# silently returned "" (4 test_research_agent failures, green only where the
+# author's home layout happened to match).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 RESEARCH_DIR = Path.home() / ".cortex" / "research" / "cra"
-BRIEFS_DIR = Path.home() / "Dev" / "cortex" / "research_briefs"
-DIRECTIVES_PATH = Path.home() / "dev" / "cortex" / "research_directives.md"
+BRIEFS_DIR = _REPO_ROOT / "research_briefs"
+DIRECTIVES_PATH = _REPO_ROOT / "research_directives.md"
 
 # Cortex capability vectors — discoveries are scored against these
 CAPABILITY_VECTORS: Dict[str, str] = {
