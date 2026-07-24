@@ -1,0 +1,86 @@
+name: Beta feedback (v1.2.0-beta.x)
+description: Setup friction, value receipts, or anything that didn't match the promise. For the capped beta cohort.
+title: "beta: <one-line summary>"
+labels: ["beta", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for kicking the tyres on the Cortex beta. The whole point of this
+        release is **easy setup** (≤15 min to a working memory loop) and **quick,
+        honest proof of value**. Tell us where it did or didn't deliver.
+
+        Run `cortex doctor --json` and paste it in the last box — it's the single
+        most useful thing for diagnosing your environment.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of feedback is this?
+      options:
+        - Setup friction (didn't reach a working loop, or it took too long)
+        - Something behaved incorrectly (a bug)
+        - Value unclear (installed fine, but I don't see the point yet)
+        - A claim didn't match reality (docs/README/output said X, I got Y)
+        - Suggestion / rough edge
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: One paragraph. What were you trying to do, and what did you get?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How did you install?
+      description: See docs/GETTING_STARTED.md.
+      options:
+        - "Mode A — agent-guided runbook"
+        - "Mode B — ./install.sh --yes one-liner"
+        - "Manual / other (describe above)"
+    validations:
+      required: true
+
+  - type: input
+    id: setup_time
+    attributes:
+      label: Time to a working loop
+      description: Roughly how long from `git clone` to `cortex demo` printing the FK trail? (The promise is ≤15 min.)
+      placeholder: "e.g. 6 min / never got there"
+    validations:
+      required: true
+
+  - type: textarea
+    id: stats
+    attributes:
+      label: cortex stats (if you've used it a bit)
+      description: Paste `cortex stats` output. Day-1 empty state is fine and expected — we want to see what the receipts look like for you.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: cortex doctor --json
+      description: Paste the full output of `cortex doctor --json` (redact any keys). Required — this is how we diagnose your environment.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS
+        - Linux
+        - Windows (WSL)
+        - Other (describe above)
+    validations:
+      required: true
