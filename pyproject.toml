@@ -65,7 +65,14 @@ dev = [
     # intelligence/tests/, and tests/ — without it 48 async tests show as
     # "Unknown pytest.mark.asyncio" warnings and fail to run.
     "pytest-asyncio>=0.21",
-    "ruff>=0.1",
+    # Pin below 0.16: the release-touched-paths lint gate (see ci.yml) was
+    # written against ruff's E/F/W defaults. Ruff 0.16 promoted UP/BLE/DTZ
+    # into its default ruleset, which flags ~60 pre-existing patterns in the
+    # gated files (intentional best-effort except-guards, naive datetimes)
+    # that are part of the separately-tracked backlog, not this change. Pin so
+    # the gate stays honest and green; bump deliberately alongside a backlog
+    # cleanup + a widening of the gate's rule selection.
+    "ruff>=0.1,<0.16",
     "mypy>=1.0",
 ]
 
