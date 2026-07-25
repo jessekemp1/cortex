@@ -12,7 +12,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     from intelligence.adaptive_latency import AnalysisMode
@@ -65,8 +65,8 @@ class IntelligenceMixin:
     # --- 1. Context Bridge ---
 
     def get_context(
-        self, query: str, limit: int = 5, project: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, query: str, limit: int = 5, project: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get relevant context for a query from Knowledge Base and Project History.
 
@@ -194,11 +194,11 @@ class IntelligenceMixin:
         self,
         query: str,
         limit: int = 10,
-        project: Optional[str] = None,
-        max_tokens: Optional[int] = None,
+        project: str | None = None,
+        max_tokens: int | None = None,
         strategy: str = "importance",
         include_markers: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get context optimized for LLM attention patterns.
 
@@ -426,7 +426,7 @@ class IntelligenceMixin:
 
     # --- 3. Execution Bridge ---
 
-    def trigger_action(self, agent_id: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+    def trigger_action(self, agent_id: str, payload: dict[str, Any] = None) -> dict[str, Any]:
         """
         Trigger an automated agent via Local Orchestrator.
 
@@ -456,7 +456,7 @@ class IntelligenceMixin:
 
     # --- 4. Portfolio Bridge ---
 
-    def get_portfolio_context(self, project: str) -> Dict[str, Any]:
+    def get_portfolio_context(self, project: str) -> dict[str, Any]:
         """
         Get comprehensive project context including patterns and lessons.
 
@@ -479,7 +479,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_patterns(self, pattern_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_patterns(self, pattern_type: str | None = None) -> list[dict[str, Any]]:
         """
         Get cross-project patterns.
 
@@ -501,7 +501,7 @@ class IntelligenceMixin:
         except Exception as e:
             return [{"error": str(e)}]
 
-    def get_portfolio_patterns(self, pattern_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_portfolio_patterns(self, pattern_type: str | None = None) -> list[dict[str, Any]]:
         """
         Get cross-project patterns (alias for get_patterns for API compatibility).
 
@@ -518,8 +518,8 @@ class IntelligenceMixin:
         return self.get_patterns(pattern_type=pattern_type)
 
     def get_lessons(
-        self, project: Optional[str] = None, pattern: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, project: str | None = None, pattern: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get lessons learned.
 
@@ -548,12 +548,12 @@ class IntelligenceMixin:
         self,
         data_type: str = "profiles",
         count: int = 100,
-        segment: Optional[str] = None,
-        province: Optional[str] = None,
-        risk_profile: Optional[str] = None,
+        segment: str | None = None,
+        province: str | None = None,
+        risk_profile: str | None = None,
         min_quality: float = 0.7,
         output_format: str = "jsonl",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate synthetic Canadian FinServ data.
 
@@ -640,7 +640,7 @@ class IntelligenceMixin:
         return self._categorized_graph
 
     def _populate_categorized_from_graph(
-        self, result_dict: Dict[str, Any], project: Optional[str], limit: int = 5
+        self, result_dict: dict[str, Any], project: str | None, limit: int = 5
     ) -> None:
         """Fill applicable_patterns / lessons from the graph, scoped to project.
 
@@ -705,7 +705,7 @@ class IntelligenceMixin:
         query_type: str = "spec",
         use_cache: bool = True,
         parallel: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Query unified intelligence API with enhanced features.
 
@@ -891,7 +891,7 @@ class IntelligenceMixin:
         except Exception:
             return []
 
-    def get_prompt_template(self, prompt_name: str, **variables) -> Optional[str]:
+    def get_prompt_template(self, prompt_name: str, **variables) -> str | None:
         """
         Get a prompt template from registry with variables filled in.
 
@@ -913,7 +913,7 @@ class IntelligenceMixin:
 
         return template.render(**variables)
 
-    def find_similar_work(self, domain: str, project: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def find_similar_work(self, domain: str, project: str, limit: int = 5) -> list[dict[str, Any]]:
         """
         Find similar work across portfolio.
 
@@ -941,8 +941,8 @@ class IntelligenceMixin:
             return [{"error": str(e)}]
 
     def search_specs(
-        self, query: str, project: Optional[str] = None, limit: int = 5
-    ) -> List[Dict[str, Any]]:
+        self, query: str, project: str | None = None, limit: int = 5
+    ) -> list[dict[str, Any]]:
         """
         Search indexed specifications (alias for find_similar_work for API compatibility).
 
@@ -1054,7 +1054,7 @@ class IntelligenceMixin:
 
         return results[:limit]
 
-    def get_session_context(self, format: str = "structured") -> Dict[str, Any]:
+    def get_session_context(self, format: str = "structured") -> dict[str, Any]:
         """
         Get current session context.
 
@@ -1110,8 +1110,8 @@ class IntelligenceMixin:
             return {"error": str(e)}
 
     def index_spec(
-        self, spec_path: str, project: str, domain: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, spec_path: str, project: str, domain: str | None = None
+    ) -> dict[str, Any]:
         """
         Index a spec in knowledge base.
 
@@ -1149,7 +1149,7 @@ class IntelligenceMixin:
 
     # --- Recommendation Methods ---
 
-    def get_recommendations(self) -> Dict[str, Any]:
+    def get_recommendations(self) -> dict[str, Any]:
         """
         Get smart recommendations based on health, goals, and dependencies.
 
@@ -1169,7 +1169,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_next_action(self) -> Dict[str, Any]:
+    def get_next_action(self) -> dict[str, Any]:
         """
         Get single most important recommended action.
 
@@ -1189,7 +1189,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_risk_alerts(self) -> List[Dict[str, Any]]:
+    def get_risk_alerts(self) -> list[dict[str, Any]]:
         """
         Get risk alerts across the portfolio.
 
@@ -1210,7 +1210,7 @@ class IntelligenceMixin:
         except Exception as e:
             return [{"error": str(e)}]
 
-    def get_priority_projects(self, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_priority_projects(self, limit: int = 5) -> list[dict[str, Any]]:
         """
         Get projects that need attention, prioritized by goals and health.
 
@@ -1237,7 +1237,7 @@ class IntelligenceMixin:
     # --- Implicit Feedback Methods ---
 
     def track_recommendation_shown(
-        self, rec_id: str, recommendation: Dict, context: Optional[Dict] = None
+        self, rec_id: str, recommendation: dict, context: dict | None = None
     ) -> bool:
         """
         Track when a recommendation is displayed to user.
@@ -1262,7 +1262,7 @@ class IntelligenceMixin:
             return False
 
     def track_action_taken(
-        self, action: str, files: Optional[List[str]] = None, context: Optional[Dict] = None
+        self, action: str, files: list[str] | None = None, context: dict | None = None
     ) -> bool:
         """
         Track user action and correlate with pending recommendations.
@@ -1287,7 +1287,7 @@ class IntelligenceMixin:
         except Exception:
             return False
 
-    def end_feedback_session(self) -> Dict[str, Any]:
+    def end_feedback_session(self) -> dict[str, Any]:
         """
         End implicit feedback session and mark un-acted recommendations as ignored.
 
@@ -1306,7 +1306,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"available": False, "error": str(e)}
 
-    def get_implicit_feedback_stats(self, days: int = 7) -> Dict[str, Any]:
+    def get_implicit_feedback_stats(self, days: int = 7) -> dict[str, Any]:
         """
         Get implicit feedback statistics over time period.
 
@@ -1326,7 +1326,7 @@ class IntelligenceMixin:
 
     # --- 8. Layer 2: Pattern Memory Bridge ---
 
-    def find_similar_work_by_task(self, project: str, task: str, limit: int = 5) -> Dict[str, Any]:
+    def find_similar_work_by_task(self, project: str, task: str, limit: int = 5) -> dict[str, Any]:
         """
         Find similar work from other projects by task description.
 
@@ -1361,8 +1361,8 @@ class IntelligenceMixin:
     # --- 9. Smart Recommendations Bridge ---
 
     def get_smart_recommendations(
-        self, project: str, limit: int = 10, context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, project: str, limit: int = 10, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Get smart, prioritized recommendations for a project.
 
@@ -1440,7 +1440,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": str(e)}
 
-    def get_recommendation_dashboard(self, project: str, limit: int = 10) -> Dict[str, Any]:
+    def get_recommendation_dashboard(self, project: str, limit: int = 10) -> dict[str, Any]:
         """
         Get recommendation dashboard with prioritized recommendations, health, and context.
 
@@ -1472,8 +1472,8 @@ class IntelligenceMixin:
     # ==================== Rule Tracking Methods ====================
 
     def log_rule_event(
-        self, rule_name: str, event_type: str, context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        self, rule_name: str, event_type: str, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Log a rule adherence event for Cortex learning.
 
@@ -1517,8 +1517,8 @@ class IntelligenceMixin:
             return {"success": False, "error": str(e)}
 
     def get_rule_correlations(
-        self, rule_name: Optional[str] = None, days: int = 30
-    ) -> Dict[str, Any]:
+        self, rule_name: str | None = None, days: int = 30
+    ) -> dict[str, Any]:
         """
         Get correlations between rule violations and session outcomes.
 
@@ -1539,7 +1539,7 @@ class IntelligenceMixin:
         rule_events = []
         if rule_events_file.exists():
             cutoff = datetime.now() - timedelta(days=days)
-            with open(rule_events_file, "r") as f:
+            with open(rule_events_file) as f:
                 for line in f:
                     try:
                         event = json.loads(line.strip())
@@ -1553,7 +1553,7 @@ class IntelligenceMixin:
         # Load outcomes for correlation
         outcomes = []
         if outcomes_file.exists():
-            with open(outcomes_file, "r") as f:
+            with open(outcomes_file) as f:
                 for line in f:
                     try:
                         outcome = json.loads(line.strip())
@@ -1598,8 +1598,8 @@ class IntelligenceMixin:
     # ==================== Deep Mode Integration ====================
 
     def analyze_deep(
-        self, project: Optional[str] = None, output_json: bool = False
-    ) -> Dict[str, Any]:
+        self, project: str | None = None, output_json: bool = False
+    ) -> dict[str, Any]:
         """
         Run comprehensive deep analysis (Depth-First Architecture).
 
@@ -1647,7 +1647,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": f"Deep analysis failed: {str(e)}"}
 
-    def analyze_quick(self, project: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_quick(self, project: str | None = None) -> dict[str, Any]:
         """
         Run minimal fast analysis (<1s).
 
@@ -1686,7 +1686,7 @@ class IntelligenceMixin:
         except Exception as e:
             return {"error": f"Quick analysis failed: {str(e)}"}
 
-    def analyze_auto(self, project: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_auto(self, project: str | None = None) -> dict[str, Any]:
         """
         Run adaptive analysis with intelligent mode selection.
 
@@ -1731,10 +1731,10 @@ class IntelligenceMixin:
 
     def get_anomalies(
         self,
-        severity: Optional[str] = None,
-        anomaly_type: Optional[str] = None,
+        severity: str | None = None,
+        anomaly_type: str | None = None,
         min_severity: str = "WARNING",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get detected orchestration anomalies.
 
