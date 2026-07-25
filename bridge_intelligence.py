@@ -598,6 +598,106 @@ class IntelligenceMixin:
             "generation_time_s": result.generation_time_seconds,
         }
 
+    def _get_categorized_graph(self):
+        """Lazily load (and cache) a ContextGraph for categorized-field recall.
+
+        Cached on the (long-lived, singleton) bridge instance so repeated
+        queries don't re-read the graph files. The cache is invalidated when
+        nodes.json's mtime changes, so a periodic maintenance run that rebuilds
+        the graph is picked up without a daemon restart. Returns None if the
+        graph module/data is unavailable.
+        """
+        from pathlib import Path
+
+        nodes_path = Path.home() / ".cortex" / "graph" / "nodes.json"
+        try:
+            current_mtime = nodes_path.stat().st_mtime
+        except OSError:
+            current_mtime = None
+
+        cached = getattr(self, "_categorized_graph", None)
+        if cached is not None:
+            # Reuse only if the underlying graph file hasn't changed since load.
+            if getattr(self, "_categorized_graph_mtime", None) == current_mtime:
+                return cached or None  # False sentinel means "tried and failed"
+
+        try:
+            from engines.synthesis import ContextGraph
+        except ImportError:
+            try:
+                from cortex.engines.synthesis import ContextGraph
+            except ImportError:
+                self._categorized_graph = False
+                self._categorized_graph_mtime = current_mtime
+                return None
+        try:
+            self._categorized_graph = ContextGraph()
+        except Exception:
+            self._categorized_graph = False
+            self._categorized_graph_mtime = current_mtime
+            return None
+        self._categorized_graph_mtime = current_mtime
+        return self._categorized_graph
+
+    def _populate_categorized_from_graph(
+        self, result_dict: Dict[str, Any], project: Optional[str], limit: int = 5
+    ) -> None:
+        """Fill applicable_patterns / lessons from the graph, scoped to project.
+
+        Sources the previously-empty categorized buckets from the knowledge
+        graph (a different source than the BM25 related_patterns), deduped by
+        node id against related_patterns so the same item is never counted
+        twice by recall_events.count_surfaced.
+        """
+        graph = self._get_categorized_graph()
+        if graph is None or not project:
+            return
+
+        from engines.synthesis import NodeType  # local import; module already loaded
+
+        seen_ids = {p.get("id") for p in result_dict.get("related_patterns", []) if p.get("id")}
+
+        def _project_nodes(node_type) -> list:
+            out = []
+            for node in graph.get_nodes_by_type(node_type):
+                if (node.data or {}).get("project") != project:
+                    continue
+                if node.id in seen_ids:
+                    continue
+                out.append(node)
+                if len(out) >= limit:
+                    break
+            return out
+
+        # Only fill buckets that came back empty from the primary sources, so we
+        # never clobber richer upstream results.
+        if not result_dict.get("applicable_patterns"):
+            pats = _project_nodes(NodeType.PATTERN)
+            if pats:
+                result_dict["applicable_patterns"] = [
+                    {
+                        "id": n.id,
+                        "type": "pattern",
+                        "title": n.name,
+                        "description": (n.data or {}).get("content", n.name),
+                        "source": "graph",
+                    }
+                    for n in pats
+                ]
+        if not result_dict.get("lessons"):
+            lessons = _project_nodes(NodeType.LESSON)
+            if lessons:
+                result_dict["lessons"] = [
+                    {
+                        "id": n.id,
+                        "type": "lesson",
+                        "lesson": (n.data or {}).get("lesson", n.name),
+                        "outcome": (n.data or {}).get("outcome", ""),
+                        "source": "graph",
+                    }
+                    for n in lessons
+                ]
+
     def query_intelligence(
         self,
         request: str,
@@ -709,6 +809,8 @@ class IntelligenceMixin:
                     hybrid_results = self.hybrid_retriever.search(request, limit=3, alpha=0.5)
                     related_patterns = [
                         {
+                            "id": pattern.id,
+                            "type": pattern.pattern_type,
                             "title": pattern.title,
                             "description": pattern.description,
                             "score": score,
@@ -718,6 +820,18 @@ class IntelligenceMixin:
                     result_dict["related_patterns"] = related_patterns
                 except Exception:
                     pass  # Non-critical
+
+            # 2b. Graph-derived categorized fields: populate applicable_patterns
+            #     and lessons from the knowledge graph, scoped to the project.
+            #     This is a DIFFERENT source than related_patterns (graph-by-
+            #     project vs BM25-by-query), so it fills the previously-empty
+            #     categorized buckets. Deduped by node id against
+            #     related_patterns to avoid double-counting in
+            #     recall_events.count_surfaced (per review). Best-effort.
+            try:
+                self._populate_categorized_from_graph(result_dict, project)
+            except Exception:
+                pass  # Non-critical — never blocks the response
 
             # 3. ContextOptimizer: Apply optimization info (if available)
             if self.context_optimizer and CONTEXT_OPTIMIZER_AVAILABLE:
