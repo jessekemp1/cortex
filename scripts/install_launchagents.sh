@@ -20,6 +20,7 @@ OS="$(uname -s)"
 PLISTS=(
   "cortex/com.cortex.bridge.plist"
   "cortex/com.cortex.heartbeat.plist"
+  "cortex/com.cortex.memory-maintenance.plist"
   "cortex/automation/com.cortex.alert-monitor.plist"
   "cortex/automation/com.cortex.daily.plist"
   "cortex/batch/automation/com.cortex.batch.morning.plist"

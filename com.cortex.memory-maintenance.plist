@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cortex.memory-maintenance</string>
+
+    <!-- Keeps the memory-compounding layer from silently rotting: emits
+         operational failures into the outcome stream, regenerates graph
+         edges if they collapse, and confirms decisions stay recall-indexable.
+         Installed via scripts/install_launchagents.sh (placeholder substituted). -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__DEV_DIR__/cortex/.venv/bin/python3</string>
+        <string>-m</string>
+        <string>scripts.memory_maintenance</string>
+        <string>--lookback-minutes</string>
+        <string>360</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__DEV_DIR__/cortex</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>__DEV_DIR__</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <!-- Every 6 hours; matches the 360-minute lookback so no failure window is missed. -->
+    <key>StartInterval</key>
+    <integer>21600</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/.cortex/logs/memory-maintenance.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.cortex/logs/memory-maintenance.stderr.log</string>
+</dict>
+</plist>
