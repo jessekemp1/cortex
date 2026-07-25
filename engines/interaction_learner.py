@@ -530,13 +530,20 @@ class InteractionLearner:
             logger_instance = FeedbackLogger()
 
             for outcome in outcomes:
+                # `followed` must reflect whether guidance was acted on, not be
+                # hardcoded True. A correction ("that's wrong", "revert") is
+                # evidence the prior recommendation was NOT followed; a failed
+                # outcome likewise is not a followed-and-succeeded signal.
+                # Conflating these (the historical 1674/1 followed=True bug)
+                # makes the field useless for calibration.
+                followed = outcome.outcome_type not in ("failed", "partial")
                 logger_instance.log_outcome(
                     recommendation_id=f"implicit_{outcome.outcome_id}",
                     recommendation_title=f"Implicit {outcome.derived_from}",
                     recommendation_type=f"implicit_{outcome.derived_from}",
                     priority="B",  # Medium priority for implicit outcomes
                     confidence=outcome.confidence,
-                    followed=True,  # Implicit outcomes are always "followed"
+                    followed=followed,
                     outcome=outcome.outcome_type,
                     notes=f"Auto-derived from {outcome.derived_from}",
                     context={
