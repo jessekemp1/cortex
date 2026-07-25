@@ -28,6 +28,7 @@ class NodeType(Enum):
     FILE = "file"
     PATTERN = "pattern"
     LESSON = "lesson"
+    DECISION = "decision"
     ERROR = "error"
     DEPENDENCY = "dependency"
     WORK_ITEM = "work_item"
@@ -100,14 +101,42 @@ class Edge:
             "created_at": self.created_at.isoformat(),
         }
 
+    # Legacy edge-type names (pre-2026-05 graph generation) mapped onto the
+    # current EdgeType enum. Without this, EdgeType("same_project") raised
+    # ValueError inside _load(), which silently dropped every stored edge and
+    # let the next _save() overwrite edges.json with []. See from_dict.
+    _LEGACY_TYPE_MAP = {
+        "same_project": "relates_to",
+        "keyword_overlap": "relates_to",
+        "fixes": "implements",
+    }
+
     @classmethod
     def from_dict(cls, data: Dict) -> "Edge":
+        # Backward-compat field names: older edges stored source/target/data
+        # instead of source_id/target_id/metadata.
+        source_id = data.get("source_id") or data.get("source")
+        target_id = data.get("target_id") or data.get("target")
+        if not source_id or not target_id:
+            raise KeyError("edge missing source_id/target_id (or legacy source/target)")
+
+        type_str = data.get("type", "relates_to")
+        try:
+            edge_type = EdgeType(type_str)
+        except ValueError:
+            # Unknown/legacy type — map it rather than dropping the whole edge.
+            edge_type = EdgeType(cls._LEGACY_TYPE_MAP.get(type_str, "relates_to"))
+
+        metadata = data.get("metadata")
+        if metadata is None:
+            metadata = data.get("data", {})
+
         return cls(
-            source_id=data["source_id"],
-            target_id=data["target_id"],
-            type=EdgeType(data["type"]),
+            source_id=source_id,
+            target_id=target_id,
+            type=edge_type,
             weight=data.get("weight", 1.0),
-            metadata=data.get("metadata", {}),
+            metadata=metadata,
             created_at=datetime.fromisoformat(data.get("created_at", datetime.now().isoformat())),
         )
 
@@ -159,19 +188,77 @@ class ContextGraph:
 
         logger.info(f"Loaded graph: {len(self.nodes)} nodes, {len(self.edges)} edges")
 
-    def _save(self) -> None:
-        """Save graph to storage."""
+    @staticmethod
+    def _atomic_write_json(path: Path, payload) -> None:
+        """Write JSON to ``path`` atomically (temp file + os.replace).
+
+        A same-directory temp file is fully written and fsynced, then renamed
+        over the target. os.replace is atomic on POSIX, so a concurrent reader
+        (the bridge daemon vs the maintenance job) always sees either the old
+        or the new complete file — never a torn/truncated one.
+        """
+        import os
+        import tempfile
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(payload, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)  # atomic
+        except Exception:
+            # Never leave a stray temp file behind on failure.
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+    def _save(self) -> bool:
+        """Save graph to storage atomically.
+
+        Returns True on success, False if the write failed (e.g. disk full) so
+        callers can react instead of silently proceeding on stale data.
+        """
         try:
             self.storage_path.mkdir(parents=True, exist_ok=True)
+            edges_path = self.storage_path / "edges.json"
 
-            with open(self.storage_path / "nodes.json", "w") as f:
-                json.dump([n.to_dict() for n in self.nodes.values()], f, indent=2)
+            # SAFETY GUARD: never downgrade a non-empty edges.json to []. An
+            # empty self.edges almost always means _load() failed to parse the
+            # stored edges (e.g. a schema mismatch) rather than a graph that
+            # genuinely has no edges. Overwriting here is exactly how 1247
+            # edges were lost between April and June 2026. If the caller truly
+            # wants to clear edges it can delete the file explicitly.
+            skip_edges = False
+            if not self.edges and edges_path.exists():
+                try:
+                    with open(edges_path) as f:
+                        existing = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    existing = []
+                if existing:
+                    logger.warning(
+                        "Refusing to overwrite %d persisted edges with an empty set "
+                        "(likely a load failure, not an intentional clear).",
+                        len(existing),
+                    )
+                    skip_edges = True
 
-            with open(self.storage_path / "edges.json", "w") as f:
-                json.dump([e.to_dict() for e in self.edges], f, indent=2)
+            self._atomic_write_json(
+                self.storage_path / "nodes.json", [n.to_dict() for n in self.nodes.values()]
+            )
+            if not skip_edges:
+                self._atomic_write_json(edges_path, [e.to_dict() for e in self.edges])
+            return True
 
         except Exception as e:
+            # Surface the failure in logs AND to the caller — a swallowed disk
+            # error previously meant edges could be lost with no signal.
             logger.error(f"Failed to save graph: {e}")
+            return False
 
     def _update_adjacency(self, edge: Edge) -> None:
         """Update adjacency indices."""
@@ -274,6 +361,192 @@ class ContextGraph:
 
         for edge in self.edges:
             self._update_adjacency(edge)
+
+    def regenerate_edges(self, per_node_cap: int = 6, save: bool = True) -> int:
+        """Rebuild edges from current nodes when the edge set was lost.
+
+        Bounded and deterministic (O(n * per_node_cap), not O(n^2)): links are
+        derived from structured node metadata rather than pairwise keyword
+        similarity, so there is no 2111^2 blow-up. Two relationship families:
+
+          1. lesson -> pattern within the same project  (a lesson RELATES_TO
+             the patterns of the project it was learned in), capped per lesson.
+          2. nodes sharing an exact ``pattern_key``       (co-derived signals).
+          3. decision -> lesson/pattern within the same project (a recorded
+             decision RELATES_TO the memories of the project it was made in),
+             so decisions participate in graph traversal / compounding.
+
+        Idempotent: existing (source, target, type) triples are never
+        duplicated, so it is safe to re-run from the maintenance loop.
+
+        Returns the number of edges after regeneration.
+        """
+
+        def _bucket_key(node: Node, field: str) -> Optional[str]:
+            val = (node.data or {}).get(field)
+            return str(val) if val else None
+
+        # Index nodes by project and by pattern_key (deterministic ordering).
+        by_project_lessons: Dict[str, List[str]] = {}
+        by_project_patterns: Dict[str, List[str]] = {}
+        by_project_decisions: Dict[str, List[str]] = {}
+        by_pattern_key: Dict[str, List[str]] = {}
+
+        for nid in sorted(self.nodes):
+            node = self.nodes[nid]
+            proj = _bucket_key(node, "project")
+            pkey = _bucket_key(node, "pattern_key")
+            if node.type == NodeType.LESSON:
+                if proj:
+                    by_project_lessons.setdefault(proj, []).append(nid)
+            elif node.type == NodeType.PATTERN:
+                if proj:
+                    by_project_patterns.setdefault(proj, []).append(nid)
+            elif node.type == NodeType.DECISION:
+                if proj:
+                    by_project_decisions.setdefault(proj, []).append(nid)
+            if pkey:
+                by_pattern_key.setdefault(pkey, []).append(nid)
+
+        # Dedup against whatever edges currently exist.
+        existing = {(e.source_id, e.target_id, e.type.value) for e in self.edges}
+        new_edges: List[Edge] = []
+
+        def _add(src: str, dst: str, etype: EdgeType, reason: str) -> None:
+            if src == dst:
+                return
+            key = (src, dst, etype.value)
+            if key in existing:
+                return
+            existing.add(key)
+            new_edges.append(
+                Edge(
+                    source_id=src,
+                    target_id=dst,
+                    type=etype,
+                    weight=0.5,
+                    metadata={"reason": reason, "regenerated": True},
+                )
+            )
+
+        # 1. lesson -> pattern within the same project (capped per lesson).
+        for proj, lessons in by_project_lessons.items():
+            patterns = by_project_patterns.get(proj, [])
+            if not patterns:
+                continue
+            for lid in lessons:
+                for pid in patterns[:per_node_cap]:
+                    _add(lid, pid, EdgeType.RELATES_TO, "same_project")
+
+        # 2. exact pattern_key co-occurrence (bounded ring per bucket).
+        for pkey, nids in by_pattern_key.items():
+            if len(nids) < 2:
+                continue
+            for i, src in enumerate(nids):
+                for dst in nids[i + 1 : i + 1 + per_node_cap]:
+                    _add(src, dst, EdgeType.RELATES_TO, "shared_pattern_key")
+
+        # 3. decision -> project lessons/patterns (capped per decision) so
+        #    recorded decisions are reachable via graph traversal.
+        for proj, decisions in by_project_decisions.items():
+            neighbors = (
+                by_project_lessons.get(proj, []) + by_project_patterns.get(proj, [])
+            )[:per_node_cap]
+            for did in decisions:
+                for nid in neighbors:
+                    _add(did, nid, EdgeType.RELATES_TO, "decision_project")
+
+        self.edges.extend(new_edges)
+        self._rebuild_adjacency()
+        if save:
+            self._save()
+        logger.info(
+            "regenerate_edges: added %d edges (total now %d)", len(new_edges), len(self.edges)
+        )
+        return len(self.edges)
+
+    def import_decisions(self, decisions_path: Optional[Path] = None, save: bool = True) -> int:
+        """Persist recorded decisions from decisions.jsonl as DECISION nodes.
+
+        Decisions were previously loaded into the retriever at query time only
+        (a runtime-only view of ``~/.cortex/decisions.jsonl``); they were never
+        persisted into the graph, so they could not participate in edges /
+        traversal and were effectively lost to the compounding layer. This
+        makes the graph a durable second home for them.
+
+        Idempotent: a decision whose node id already exists is skipped, so it
+        is safe to re-run from the maintenance loop. Node ids use a
+        ``decision:<decision_id>`` scheme matching the retriever's prefix.
+
+        Returns the number of new decision nodes added.
+        """
+        path = decisions_path or (Path.home() / ".cortex" / "decisions.jsonl")
+        if not path.exists():
+            return 0
+
+        added = 0
+        try:
+            lines = path.read_text().splitlines()
+        except OSError as exc:
+            logger.warning("cannot read decisions file %s: %s", path, exc)
+            return 0
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            decision_text = d.get("decision")
+            if not decision_text:
+                continue
+            decision_id = d.get("decision_id", "unknown")
+            node_id = f"decision:{decision_id}"
+            data = {
+                "project": d.get("project", "unknown"),
+                "decision": decision_text,
+                "context": d.get("context", ""),
+                "alternatives": d.get("alternatives", ""),
+                "rationale": d.get("rationale", ""),
+                "source": d.get("source", "unknown"),
+            }
+            existing = self.nodes.get(node_id)
+            if existing is not None:
+                # Idempotent, but not blind: refresh if the recorded decision's
+                # content changed since it was imported (e.g. an edited
+                # rationale), otherwise skip. New adds and content changes count.
+                if existing.data == data:
+                    continue
+                existing.data = data
+                existing.name = str(decision_text)[:120]
+                existing.updated_at = datetime.now()
+                added += 1
+                continue
+            created = d.get("timestamp")
+            try:
+                created_at = (
+                    datetime.fromisoformat(created.replace("Z", "+00:00"))
+                    if created
+                    else datetime.now()
+                )
+            except (ValueError, TypeError):
+                created_at = datetime.now()
+            self.nodes[node_id] = Node(
+                id=node_id,
+                type=NodeType.DECISION,
+                name=str(decision_text)[:120],
+                data=data,
+                created_at=created_at,
+                updated_at=created_at,
+            )
+            added += 1
+
+        if added and save:
+            self._save()
+        logger.info("import_decisions: added %d decision nodes (total %d)", added, len(self.nodes))
+        return added
 
     def get_node(self, node_id: str) -> Optional[Node]:
         """Get a node by ID."""

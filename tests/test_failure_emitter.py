@@ -137,6 +137,84 @@ class TestCollectAlertFailures:
         assert fe.collect_alert_failures(log) == []
 
 
+class TestCollectAnomalyFailures:
+    def _make_db(self, tmp_path, rows):
+        import sqlite3
+
+        db = tmp_path / "orchestration.db"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE anomalies (anomaly_id TEXT PRIMARY KEY, anomaly_type TEXT, "
+            "severity TEXT, detected_at TEXT, title TEXT, description TEXT, "
+            "metric_value REAL DEFAULT 0, threshold_value REAL DEFAULT 0, remediation TEXT DEFAULT '')"
+        )
+        conn.executemany(
+            "INSERT INTO anomalies (anomaly_id, anomaly_type, severity, detected_at, title, description) "
+            "VALUES (?,?,?,?,?,?)",
+            rows,
+        )
+        conn.commit()
+        conn.close()
+        return db
+
+    def test_failure_anomaly_emits(self, tmp_path):
+        ts = datetime.now(timezone.utc).isoformat()
+        db = self._make_db(
+            tmp_path,
+            [("a1", "stuck_tasks", "CRITICAL", ts, "Task stuck in planning", "5h")],
+        )
+        sigs = fe.collect_anomaly_failures(db)
+        assert len(sigs) == 1
+        assert sigs[0].source == "anomaly"
+
+    def test_context_switching_type_skipped(self, tmp_path):
+        ts = datetime.now(timezone.utc).isoformat()
+        db = self._make_db(
+            tmp_path,
+            [("a1", "context_switching_risk", "CRITICAL", ts, "8 projects", "noise")],
+        )
+        assert fe.collect_anomaly_failures(db) == []
+
+    def test_old_anomaly_excluded(self, tmp_path):
+        old = (datetime.now(timezone.utc) - timedelta(minutes=120)).isoformat()
+        db = self._make_db(
+            tmp_path,
+            [("a1", "stuck_tasks", "CRITICAL", old, "stuck", "x")],
+        )
+        assert fe.collect_anomaly_failures(db, lookback_minutes=60) == []
+
+    def test_missing_db_returns_empty(self, tmp_path):
+        assert fe.collect_anomaly_failures(tmp_path / "nope.db") == []
+
+
+class TestCollapseRepeats:
+    def test_repeats_collapse_to_one_weighted_signal(self):
+        sigs = [
+            fe.FailureSignal("restart", f"svc:{i}", "service restart: svc", "died", f"2026-07-2{i}")
+            for i in range(5)
+        ]
+        collapsed = fe._collapse_repeats(sigs)
+        assert len(collapsed) == 1
+        assert "x5" in collapsed[0].title
+        # The collapsed signal_id must be the stable family key (not the latest
+        # timestamped id) so the emitter ledger dedups it across runs.
+        assert collapsed[0].signal_id == "restart:service restart: svc"
+
+    def test_distinct_failures_not_collapsed(self):
+        sigs = [
+            fe.FailureSignal("restart", "a:1", "service restart: a", "x", "2026-07-21"),
+            fe.FailureSignal("restart", "b:1", "service restart: b", "x", "2026-07-21"),
+        ]
+        assert len(fe._collapse_repeats(sigs)) == 2
+
+    def test_pytest_signals_kept_distinct(self):
+        sigs = [
+            fe.FailureSignal("pytest", "test_a", "pytest failure: test_a", "x", "2026-07-21"),
+            fe.FailureSignal("pytest", "test_b", "pytest failure: test_b", "x", "2026-07-21"),
+        ]
+        assert len(fe._collapse_repeats(sigs)) == 2
+
+
 class TestEmit:
     def test_emit_writes_ledger_entry_and_dedupes(self, tmp_path, monkeypatch):
         # Stub FeedbackLogger so we don't write to ~/.cortex/.

@@ -40,6 +40,11 @@ DEFAULT_SCHEDULER_LOG = CORTEX_DIR / "metrics" / "scheduler_jobs.jsonl"
 DEFAULT_RESTART_LOG = CORTEX_DIR / "restart_history.jsonl"
 DEFAULT_ALERTS_LOG = CORTEX_DIR / "alerts.jsonl"
 DEFAULT_PYTEST_CACHE = Path(".pytest_cache") / "v" / "cache" / "lastfailed"
+DEFAULT_ORCHESTRATION_DB = CORTEX_DIR / "orchestration.db"
+# Anomaly types that represent genuine execution/planning failures worth
+# feeding the learning loop. Excludes context_switching_risk, which is a
+# workload-shape heuristic already captured (and collapsed) via alerts.
+_FAILURE_ANOMALY_TYPES = ("stuck_tasks", "batch_inefficiency", "planning_gap")
 
 
 @dataclass(frozen=True)
@@ -165,14 +170,125 @@ def collect_alert_failures(
     return out
 
 
-def collect_all(lookback_minutes: int = 60) -> List[FailureSignal]:
-    """Collect failure signals from every known source."""
-    return (
+def _collapse_repeats(signals: List[FailureSignal]) -> List[FailureSignal]:
+    """Collapse repeated failures of the same identity into one signal.
+
+    The raw collectors key each occurrence by timestamp, so a service that
+    restarts 50 times or an alert that fires 79 times produces 50/79 near-
+    identical signals. Emitting those verbatim floods the outcome stream with
+    volume, not signal — the exact failure the 2026-04-19 audit warned about
+    ("the fix produced volume, not signal fidelity"). Mirroring the zombie-
+    alert fix, we collapse by a stable identity (source + failure family,
+    ignoring the timestamp) and keep the most recent occurrence, recording how
+    many times it happened in the title/detail so calibration sees one weighted
+    failure rather than N duplicates.
+    """
+    groups: dict[str, List[FailureSignal]] = {}
+    order: List[str] = []
+    for sig in signals:
+        # pytest nodeids are already unique per test; keep them as-is. For the
+        # timestamped sources (restart/alert/scheduler) the title captures the
+        # failure identity (service name, alert text, job) without the varying
+        # timestamp — so grouping by (source, title) folds repeats together.
+        # We deliberately do NOT parse the timestamp out of signal_id: ISO
+        # timestamps contain their own colons, which made naive splitting fail.
+        if sig.source == "pytest":
+            family = sig.recommendation_id()
+        else:
+            family = f"{sig.source}:{sig.title}"
+        if family not in groups:
+            groups[family] = []
+            order.append(family)
+        groups[family].append(sig)
+
+    collapsed: List[FailureSignal] = []
+    for family in order:
+        members = groups[family]
+        latest = max(members, key=lambda s: s.observed_at or "")
+        count = len(members)
+        if count == 1:
+            collapsed.append(latest)
+            continue
+        collapsed.append(
+            FailureSignal(
+                source=latest.source,
+                # Stable id across runs so the ledger dedups the collapsed
+                # signal by identity, not by the latest timestamp.
+                signal_id=family,
+                title=f"{latest.title} (x{count} in window)",
+                detail=f"{count} occurrences; latest: {latest.detail}"[:500],
+                observed_at=latest.observed_at,
+            )
+        )
+    return collapsed
+
+
+def collect_anomaly_failures(
+    db_path: Path = DEFAULT_ORCHESTRATION_DB, lookback_minutes: int = 60
+) -> List[FailureSignal]:
+    """One signal per orchestration anomaly (execution/planning failures).
+
+    Reads the orchestration.db ``anomalies`` table for CRITICAL/WARNING rows of
+    genuine failure types (stuck tasks, batch inefficiency, planning gaps).
+    These are behavioural failures the log-based collectors never see — a task
+    stuck in a phase or a batch running inefficiently is a real negative
+    outcome. Downstream ``_collapse_repeats`` folds the many rows per type into
+    a small number of weighted signals.
+    """
+    if not db_path.exists():
+        return []
+    import sqlite3
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
+    out: List[FailureSignal] = []
+    placeholders = ",".join("?" for _ in _FAILURE_ANOMALY_TYPES)
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                f"SELECT anomaly_id, anomaly_type, severity, detected_at, title, description "
+                f"FROM anomalies WHERE anomaly_type IN ({placeholders}) "
+                f"AND severity IN ('CRITICAL','WARNING')",
+                _FAILURE_ANOMALY_TYPES,
+            ).fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        logger.warning("cannot read anomalies from %s: %s", db_path, exc)
+        return []
+
+    for row in rows:
+        ts_raw = row["detected_at"]
+        if not _within_window(ts_raw, cutoff):
+            continue
+        out.append(
+            FailureSignal(
+                source="anomaly",
+                signal_id=f"{row['anomaly_type']}:{row['anomaly_id']}",
+                title=f"anomaly[{row['severity']}]: {row['title']}",
+                detail=str(row["description"] or "")[:500],
+                observed_at=ts_raw or "",
+            )
+        )
+    return out
+
+
+def collect_all(lookback_minutes: int = 60, collapse: bool = True) -> List[FailureSignal]:
+    """Collect failure signals from every known source.
+
+    With ``collapse=True`` (default) repeated failures of the same identity are
+    folded into one weighted signal so the outcome stream captures failure
+    *signal* rather than duplicate *volume*.
+    """
+    raw = (
         collect_pytest_failures()
         + collect_restart_failures(lookback_minutes=lookback_minutes)
         + collect_scheduler_failures(lookback_minutes=lookback_minutes)
         + collect_alert_failures(lookback_minutes=lookback_minutes)
+        + collect_anomaly_failures(lookback_minutes=lookback_minutes)
     )
+    return _collapse_repeats(raw) if collapse else raw
 
 
 def emit(signals: Iterable[FailureSignal], ledger_path: Path = EMITTED_LEDGER) -> int:

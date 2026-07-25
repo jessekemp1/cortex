@@ -29,6 +29,97 @@ _OUTCOMES_PATH = Path.home() / ".cortex" / "outcomes.jsonl"
 # Conversation digests path
 _DIGESTS_PATH = Path.home() / ".cortex" / "conversation_digests.jsonl"
 
+# Recorded-decisions path (written by mcp_handlers.record_learning_decision /
+# POST /decisions/learning). These are the "your past decisions come back to
+# you" memories; without loading them here they were write-only.
+_DECISIONS_PATH = Path.home() / ".cortex" / "decisions.jsonl"
+
+
+# Module-level cache for decision patterns, keyed by decisions.jsonl mtime, so
+# repeated HybridRetriever constructions don't re-parse the whole file each
+# time. Invalidated automatically when the file changes.
+_decision_cache: Optional[List[Pattern]] = None
+_decision_cache_mtime: Optional[float] = None
+
+
+def _load_decision_patterns() -> List[Pattern]:
+    """Load recorded decisions and convert them to Pattern objects.
+
+    Decisions flow into the same BM25+embedding pipeline as git/conversation
+    patterns. Their IDs carry a ``decision:`` prefix so that
+    ``recall_events.count_surfaced`` recognises them as decisions
+    (n_decisions_surfaced) and so ``search`` can surface them by relevance.
+
+    Result is cached at module level and reused until decisions.jsonl changes.
+    """
+    global _decision_cache, _decision_cache_mtime
+
+    if not _DECISIONS_PATH.exists():
+        return []
+
+    try:
+        mtime = _DECISIONS_PATH.stat().st_mtime
+    except OSError:
+        mtime = None
+    if _decision_cache is not None and _decision_cache_mtime == mtime:
+        return _decision_cache
+
+    patterns: List[Pattern] = []
+    try:
+        for line in _DECISIONS_PATH.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            decision = d.get("decision", "")
+            if not decision:
+                continue
+            decision_id = d.get("decision_id", "unknown")
+            project = d.get("project", "unknown")
+
+            desc_parts = [decision]
+            if d.get("rationale"):
+                desc_parts.append(f"rationale: {d['rationale']}")
+            if d.get("context"):
+                desc_parts.append(f"context: {d['context']}")
+            if d.get("alternatives"):
+                desc_parts.append(f"alternatives: {d['alternatives']}")
+
+            try:
+                commit_date = datetime.fromisoformat(
+                    d.get("timestamp", "").replace("Z", "+00:00")
+                )
+            except (ValueError, TypeError):
+                commit_date = datetime.now()
+
+            # Keywords from the decision text (cheap tokenisation) + project.
+            words = {w.strip(".,:;()[]").lower() for w in decision.split() if len(w) > 3}
+            words.add(project)
+
+            patterns.append(
+                Pattern(
+                    id=f"decision:{decision_id}",
+                    project=project,
+                    commit_hash=str(decision_id)[:8],
+                    commit_date=commit_date,
+                    title=f"Decision: {decision[:80]}",
+                    description=" | ".join(desc_parts),
+                    files_changed=[],
+                    keywords=words,
+                    pattern_type="decision",
+                )
+            )
+    except Exception as e:
+        logger.warning(f"Failed to load decision patterns: {e}")
+
+    _decision_cache = patterns
+    _decision_cache_mtime = mtime
+    return patterns
+
 
 def _load_digest_patterns() -> List[Pattern]:
     """
@@ -133,6 +224,14 @@ class HybridRetriever:
             if digest_patterns:
                 logger.info(f"Loaded {len(digest_patterns)} conversation digest patterns")
                 patterns = list(patterns) + digest_patterns
+
+        # Merge recorded decisions so past decisions can be recalled. Always
+        # loaded (not gated on include_conversation_digests): a decision store
+        # is the core "memory comes back" signal, independent of chat history.
+        decision_patterns = _load_decision_patterns()
+        if decision_patterns:
+            logger.info(f"Loaded {len(decision_patterns)} recorded-decision patterns")
+            patterns = list(patterns) + decision_patterns
 
         self.patterns = patterns
         self.bm25_searcher = PatternSearcher(patterns)
