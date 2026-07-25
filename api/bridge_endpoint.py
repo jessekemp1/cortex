@@ -183,69 +183,14 @@ async def service_health():
     """
     Check health of all ecosystem services.
 
-    Returns status of bridge, Vortex backend, Navigator, and EMOS readiness.
+    Returns status of bridge, Alpha Arena, Cortex Runtime, Mission Control
+    site, and the test suite, plus EMOS readiness.
     """
     import urllib.request
 
     services = {
         "bridge": {"status": "healthy", "port": 8765},
     }
-
-    # Check Vortex Backend (:8000)
-    try:
-        req = urllib.request.Request("http://localhost:8000/api/v2/health")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read())
-            services["vortex_backend"] = {
-                "status": "healthy" if data.get("status") == "healthy" else "degraded",
-                "port": 8000,
-                "scheduler_jobs": data.get("scheduler", {}).get("jobs_count", 0),
-                "version": data.get("version", "unknown"),
-            }
-    except Exception:
-        services["vortex_backend"] = {"status": "offline", "port": 8000}
-
-    # Check Navigator (subsystem of Vortex Backend on :8000)
-    try:
-        req = urllib.request.Request("http://localhost:8000/api/v2/navigator/health")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-            nav_status = data.get("status", "unknown")
-            checks = data.get("checks", {})
-            subsystems = {
-                k: v.get("status", "unknown") for k, v in checks.items() if isinstance(v, dict)
-            }
-            services["navigator"] = {
-                "status": nav_status,
-                "port": 8000,
-                "subsystems": subsystems,
-                "version": data.get("version", "unknown"),
-            }
-    except Exception:
-        services["navigator"] = {"status": "offline", "port": 8000}
-
-    # Check Vortex Frontend (:5173 dev / :3000 prod)
-    vortex_frontend_port = None
-    for port in [5173, 3000]:
-        try:
-            req = urllib.request.Request(f"http://localhost:{port}/")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                if resp.status == 200:
-                    services["vortex_frontend"] = {
-                        "status": "healthy",
-                        "port": port,
-                        "label": "Vortex UI (React)",
-                    }
-                    vortex_frontend_port = port
-                    break
-        except Exception:
-            continue
-    if vortex_frontend_port is None:
-        services["vortex_frontend"] = {
-            "status": "offline",
-            "port": 5173,
-            "label": "Vortex UI (React)",
-        }
 
     # Check Alpha Arena (:8502)
     try:
@@ -273,20 +218,25 @@ async def service_health():
                 "label": "Alpha Arena (Streamlit)",
             }
 
-    # Check Cortex Runtime API (:8003)
+    # Check Cortex Runtime API. The runtime binds CORTEX_RUNTIME_PORT
+    # (default 8000; see runtime/config.py), NOT 8003 — hardcoding the wrong
+    # port made this always report the runtime offline.
+    _runtime_port = int(os.getenv("CORTEX_RUNTIME_PORT", "8000"))
     try:
-        req = urllib.request.Request("http://localhost:8003/api/v1/runtime/health")
+        req = urllib.request.Request(
+            f"http://localhost:{_runtime_port}/api/v1/runtime/health"
+        )
         with urllib.request.urlopen(req, timeout=2) as resp:
             data = json.loads(resp.read())
             services["cortex_runtime"] = {
                 "status": "healthy" if data.get("status") == "healthy" else "degraded",
-                "port": 8003,
+                "port": _runtime_port,
                 "label": "Cortex Runtime API",
             }
     except Exception:
         services["cortex_runtime"] = {
             "status": "offline",
-            "port": 8003,
+            "port": _runtime_port,
             "label": "Cortex Runtime API",
         }
 
@@ -1264,7 +1214,6 @@ async def get_services_status() -> Dict[str, Any]:
 
         # HTTP health checks
         health_checks = [
-            _check_health("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
             # Bridge marks itself as healthy (can't self-check without deadlock)
             {
                 "name": "cortex-bridge",
