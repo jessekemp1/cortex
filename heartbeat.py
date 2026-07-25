@@ -170,7 +170,6 @@ def _check_services() -> list[str]:
     """Quick service health check (subset of alert_monitor)."""
     down = []
     services = [
-        ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
         ("cortex-bridge", "http://127.0.0.1:8765/health"),
     ]
     for name, url in services:

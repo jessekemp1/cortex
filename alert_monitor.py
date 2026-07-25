@@ -15,12 +15,19 @@ Suppressed for 1h by: touch ~/.cortex/alert_silence_<service>
 from __future__ import annotations
 
 import json
+import os
 import platform
 import subprocess
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# The runtime binds CORTEX_RUNTIME_PORT (default 8000; see runtime/config.py
+# RuntimeConfig.port) and serves its health check at /api/v1/runtime/health
+# (runtime/api.py). Health-checking any other port (e.g. the bridge's 8765)
+# would report the wrong process up/down and misdirect auto-restart.
+CORTEX_RUNTIME_PORT = os.getenv("CORTEX_RUNTIME_PORT", "8000")
 
 CORTEX_DIR = Path.home() / ".cortex"
 ALERTS_LOG = CORTEX_DIR / "alerts.jsonl"
@@ -32,11 +39,9 @@ RESTART_LOG = CORTEX_DIR / "restart_history.jsonl"
 # === Tier 1: Always-on operational services (99.99% target) ===
 # === Tier 2: Supporting services ===
 SERVICES = [
-    ("vortex-backend", "http://127.0.0.1:8000/api/v2/health"),
-    ("cortex-runtime", "http://127.0.0.1:8765/docs"),
+    ("cortex-runtime", f"http://127.0.0.1:{CORTEX_RUNTIME_PORT}/api/v1/runtime/health"),
     ("cortex-site", "http://127.0.0.1:3001/"),
     ("alpha-arena", "http://127.0.0.1:8502/_stcore/health"),
-    ("navigator", "http://127.0.0.1:8000/api/v2/navigator/health"),
 ]
 
 
@@ -45,30 +50,27 @@ def _detect_platform() -> str:
     return "macos" if platform.system() == "Darwin" else "linux"
 
 
-# Platform-specific restart configuration.
-# macOS uses launchd labels, Linux uses systemd unit names.
+# Platform-specific restart configuration: service -> init-system label.
+# Only list services that have a REAL installed unit — a label with no
+# matching launchd plist / systemd unit makes _attempt_restart run a doomed
+# kickstart that never succeeds, so the failure counter never resets. Restart
+# is opt-in per service; unlisted services are monitored and alerted but not
+# auto-restarted. (No com.cortex.runtime / com.cortex.site plist ships today,
+# so cortex-runtime/cortex-site are intentionally absent — alert only.)
 TIER1_RESTART_CONFIG: dict[str, dict[str, str]] = {
     "macos": {
-        "vortex-backend": "com.vortexv2.backend",
-        "cortex-runtime": "com.cortex.runtime",
-        "cortex-site": "com.cortex.site",
         "alpha-arena": "com.alphaarena.dashboard",
     },
-    "linux": {
-        "vortex-backend": "vortexv2-backend",
-        "cortex-runtime": "cortex-runtime",
-        "cortex-site": "cortex-site",
-    },
+    "linux": {},
 }
 
 # Backwards compat: expose macOS labels as the old name for any external consumers
 TIER1_LAUNCHD_LABELS = TIER1_RESTART_CONFIG["macos"]
 
-# Per-service consecutive failure thresholds (default: 2)
+# Consecutive failures before a service is alerted on. A per-service override
+# map can be reintroduced here if a service needs a non-default threshold;
+# until then check_services uses the constant directly.
 CONSECUTIVE_THRESHOLD = 2
-CONSECUTIVE_THRESHOLDS = {
-    "navigator": 3,  # Navigator has external API deps (Open-Meteo) — allow more retries
-}
 
 # Auto-restart after this many consecutive failures (Tier 1 only)
 AUTO_RESTART_THRESHOLD = 3
@@ -179,7 +181,7 @@ def _attempt_restart(service: str) -> bool:
 
     try:
         if plat == "macos":
-            cmd = ["launchctl", "kickstart", "-k", f"gui/502/{label}"]
+            cmd = ["launchctl", "kickstart", "-k", f"gui/{os.getuid()}/{label}"]
         else:
             cmd = ["systemctl", "--user", "restart", label]
 
@@ -208,29 +210,28 @@ def _attempt_restart(service: str) -> bool:
 def check_service(name: str, url: str) -> tuple[bool, str]:
     """Return (healthy, status_detail) for a service.
 
-    For Navigator, parses the JSON response to detect degraded status
-    (subsystem failures) even when the HTTP response is 200.
+    A 200 alone is not sufficient: a health endpoint can answer 200 with a JSON
+    body reporting a degraded/unhealthy subsystem. When the response is JSON
+    carrying a ``status`` field, honour it so partial outages aren't masked as
+    healthy. Non-JSON 200s (plain pages like /docs) stay healthy.
     """
     try:
         with urllib.request.urlopen(url, timeout=3) as resp:
             if resp.status != 200:
                 return False, "http_error"
-            # Navigator returns structured health with subsystem checks
-            if name == "navigator":
-                data = json.loads(resp.read())
-                status = data.get("status", "unknown")
-                if status == "healthy":
-                    return True, "healthy"
-                # "degraded" or "unhealthy" — report which subsystems failed
-                failed = [
-                    k
-                    for k, v in data.get("checks", {}).items()
-                    if isinstance(v, dict) and v.get("status") != "ok"
-                ]
-                return False, f"{status}:{','.join(failed)}" if failed else status
-            return True, "healthy"
+            body = resp.read(4096)
     except Exception:
         return False, "unreachable"
+
+    try:
+        payload = json.loads(body)
+    except (ValueError, TypeError):
+        return True, "healthy"  # 200 with non-JSON body — treat as up
+    if isinstance(payload, dict):
+        status = str(payload.get("status", "healthy")).lower()
+        if status in ("degraded", "unhealthy", "error", "down"):
+            return False, status
+    return True, "healthy"
 
 
 def check_services() -> list[dict]:
@@ -239,11 +240,18 @@ def check_services() -> list[dict]:
     alerts = []
     now_ts = _now().isoformat()
 
+    # Prune counters for services that are no longer monitored (e.g.
+    # decommissioned ones like vortex-backend/navigator) so alert_consecutive
+    # .json doesn't accumulate stale keys reported forever by downstream tools.
+    monitored = {name for name, _ in SERVICES}
+    for stale in [k for k in consec if k not in monitored]:
+        del consec[stale]
+
     for name, url in SERVICES:
         if _is_silenced(name):
             continue
         healthy, detail = check_service(name, url)
-        threshold = CONSECUTIVE_THRESHOLDS.get(name, CONSECUTIVE_THRESHOLD)
+        threshold = CONSECUTIVE_THRESHOLD
 
         if healthy:
             # Reset consecutive failure counter
