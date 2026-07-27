@@ -698,6 +698,45 @@ class IntelligenceMixin:
                     for n in lessons
                 ]
 
+        # similar_work is normally sourced from the spec knowledge base, which
+        # is unpopulated on this install — leaving the field (and the
+        # lessons/patterns UnifiedIntelligence derives from it) empty. Fill it
+        # from the project's graph memories (lessons + patterns) as prior work,
+        # deduped against the ids already surfaced above so nothing double-counts.
+        if not result_dict.get("similar_work"):
+            placed_ids = seen_ids | {
+                p.get("id")
+                for key in ("applicable_patterns", "lessons")
+                for p in result_dict.get(key, [])
+                if p.get("id")
+            }
+            sw_nodes = []
+            for node_type in (NodeType.LESSON, NodeType.PATTERN):
+                for node in graph.get_nodes_by_type(node_type):
+                    if (node.data or {}).get("project") != project or node.id in placed_ids:
+                        continue
+                    placed_ids.add(node.id)
+                    sw_nodes.append(node)
+                    if len(sw_nodes) >= limit:
+                        break
+                if len(sw_nodes) >= limit:
+                    break
+            if sw_nodes:
+                result_dict["similar_work"] = [
+                    {
+                        "id": n.id,
+                        "title": n.name,
+                        "type": n.type.value,
+                        "similarity_score": 0.5,
+                        "project": (n.data or {}).get("project", project),
+                        "summary": (n.data or {}).get(
+                            "lesson", (n.data or {}).get("content", n.name)
+                        ),
+                        "source": "graph",
+                    }
+                    for n in sw_nodes
+                ]
+
     def query_intelligence(
         self,
         request: str,
