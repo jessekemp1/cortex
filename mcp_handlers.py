@@ -74,12 +74,19 @@ def record_learning_decision(
     rationale: str = "",
     project: str = "",
     source: str = "mcp",
+    supersedes: str = "",
 ) -> Dict[str, Any]:
     """Record a learning-loop decision to ~/.cortex/decisions.jsonl.
 
     Canonical schema matches POST /decisions/learning (decision/context/
     alternatives/rationale/timestamp/source + decision_id). `project` is
     included only when non-empty (back-compat: older entries lack the key).
+
+    When `supersedes` names a prior decision_id, the new entry records the link
+    and an append-only tombstone stamps ``superseded_by`` on the old id so the
+    retriever can drop the stale entry from recall. The original line is never
+    mutated (append-only, audit-safe) — this is the RDF-triple supersession
+    pattern the P1 curation research called for.
 
     Never loses a decision: on primary-append failure the entry lands in
     the spool instead and the response carries `"spooled": true`.
@@ -102,9 +109,37 @@ def record_learning_decision(
     }
     if project:
         entry["project"] = project
+    if supersedes:
+        entry["supersedes"] = supersedes
+
+    # P1 curation: score the decision so recall can down-weight noise (test rows,
+    # empty template entries). Annotate only — NEVER drop, so the never-lose-a-
+    # decision guarantee holds and the audit trail stays complete. Import lazily
+    # and defensively: a scoring failure must never block recording.
+    try:
+        from intelligence.memory.importance import _importance_score, IMPORTANCE_FLOOR
+
+        score = _importance_score(decision, context, alternatives, rationale)
+        entry["importance"] = score
+        if score < IMPORTANCE_FLOOR:
+            entry["low_signal"] = True
+    except Exception:
+        pass
 
     try:
         _append_line(_decisions_file(), entry)
+        if supersedes:
+            # Append-only tombstone: mark the old id superseded without mutating
+            # its original line. A tombstone failure must not fail the record.
+            try:
+                _append_line(_decisions_file(), {
+                    "decision_id": supersedes,
+                    "superseded_by": decision_id,
+                    "timestamp": entry["timestamp"],
+                    "source": "supersede",
+                })
+            except Exception:
+                pass
         return {
             "recorded": True,
             "decision_id": decision_id,

@@ -501,6 +501,7 @@ def cortex_record_decision(
     alternatives: str = "",
     rationale: str = "",
     project: str = "",
+    supersedes: str = "",
 ) -> str:
     """Record a decision for the Cortex learning loop.
 
@@ -514,6 +515,10 @@ def cortex_record_decision(
         rationale: Why this option was chosen over alternatives.
         project: Project this decision belongs to. Pass it whenever known —
             untagged decisions are much harder to recall per-project later.
+        supersedes: Optional decision_id of a prior decision this one replaces.
+            The old decision is tombstoned so it drops out of recall — use it
+            when a decision reverses or updates an earlier one, instead of
+            leaving both to compete in retrieval.
     """
     try:
         import mcp_handlers
@@ -524,6 +529,7 @@ def cortex_record_decision(
             alternatives=alternatives,
             rationale=rationale,
             project=project,
+            supersedes=supersedes,
         )
     except Exception as e:
         result = {"error": str(e)}

@@ -68,6 +68,41 @@ def test_record_includes_project_when_given(state_dir):
     assert entry["project"] == "cortex"
 
 
+# ─── P1 curation: importance annotation ────────────────────────────────
+
+
+def test_record_annotates_importance(state_dir):
+    """Every written entry carries an importance score."""
+    mcp_handlers.record_learning_decision(
+        decision="Scope the untag-durability answer to auto-tagging-off so it matches the calibrated PM docs",
+        context="Clio DC follow-up; unconditional wording was wrong under auto-tagging-on",
+        alternatives="Leave it unconditional",
+        rationale="Durability only holds with auto-tagging off",
+    )
+    (entry,) = _lines(state_dir / "decisions.jsonl")
+    assert "importance" in entry
+    assert 1 <= entry["importance"] <= 10
+
+
+def test_low_signal_flagged_but_still_recorded(state_dir):
+    """A thin/template decision is flagged low_signal — but NEVER dropped."""
+    result = mcp_handlers.record_learning_decision(decision="test integration")
+    assert result["recorded"] is True
+    (entry,) = _lines(state_dir / "decisions.jsonl")  # still exactly one line written
+    assert entry.get("low_signal") is True
+
+
+def test_rich_decision_not_low_signal(state_dir):
+    mcp_handlers.record_learning_decision(
+        decision="Adopt write-path importance filtering plus supersession for the cortex decision store",
+        context="Research showed a store that only grows recalls worse; recall was returning empty similar_work",
+        alternatives="Keep appending everything; delete old rows on a TTL job",
+        rationale="Annotate-and-downweight preserves the audit trail while fixing recall precision",
+    )
+    (entry,) = _lines(state_dir / "decisions.jsonl")
+    assert not entry.get("low_signal", False)
+
+
 def test_decision_ids_unique_at_second_resolution(state_dir):
     """uuid ids fix the old dec_{int(time.time())} collision."""
     ids = {

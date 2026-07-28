@@ -445,5 +445,61 @@ class TestPatternMemoryIntegration:
                 assert "hybrid_stats" in stats
 
 
+class TestDecisionCuration:
+    """P1 curation: superseded decisions dropped from recall; importance/decay
+    weights populated for the RRF merge."""
+
+    def _seed(self, tmp_path, entries):
+        import json as _json
+        p = tmp_path / "decisions.jsonl"
+        p.write_text("\n".join(_json.dumps(e) for e in entries) + "\n")
+        return p
+
+    def _reload_with(self, path):
+        # Point the module at our seeded file and bust the mtime cache.
+        _hr_module._DECISIONS_PATH = path
+        _hr_module._decision_cache = None
+        _hr_module._decision_cache_mtime = None
+        try:
+            return _hr_module._load_decision_patterns()
+        finally:
+            _hr_module._DECISIONS_PATH = Path("/nonexistent/decisions.jsonl")
+            _hr_module._decision_cache = None
+            _hr_module._decision_cache_mtime = None
+
+    def test_superseded_decision_excluded(self, tmp_path):
+        entries = [
+            {"decision_id": "dec_old", "decision": "original call about the schema", "timestamp": datetime.now().isoformat()},
+            {"decision_id": "dec_new", "decision": "revised call about the schema", "supersedes": "dec_old", "timestamp": datetime.now().isoformat()},
+            {"decision_id": "dec_old", "superseded_by": "dec_new", "timestamp": datetime.now().isoformat(), "source": "supersede"},
+        ]
+        patterns = self._reload_with(self._seed(tmp_path, entries))
+        ids = {p.id for p in patterns}
+        assert "decision:dec_new" in ids
+        assert "decision:dec_old" not in ids  # superseded original dropped
+        # tombstone line must not produce a pattern either
+        assert len(patterns) == 1
+
+    def test_low_importance_weighted_below_high(self, tmp_path):
+        ts = datetime.now().isoformat()
+        entries = [
+            {"decision_id": "dec_low", "decision": "low signal decision text here", "importance": 2, "low_signal": True, "timestamp": ts},
+            {"decision_id": "dec_high", "decision": "high signal decision text here", "importance": 9, "timestamp": ts},
+        ]
+        self._reload_with(self._seed(tmp_path, entries))
+        w = _hr_module._decision_weights
+        assert w["decision:dec_high"] > w["decision:dec_low"]
+
+    def test_missing_importance_defaults_neutral(self, tmp_path):
+        # Pre-P1 entries (no importance key) get a neutral weight, so
+        # un-backfilled history isn't penalised.
+        ts = datetime.now().isoformat()
+        entries = [{"decision_id": "dec_old", "decision": "legacy decision without a score", "timestamp": ts}]
+        self._reload_with(self._seed(tmp_path, entries))
+        # importance 5 → imp_factor 0.8; fresh → decay ~1.0
+        w = _hr_module._decision_weights["decision:dec_old"]
+        assert 0.75 <= w <= 0.85
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

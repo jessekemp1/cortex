@@ -121,12 +121,69 @@ def run_once(lookback_minutes: int = 90) -> dict:
     return report
 
 
+def backfill_importance() -> dict:
+    """One-time (idempotent) P1 backfill: score decisions that predate the
+    importance heuristic. Entries already carrying `importance` are left as-is,
+    tombstones are skipped. Writes a `.bak` and rewrites atomically (temp +
+    rename). Safe to run repeatedly — a second run is a no-op.
+    """
+    from state_paths import get_cortex_dir
+    from intelligence.memory.importance import _importance_score, IMPORTANCE_FLOOR
+
+    path = get_cortex_dir() / "decisions.jsonl"
+    if not path.exists():
+        return {"job": "backfill_importance", "status": "no_file", "scored": 0}
+
+    lines = path.read_text().splitlines()
+    scored = skipped = flagged = 0
+    out = []
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        try:
+            d = json.loads(s)
+        except json.JSONDecodeError:
+            out.append(line)  # preserve unparseable lines verbatim
+            skipped += 1
+            continue
+        # Skip tombstones and already-scored entries (idempotent).
+        if d.get("superseded_by") or "importance" in d or not d.get("decision"):
+            out.append(json.dumps(d))
+            skipped += 1
+            continue
+        score = _importance_score(
+            d.get("decision", ""), d.get("context", ""),
+            d.get("alternatives", ""), d.get("rationale", ""),
+        )
+        d["importance"] = score
+        if score < IMPORTANCE_FLOOR:
+            d["low_signal"] = True
+            flagged += 1
+        out.append(json.dumps(d))
+        scored += 1
+
+    if scored:
+        path.with_suffix(".jsonl.bak").write_text("\n".join(lines) + "\n")
+        tmp = path.with_suffix(".jsonl.tmp")
+        tmp.write_text("\n".join(out) + "\n")
+        tmp.replace(path)  # atomic
+
+    return {"job": "backfill_importance", "status": "ok",
+            "scored": scored, "skipped": skipped, "flagged_low_signal": flagged}
+
+
 def main() -> int:
     import argparse
 
     p = argparse.ArgumentParser(description="Cortex memory-loop maintenance")
     p.add_argument("--lookback-minutes", type=int, default=90)
+    p.add_argument("--backfill-importance", action="store_true",
+                   help="One-time P1 backfill: score decisions lacking an importance key (idempotent)")
     args = p.parse_args()
+    if args.backfill_importance:
+        print(json.dumps(backfill_importance(), indent=2))
+        return 0
     print(json.dumps(run_once(lookback_minutes=args.lookback_minutes), indent=2))
     return 0
 
