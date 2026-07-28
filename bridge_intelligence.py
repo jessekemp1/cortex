@@ -125,7 +125,9 @@ class IntelligenceMixin:
         if self.hybrid_retriever and len(results) < limit:
             try:
                 remaining = limit - len(results)
-                hybrid_results = self.hybrid_retriever.search(query, limit=remaining, alpha=0.5)
+                hybrid_results = self.hybrid_retriever.search(
+                    query, limit=remaining, alpha=0.5, project=project
+                )
                 for pattern, score in hybrid_results:
                     result = {
                         "title": pattern.title,
@@ -845,7 +847,9 @@ class IntelligenceMixin:
             # 2. HybridRetriever: Add related patterns
             if self.hybrid_retriever:
                 try:
-                    hybrid_results = self.hybrid_retriever.search(request, limit=3, alpha=0.5)
+                    hybrid_results = self.hybrid_retriever.search(
+                        request, limit=3, alpha=0.5, project=project
+                    )
                     related_patterns = [
                         {
                             "id": pattern.id,
@@ -1020,7 +1024,9 @@ class IntelligenceMixin:
         # 2. HybridRetriever: Try hybrid search first
         if self.hybrid_retriever:
             try:
-                hybrid_results = self.hybrid_retriever.search(query, limit=limit, alpha=0.5)
+                hybrid_results = self.hybrid_retriever.search(
+                    query, limit=limit, alpha=0.5, project=project
+                )
                 for pattern, score in hybrid_results:
                     result = {
                         "spec_name": pattern.title,

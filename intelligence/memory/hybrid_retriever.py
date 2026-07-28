@@ -419,8 +419,31 @@ class HybridRetriever:
         except Exception as e:
             logger.error(f"Failed to save embedding cache: {e}")
 
+    def _scoped_index(
+        self, project: Optional[str]
+    ) -> Tuple[List[Pattern], Optional[np.ndarray], PatternSearcher]:
+        """Return patterns, embeddings, and BM25 searcher for an optional project scope."""
+        if not project:
+            return self.patterns, self.pattern_embeddings, self.bm25_searcher
+
+        indices = [i for i, p in enumerate(self.patterns) if p.project == project]
+        if not indices:
+            return [], None, PatternSearcher([])
+
+        scoped_patterns = [self.patterns[i] for i in indices]
+        scoped_embeddings = (
+            self.pattern_embeddings[indices]
+            if self.pattern_embeddings is not None
+            else None
+        )
+        return scoped_patterns, scoped_embeddings, PatternSearcher(scoped_patterns)
+
     def search(
-        self, query: str, limit: int = 10, alpha: float = 0.5
+        self,
+        query: str,
+        limit: int = 10,
+        alpha: float = 0.5,
+        project: Optional[str] = None,
     ) -> List[Tuple[Pattern, float]]:
         """
         Hybrid search with configurable BM25/embedding weight.
@@ -432,6 +455,8 @@ class HybridRetriever:
                    0.0 = Pure BM25 (existing behavior)
                    0.5 = Equal weight to both methods
                    1.0 = Pure semantic search
+            project: When set, restrict results to patterns tagged with this
+                project (decisions, digests, and git-derived patterns).
 
         Returns:
             List of (Pattern, score) tuples sorted by score
@@ -439,8 +464,12 @@ class HybridRetriever:
         # Validate alpha
         alpha = max(0.0, min(1.0, alpha))
 
+        patterns, pattern_embeddings, bm25_searcher = self._scoped_index(project)
+        if not patterns:
+            return []
+
         # Get BM25 results
-        bm25_results = self.bm25_searcher.search(query, limit=limit * 2)
+        bm25_results = bm25_searcher.search(query, limit=limit * 2)
 
         # If alpha is 0, return BM25 only (backward compatible)
         if alpha == 0.0:
@@ -448,8 +477,13 @@ class HybridRetriever:
 
         # Get embedding results if available
         embedding_results = []
-        if self.embeddings_available and self.pattern_embeddings is not None:
-            embedding_results = self._semantic_search(query, limit=limit * 2)
+        if self.embeddings_available and pattern_embeddings is not None:
+            embedding_results = self._semantic_search(
+                query,
+                limit=limit * 2,
+                patterns=patterns,
+                pattern_embeddings=pattern_embeddings,
+            )
 
             # If alpha is 1.0, return embeddings only
             if alpha == 1.0:
@@ -457,7 +491,8 @@ class HybridRetriever:
 
         # If no embedding results, fall back to BM25
         if not embedding_results:
-            logger.warning("Embeddings not available, falling back to BM25 only")
+            if alpha > 0.0:
+                logger.warning("Embeddings not available, falling back to BM25 only")
             return bm25_results[:limit]
 
         # Merge results using Reciprocal Rank Fusion
@@ -465,7 +500,13 @@ class HybridRetriever:
 
         return merged
 
-    def _semantic_search(self, query: str, limit: int = 10) -> List[Tuple[Pattern, float]]:
+    def _semantic_search(
+        self,
+        query: str,
+        limit: int = 10,
+        patterns: Optional[List[Pattern]] = None,
+        pattern_embeddings: Optional[np.ndarray] = None,
+    ) -> List[Tuple[Pattern, float]]:
         """
         Semantic search using embeddings.
 
@@ -476,7 +517,14 @@ class HybridRetriever:
         Returns:
             List of (Pattern, score) tuples sorted by similarity
         """
-        if not self.embeddings_available or self.pattern_embeddings is None:
+        patterns = patterns if patterns is not None else self.patterns
+        pattern_embeddings = (
+            pattern_embeddings
+            if pattern_embeddings is not None
+            else self.pattern_embeddings
+        )
+
+        if not self.embeddings_available or pattern_embeddings is None:
             return []
 
         try:
@@ -487,8 +535,8 @@ class HybridRetriever:
             # Compute cosine similarity
             # Normalize vectors
             query_norm = query_vector / (np.linalg.norm(query_vector) + 1e-10)
-            pattern_norms = self.pattern_embeddings / (
-                np.linalg.norm(self.pattern_embeddings, axis=1, keepdims=True) + 1e-10
+            pattern_norms = pattern_embeddings / (
+                np.linalg.norm(pattern_embeddings, axis=1, keepdims=True) + 1e-10
             )
 
             # Compute similarities
@@ -500,8 +548,8 @@ class HybridRetriever:
             # Build results
             results = []
             for idx in top_indices:
-                if idx < len(self.patterns):
-                    pattern = self.patterns[idx]
+                if idx < len(patterns):
+                    pattern = patterns[idx]
                     # Convert cosine similarity [-1, 1] to [0, 1]
                     score = (similarities[idx] + 1.0) / 2.0
                     results.append((pattern, float(score)))

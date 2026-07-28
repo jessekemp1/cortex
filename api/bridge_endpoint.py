@@ -127,6 +127,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global auth — same policy as /signal/absorb, applied to all non-health routes.
+from api.auth import BridgeAuthMiddleware
+
+app.add_middleware(BridgeAuthMiddleware)
+
 # Initialize Cortex bridge (lazy load)
 _bridge: Optional[CortexBridge] = None
 _anomaly_manager: Optional[OrchestrationAnomalyManager] = None
@@ -821,42 +826,6 @@ app.include_router(_guardian_router)
 # ============================================================================
 
 
-def _get_api_key() -> Optional[str]:
-    """Read configured API key from env or ~/.cortex/api_key."""
-    key = os.environ.get("CORTEX_API_KEY")
-    if key:
-        return key
-    key_file = Path.home() / ".cortex" / "api_key"
-    if key_file.is_file():
-        return key_file.read_text().strip() or None
-    return None
-
-
-def _verify_signal_auth(request: "Request") -> None:
-    """Verify caller is authorised to inject signals.
-
-    Policy:
-      - If CORTEX_API_KEY (env or file) is set, require Bearer token match.
-      - If no key configured, allow localhost-only (127.0.0.1 / ::1).
-    Raises HTTPException(401) on failure.
-    """
-    api_key = _get_api_key()
-    if api_key:
-        auth_header = request.headers.get("authorization", "")
-        if not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing Bearer token")
-        if auth_header[7:] != api_key:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-    else:
-        # No key configured — restrict to localhost
-        client_host = request.client.host if request.client else None
-        if client_host not in ("127.0.0.1", "::1", "localhost"):
-            raise HTTPException(
-                status_code=401,
-                detail="No API key configured; only localhost access allowed",
-            )
-
-
 class SignalAbsorbRequest(BaseModel):
     """Request model for absorbing a workspace signal via HTTP."""
 
@@ -893,7 +862,7 @@ async def absorb_signal(request: Request, payload: SignalAbsorbRequest) -> Dict[
     Fan-out to WorkstreamOrchestrator, SynthesisCore, and bus event log.
     Returns immediately — never blocks the caller.
 
-    Auth: Bearer token (CORTEX_API_KEY env / ~/.cortex/api_key) or localhost-only.
+    Auth: enforced globally by BridgeAuthMiddleware (Bearer token or localhost-only).
 
     Example:
         POST /signal/absorb
@@ -901,7 +870,6 @@ async def absorb_signal(request: Request, payload: SignalAbsorbRequest) -> Dict[
         {"source": "iterm", "project": "vortex", "content_type": "insight",
          "content": "HRRR wins wind_speed at all lead times today"}
     """
-    _verify_signal_auth(request)
     try:
         from cortex.engines.workstream_orchestrator import (
             SignalSource,

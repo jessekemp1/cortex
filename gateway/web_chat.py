@@ -18,7 +18,7 @@ import json
 import logging
 import traceback
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 log = logging.getLogger("cortex.gateway.web_chat")
@@ -33,6 +33,14 @@ router = APIRouter(tags=["chat"])
 @router.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
     """WebSocket endpoint for real-time chat with Cortex intelligence."""
+    from api.auth import verify_websocket_auth
+
+    try:
+        verify_websocket_auth(websocket)
+    except HTTPException:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     log.info("Web chat client connected")
 

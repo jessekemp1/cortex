@@ -189,6 +189,18 @@ class TestHybridRetriever:
         top_pattern, top_score = results[0]
         assert "async" in top_pattern.keywords or "database" in top_pattern.keywords
 
+    def test_search_scoped_to_project(self, sample_patterns):
+        """Project filter excludes patterns from other projects."""
+        retriever = HybridRetriever(sample_patterns, embeddings_client=None)
+        results = retriever.search("async database", limit=10, alpha=0.0, project="proj1")
+        assert results
+        assert all(pattern.project == "proj1" for pattern, _ in results)
+
+    def test_search_unknown_project_returns_empty(self, sample_patterns):
+        retriever = HybridRetriever(sample_patterns, embeddings_client=None)
+        results = retriever.search("async", limit=10, alpha=0.0, project="nonexistent")
+        assert results == []
+
     def test_embedding_only_search(self, sample_patterns, mock_embeddings_client, temp_cache_dir):
         """Test embedding-only search (alpha=1.0)."""
         retriever = HybridRetriever(
