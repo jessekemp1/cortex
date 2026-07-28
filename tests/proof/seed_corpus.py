@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -261,6 +262,62 @@ def seed_decisions(state_dir: Path, include_distractors: bool = True) -> List[Di
         )
         recorded.append({**d, "decision_id": res["decision_id"]})
     return recorded
+
+
+def _recall_tags(d: Dict[str, Any]) -> List[str]:
+    """Tags that let BM25 index a decision by its distinctive token + query terms.
+
+    Real recorded decisions carry no tags today (``cortex_record_decision`` does
+    not extract or accept them), and ``pattern_indexer._load_decisions`` sets a
+    decision pattern's ``keywords`` to ``set(tags)`` ONLY — it does not extract
+    keywords from the decision title/description the way git commits do. So an
+    untagged decision is invisible to the BM25 half of the retriever. This helper
+    supplies the keywords a well-indexed decision would carry, so the recall
+    benchmark measures ranking quality rather than that indexing gap (the gap
+    itself is documented as a live-audit finding).
+    """
+    tags = [d["token"]]
+    query = d.get("query") or ""
+    tags += [w.strip("?.,").lower() for w in query.split() if len(w) > 3][:5]
+    return tags
+
+
+def seed_decisions_for_recall(state_dir: Path, include_distractors: bool = True) -> List[Dict[str, Any]]:
+    """Write seed decisions WITH tags directly to ``state_dir/decisions.jsonl``.
+
+    Bypasses ``record_learning_decision`` (which drops tags) so the recorded
+    decision patterns carry keywords the BM25 retriever can index. Used by the
+    decisions-included recall benchmark. Returns the written rows with their
+    minted ``decision_id``.
+    """
+    _point_state_dir(state_dir)
+    _ensure_repo_on_path()
+
+    rows = list(SEED_DECISIONS)
+    if include_distractors:
+        rows = rows + list(DISTRACTOR_DECISIONS)
+
+    now = datetime.now()
+    path = Path(state_dir) / "decisions.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    written: List[Dict[str, Any]] = []
+    with open(path, "w", encoding="utf-8") as f:
+        for i, d in enumerate(rows):
+            did = f"dec_{uuid.uuid4().hex[:12]}"
+            entry = {
+                "decision_id": did,
+                "decision": d["decision"],
+                "context": d.get("context", ""),
+                "alternatives": d.get("alternatives", ""),
+                "rationale": d.get("rationale", ""),
+                "timestamp": (now - timedelta(seconds=i)).isoformat(),
+                "source": "prooftest",
+                "project": d.get("project", ""),
+                "tags": _recall_tags(d),
+            }
+            f.write(json.dumps(entry) + "\n")
+            written.append({**d, "decision_id": did})
+    return written
 
 
 def seed_outcomes(state_dir: Path) -> List[Dict[str, Any]]:
