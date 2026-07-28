@@ -93,6 +93,7 @@ class LearningDecisionRequest(BaseModel):
     alternatives: str = Field(default="", description="Other options considered")
     rationale: str = Field(default="", description="Why this option was chosen over alternatives")
     project: str = Field(default="", description="Project this decision belongs to (optional)")
+    supersedes: str = Field(default="", description="decision_id of a prior decision this one replaces (tombstoned out of recall)")
 
 
 @router.post("/decisions/learning")
@@ -115,6 +116,7 @@ async def record_learning_decision(req: LearningDecisionRequest) -> Dict[str, An
             alternatives=req.alternatives,
             rationale=req.rationale,
             project=req.project,
+            supersedes=req.supersedes,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to record learning decision: {e}")
