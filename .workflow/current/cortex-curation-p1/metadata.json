@@ -1,0 +1,26 @@
+{
+  "task": "cortex decision-store curation (P1): write-path importance filter + supersession",
+  "classification": "improvement",
+  "created": "2026-07-28T00:00:00Z",
+  "status": "implemented_pending_gate",
+  "deviations": "Write-path annotation tests landed in tests/test_mcp_handlers.py (the correct home for the writer) rather than tests/test_learning.py as the plan named; supersession got its own tests/test_supersession.py.",
+  "files_to_create": [
+    "intelligence/memory/importance.py",
+    "tests/test_importance_scoring.py",
+    "tests/test_supersession.py"
+  ],
+  "files_to_modify": [
+    "mcp_handlers.py",
+    "mcp_server.py",
+    "api/routes/decisions.py",
+    "intelligence/memory/hybrid_retriever.py",
+    "scripts/memory_maintenance.py",
+    "tests/test_hybrid_retriever.py",
+    "tests/test_learning.py",
+    "tests/test_retrieval_benchmark.py"
+  ],
+  "waves": 5,
+  "shippable_unit": "waves 1-4",
+  "source_decisions": ["dec_824f8f0f2bd4", "dec_e7ba8f97c2fd", "dec_9c722dff389e"],
+  "repo": "cortex"
+}
