@@ -651,8 +651,156 @@ def cortex_doctor() -> str:
     except Exception as e:
         checks.append({"check": "decision spool empty", "pass": False, "detail": str(e)})
 
+    # ── Retrieval correctness ───────────────────────────────────────────────
+    # The checks above assert infrastructure (deps present, bridge listening).
+    # They all passed while semantic recall was silently dead for every MCP
+    # query, because nothing asserted that retrieval actually *works*. These
+    # three close that gap. They compare state for CONSISTENCY rather than
+    # probing the network, so they stay fast and don't fail merely because
+    # Ollama is briefly down.
+    checks.extend(_doctor_retrieval_checks())
+
     all_pass = all(c["pass"] for c in checks)
     return json.dumps({"checks": checks, "all_pass": all_pass}, indent=2)
+
+
+def _doctor_retrieval_checks() -> list:
+    """Assert semantic retrieval is wired and its cache is usable.
+
+    Reads only the small pickle *metadata* file — never ``embeddings.pkl``
+    (multi-MB) — so ``cortex_doctor`` stays fast.
+
+    Returns a list of check dicts in the same shape as ``cortex_doctor``'s.
+    """
+    import pickle
+
+    results = []
+    meta_path = Path.home() / ".cortex" / "patterns" / "embeddings_meta.pkl"
+    decisions_path = Path.home() / ".cortex" / "decisions.jsonl"
+
+    cached_backend = None
+    indexed_ids = []
+    indexed_count = None
+    if meta_path.exists():
+        try:
+            with open(meta_path, "rb") as f:
+                meta = pickle.load(f)
+            cached_backend = meta.get("backend")
+            indexed_ids = meta.get("pattern_ids", []) or []
+            indexed_count = meta.get("pattern_count")
+        except Exception as e:  # corrupt/unreadable cache is itself a finding
+            results.append(
+                {
+                    "check": "embedding cache readable",
+                    "pass": False,
+                    "detail": f"{meta_path.name}: {e}",
+                }
+            )
+
+    # 1. Live embedding backend must match the one the cache was built with.
+    #    A mismatch means vectors on disk are incomparable to freshly generated
+    #    ones — the condition that would otherwise trigger a full regeneration
+    #    over a good cache.
+    live_backend = None
+    try:
+        from intelligence.embeddings_client import EmbeddingsClient
+
+        live_backend = EmbeddingsClient().get_embedding_info().get("backend")
+    except Exception as e:
+        live_backend = f"unavailable: {e}"
+
+    if cached_backend is None:
+        results.append(
+            {
+                "check": "embeddings backend matches cache",
+                "pass": True,
+                "detail": f"no cache yet; live backend {live_backend}",
+            }
+        )
+    else:
+        matches = cached_backend == live_backend
+        results.append(
+            {
+                "check": "embeddings backend matches cache",
+                "pass": matches,
+                "detail": (
+                    f"live={live_backend} cached={cached_backend}"
+                    + ("" if matches else " — MISMATCH: recall degrades to keyword-only")
+                ),
+            }
+        )
+
+    # 2. The index must actually cover the decision store. This is the check
+    #    that would have caught mis-reading the metadata dict's key count as
+    #    the item count.
+    n_decisions = 0
+    if decisions_path.exists():
+        try:
+            with open(decisions_path, encoding="utf-8") as f:
+                n_decisions = sum(1 for line in f if line.strip())
+        except Exception:
+            n_decisions = 0
+    n_indexed_decisions = sum(1 for i in indexed_ids if str(i).startswith("decision:"))
+    if n_decisions == 0:
+        coverage_pass = True
+        coverage_detail = "no decisions recorded yet"
+    else:
+        # Tombstoned/superseded and low-signal decisions are intentionally
+        # dropped from the index, so exact parity is not expected — but a zero
+        # or tiny index against a populated store means indexing is broken.
+        coverage_pass = n_indexed_decisions > 0 and n_indexed_decisions >= n_decisions * 0.5
+        coverage_detail = (
+            f"{n_indexed_decisions} decisions indexed of {n_decisions} recorded"
+            f" (total patterns indexed: {indexed_count})"
+        )
+        if not coverage_pass:
+            coverage_detail += " — index does not cover the store; run a reindex"
+    results.append(
+        {
+            "check": "embedding index covers decisions",
+            "pass": coverage_pass,
+            "detail": coverage_detail,
+        }
+    )
+
+    # 3. The bridge must wire an embeddings client into its retriever. This is
+    #    the exact wiring that was broken: bridge.py constructed
+    #    HybridRetriever(patterns=...) with no client, so embeddings_available
+    #    was False and every MCP query silently ran keyword-only.
+    #
+    #    Asserted by static inspection of the call sites rather than by building
+    #    a retriever: constructing one loads the full pattern set and embedding
+    #    cache (tens of seconds), which is far too slow for a health check.
+    try:
+        import inspect
+
+        import bridge as _bridge_mod
+
+        src = inspect.getsource(_bridge_mod)
+        bad_calls = src.count("HybridRetriever(patterns=")
+        wired = bad_calls == 0 and "EmbeddingsClient" in src
+        results.append(
+            {
+                "check": "bridge wires embeddings into retrieval",
+                "pass": wired,
+                "detail": (
+                    "embeddings client passed at all call sites"
+                    if wired
+                    else f"{bad_calls} HybridRetriever call site(s) missing "
+                    "embeddings_client — MCP recall degrades to keyword-only"
+                ),
+            }
+        )
+    except Exception as e:
+        results.append(
+            {
+                "check": "bridge wires embeddings into retrieval",
+                "pass": False,
+                "detail": f"could not inspect bridge call sites: {e}",
+            }
+        )
+
+    return results
 
 
 # ── Resources ──

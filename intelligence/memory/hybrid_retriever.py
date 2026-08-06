@@ -385,9 +385,26 @@ class HybridRetriever:
                 # backend is unknown (e.g. a mocked client), fall back to the
                 # count+id check rather than regenerating spuriously.
                 current_backend = self._current_backend()
+                cached_backend = meta.get("backend")
+
+                # Definite backend mismatch: both are strings but they differ.
+                # Log warning, skip regeneration, and leave pattern_embeddings as None.
+                if (
+                    isinstance(current_backend, str)
+                    and isinstance(cached_backend, str)
+                    and current_backend != cached_backend
+                ):
+                    logger.warning(
+                        f"Embedding cache backend mismatch: cached={cached_backend} "
+                        f"vs current={current_backend}. Reverting to keyword-only (BM25) retrieval. "
+                        f"Cached vectors will NOT be regenerated."
+                    )
+                    self.embeddings_available = False
+                    return
+
                 backend_ok = (
                     not isinstance(current_backend, str)
-                    or meta.get("backend") == current_backend
+                    or cached_backend == current_backend
                 )
                 if meta.get("pattern_count") == len(self.patterns) and backend_ok:
                     # Check if pattern IDs match
