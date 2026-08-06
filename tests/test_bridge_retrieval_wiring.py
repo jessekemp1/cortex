@@ -88,46 +88,50 @@ def temp_cache_dir(tmp_path):
 class TestBridgeRetrievalWiring:
     """Tests for HybridRetriever construction wiring in bridge.py context."""
 
-    def test_hybrid_retriever_wiring_reproduces_bridge_bug(
-        self, sample_patterns, mock_embeddings_client, temp_cache_dir
-    ):
+    def test_bridge_passes_embeddings_client_at_every_call_site(self):
+        """bridge.py must pass an embeddings_client wherever it builds a retriever.
+
+        This asserts against the REAL source of bridge.py rather than
+        re-constructing retrievers by hand, so it fails if the fix is ever
+        reverted. An earlier version of this test built its own buggy and fixed
+        retrievers side by side; that documented the mechanism but passed with
+        the fix stashed, making it useless as a regression guard.
+
+        The bug it guards: bridge.py called
+        ``HybridRetriever(patterns=pm.patterns)`` with no embeddings_client, so
+        ``embeddings_available`` was False and every MCP ``cortex_intelligence``
+        query silently degraded to BM25 keyword-only.
         """
-        Reproduce the wiring bug in bridge.py L298 and L305.
+        import inspect
 
-        bridge.py does:
-          self.hybrid_retriever = HybridRetriever(patterns=pm.patterns)
-          self.hybrid_retriever = HybridRetriever(patterns=patterns)
+        import bridge as bridge_mod
 
-        Both OMIT embeddings_client parameter, so embeddings_available is False
-        even when embeddings are available. This test FAILS before the fix,
-        demonstrating the bug.
+        src = inspect.getsource(bridge_mod)
 
-        Expected: embeddings_available should be True when an embeddings_client
-                  is properly wired.
-        Actual: embeddings_available is False (wiring bug).
+        # The keyword-only form is the bug signature: passing `patterns=` as a
+        # kwarg with nothing after it means no client was supplied.
+        unwired = src.count("HybridRetriever(patterns=")
+        assert unwired == 0, (
+            f"{unwired} HybridRetriever call site(s) in bridge.py omit "
+            "embeddings_client — MCP recall silently degrades to keyword-only"
+        )
+
+        # And a client must actually be constructed for those call sites to use.
+        assert "EmbeddingsClient" in src, (
+            "bridge.py must import and construct EmbeddingsClient to pass into "
+            "HybridRetriever"
+        )
+
+    def test_retriever_without_client_has_no_semantic_search(self, sample_patterns):
+        """Document the underlying mechanism the wiring bug exploited.
+
+        Kept separate from the regression guard above: this pins the
+        HybridRetriever contract (no client ⇒ no semantic path), which is
+        legitimate behaviour, not a bug.
         """
-        # This is HOW bridge.py currently constructs the retriever (WRONG)
-        retriever_buggy = HybridRetriever(patterns=sample_patterns)
-
-        # Before fix: embeddings_available is False (the bug)
-        assert retriever_buggy.embeddings_available is False, (
-            "BUG REPRODUCED: bridge.py constructs HybridRetriever without "
-            "embeddings_client, so embeddings_available=False even when "
-            "embeddings backend could be available"
-        )
-
-        # After fix: bridge.py should pass embeddings_client (CORRECT)
-        retriever_fixed = HybridRetriever(
-            patterns=sample_patterns,
-            embeddings_client=mock_embeddings_client,
-            cache_dir=temp_cache_dir,
-        )
-
-        # With proper wiring: embeddings_available is True
-        assert retriever_fixed.embeddings_available is True, (
-            "After fix, bridge.py must pass embeddings_client to HybridRetriever "
-            "so embeddings_available=True and semantic search works"
-        )
+        retriever = HybridRetriever(patterns=sample_patterns)
+        assert retriever.embeddings_available is False
+        assert retriever.pattern_embeddings is None
 
     def test_bridge_construction_path_loads_decision_patterns(
         self, sample_patterns, temp_cache_dir
