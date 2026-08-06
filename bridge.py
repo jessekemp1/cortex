@@ -128,12 +128,14 @@ except ImportError:
 
 # AI Engineering: Hybrid Retriever
 try:
+    from intelligence.embeddings_client import EmbeddingsClient
     from intelligence.memory.hybrid_retriever import HybridRetriever
 
     HYBRID_RETRIEVER_AVAILABLE = True
 except ImportError:
     HYBRID_RETRIEVER_AVAILABLE = False
     HybridRetriever = None
+    EmbeddingsClient = None
 
 try:
     from config import load_config
@@ -280,6 +282,13 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
         self.hybrid_retriever = None
         if HYBRID_RETRIEVER_AVAILABLE and self.config and self.config.hybrid_retrieval_enabled:
             try:
+                # Embeddings client for the retrievers built below. Without it,
+                # HybridRetriever sets embeddings_available=False and search()
+                # silently degrades to BM25 keyword-only for every MCP query.
+                # Built once: __init__ probes Ollama with a 5s timeout, so
+                # constructing per call site would double cold-start cost.
+                embeddings_client = EmbeddingsClient() if EmbeddingsClient else None
+
                 # Priority 1: Reuse TieredMemory's existing hybrid retriever (already has 397+ patterns)
                 if (
                     self.tiered_memory
@@ -295,14 +304,18 @@ class CortexBridge(IntelligenceMixin, SystemMixin):
                     if hasattr(self.tiered_memory.long_term, "pattern_memory"):
                         pm = self.tiered_memory.long_term.pattern_memory
                         if hasattr(pm, "patterns") and pm.patterns:
-                            self.hybrid_retriever = HybridRetriever(patterns=pm.patterns)
+                            self.hybrid_retriever = HybridRetriever(
+                                pm.patterns, embeddings_client
+                            )
 
                 # Priority 3: Fall back to portfolio patterns
                 if not self.hybrid_retriever and self.portfolio:
                     if hasattr(self.portfolio, "get_patterns"):
                         patterns = self.portfolio.get_patterns()
                         if patterns:
-                            self.hybrid_retriever = HybridRetriever(patterns=patterns)
+                            self.hybrid_retriever = HybridRetriever(
+                                patterns, embeddings_client
+                            )
             except Exception:
                 self.hybrid_retriever = None
 
