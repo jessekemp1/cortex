@@ -740,7 +740,13 @@ def _doctor_retrieval_checks() -> list:
                 n_decisions = sum(1 for line in f if line.strip())
         except Exception:
             n_decisions = 0
-    n_indexed_decisions = sum(1 for i in indexed_ids if str(i).startswith("decision:"))
+    # Count only ids the loader actually produces for decisions. The index also
+    # holds conversation- and git-derived patterns, so comparing the whole index
+    # against the decision store would compare mismatched populations — and could
+    # report more "indexed" than exist, which would make this check unable to fail.
+    n_indexed_decisions = sum(
+        1 for i in indexed_ids if str(i).startswith("decision:dec_")
+    )
     if n_decisions == 0:
         coverage_pass = True
         coverage_detail = "no decisions recorded yet"
@@ -748,10 +754,15 @@ def _doctor_retrieval_checks() -> list:
         # Tombstoned/superseded and low-signal decisions are intentionally
         # dropped from the index, so exact parity is not expected — but a zero
         # or tiny index against a populated store means indexing is broken.
+        # Deliberately a floor, not parity. The index accumulates across
+        # reindexes and id formats, so it can legitimately hold MORE
+        # decision-prefixed patterns than the store currently has lines. What
+        # this must catch is the opposite: an index that has collapsed to zero
+        # or a fraction of the store while queries keep silently succeeding.
         coverage_pass = n_indexed_decisions > 0 and n_indexed_decisions >= n_decisions * 0.5
         coverage_detail = (
-            f"{n_indexed_decisions} decisions indexed of {n_decisions} recorded"
-            f" (total patterns indexed: {indexed_count})"
+            f"{n_indexed_decisions} decision patterns indexed vs {n_decisions} "
+            f"store lines ({indexed_count} patterns total, all sources)"
         )
         if not coverage_pass:
             coverage_detail += " — index does not cover the store; run a reindex"
