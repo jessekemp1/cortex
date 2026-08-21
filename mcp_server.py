@@ -436,15 +436,35 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
         query: Text search across node names and data (optional).
         limit: Max results (default 10).
     """
-    params = []
-    if node_type:
-        params.append(f"node_type={node_type}")
+    # Two distinct graph surfaces, and the args pick which one:
+    #   /v2/graph/search  takes query= + limit=  (text search over the V2 graph)
+    #   /graph/query      REQUIRES node_type=    (type lookup, no text, no limit)
+    # This used to send q=/limit= to /graph/query, which accepts neither and
+    # requires node_type — so any text query returned a bare 422.
+    from urllib.parse import urlencode
+
     if query:
-        params.append(f"q={query}")
-    if limit != 10:
-        params.append(f"limit={limit}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/graph/query{qs}", timeout=15.0)
+        qs = urlencode({"query": query, "limit": limit})
+        result = _bridge_get(f"/v2/graph/search?{qs}", timeout=15.0)
+    elif node_type:
+        result = _bridge_get(
+            f"/graph/query?{urlencode({'node_type': node_type})}", timeout=15.0
+        )
+        # /graph/query has no limit param, so bound it here rather than
+        # handing the caller an unbounded node list.
+        if isinstance(result, dict) and isinstance(result.get("nodes"), list):
+            total = len(result["nodes"])
+            if total > limit:
+                result["nodes"] = result["nodes"][:limit]
+                result["truncated"] = {"returned": limit, "total": total}
+    else:
+        result = {
+            "error": "supply either query= (text search) or node_type= (type lookup)",
+            "node_types": [
+                "goal", "project", "file", "pattern",
+                "lesson", "error", "dependency", "work_item",
+            ],
+        }
     return json.dumps(result, indent=2)
 
 
@@ -469,12 +489,20 @@ def cortex_plan_create(project: str, title: str = "") -> str:
 
 
 @_experimental_tool
-def cortex_plan_progress() -> str:
-    """Get progress summary of all active plans."""
+def cortex_plan_progress(project: str = "", limit: int = 25) -> str:
+    """Get progress summary of active plans, newest first.
+
+    Args:
+        project: Optional project filter.
+        limit: Max plans to return (default 25). Bounded deliberately — the
+            unbounded form returned ~157KB across hundreds of plans, which
+            would swamp the caller's context. `total` still reports the real
+            count, so the cap is always visible.
+    """
     try:
         import mcp_handlers
 
-        result = mcp_handlers.plans_progress()
+        result = mcp_handlers.plans_progress(project=project, limit=limit)
     except Exception as e:
         result = {"error": str(e)}
     return json.dumps(result, indent=2, default=str)
@@ -540,17 +568,26 @@ def cortex_record_decision(
 
 
 @mcp.tool()
-def cortex_outcomes(project: str = "", limit: int = 20) -> str:
+def cortex_outcomes(project: str = "", limit: int = 20, exclude_types: str = "") -> str:
     """Get outcome tracking data — what shipped, what validated, what failed.
 
     Args:
         project: Filter by project name.
         limit: Max results (default 20).
+        exclude_types: Comma-separated recommendation_type prefixes to drop.
+            Pass "failure:" to hide machine-emitted operational telemetry
+            (pytest / anomaly signals) and see only decision-linked outcomes.
+            Nothing is excluded by default. The response always carries a
+            `by_type` breakdown plus `total` / `returned` / `excluded` counts,
+            so a burst of same-timestamp auto rows can't silently monopolize
+            the newest-first window.
     """
     try:
         import mcp_handlers
 
-        result = mcp_handlers.read_outcomes(project=project, limit=limit)
+        result = mcp_handlers.read_outcomes(
+            project=project, limit=limit, exclude_types=exclude_types
+        )
     except Exception as e:
         result = {"error": str(e)}
     return json.dumps(result, indent=2, default=str)

@@ -109,7 +109,9 @@ def test_outcomes_plan_projects_delegate_to_handlers(mcp_module, monkeypatch):
     import mcp_handlers
 
     monkeypatch.setattr(mcp_handlers, "read_outcomes", lambda **kw: {"outcomes": [], "total": 0})
-    monkeypatch.setattr(mcp_handlers, "plans_progress", lambda: {"plans": [], "total": 0})
+    monkeypatch.setattr(
+        mcp_handlers, "plans_progress", lambda **kw: {"plans": [], "total": 0}
+    )
     monkeypatch.setattr(
         mcp_handlers, "create_plan", lambda project, title=None: {"plan_id": f"plan_{project}"}
     )
