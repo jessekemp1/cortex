@@ -942,10 +942,10 @@ MEMORY_FILE = (
 )
 GOALS_FILE = WORKSPACE / "GOALS.md"
 CLAUDE_MD_FILE = WORKSPACE / "CLAUDE.md"
+# Vortex and alpha_arena dropped 2026-08-20: they live only under ~/Dev and
+# WORKSPACE now points at ~/dbx-dev, so those two paths could never resolve.
 NEXT_SESSION_FILES = {
     "cortex": WORKSPACE / "cortex" / ".next_session.md",
-    "vortex": WORKSPACE / "Vortex" / "backend" / ".next_session.md",
-    "alpha_arena": WORKSPACE / "alpha_arena" / ".next_session.md",
 }
 
 
