@@ -203,6 +203,30 @@ class PortfolioRecommender:
 
         # Check health
         health_summary = self.portfolio.get_portfolio_health_summary(days=7)
+
+        # A failed health lookup must NOT be read as "zero activity". It used to:
+        # get_portfolio_health_summary returns {"error": ...} on failure, overall
+        # then defaulted to {}, and `commits == 0` fired a MEDIUM "No commits in
+        # analysis period" alert on every single call. That alert was unconditional
+        # and false — PortfolioMemory calls tracker.get_cached_health(), which no
+        # longer exists on HealthTracker (only get_health_history /
+        # get_health_trends / get_portfolio_trends do), so the AttributeError was
+        # swallowed and surfaced as fake activity data. Report the outage instead
+        # of inventing a metric.
+        if "error" in health_summary:
+            alerts.append(
+                {
+                    "severity": "LOW",
+                    "type": "instrumentation",
+                    "message": f"Health data unavailable: {health_summary['error']}",
+                    "recommendation": (
+                        "Repair the HealthTracker call in portfolio_memory.py — "
+                        "commit and staleness alerts are blind until it returns data."
+                    ),
+                }
+            )
+            return alerts
+
         overall = health_summary.get("overall", {})
 
         if overall.get("score", 100) < 50:

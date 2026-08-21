@@ -19,6 +19,25 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _repo_summary(repo_path: Path, days: int) -> Dict[str, Any]:
+    """Git health for one repo: {commits, uncommitted, health, branches, ...}.
+
+    Replaces three calls to HealthTracker.get_cached_health(), which does not
+    exist — HealthTracker only exposes get_health_history / get_health_trends /
+    get_portfolio_trends. Those calls raised AttributeError on every invocation,
+    the surrounding `except` turned it into {"error": ...}, and callers reading
+    overall.get("commits", 0) then saw 0 and reported "No commits in analysis
+    period" unconditionally. GitAnalyzer.get_project_summary returns exactly the
+    shape those callers already expect, so the fix is to call the API that exists.
+
+    No caching layer here: get_project_summary shells out to git and is cheap
+    enough at this call frequency, and a stale cache is what hid the breakage.
+    """
+    from cortex.agents.data_agent.analyzers.git_analyzer import GitAnalyzer
+
+    return GitAnalyzer(repo_path).get_project_summary(days=days)
+
+
 class PortfolioMemory:
     """Access portfolio-wide patterns, lessons, and project metadata"""
 
@@ -472,13 +491,13 @@ class PortfolioMemory:
         if not tracker:
             return None
 
-        # Use Dev directory as the git root
+        # Git root = the configured workspace root (CORTEX_ROOT_DIR).
         dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return None
 
         try:
-            result = tracker.get_cached_health("Dev", dev_path, days=days)
+            result = _repo_summary(dev_path, days)
 
             # Extract health metrics from nested structure
             health_section = result.get("health", {})
@@ -527,15 +546,13 @@ class PortfolioMemory:
                 actual_name = proj_name
                 break
 
-        # Use Dev directory as git root (all projects are in one repo)
+        # Git root = the configured workspace root (CORTEX_ROOT_DIR).
         dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return {"error": "Git repository not found", "project": actual_name}
 
         try:
-            result = tracker.get_cached_health(
-                "Dev", dev_path, days=days, force_refresh=force_refresh
-            )
+            result = _repo_summary(dev_path, days)
 
             # Extract and flatten health data
             health_section = result.get("health", {})
@@ -578,13 +595,13 @@ class PortfolioMemory:
 
         projects = self.portfolio_data.get("projects", {})
 
-        # Get health for Dev repo (contains all projects)
+        # Health for the workspace root repo (CORTEX_ROOT_DIR).
         dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
         if not (dev_path / ".git").exists():
             return {"error": "Git repository not found"}
 
         try:
-            result = tracker.get_cached_health("Dev", dev_path, days=days)
+            result = _repo_summary(dev_path, days)
             health_section = result.get("health", {})
             commits_section = result.get("commits", {})
             uncommitted_section = result.get("uncommitted", {})

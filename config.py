@@ -25,6 +25,16 @@ def workspace_root() -> Path:
     return Path(root).expanduser()
 
 
+def _is_repo(path: Path) -> bool:
+    """True for a real repo checkout: .git must be a DIRECTORY.
+
+    A git worktree (and a submodule) stores .git as a FILE holding a
+    `gitdir:` pointer, so is_dir() separates real repos from worktrees
+    structurally — no dependence on naming conventions like `*-wt-*`.
+    """
+    return (path / ".git").is_dir()
+
+
 def discover_projects(root: Path | None = None, depth: int = 2) -> list[dict]:
     """Discover projects under the workspace root.
 
@@ -38,14 +48,26 @@ def discover_projects(root: Path | None = None, depth: int = 2) -> list[dict]:
     # "exists" but would raise NotADirectoryError on iterdir() below.
     if not root.is_dir():
         return []
+    # The root can itself be a git repo, and it was invisible here: scanning only
+    # root/<proj> and root/<group>/<proj> skipped it. With CORTEX_ROOT_DIR set to
+    # ~/dbx-dev that repo holds all the recent commits while every sub-repo sits
+    # quiet, so activity checks reported "no commits" against a live workspace.
+    if _is_repo(root):
+        found[root.name] = {"name": root.name, "path": str(root), "rel": "."}
     # depth 1 (root/<proj>) and depth 2 (root/<group>/<proj>)
     for d in sorted(root.iterdir()):
         try:
-            if (d / ".git").exists():
+            if (d / ".git").is_file():
+                # Worktree or submodule, not a distinct project. Skipping these
+                # dropped discovery from 30 entries to the real repos: the
+                # twin-*, omnigent-wt-*, cortex-wt-* worktrees were each being
+                # counted as their own project and swamping the portfolio view.
+                continue
+            if _is_repo(d):
                 found[d.name] = {"name": d.name, "path": str(d), "rel": d.name}
             elif d.is_dir() and depth >= 2:
                 for sub in sorted(d.iterdir()):
-                    if (sub / ".git").exists():
+                    if _is_repo(sub):
                         found[sub.name] = {
                             "name": sub.name,
                             "path": str(sub),
