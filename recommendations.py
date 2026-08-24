@@ -165,11 +165,19 @@ class PortfolioRecommender:
                 continue
 
             health = project_health.get(project, {})
+            # "declining" was asserted, never measured: the at-risk bucket is a
+            # score band (50-69), not a trend, so a repo scoring 62 with a
+            # stable history was reported as "Health declining: good". State the
+            # score and let `trend` speak for direction when it is known.
+            trend = health.get("trend", "unknown")
+            reason = f"Health {health.get('assessment', 'unknown')}: {health.get('score')}/100"
+            if trend in ("decreasing", "increasing"):
+                reason += f" ({trend})"
             priorities.append(
                 {
                     "project": project,
                     "priority": "MEDIUM",
-                    "reason": f"Health declining: {health.get('assessment', 'unknown')}",
+                    "reason": reason,
                     "health_score": health.get("score"),
                     "source": "health",
                 }
