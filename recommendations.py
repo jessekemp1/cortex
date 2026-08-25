@@ -1,4 +1,3 @@
-import os
 """
 Cortex Recommendations Engine
 
@@ -15,10 +14,13 @@ Provides:
 """
 
 import json
+import os
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from metric_result import is_available, require, unavailable_reasons
 
 try:
     from cortex.portfolio_memory import PortfolioMemory
@@ -237,18 +239,26 @@ class PortfolioRecommender:
 
         overall = health_summary.get("overall", {})
 
-        if overall.get("score", 100) < 50:
-            alerts.append(
-                {
-                    "severity": "HIGH",
-                    "type": "health",
-                    "message": f"Portfolio health is critical: {overall.get('score')}/100",
-                    "recommendation": "Review recent commits and address test failures",
-                }
-            )
+        # Every threshold below reads through is_available/require rather than
+        # .get(metric, default). The defaults were the bug: .get("commits", 0)
+        # made a metric that never arrived indistinguishable from a measured
+        # zero, and fired "No commits in analysis period" unconditionally for a
+        # month. .get("score", 100) fails the other way — it silently suppresses
+        # a health alert when the score is missing. An unmeasured metric must
+        # reach no threshold at all; it is reported as instrumentation instead.
+        if is_available(overall, "score"):
+            score = require(overall, "score")
+            if score < 50:
+                alerts.append(
+                    {
+                        "severity": "HIGH",
+                        "type": "health",
+                        "message": f"Portfolio health is critical: {score}/100",
+                        "recommendation": "Review recent commits and address test failures",
+                    }
+                )
 
-        # Check for stale commits
-        if overall.get("commits", 0) == 0:
+        if is_available(overall, "commits") and require(overall, "commits") == 0:
             alerts.append(
                 {
                     "severity": "MEDIUM",
@@ -258,29 +268,48 @@ class PortfolioRecommender:
                 }
             )
 
-        # Check uncommitted files
-        uncommitted = overall.get("uncommitted", 0)
-        if uncommitted > 20:
+        if is_available(overall, "uncommitted"):
+            uncommitted = require(overall, "uncommitted")
+            if uncommitted > 20:
+                alerts.append(
+                    {
+                        "severity": "LOW",
+                        "type": "uncommitted",
+                        "message": f"{uncommitted} uncommitted files",
+                        "recommendation": "Commit or stash pending changes",
+                    }
+                )
+
+        # Name what could not be measured, once, instead of letting each missing
+        # metric turn into a confident claim about the world.
+        missing = unavailable_reasons(overall)
+        if missing:
+            detail = "; ".join(f"{k} ({v})" for k, v in sorted(missing.items()))
             alerts.append(
                 {
                     "severity": "LOW",
-                    "type": "uncommitted",
-                    "message": f"{uncommitted} uncommitted files",
-                    "recommendation": "Commit or stash pending changes",
+                    "type": "instrumentation",
+                    "message": f"Metrics unavailable: {detail}",
+                    "recommendation": "Alerts for those metrics are suppressed until they measure.",
                 }
             )
 
         # Check dependency health for key projects
         for project in ["cortex", "vortex-backend"]:
             dep_health = self._get_dependency_health(project)
-            if dep_health and dep_health.get("total_score", 100) < 60:
+            # Same rule: a missing total_score must not be read as 100 (which
+            # silently suppresses the alert) nor as 0 (which invents one).
+            if not dep_health or not is_available(dep_health, "total_score"):
+                continue
+            dep_score = require(dep_health, "total_score")
+            if dep_score < 60:
                 concerns = dep_health.get("concerns", [])
                 alerts.append(
                     {
                         "severity": "MEDIUM",
                         "type": "dependencies",
                         "project": project,
-                        "message": f"{project} dependency health: {dep_health.get('total_score')}/100",
+                        "message": f"{project} dependency health: {dep_score}/100",
                         "concerns": concerns[:2],
                         "recommendation": "Review and consolidate dependencies",
                     }
