@@ -74,12 +74,19 @@ def record_learning_decision(
     rationale: str = "",
     project: str = "",
     source: str = "mcp",
+    supersedes: str = "",
 ) -> Dict[str, Any]:
     """Record a learning-loop decision to ~/.cortex/decisions.jsonl.
 
     Canonical schema matches POST /decisions/learning (decision/context/
     alternatives/rationale/timestamp/source + decision_id). `project` is
     included only when non-empty (back-compat: older entries lack the key).
+
+    When `supersedes` names a prior decision_id, the new entry records the link
+    and an append-only tombstone stamps ``superseded_by`` on the old id so the
+    retriever can drop the stale entry from recall. The original line is never
+    mutated (append-only, audit-safe) — this is the RDF-triple supersession
+    pattern the P1 curation research called for.
 
     Never loses a decision: on primary-append failure the entry lands in
     the spool instead and the response carries `"spooled": true`.
@@ -102,9 +109,37 @@ def record_learning_decision(
     }
     if project:
         entry["project"] = project
+    if supersedes:
+        entry["supersedes"] = supersedes
+
+    # P1 curation: score the decision so recall can down-weight noise (test rows,
+    # empty template entries). Annotate only — NEVER drop, so the never-lose-a-
+    # decision guarantee holds and the audit trail stays complete. Import lazily
+    # and defensively: a scoring failure must never block recording.
+    try:
+        from intelligence.memory.importance import _importance_score, IMPORTANCE_FLOOR
+
+        score = _importance_score(decision, context, alternatives, rationale)
+        entry["importance"] = score
+        if score < IMPORTANCE_FLOOR:
+            entry["low_signal"] = True
+    except Exception:
+        pass
 
     try:
         _append_line(_decisions_file(), entry)
+        if supersedes:
+            # Append-only tombstone: mark the old id superseded without mutating
+            # its original line. A tombstone failure must not fail the record.
+            try:
+                _append_line(_decisions_file(), {
+                    "decision_id": supersedes,
+                    "superseded_by": decision_id,
+                    "timestamp": entry["timestamp"],
+                    "source": "supersede",
+                })
+            except Exception:
+                pass
         return {
             "recorded": True,
             "decision_id": decision_id,
@@ -332,11 +367,16 @@ def compute_projects() -> List[Dict[str, Any]]:
 # ─── /plans/progress ───────────────────────────────────────────────────
 
 
-def plans_progress() -> Dict[str, Any]:
-    """Summarize all active plans in ~/.cortex/plans/."""
+def plans_progress(project: str = "", limit: int = 25) -> Dict[str, Any]:
+    """Summarize active plans in ~/.cortex/plans/, newest first.
+
+    Bounded on purpose: there are hundreds of plan files, and returning every
+    summary produced a ~157KB payload that would swamp an MCP caller's context.
+    `total` still reports the true count so the cap is visible, never silent.
+    """
     plans_dir = _plans_dir()
     if not plans_dir.exists():
-        return {"plans": [], "total": 0}
+        return {"plans": [], "total": 0, "returned": 0}
 
     summaries: List[Dict[str, Any]] = []
     for plan_path in sorted(plans_dir.glob("*.json")):
@@ -360,7 +400,18 @@ def plans_progress() -> Dict[str, Any]:
                 "path": str(plan_path),
             }
         )
-    return {"plans": summaries, "total": len(summaries)}
+    if project:
+        proj_lower = project.lower()
+        summaries = [
+            s for s in summaries if str(s.get("project") or "").lower() == proj_lower
+        ]
+
+    # Newest first: created_at is ISO-8601, so it sorts lexically. Missing
+    # timestamps sort last rather than crashing the comparison.
+    summaries.sort(key=lambda s: s.get("created_at") or "", reverse=True)
+    total = len(summaries)
+    page = summaries[: max(0, limit)]
+    return {"plans": page, "total": total, "returned": len(page)}
 
 
 # ─── /plans/create ─────────────────────────────────────────────────────
@@ -416,7 +467,9 @@ def create_plan(project: str, title: Optional[str] = None) -> Dict[str, Any]:
 # ─── /v2/outcomes ──────────────────────────────────────────────────────
 
 
-def read_outcomes(project: str = "", limit: int = 20) -> Dict[str, Any]:
+def read_outcomes(
+    project: str = "", limit: int = 20, exclude_types: str = ""
+) -> Dict[str, Any]:
     """Read recorded outcomes from ~/.cortex/outcomes.jsonl.
 
     This is the real outcome store written by feedback.FeedbackLogger
@@ -424,10 +477,21 @@ def read_outcomes(project: str = "", limit: int = 20) -> Dict[str, Any]:
     confidence, context, ...). Filters by project (matched against the
     entry's `context.project`), returns the most recent `limit` entries
     newest-first.
+
+    `exclude_types` is a comma-separated list of `recommendation_type`
+    prefixes to drop, e.g. "failure:" to hide machine-emitted operational
+    telemetry (pytest/anomaly signals from intelligence.failure_emitter)
+    and leave only decision-linked outcomes. Nothing is excluded by
+    default, so the "what shipped / validated / failed" contract holds.
+
+    `by_type` is always returned over the project-filtered set. It exists
+    because a single burst emission can share one timestamp to the second
+    and monopolize the newest-first window — the breakdown makes that
+    visible without the caller having to page through the feed.
     """
     outcomes_path = _outcomes_file()
     if not outcomes_path.exists():
-        return {"outcomes": [], "total": 0}
+        return {"outcomes": [], "total": 0, "returned": 0, "excluded": 0, "by_type": {}}
 
     entries: List[Dict[str, Any]] = []
     for line in outcomes_path.read_text(encoding="utf-8").splitlines():
@@ -448,10 +512,31 @@ def read_outcomes(project: str = "", limit: int = 20) -> Dict[str, Any]:
             and str(e["context"].get("project", "")).lower() == proj_lower
         ]
 
+    by_type: Dict[str, int] = {}
+    for e in entries:
+        rtype = str(e.get("recommendation_type") or "unknown")
+        by_type[rtype] = by_type.get(rtype, 0) + 1
+
+    total = len(entries)
+
+    prefixes = tuple(p.strip() for p in exclude_types.split(",") if p.strip())
+    if prefixes:
+        entries = [
+            e
+            for e in entries
+            if not str(e.get("recommendation_type") or "").startswith(prefixes)
+        ]
+
     # Newest first by timestamp string (ISO-8601 sorts lexically).
     entries.sort(key=lambda e: e.get("timestamp", ""), reverse=True)
-    total = len(entries)
-    return {"outcomes": entries[: max(0, limit)], "total": total}
+    page = entries[: max(0, limit)]
+    return {
+        "outcomes": page,
+        "total": total,
+        "returned": len(page),
+        "excluded": total - len(entries),
+        "by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
+    }
 
 
 # ─── /v2/outcomes/stats ────────────────────────────────────────────────

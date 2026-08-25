@@ -11,6 +11,8 @@ with successful outcomes and demote those associated with failures.
 
 import json
 import logging
+import math
+import os
 import pickle
 from collections import defaultdict
 from datetime import datetime
@@ -40,6 +42,11 @@ _DECISIONS_PATH = Path.home() / ".cortex" / "decisions.jsonl"
 # time. Invalidated automatically when the file changes.
 _decision_cache: Optional[List[Pattern]] = None
 _decision_cache_mtime: Optional[float] = None
+# P1 curation: per-decision recall multiplier (importance × recency decay),
+# keyed by Pattern id ("decision:<id>"). Populated alongside _decision_cache and
+# applied in _rrf_merge next to the outcome boosts.
+_decision_weights: Dict[str, float] = {}
+_DECAY_HALF_LIFE_DAYS = int(os.environ.get("CORTEX_DECAY_HALF_LIFE_DAYS", "120"))
 
 
 def _load_decision_patterns() -> List[Pattern]:
@@ -52,7 +59,7 @@ def _load_decision_patterns() -> List[Pattern]:
 
     Result is cached at module level and reused until decisions.jsonl changes.
     """
-    global _decision_cache, _decision_cache_mtime
+    global _decision_cache, _decision_cache_mtime, _decision_weights
 
     if not _DECISIONS_PATH.exists():
         return []
@@ -65,8 +72,26 @@ def _load_decision_patterns() -> List[Pattern]:
         return _decision_cache
 
     patterns: List[Pattern] = []
+    weights: Dict[str, float] = {}
     try:
-        for line in _DECISIONS_PATH.read_text().splitlines():
+        raw_lines = _DECISIONS_PATH.read_text().splitlines()
+
+        # First pass: collect ids marked superseded by a tombstone (P1 curation).
+        # A superseded decision is dropped from recall so stale/reversed calls
+        # can't resurface and crowd the top-k.
+        superseded: set = set()
+        for line in raw_lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("superseded_by"):
+                superseded.add(d.get("decision_id"))
+
+        for line in raw_lines:
             line = line.strip()
             if not line:
                 continue
@@ -75,10 +100,15 @@ def _load_decision_patterns() -> List[Pattern]:
             except json.JSONDecodeError:
                 continue
 
+            # Skip tombstones and superseded originals — they never enter recall.
+            if d.get("superseded_by"):
+                continue
             decision = d.get("decision", "")
             if not decision:
                 continue
             decision_id = d.get("decision_id", "unknown")
+            if decision_id in superseded:
+                continue
             project = d.get("project", "unknown")
 
             desc_parts = [decision]
@@ -100,9 +130,10 @@ def _load_decision_patterns() -> List[Pattern]:
             words = {w.strip(".,:;()[]").lower() for w in decision.split() if len(w) > 3}
             words.add(project)
 
+            pattern_id = f"decision:{decision_id}"
             patterns.append(
                 Pattern(
-                    id=f"decision:{decision_id}",
+                    id=pattern_id,
                     project=project,
                     commit_hash=str(decision_id)[:8],
                     commit_date=commit_date,
@@ -113,11 +144,26 @@ def _load_decision_patterns() -> List[Pattern]:
                     pattern_type="decision",
                 )
             )
+
+            # P1 curation: recall multiplier = importance × recency decay.
+            # importance defaults to a neutral 5 for pre-P1 entries (no key),
+            # so un-backfilled history is unaffected until scored.
+            importance = d.get("importance", 5)
+            try:
+                age_days = max(0.0, (datetime.now() - commit_date.replace(tzinfo=None)).days)
+            except Exception:
+                age_days = 0.0
+            decay = math.exp(-age_days / _DECAY_HALF_LIFE_DAYS) if _DECAY_HALF_LIFE_DAYS > 0 else 1.0
+            # Map importance 1..10 to ~0.5..1.1 so low-signal is penalised but
+            # never zeroed (still findable), high-signal mildly boosted.
+            imp_factor = 0.5 + (importance / 10.0) * 0.6
+            weights[pattern_id] = imp_factor * decay
     except Exception as e:
         logger.warning(f"Failed to load decision patterns: {e}")
 
     _decision_cache = patterns
     _decision_cache_mtime = mtime
+    _decision_weights = weights
     return patterns
 
 
@@ -339,9 +385,26 @@ class HybridRetriever:
                 # backend is unknown (e.g. a mocked client), fall back to the
                 # count+id check rather than regenerating spuriously.
                 current_backend = self._current_backend()
+                cached_backend = meta.get("backend")
+
+                # Definite backend mismatch: both are strings but they differ.
+                # Log warning, skip regeneration, and leave pattern_embeddings as None.
+                if (
+                    isinstance(current_backend, str)
+                    and isinstance(cached_backend, str)
+                    and current_backend != cached_backend
+                ):
+                    logger.warning(
+                        f"Embedding cache backend mismatch: cached={cached_backend} "
+                        f"vs current={current_backend}. Reverting to keyword-only (BM25) retrieval. "
+                        f"Cached vectors will NOT be regenerated."
+                    )
+                    self.embeddings_available = False
+                    return
+
                 backend_ok = (
                     not isinstance(current_backend, str)
-                    or meta.get("backend") == current_backend
+                    or cached_backend == current_backend
                 )
                 if meta.get("pattern_count") == len(self.patterns) and backend_ok:
                     # Check if pattern IDs match
@@ -617,6 +680,11 @@ class HybridRetriever:
             if self._outcome_boosts:
                 project = project_by_id.get(pattern_id, "")
                 base_score += self._outcome_boosts.get(project, 0.0)
+
+            # P1 curation: multiply by the decision's importance × recency-decay
+            # weight so low-signal / stale decisions rank below fresh, developed
+            # ones. Non-decision patterns (no entry in the map) are unaffected.
+            base_score *= _decision_weights.get(pattern_id, 1.0)
 
             rrf_scores[pattern_id] = base_score
 

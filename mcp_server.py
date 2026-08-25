@@ -436,15 +436,35 @@ def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) ->
         query: Text search across node names and data (optional).
         limit: Max results (default 10).
     """
-    params = []
-    if node_type:
-        params.append(f"node_type={node_type}")
+    # Two distinct graph surfaces, and the args pick which one:
+    #   /v2/graph/search  takes query= + limit=  (text search over the V2 graph)
+    #   /graph/query      REQUIRES node_type=    (type lookup, no text, no limit)
+    # This used to send q=/limit= to /graph/query, which accepts neither and
+    # requires node_type — so any text query returned a bare 422.
+    from urllib.parse import urlencode
+
     if query:
-        params.append(f"q={query}")
-    if limit != 10:
-        params.append(f"limit={limit}")
-    qs = "?" + "&".join(params) if params else ""
-    result = _bridge_get(f"/graph/query{qs}", timeout=15.0)
+        qs = urlencode({"query": query, "limit": limit})
+        result = _bridge_get(f"/v2/graph/search?{qs}", timeout=15.0)
+    elif node_type:
+        result = _bridge_get(
+            f"/graph/query?{urlencode({'node_type': node_type})}", timeout=15.0
+        )
+        # /graph/query has no limit param, so bound it here rather than
+        # handing the caller an unbounded node list.
+        if isinstance(result, dict) and isinstance(result.get("nodes"), list):
+            total = len(result["nodes"])
+            if total > limit:
+                result["nodes"] = result["nodes"][:limit]
+                result["truncated"] = {"returned": limit, "total": total}
+    else:
+        result = {
+            "error": "supply either query= (text search) or node_type= (type lookup)",
+            "node_types": [
+                "goal", "project", "file", "pattern",
+                "lesson", "error", "dependency", "work_item",
+            ],
+        }
     return json.dumps(result, indent=2)
 
 
@@ -469,12 +489,20 @@ def cortex_plan_create(project: str, title: str = "") -> str:
 
 
 @_experimental_tool
-def cortex_plan_progress() -> str:
-    """Get progress summary of all active plans."""
+def cortex_plan_progress(project: str = "", limit: int = 25) -> str:
+    """Get progress summary of active plans, newest first.
+
+    Args:
+        project: Optional project filter.
+        limit: Max plans to return (default 25). Bounded deliberately — the
+            unbounded form returned ~157KB across hundreds of plans, which
+            would swamp the caller's context. `total` still reports the real
+            count, so the cap is always visible.
+    """
     try:
         import mcp_handlers
 
-        result = mcp_handlers.plans_progress()
+        result = mcp_handlers.plans_progress(project=project, limit=limit)
     except Exception as e:
         result = {"error": str(e)}
     return json.dumps(result, indent=2, default=str)
@@ -501,6 +529,7 @@ def cortex_record_decision(
     alternatives: str = "",
     rationale: str = "",
     project: str = "",
+    supersedes: str = "",
 ) -> str:
     """Record a decision for the Cortex learning loop.
 
@@ -514,6 +543,10 @@ def cortex_record_decision(
         rationale: Why this option was chosen over alternatives.
         project: Project this decision belongs to. Pass it whenever known —
             untagged decisions are much harder to recall per-project later.
+        supersedes: Optional decision_id of a prior decision this one replaces.
+            The old decision is tombstoned so it drops out of recall — use it
+            when a decision reverses or updates an earlier one, instead of
+            leaving both to compete in retrieval.
     """
     try:
         import mcp_handlers
@@ -524,6 +557,7 @@ def cortex_record_decision(
             alternatives=alternatives,
             rationale=rationale,
             project=project,
+            supersedes=supersedes,
         )
     except Exception as e:
         result = {"error": str(e)}
@@ -534,17 +568,26 @@ def cortex_record_decision(
 
 
 @mcp.tool()
-def cortex_outcomes(project: str = "", limit: int = 20) -> str:
+def cortex_outcomes(project: str = "", limit: int = 20, exclude_types: str = "") -> str:
     """Get outcome tracking data — what shipped, what validated, what failed.
 
     Args:
         project: Filter by project name.
         limit: Max results (default 20).
+        exclude_types: Comma-separated recommendation_type prefixes to drop.
+            Pass "failure:" to hide machine-emitted operational telemetry
+            (pytest / anomaly signals) and see only decision-linked outcomes.
+            Nothing is excluded by default. The response always carries a
+            `by_type` breakdown plus `total` / `returned` / `excluded` counts,
+            so a burst of same-timestamp auto rows can't silently monopolize
+            the newest-first window.
     """
     try:
         import mcp_handlers
 
-        result = mcp_handlers.read_outcomes(project=project, limit=limit)
+        result = mcp_handlers.read_outcomes(
+            project=project, limit=limit, exclude_types=exclude_types
+        )
     except Exception as e:
         result = {"error": str(e)}
     return json.dumps(result, indent=2, default=str)
@@ -645,8 +688,167 @@ def cortex_doctor() -> str:
     except Exception as e:
         checks.append({"check": "decision spool empty", "pass": False, "detail": str(e)})
 
+    # ── Retrieval correctness ───────────────────────────────────────────────
+    # The checks above assert infrastructure (deps present, bridge listening).
+    # They all passed while semantic recall was silently dead for every MCP
+    # query, because nothing asserted that retrieval actually *works*. These
+    # three close that gap. They compare state for CONSISTENCY rather than
+    # probing the network, so they stay fast and don't fail merely because
+    # Ollama is briefly down.
+    checks.extend(_doctor_retrieval_checks())
+
     all_pass = all(c["pass"] for c in checks)
     return json.dumps({"checks": checks, "all_pass": all_pass}, indent=2)
+
+
+def _doctor_retrieval_checks() -> list:
+    """Assert semantic retrieval is wired and its cache is usable.
+
+    Reads only the small pickle *metadata* file — never ``embeddings.pkl``
+    (multi-MB) — so ``cortex_doctor`` stays fast.
+
+    Returns a list of check dicts in the same shape as ``cortex_doctor``'s.
+    """
+    import pickle
+
+    results = []
+    meta_path = Path.home() / ".cortex" / "patterns" / "embeddings_meta.pkl"
+    decisions_path = Path.home() / ".cortex" / "decisions.jsonl"
+
+    cached_backend = None
+    indexed_ids = []
+    indexed_count = None
+    if meta_path.exists():
+        try:
+            with open(meta_path, "rb") as f:
+                meta = pickle.load(f)
+            cached_backend = meta.get("backend")
+            indexed_ids = meta.get("pattern_ids", []) or []
+            indexed_count = meta.get("pattern_count")
+        except Exception as e:  # corrupt/unreadable cache is itself a finding
+            results.append(
+                {
+                    "check": "embedding cache readable",
+                    "pass": False,
+                    "detail": f"{meta_path.name}: {e}",
+                }
+            )
+
+    # 1. Live embedding backend must match the one the cache was built with.
+    #    A mismatch means vectors on disk are incomparable to freshly generated
+    #    ones — the condition that would otherwise trigger a full regeneration
+    #    over a good cache.
+    live_backend = None
+    try:
+        from intelligence.embeddings_client import EmbeddingsClient
+
+        live_backend = EmbeddingsClient().get_embedding_info().get("backend")
+    except Exception as e:
+        live_backend = f"unavailable: {e}"
+
+    if cached_backend is None:
+        results.append(
+            {
+                "check": "embeddings backend matches cache",
+                "pass": True,
+                "detail": f"no cache yet; live backend {live_backend}",
+            }
+        )
+    else:
+        matches = cached_backend == live_backend
+        results.append(
+            {
+                "check": "embeddings backend matches cache",
+                "pass": matches,
+                "detail": (
+                    f"live={live_backend} cached={cached_backend}"
+                    + ("" if matches else " — MISMATCH: recall degrades to keyword-only")
+                ),
+            }
+        )
+
+    # 2. The index must actually cover the decision store. This is the check
+    #    that would have caught mis-reading the metadata dict's key count as
+    #    the item count.
+    n_decisions = 0
+    if decisions_path.exists():
+        try:
+            with open(decisions_path, encoding="utf-8") as f:
+                n_decisions = sum(1 for line in f if line.strip())
+        except Exception:
+            n_decisions = 0
+    # Count only ids the loader actually produces for decisions. The index also
+    # holds conversation- and git-derived patterns, so comparing the whole index
+    # against the decision store would compare mismatched populations — and could
+    # report more "indexed" than exist, which would make this check unable to fail.
+    n_indexed_decisions = sum(
+        1 for i in indexed_ids if str(i).startswith("decision:dec_")
+    )
+    if n_decisions == 0:
+        coverage_pass = True
+        coverage_detail = "no decisions recorded yet"
+    else:
+        # Tombstoned/superseded and low-signal decisions are intentionally
+        # dropped from the index, so exact parity is not expected — but a zero
+        # or tiny index against a populated store means indexing is broken.
+        # Deliberately a floor, not parity. The index accumulates across
+        # reindexes and id formats, so it can legitimately hold MORE
+        # decision-prefixed patterns than the store currently has lines. What
+        # this must catch is the opposite: an index that has collapsed to zero
+        # or a fraction of the store while queries keep silently succeeding.
+        coverage_pass = n_indexed_decisions > 0 and n_indexed_decisions >= n_decisions * 0.5
+        coverage_detail = (
+            f"{n_indexed_decisions} decision patterns indexed vs {n_decisions} "
+            f"store lines ({indexed_count} patterns total, all sources)"
+        )
+        if not coverage_pass:
+            coverage_detail += " — index does not cover the store; run a reindex"
+    results.append(
+        {
+            "check": "embedding index covers decisions",
+            "pass": coverage_pass,
+            "detail": coverage_detail,
+        }
+    )
+
+    # 3. The bridge must wire an embeddings client into its retriever. This is
+    #    the exact wiring that was broken: bridge.py constructed
+    #    HybridRetriever(patterns=...) with no client, so embeddings_available
+    #    was False and every MCP query silently ran keyword-only.
+    #
+    #    Asserted by static inspection of the call sites rather than by building
+    #    a retriever: constructing one loads the full pattern set and embedding
+    #    cache (tens of seconds), which is far too slow for a health check.
+    try:
+        import inspect
+
+        import bridge as _bridge_mod
+
+        src = inspect.getsource(_bridge_mod)
+        bad_calls = src.count("HybridRetriever(patterns=")
+        wired = bad_calls == 0 and "EmbeddingsClient" in src
+        results.append(
+            {
+                "check": "bridge wires embeddings into retrieval",
+                "pass": wired,
+                "detail": (
+                    "embeddings client passed at all call sites"
+                    if wired
+                    else f"{bad_calls} HybridRetriever call site(s) missing "
+                    "embeddings_client — MCP recall degrades to keyword-only"
+                ),
+            }
+        )
+    except Exception as e:
+        results.append(
+            {
+                "check": "bridge wires embeddings into retrieval",
+                "pass": False,
+                "detail": f"could not inspect bridge call sites: {e}",
+            }
+        )
+
+    return results
 
 
 # ── Resources ──

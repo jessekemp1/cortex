@@ -641,6 +641,40 @@ class IntelligenceMixin:
         self._categorized_graph_mtime = current_mtime
         return self._categorized_graph
 
+    def _fill_similar_work_from_related(
+        self, result_dict: dict[str, Any], project: str | None, limit: int = 5
+    ) -> None:
+        """Promote top retrieved decisions (related_patterns) into similar_work
+        when it's empty. Runs independently of the knowledge graph, since
+        decisions are retrieved by the hybrid retriever, not the graph. Deduped
+        by id against any patterns/lessons already surfaced."""
+        if result_dict.get("similar_work"):
+            return
+        already = {
+            p.get("id")
+            for key in ("applicable_patterns", "lessons")
+            for p in result_dict.get(key, [])
+            if p.get("id")
+        }
+        promoted = []
+        for p in result_dict.get("related_patterns", []):
+            pid = p.get("id")
+            if not pid or pid in already:
+                continue
+            promoted.append({
+                "id": pid,
+                "title": p.get("title", ""),
+                "type": p.get("type", "decision"),
+                "similarity_score": p.get("score", 0.0),
+                "project": p.get("project", project),
+                "summary": p.get("description", p.get("title", "")),
+                "source": "decisions",
+            })
+            if len(promoted) >= limit:
+                break
+        if promoted:
+            result_dict["similar_work"] = promoted
+
     def _populate_categorized_from_graph(
         self, result_dict: dict[str, Any], project: str | None, limit: int = 5
     ) -> None:
@@ -651,6 +685,13 @@ class IntelligenceMixin:
         node id against related_patterns so the same item is never counted
         twice by recall_events.count_surfaced.
         """
+        # similar_work fallback runs even when the graph is unavailable: many
+        # installs have recorded DECISIONS (in related_patterns via the hybrid
+        # retriever) but no graph LESSON/PATTERN nodes, so recall would report
+        # empty similar_work despite relevant prior work existing. Promote the
+        # top retrieved decisions here, before the graph early-return below.
+        self._fill_similar_work_from_related(result_dict, project, limit)
+
         graph = self._get_categorized_graph()
         if graph is None or not project:
             return
@@ -738,6 +779,7 @@ class IntelligenceMixin:
                     }
                     for n in sw_nodes
                 ]
+
 
     def query_intelligence(
         self,

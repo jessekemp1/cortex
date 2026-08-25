@@ -1,4 +1,3 @@
-import os
 """
 Portfolio Memory - Access cross-project patterns, lessons, and metadata
 
@@ -17,6 +16,92 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _repo_summary(repo_path: Path, days: int) -> Dict[str, Any]:
+    """Git health for one repo: {commits, uncommitted, health, branches, ...}.
+
+    Replaces three calls to HealthTracker.get_cached_health(), which does not
+    exist — HealthTracker only exposes get_health_history / get_health_trends /
+    get_portfolio_trends. Those calls raised AttributeError on every invocation,
+    the surrounding `except` turned it into {"error": ...}, and callers reading
+    overall.get("commits", 0) then saw 0 and reported "No commits in analysis
+    period" unconditionally. GitAnalyzer.get_project_summary returns exactly the
+    shape those callers already expect, so the fix is to call the API that exists.
+
+    No caching layer here: get_project_summary shells out to git and is cheap
+    enough at this call frequency, and a stale cache is what hid the breakage.
+    """
+    from cortex.agents.data_agent.analyzers.git_analyzer import GitAnalyzer
+
+    return GitAnalyzer(repo_path).get_project_summary(days=days)
+
+
+def _assess(score: int) -> str:
+    """Map a 0-100 health score to an assessment label.
+
+    Mirrors GitAnalyzer.calculate_health_score's bands (>=80 excellent, >=60
+    good, >=40 fair, else needs_attention) so an aggregate score and a
+    per-repo score never disagree about what the same number means.
+    """
+    if score >= 80:
+        return "excellent"
+    if score >= 60:
+        return "good"
+    if score >= 40:
+        return "fair"
+    return "needs_attention"
+
+
+def _discovered_repos() -> Dict[str, Path]:
+    """{lowercased project name: repo path} for repos under the workspace root.
+
+    Live discovery, not the portfolio index: the index at
+    ~/.claude/portfolio/project_index.json still lists the ~/Dev-era projects
+    (Vortex/backend, alpha_arena, pupil) with empty paths, so it cannot resolve
+    anything on its own.
+    """
+    try:
+        from config import discover_projects
+    except ImportError:
+        try:
+            from cortex.config import discover_projects
+        except ImportError:
+            return {}
+    try:
+        return {p["name"].lower(): Path(p["path"]) for p in discover_projects()}
+    except Exception:
+        logger.debug("project discovery failed", exc_info=True)
+        return {}
+
+
+def _resolve_repo_path(
+    project_name: str, portfolio_projects: Optional[Dict[str, Any]] = None
+) -> Optional[Path]:
+    """The repo whose git history represents this project, or None.
+
+    Order: the portfolio index's own recorded path when it is set and is a real
+    checkout, then live discovery by name under the workspace root.
+
+    Returns None rather than falling back to the workspace root. That fallback
+    is exactly what made every project report one repo's numbers: with
+    CORTEX_ROOT_DIR=~/dbx-dev, `cortex` was scored 57/100 off dbx-dev's 14
+    commits and 18 uncommitted files while the cortex repo itself had 2 and 1.
+    Five projects all reported the identical score because they were all
+    measuring the same repo. A caller that cannot resolve a path must say so.
+    """
+    if portfolio_projects:
+        for name, data in portfolio_projects.items():
+            if name.lower() != project_name.lower():
+                continue
+            recorded = str((data or {}).get("path") or "").strip()
+            if recorded:
+                candidate = Path(recorded).expanduser()
+                if (candidate / ".git").is_dir():
+                    return candidate
+            break
+
+    return _discovered_repos().get(project_name.lower())
 
 
 class PortfolioMemory:
@@ -232,6 +317,66 @@ class PortfolioMemory:
                 )
 
         return lessons
+
+    def refresh_index(self) -> Dict[str, Any]:
+        """Reconcile the portfolio index with the repos that actually exist.
+
+        Nothing in this codebase writes project_index.json — `cortex onboard`
+        seeds working memory and anti-patterns but never touches it — so once
+        hand-seeded it could only rot. It kept describing the ~/Dev era
+        (Vortex/backend, Vortex/frontend, alpha_arena, pupil) for months after
+        CORTEX_ROOT_DIR moved to ~/dbx-dev. Health resolution no longer trusts
+        it (discovery is the authority), but stale names still surface as
+        unresolved entries, so make the refresh repeatable instead of manual.
+
+        Each discovered repo gets its real path recorded; entries that no
+        longer resolve move to `retired_projects`. Curated payloads
+        (deep_analysis, tech_stack, warnings) are carried over in both
+        directions — this reconciles, it never discards.
+
+        Returns {"added", "updated", "retired", "total"}.
+        """
+        discovered = _discovered_repos()
+        projects: Dict[str, Any] = dict(self.portfolio_data.get("projects", {}))
+        retired: Dict[str, Any] = dict(self.portfolio_data.get("retired_projects", {}))
+
+        existing_by_key = {name.lower(): name for name in projects}
+        added, updated = [], []
+
+        for key, repo_path in sorted(discovered.items()):
+            name = existing_by_key.get(key, repo_path.name)
+            entry = projects.get(name, {})
+            was_new = name not in projects
+            entry["path"] = str(repo_path)
+            entry["rel"] = repo_path.name
+            projects[name] = entry
+            (added if was_new else updated).append(name)
+
+        # Anything the index carries that resolves to no repo is retired, not
+        # deleted: its analysis may still be worth reading after the move.
+        newly_retired = []
+        for name in list(projects):
+            if _resolve_repo_path(name, projects) is None:
+                retired[name] = projects.pop(name)
+                retired[name]["retired_at"] = datetime.now().isoformat()
+                newly_retired.append(name)
+
+        self.portfolio_data["projects"] = projects
+        self.portfolio_data["retired_projects"] = retired
+        meta = self.portfolio_data.setdefault("meta", {})
+        meta["last_updated"] = datetime.now().isoformat()
+        meta["total_projects"] = len(projects)
+
+        self.index_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.index_file, "w") as f:
+            json.dump(self.portfolio_data, f, indent=2)
+
+        return {
+            "added": sorted(added),
+            "updated": sorted(n for n in updated if n not in newly_retired),
+            "retired": sorted(newly_retired),
+            "total": len(projects),
+        }
 
     def store_deep_analysis(
         self,
@@ -458,8 +603,9 @@ class PortfolioMemory:
         """
         Internal method to get health data for a project
 
-        Since all projects are in the Dev git repo, we analyze the entire repo.
-        This is a helper for get_project_context.
+        Measures the project's OWN repo. The workspace root is one repo among
+        many under ~/dbx-dev, not a monorepo containing them all, so analyzing
+        the root here reported the root's numbers under every project's name.
 
         Args:
             project_name: Project name
@@ -472,13 +618,12 @@ class PortfolioMemory:
         if not tracker:
             return None
 
-        # Use Dev directory as the git root
-        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
-        if not (dev_path / ".git").exists():
+        repo_path = _resolve_repo_path(project_name, self.portfolio_data.get("projects", {}))
+        if repo_path is None:
             return None
 
         try:
-            result = tracker.get_cached_health("Dev", dev_path, days=days)
+            result = _repo_summary(repo_path, days)
 
             # Extract health metrics from nested structure
             health_section = result.get("health", {})
@@ -527,15 +672,18 @@ class PortfolioMemory:
                 actual_name = proj_name
                 break
 
-        # Use Dev directory as git root (all projects are in one repo)
-        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
-        if not (dev_path / ".git").exists():
-            return {"error": "Git repository not found", "project": actual_name}
+        repo_path = _resolve_repo_path(actual_name, projects)
+        if repo_path is None:
+            return {
+                "error": (
+                    f"No repo resolved for '{actual_name}' — it is not a git repo under "
+                    "the workspace root and the portfolio index records no path for it"
+                ),
+                "project": actual_name,
+            }
 
         try:
-            result = tracker.get_cached_health(
-                "Dev", dev_path, days=days, force_refresh=force_refresh
-            )
+            result = _repo_summary(repo_path, days)
 
             # Extract and flatten health data
             health_section = result.get("health", {})
@@ -544,6 +692,7 @@ class PortfolioMemory:
 
             return {
                 "project": actual_name,
+                "repo_path": str(repo_path),
                 "score": health_section.get("total_score", 0),
                 "assessment": health_section.get("assessment", "unknown"),
                 "breakdown": health_section.get("breakdown", {}),
@@ -576,64 +725,114 @@ class PortfolioMemory:
         if not tracker:
             return {"error": "HealthTracker not available"}
 
-        projects = self.portfolio_data.get("projects", {})
+        index_projects = self.portfolio_data.get("projects", {})
 
-        # Get health for Dev repo (contains all projects)
-        dev_path = Path(os.environ.get("CORTEX_ROOT_DIR", str(Path.cwd())))
-        if not (dev_path / ".git").exists():
-            return {"error": "Git repository not found"}
+        # Candidate set = every repo under the workspace root, plus any name the
+        # portfolio index carries. Discovery is the authority on what exists;
+        # the index is kept in the union so a curated entry is never dropped
+        # silently, only reported as unresolved.
+        discovered = _discovered_repos()
+        candidates = {name: path for name, path in discovered.items()}
+        names_by_key = {name: name for name in discovered}
+        for name in index_projects:
+            key = name.lower()
+            names_by_key.setdefault(key, name)
+            if key not in candidates:
+                resolved = _resolve_repo_path(name, index_projects)
+                if resolved is not None:
+                    candidates[key] = resolved
 
-        try:
-            result = tracker.get_cached_health("Dev", dev_path, days=days)
-            health_section = result.get("health", {})
-            commits_section = result.get("commits", {})
-            uncommitted_section = result.get("uncommitted", {})
-
-            score = health_section.get("total_score", 0)
-            assessment = health_section.get("assessment", "unknown")
-            trend = commits_section.get("trend", "unknown")
-            commits = commits_section.get("count", 0)
-            uncommitted = uncommitted_section.get("total", 0)
-
-        except Exception as e:
-            return {"error": str(e)}
-
-        summary = {
+        summary: Dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
-            "total_projects": len(projects),
+            "total_projects": len(candidates),
             "analysis_period_days": days,
             "projects": {},
             "aggregate": {
                 "healthy_projects": [],
                 "at_risk_projects": [],
                 "critical_projects": [],
-            },
-            "overall": {
-                "score": score,
-                "assessment": assessment,
-                "trend": trend,
-                "commits": commits,
-                "uncommitted": uncommitted,
+                # A repo with no commits in the window has no health signal to
+                # decline. Bucketing dormant repos as "critical" turned every
+                # archived checkout into a MEDIUM alert, so they are listed
+                # here and kept out of the alert path.
+                "inactive_projects": [],
+                # Index entries that resolve to no repo — visible staleness
+                # rather than a fabricated score. The ~/Dev-era names
+                # (Vortex/backend, alpha_arena, pupil) land here.
+                "unresolved_projects": [],
             },
         }
 
-        # Apply same health metrics to all projects (since they're in same repo)
-        for project_name in projects.keys():
+        for name in index_projects:
+            if name.lower() not in candidates:
+                summary["aggregate"]["unresolved_projects"].append(name)
+
+        scores: List[int] = []
+        total_commits = 0
+        total_uncommitted = 0
+        errors: List[str] = []
+
+        for key, repo_path in sorted(candidates.items()):
+            project_name = names_by_key.get(key, key)
+            try:
+                result = _repo_summary(repo_path, days)
+            except Exception as e:  # one bad repo must not blank the portfolio
+                errors.append(f"{project_name}: {e}")
+                continue
+
+            health_section = result.get("health", {})
+            commits_section = result.get("commits", {})
+            uncommitted_section = result.get("uncommitted", {})
+
+            score = health_section.get("total_score", 0)
+            commits = commits_section.get("count", 0)
+            uncommitted = uncommitted_section.get("total", 0)
+
             summary["projects"][project_name] = {
                 "score": score,
-                "assessment": assessment,
-                "trend": trend,
+                "assessment": health_section.get("assessment", "unknown"),
+                "trend": commits_section.get("trend", "unknown"),
                 "commits": commits,
                 "uncommitted": uncommitted,
+                "repo_path": str(repo_path),
             }
 
-            # Categorize by health
+            total_commits += commits
+            total_uncommitted += uncommitted
+
+            if commits == 0:
+                summary["aggregate"]["inactive_projects"].append(project_name)
+                continue
+
+            scores.append(score)
             if score >= 70:
                 summary["aggregate"]["healthy_projects"].append(project_name)
             elif score >= 50:
                 summary["aggregate"]["at_risk_projects"].append(project_name)
             else:
                 summary["aggregate"]["critical_projects"].append(project_name)
+
+        # Every candidate failed to measure: that is a health-data outage, and
+        # callers check for "error" precisely so they can say so instead of
+        # reading a zero as real.
+        if not summary["projects"]:
+            detail = "; ".join(errors) if errors else "no repos resolved under the workspace root"
+            return {"error": f"No project health could be measured ({detail})"}
+
+        # Overall is scored over ACTIVE repos only, for the same reason the
+        # buckets are: averaging in dormant checkouts dragged the portfolio
+        # score down and produced a permanent "health is critical" alert.
+        overall_score = round(sum(scores) / len(scores)) if scores else 0
+        summary["overall"] = {
+            "score": overall_score,
+            "assessment": _assess(overall_score) if scores else "no_activity",
+            "trend": "mixed",
+            "commits": total_commits,
+            "uncommitted": total_uncommitted,
+            "active_projects": len(scores),
+        }
+        if errors:
+            summary["partial_errors"] = errors
 
         return summary
 
