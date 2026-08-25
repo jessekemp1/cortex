@@ -15,6 +15,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from metric_result import mark_unavailable
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,22 @@ def _repo_summary(repo_path: Path, days: int) -> Dict[str, Any]:
     from cortex.agents.data_agent.analyzers.git_analyzer import GitAnalyzer
 
     return GitAnalyzer(repo_path).get_project_summary(days=days)
+
+
+def _numeric_metrics(result: Dict[str, Any]) -> Dict[str, int]:
+    """Pull score/commits/uncommitted out of a GitAnalyzer summary, strictly.
+
+    GitAnalyzer.get_project_summary always populates health/commits/uncommitted,
+    so reading them as `.get("count", 0)` never fired — but if that shape ever
+    changed, the miss would surface as a real-looking 0 rather than an error, and
+    a 0 is what every consumer threshold acts on. Indexing raises KeyError
+    instead, which the callers' existing handlers turn into an explicit outage.
+    """
+    return {
+        "score": result["health"]["total_score"],
+        "commits": result["commits"]["count"],
+        "uncommitted": result["uncommitted"]["total"],
+    }
 
 
 def _assess(score: int) -> str:
@@ -628,14 +646,14 @@ class PortfolioMemory:
             # Extract health metrics from nested structure
             health_section = result.get("health", {})
             commits_section = result.get("commits", {})
-            uncommitted_section = result.get("uncommitted", {})
 
+            metrics = _numeric_metrics(result)
             return {
-                "score": health_section.get("total_score", 0),
+                "score": metrics["score"],
                 "assessment": health_section.get("assessment", "unknown"),
                 "trend": commits_section.get("trend", "unknown"),
-                "commits_7d": commits_section.get("count", 0),
-                "uncommitted_files": uncommitted_section.get("total", 0),
+                "commits_7d": metrics["commits"],
+                "uncommitted_files": metrics["uncommitted"],
             }
         except Exception:
             return None
@@ -688,17 +706,17 @@ class PortfolioMemory:
             # Extract and flatten health data
             health_section = result.get("health", {})
             commits_section = result.get("commits", {})
-            uncommitted_section = result.get("uncommitted", {})
 
+            metrics = _numeric_metrics(result)
             return {
                 "project": actual_name,
                 "repo_path": str(repo_path),
-                "score": health_section.get("total_score", 0),
+                "score": metrics["score"],
                 "assessment": health_section.get("assessment", "unknown"),
                 "breakdown": health_section.get("breakdown", {}),
                 "trend": commits_section.get("trend", "unknown"),
-                "commits_7d": commits_section.get("count", 0),
-                "uncommitted_files": uncommitted_section.get("total", 0),
+                "commits_7d": metrics["commits"],
+                "uncommitted_files": metrics["uncommitted"],
                 "analysis_period_days": days,
                 "from_cache": result.get("from_cache", False),
             }
@@ -776,17 +794,17 @@ class PortfolioMemory:
             project_name = names_by_key.get(key, key)
             try:
                 result = _repo_summary(repo_path, days)
+                metrics = _numeric_metrics(result)
             except Exception as e:  # one bad repo must not blank the portfolio
                 errors.append(f"{project_name}: {e}")
                 continue
 
             health_section = result.get("health", {})
             commits_section = result.get("commits", {})
-            uncommitted_section = result.get("uncommitted", {})
 
-            score = health_section.get("total_score", 0)
-            commits = commits_section.get("count", 0)
-            uncommitted = uncommitted_section.get("total", 0)
+            score = metrics["score"]
+            commits = metrics["commits"]
+            uncommitted = metrics["uncommitted"]
 
             summary["projects"][project_name] = {
                 "score": score,
@@ -822,15 +840,28 @@ class PortfolioMemory:
         # Overall is scored over ACTIVE repos only, for the same reason the
         # buckets are: averaging in dormant checkouts dragged the portfolio
         # score down and produced a permanent "health is critical" alert.
-        overall_score = round(sum(scores) / len(scores)) if scores else 0
-        summary["overall"] = {
-            "score": overall_score,
-            "assessment": _assess(overall_score) if scores else "no_activity",
+        #
+        # commits and uncommitted are real sums over every repo that measured, so
+        # they are reported even when nothing was active. score and assessment
+        # are not: with no active repo there is nothing to average, and the old
+        # `else 0` produced a 0 that consumers compared against `< 50` and
+        # reported as "Portfolio health is critical: 0/100" — a fabricated claim
+        # about repos that were merely quiet.
+        overall: Dict[str, Any] = {
             "trend": "mixed",
             "commits": total_commits,
             "uncommitted": total_uncommitted,
             "active_projects": len(scores),
         }
+        if scores:
+            overall_score = round(sum(scores) / len(scores))
+            overall["score"] = overall_score
+            overall["assessment"] = _assess(overall_score)
+        else:
+            reason = f"no active repo in the last {days}d to score ({len(summary['projects'])} measured, all quiet)"
+            mark_unavailable(overall, "score", reason)
+            mark_unavailable(overall, "assessment", reason)
+        summary["overall"] = overall
         if errors:
             summary["partial_errors"] = errors
 
