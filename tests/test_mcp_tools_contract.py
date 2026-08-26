@@ -134,6 +134,50 @@ def test_tool_output_is_parseable_or_human_readable(mcp_module, name, kwargs):
         )
 
 
+def _advertised_node_types(docstring: str | None) -> set[str]:
+    """Parse the node types advertised in a docstring's 'Node types:' line.
+
+    The cortex_graph_query docstring advertises its accepted node_type filter
+    values on a single line of the form::
+
+        Node types: goal, project, file, ..., work_item.
+
+    This returns the set of type tokens from that line (stripped, trailing
+    period removed). Returns an empty set if no such line is present.
+    """
+    m = re.search(r"Node types:\s*(.+)", docstring or "")
+    if not m:
+        return set()
+    listing = m.group(1).split(".")[0]  # drop the sentence-ending period
+    return {tok.strip() for tok in listing.split(",") if tok.strip()}
+
+
+def test_cortex_graph_query_advertised_node_types_match_nodetype_enum(mcp_module):
+    """The node types advertised in cortex_graph_query's docstring must equal
+    the real NodeType enum values exactly.
+
+    This pins the docstring to the enum: adding, removing, or renaming a
+    NodeType member (or editing the docstring) without updating the other
+    fails here, so the advertised contract can never silently drift from the
+    values the graph actually accepts.
+    """
+    from engines.synthesis import NodeType
+
+    fn = _resolve_tool(mcp_module, "cortex_graph_query")
+    advertised = _advertised_node_types(fn.__doc__)
+    real = {member.value for member in NodeType}
+
+    assert advertised, (
+        "cortex_graph_query docstring advertises no node types; expected a "
+        "'Node types: ...' line enumerating the NodeType enum values."
+    )
+    assert advertised == real, (
+        "cortex_graph_query docstring node types drifted from the NodeType enum.\n"
+        f"  advertised but not in enum: {sorted(advertised - real)}\n"
+        f"  in enum but not advertised: {sorted(real - advertised)}"
+    )
+
+
 def test_mcp_module_exposes_at_least_18_tools(mcp_module):
     """Regression guard: future commits may not silently drop tools."""
     tool_count = sum(1 for name, _ in TOOL_INVOCATIONS if getattr(mcp_module, name, None))
