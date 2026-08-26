@@ -11,6 +11,7 @@ Tests all Phase 1 module integrations:
 """
 
 import sys
+import tempfile
 from pathlib import Path
 
 # Add cortex to path
@@ -97,7 +98,11 @@ def test_data_quality_integration():
     """Test data quality integration in feedback logger."""
     from feedback import FeedbackLogger
 
-    logger = FeedbackLogger()
+    # Write to a throwaway store, NOT the production outcomes.jsonl. This test used to
+    # append a `test_integration_001` success on every run, which buried real outcomes
+    # in cortex_outcomes and made the daily/weekly report unusable.
+    tmp = Path(tempfile.mkdtemp()) / "outcomes.jsonl"
+    logger = FeedbackLogger(outcomes_file=tmp)
     assert logger.quality_tracker is not None, "Quality tracker should be initialized"
 
     # Log a test outcome
