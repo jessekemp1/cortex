@@ -58,6 +58,9 @@ class OutcomeEntry:
     context: Optional[Dict[str, Any]] = None  # Additional context (project, goal, etc.)
     domain: Optional[str] = None  # "aidev" | "databricks" | None (legacy)
     source: str = "human"  # "human" (explicit feedback) | "auto" (self-confirmed)
+    project: Optional[str] = None  # DSA account / repo this outcome belongs to
+    # (added 2026-08-28, briefing redesign dec_7422762e0f7b) — enables
+    # per-account slicing of outcomes. None on legacy rows and machine signals.
 
 
 class FeedbackLogger:
@@ -184,6 +187,7 @@ class FeedbackLogger:
         notes: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
         source: str = "human",
+        project: Optional[str] = None,
     ) -> None:
         """
         Log a structured outcome for learning.
@@ -205,6 +209,8 @@ class FeedbackLogger:
         """
         # Auto-detect domain from context, env var, or CWD
         domain = (context or {}).get("domain") or get_domain()
+        # Resolve project: explicit param wins, else fall back to context.
+        project = project or (context or {}).get("project")
 
         entry = OutcomeEntry(
             timestamp=datetime.now().isoformat(),
@@ -219,6 +225,7 @@ class FeedbackLogger:
             context=context,
             domain=domain,
             source=source,
+            project=project,
         )
 
         # Assess quality if quality tracker is available

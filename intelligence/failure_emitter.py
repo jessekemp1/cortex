@@ -330,6 +330,9 @@ def emit(signals: Iterable[FailureSignal], ledger_path: Path = EMITTED_LEDGER) -
                         "observed_at": sig.observed_at,
                     },
                     source="auto",  # machine-derived failure signal
+                    # Machine failure signals are operational telemetry, not DSA
+                    # account work — carry a project only if the signal has one.
+                    project=getattr(sig, "project", None),
                 )
             except Exception as exc:
                 logger.warning("emit failed for %s: %s", rec_id, exc)

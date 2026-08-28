@@ -147,6 +147,7 @@ class UniversalSignalBus:
         Returns at most `limit` results.
         """
         patterns: List[Dict[str, Any]] = []
+        graph = None
 
         try:
             synthesis = self._get_synthesis()
@@ -162,6 +163,22 @@ class UniversalSignalBus:
             logger.warning("cross-project patterns failed: %s", e)
             return patterns
 
+        # Relevance gate (added 2026-08-28, briefing redesign — dec_7422762e0f7b):
+        # for a customer-account (DSA) query, only surface patterns from OTHER
+        # DSA accounts. Cortex-internal dev projects (vortex, dev, alpha_arena,
+        # winfield, ...) must not leak into an account-scoped query — that noise
+        # ("Alpha Arena", "Backend Tests", "Mock patch namespace") made
+        # cross_project_patterns unusable for DSA work. Non-DSA (internal-dev)
+        # active projects keep the prior all-other-projects behavior.
+        DSA_ACCOUNTS = {
+            "interac", "manulife-genie", "manulife", "manulife-lakebase",
+            "manulife-vietnam", "clio", "clio-genie-workshop", "twin",
+        }
+        active_is_dsa = active_project in DSA_ACCOUNTS
+
+        if graph is None:
+            return patterns
+
         try:
             for node in graph.nodes.values():
                 if node.type not in (NodeType.PATTERN, NodeType.LESSON):
@@ -169,6 +186,11 @@ class UniversalSignalBus:
 
                 node_project = node.data.get("project", "")
                 if not node_project or node_project == active_project:
+                    continue
+
+                # DSA account query: restrict cross-project learnings to other
+                # DSA accounts; never surface Cortex-internal dev patterns.
+                if active_is_dsa and node_project not in DSA_ACCOUNTS:
                     continue
 
                 patterns.append(
