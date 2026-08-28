@@ -178,6 +178,47 @@ def test_cross_project_patterns_structure(tmp_bus):
         assert "summary" in p
 
 
+def _seed_pattern(bus, node_id, project):
+    """Add one PATTERN node to the (isolated) synthesis graph for the given project."""
+    from cortex.engines.synthesis import Node, NodeType
+
+    graph = bus._get_synthesis().graph
+    graph.add_node(
+        Node(id=node_id, type=NodeType.PATTERN, name=node_id,
+             data={"project": project, "description": node_id})
+    )
+
+
+def test_cross_project_patterns_dsa_gate_excludes_internal(tmp_bus):
+    """DSA-account query must NOT surface Cortex-internal dev patterns (dec_7422762e0f7b).
+
+    interac (active) is always excluded; clio (other DSA account) is allowed;
+    vortex/dev (Cortex-internal dev) are gated out.
+    """
+    tmp_bus._get_synthesis().graph.nodes.clear()  # isolate from any on-disk graph
+    _seed_pattern(tmp_bus, "p_interac", "interac")
+    _seed_pattern(tmp_bus, "p_clio", "clio")
+    _seed_pattern(tmp_bus, "p_vortex", "vortex")
+    _seed_pattern(tmp_bus, "p_dev", "dev")
+
+    sources = {p["project_source"] for p in tmp_bus.get_cross_project_patterns("interac")}
+    assert "clio" in sources
+    assert "vortex" not in sources
+    assert "dev" not in sources
+    assert "interac" not in sources  # active project always excluded
+
+
+def test_cross_project_patterns_non_dsa_active_keeps_all(tmp_bus):
+    """A non-DSA (internal) active project keeps the prior all-other-projects behavior."""
+    tmp_bus._get_synthesis().graph.nodes.clear()
+    _seed_pattern(tmp_bus, "p_clio", "clio")
+    _seed_pattern(tmp_bus, "p_dev", "dev")
+
+    sources = {p["project_source"] for p in tmp_bus.get_cross_project_patterns("vortex")}
+    assert "clio" in sources  # DSA pattern still allowed for a non-DSA active project
+    assert "dev" in sources   # internal pattern still allowed (prior behavior preserved)
+
+
 # ─── bus_stats ───────────────────────────────────────────────
 
 
