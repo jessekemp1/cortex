@@ -99,6 +99,16 @@ def _bridge_get(path: str, timeout: float = 3.0) -> dict:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        # Bridge is up but returned a non-2xx (e.g. 404 for an unknown id).
+        # HTTPError subclasses URLError, so catch it FIRST — otherwise a live
+        # 404 gets mislabeled "Bridge unavailable" as if the daemon were down.
+        detail = e.reason
+        try:
+            detail = json.loads(e.read()).get("detail", detail)
+        except Exception:
+            pass
+        return {"error": f"Bridge HTTP {e.code}: {detail}", "status": e.code}
     except urllib.error.URLError as e:
         return {"error": f"Bridge unavailable: {e.reason}"}
     except Exception as e:
@@ -117,6 +127,16 @@ def _bridge_post(path: str, payload: dict, timeout: float = 5.0) -> dict:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        # Bridge is up but returned a non-2xx (e.g. 404 for an unknown id).
+        # HTTPError subclasses URLError, so catch it FIRST — otherwise a live
+        # 404 gets mislabeled "Bridge unavailable" as if the daemon were down.
+        detail = e.reason
+        try:
+            detail = json.loads(e.read()).get("detail", detail)
+        except Exception:
+            pass
+        return {"error": f"Bridge HTTP {e.code}: {detail}", "status": e.code}
     except urllib.error.URLError as e:
         return {"error": f"Bridge unavailable: {e.reason}"}
     except Exception as e:
