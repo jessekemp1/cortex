@@ -476,7 +476,7 @@ def cortex_orchestrate(
 def cortex_graph_query(node_type: str = "", query: str = "", limit: int = 10) -> str:
     """Search the Cortex context graph by node type or text query.
 
-    Node types: goal, project, file, pattern, lesson, error, dependency, work_item.
+    Node types: goal, project, file, pattern, lesson, decision, error, dependency, work_item.
     Returns nodes with relationships and metadata.
 
     Args:
