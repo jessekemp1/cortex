@@ -47,7 +47,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 BRIDGE_URL = "http://127.0.0.1:8765"
 METRICS_DIR = Path.home() / ".cortex" / "metrics"
@@ -921,7 +921,7 @@ def main():
         load_env()
     except Exception:
         pass  # env loading must never block the server
-    mcp.run()
+    mcp.run(transport="stdio", show_banner=False)
 
 
 if __name__ == "__main__":

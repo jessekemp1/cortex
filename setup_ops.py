@@ -180,7 +180,7 @@ def mcp_import_ok() -> Dict[str, Any]:
     try:
         import importlib
 
-        importlib.import_module("mcp.server.fastmcp")
+        importlib.import_module("fastmcp")
         importlib.import_module("mcp_server")
         return {"ok": True, "detail": "importable"}
     except Exception as e:  # ImportError or transitive failure
@@ -190,14 +190,14 @@ def mcp_import_ok() -> Dict[str, Any]:
 def server_extra_ok() -> Dict[str, Any]:
     """Are the [server] extra packages importable (fastapi + mcp)?"""
     missing: List[str] = []
-    for pkg in ("fastapi", "mcp"):
+    for pkg in ("fastapi", "fastmcp"):
         try:
             __import__(pkg)
         except Exception:
             missing.append(pkg)
     if missing:
         return {"ok": False, "detail": f"missing: {', '.join(missing)}"}
-    return {"ok": True, "detail": "fastapi, mcp present"}
+    return {"ok": True, "detail": "fastapi, fastmcp present"}
 
 
 # ── hooks installed ────────────────────────────────────────────────────────────

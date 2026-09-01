@@ -174,3 +174,43 @@ def test_doctor_reports_spool_depth(mcp_module, tmp_path):
     assert spool_checks, "doctor must include the decision-spool check"
     assert spool_checks[0]["pass"] is False
     assert "1 pending" in spool_checks[0]["detail"]
+
+
+# ─── fastmcp registration guard (migration off mcp.server.fastmcp, 2026-09) ───
+#
+# Regression guard for dec_50c8cdf084ce: cortex now imports FastMCP from the
+# standalone `fastmcp` package. The golden-five tools and the four resources
+# must still register and be discoverable over the in-process client, or a
+# future fastmcp bump silently drops the Claude Code integration.
+
+GOLDEN_TOOLS = {
+    "cortex_service_health",
+    "cortex_intelligence",
+    "cortex_record_decision",
+    "cortex_outcomes",
+    "cortex_doctor",
+}
+EXPECTED_RESOURCES = {
+    "cortex://goals",
+    "cortex://metrics/tests",
+    "cortex://metrics/emos",
+    "cortex://prompts/patterns",
+}
+
+
+def test_fastmcp_registers_golden_tools_and_resources(mcp_module):
+    import asyncio
+
+    from fastmcp import Client
+
+    async def _collect():
+        async with Client(mcp_module.mcp) as client:
+            tools = {t.name for t in await client.list_tools()}
+            resources = {str(r.uri) for r in await client.list_resources()}
+        return tools, resources
+
+    tool_names, resource_uris = asyncio.run(_collect())
+    assert GOLDEN_TOOLS <= tool_names, f"missing golden tools: {GOLDEN_TOOLS - tool_names}"
+    assert EXPECTED_RESOURCES <= resource_uris, (
+        f"missing resources: {EXPECTED_RESOURCES - resource_uris}"
+    )
