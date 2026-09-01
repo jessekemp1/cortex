@@ -259,10 +259,38 @@ def cortex_recommendations(project: str = "", limit: int = 5) -> str:
 
 
 @_experimental_tool
-def cortex_anomalies() -> str:
-    """Get detected anomalies across all projects with severity and recommendations."""
+def cortex_anomalies(include_fixtures: bool = False) -> str:
+    """Get detected anomalies across all projects with severity and recommendations.
+
+    By default, test/activation fixtures are filtered out. Two of five anomalies
+    served here were `activation_test` and "Test V2 Prime Integration" records
+    from a January activation run — permanent noise that made the surface read as
+    stale the moment anyone looked. Pass include_fixtures=True to see them.
+    """
     result = _bridge_get("/anomalies", timeout=15.0)
+    if not include_fixtures and isinstance(result, dict) and isinstance(result.get("anomalies"), list):
+        kept = [a for a in result["anomalies"] if not _is_fixture_anomaly(a)]
+        filtered = len(result["anomalies"]) - len(kept)
+        result = {**result, "anomalies": kept, "count": len(kept)}
+        if filtered:
+            result["fixtures_filtered"] = filtered
     return json.dumps(result, indent=2)
+
+
+# Markers that identify a test/activation fixture rather than a real anomaly.
+# Matched case-insensitively against an anomaly's type and title. Kept narrow on
+# purpose: a broad "v2 prime" marker would also drop a genuine anomaly about V2
+# Prime. These two strings match the known January fixtures (an activation_test
+# learning insight, a "Test V2 Prime Integration" recommendation) and nothing a
+# real detector emits.
+_FIXTURE_ANOMALY_MARKERS = ("activation_test", "test v2 prime")
+
+
+def _is_fixture_anomaly(anomaly: dict) -> bool:
+    if not isinstance(anomaly, dict):
+        return False
+    haystack = f"{anomaly.get('type', '')} {anomaly.get('title', '')}".lower()
+    return any(marker in haystack for marker in _FIXTURE_ANOMALY_MARKERS)
 
 
 @_experimental_tool
@@ -717,8 +745,43 @@ def cortex_doctor() -> str:
     # Ollama is briefly down.
     checks.extend(_doctor_retrieval_checks())
 
+    # ── Store freshness ─────────────────────────────────────────────────────
+    # project_index.json was read confidently for three months after its last
+    # write because no check asserted a store had a maintainer and a freshness
+    # rule. This is that check: it would have caught the rot in May instead of
+    # August.
+    checks.extend(_doctor_store_freshness_checks())
+
     all_pass = all(c["pass"] for c in checks)
     return json.dumps({"checks": checks, "all_pass": all_pass}, indent=2)
+
+
+def _doctor_store_freshness_checks() -> list:
+    """One check per registered store: has a writer, exists, within its SLA.
+
+    A warning (e.g. a within-SLA store with no scheduler) is surfaced in the
+    detail but does NOT fail the check — only a hard problem does. That keeps
+    the doctor honest in both directions: it does not cry wolf over a risk that
+    has not landed, and it does not stay green once a store actually rots.
+    """
+    try:
+        import store_registry
+    except Exception as e:
+        return [{"check": "store freshness", "pass": False, "detail": f"registry import failed: {e}"}]
+
+    results = []
+    for st in store_registry.evaluate():
+        age = f"{st.age_days:.1f}d" if st.age_days is not None else "absent"
+        if st.problems:
+            detail = "; ".join(st.problems)
+        elif st.warnings:
+            detail = f"{age} — ok, but: " + "; ".join(st.warnings)
+        else:
+            detail = f"{age}, writer={st.store.writer}"
+        results.append(
+            {"check": f"store fresh: {st.store.name}", "pass": st.ok, "detail": detail}
+        )
+    return results
 
 
 def _doctor_retrieval_checks() -> list:

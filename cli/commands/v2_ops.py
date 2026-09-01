@@ -1299,6 +1299,26 @@ def cmd_doctor(args):
     except Exception as e:
         checks.append(("decision spool empty", "fail", str(e)))
 
+    # ── Store freshness ─────────────────────────────────────────────────
+    # A human running `cortex doctor` sees the same store-rot check the MCP
+    # doctor gained. project_index.json rotted 3.5 months unnoticed because no
+    # check asserted a store had a maintainer and a freshness rule.
+    try:
+        import store_registry
+
+        for stt in store_registry.evaluate():
+            age = f"{stt.age_days:.1f}d" if stt.age_days is not None else "absent"
+            if stt.problems:
+                status, detail = "fail", "; ".join(stt.problems)
+            elif stt.warnings:
+                # A real but not-yet-materialised risk: WARN, never FAIL.
+                status, detail = "warn", f"{age} — " + "; ".join(stt.warnings)
+            else:
+                status, detail = "pass", f"{age}, writer={stt.store.writer}"
+            checks.append((f"store fresh: {stt.store.name}", status, detail))
+    except Exception as e:
+        checks.append(("store freshness", "fail", f"registry error: {e}"))
+
     # ── Verdict ─────────────────────────────────────────────────────────
     any_fail = any(status == "fail" for _, status, _ in checks)
 

@@ -665,7 +665,7 @@ class IntelligenceMixin:
                 "id": pid,
                 "title": p.get("title", ""),
                 "type": p.get("type", "decision"),
-                "similarity_score": p.get("score", 0.0),
+                "score": p.get("score", 0.0),
                 "project": p.get("project", project),
                 "summary": p.get("description", p.get("title", "")),
                 "source": "decisions",
@@ -673,6 +673,19 @@ class IntelligenceMixin:
             if len(promoted) >= limit:
                 break
         if promoted:
+            # Report rank + a confidence band and rename the RRF value to
+            # fusion_score. The old bare similarity_score read as a 0-1 cosine
+            # similarity but is a ~0.016-ceiling RRF score; annotate() keeps
+            # similarity_score as a deprecated alias so no caller breaks.
+            try:
+                import recall_confidence
+
+                recall_confidence.annotate(promoted)
+            except Exception:
+                # Never let annotation failure drop recall results: fall back to
+                # the raw score under the legacy key.
+                for it in promoted:
+                    it.setdefault("similarity_score", it.get("score", 0.0))
             result_dict["similar_work"] = promoted
 
     def _populate_categorized_from_graph(
@@ -765,12 +778,11 @@ class IntelligenceMixin:
                 if len(sw_nodes) >= limit:
                     break
             if sw_nodes:
-                result_dict["similar_work"] = [
+                sw_items = [
                     {
                         "id": n.id,
                         "title": n.name,
                         "type": n.type.value,
-                        "similarity_score": 0.5,
                         "project": (n.data or {}).get("project", project),
                         "summary": (n.data or {}).get(
                             "lesson", (n.data or {}).get("content", n.name)
@@ -779,6 +791,16 @@ class IntelligenceMixin:
                     }
                     for n in sw_nodes
                 ]
+                # Graph neighbours are not scored matches. Mark them unranked
+                # rather than fabricating similarity_score: 0.5, which claimed a
+                # measurement that never happened.
+                try:
+                    import recall_confidence
+
+                    recall_confidence.mark_unranked(sw_items, basis="graph-adjacency")
+                except Exception:
+                    pass
+                result_dict["similar_work"] = sw_items
 
 
     def query_intelligence(
@@ -1074,6 +1096,14 @@ class IntelligenceMixin:
                         "spec_name": pattern.title,
                         "title": pattern.title,
                         "description": pattern.description,
+                        # This is an RRF fusion score, not a 0-1 similarity.
+                        # Name it correctly; keep similarity/similarity_score as
+                        # deprecated aliases so existing callers don't break. No
+                        # confidence band here: this result list mixes RRF and
+                        # real cosine-similarity sources, so a band across them
+                        # would compare incomparable numbers.
+                        "fusion_score": score,
+                        "retrieval_basis": "rrf",
                         "similarity": score,
                         "similarity_score": score,
                         "source": "hybrid_retriever",
