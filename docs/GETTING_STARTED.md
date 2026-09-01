@@ -8,7 +8,7 @@ Cortex is persistent memory for LLM agents. Every decision, pattern, and gotcha
 is stored on your machine and surfaced in future sessions, so you stop
 re-explaining context and stop re-hitting the same bugs.
 
-> **Beta status.** This is `v1.2.0-beta.1`, git-clone-only (no published wheel).
+> **Beta status.** This is `v1.2.0-beta.2`, git-clone-only (no published wheel).
 > A few commands below are shipping in a parallel workstream and are marked
 > **(beta, arriving with this release)**. Command names and flags are exact;
 > where you cannot run one yet, the guide says so.
