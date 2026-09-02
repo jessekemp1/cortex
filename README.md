@@ -309,6 +309,7 @@ A foreground `python api/bridge_endpoint.py` is for debugging only.
 | **claude-mem** (34K stars) | Claude Code plugin, auto-capture, citation system | Record/replay memory. No task orchestration, no implicit feedback analysis. |
 | **Supermemory** (17K stars) | #1 LongMemEval, temporal contradiction handling, auto-forget | Sophisticated retrieval. No work discovery, no cost-optimized model routing. |
 | **Windsurf** | Auto-generated memories during conversations | Workspace-isolated. No cross-project transfer, no learning from outcomes. |
+| **omnigent** (Databricks/Neon meta-harness) | Composes & governs multiple agent harnesses (Claude Code, Codex, Pi) under one policy + collaboration layer | Orthogonal control plane, not a memory system: no cross-session memory, no learning from outcomes. Cortex complements it as the memory/learning layer beneath. |
 | **Cortex** | Developer-workflow-specific: goal parsing, model routing, anti-patterns, orchestration | Smaller community. Memory retrieval less benchmarked than Mem0/Supermemory. |
 
 Cortex is optimized for one use case: **a developer or small team using LLM agents across a multi-project portfolio over months or years.** It combines memory + orchestration in a single system. For multi-tenant user memory at scale, use Mem0. For best-in-class retrieval benchmarks, use Supermemory. For persistent developer intelligence with task routing and cost optimization, Cortex is the right tool.
